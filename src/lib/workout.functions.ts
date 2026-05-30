@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   batchUpdateValues,
   findNextEmptyLogRow,
+  findNextEmptySkillRow,
   getValues,
 } from "./sheets.server";
 
@@ -97,6 +98,84 @@ export const addWorkout = createServerFn({ method: "POST" })
         ]],
       },
       { range: `Workout Log!O${row}`, values: [[data.notes]] },
+    ]);
+    return { ok: true, row };
+  });
+
+// ===== Calisthenics / Skills =====
+
+export const getSkillsLibrary = createServerFn({ method: "GET" }).handler(async () => {
+  const rows = await getValues("Skills%20Tracker!B10:C30");
+  const skills = rows
+    .filter((r) => r[0])
+    .map((r) => ({ name: r[0], category: r[1] ?? "" }));
+  return {
+    skills,
+    sessionTypes: ["Skill", "Strength", "Endurance", "Technique", "Project", "Flash"],
+    qualities: ["Poor", "Okay", "Good", "Great"],
+  };
+});
+
+export const getRecentSkills = createServerFn({ method: "GET" }).handler(async () => {
+  const rows = await getValues("Skills%20Tracker!A41:O500");
+  const populated = rows.filter((r) => r[1]);
+  const recent = populated.slice(-15).reverse().map((r) => ({
+    date: r[0] ?? "",
+    skill: r[1] ?? "",
+    category: r[2] ?? "",
+    progression: r[3] ?? "",
+    sessionType: r[4] ?? "",
+    attempts: r[5] ?? "",
+    sets: r[6] ?? "",
+    bestHold: r[7] ?? "",
+    bestReps: r[8] ?? "",
+    assistance: r[9] ?? "",
+    quality: r[10] ?? "",
+    completed: (r[11] ?? "").toString().toUpperCase() === "TRUE",
+    notes: r[14] ?? "",
+  }));
+  return { recent };
+});
+
+const SkillInput = z.object({
+  date: z.string().min(1),
+  skill: z.string().min(1),
+  category: z.string().default(""),
+  progression: z.string().default(""),
+  sessionType: z.string().default(""),
+  attempts: z.string().default(""),
+  sets: z.string().default(""),
+  bestHold: z.string().default(""),
+  bestReps: z.string().default(""),
+  assistance: z.string().default(""),
+  quality: z.string().default(""),
+  completed: z.boolean().default(true),
+  notes: z.string().default(""),
+});
+
+export const addSkillSession = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => SkillInput.parse(d))
+  .handler(async ({ data }) => {
+    const row = await findNextEmptySkillRow();
+    await batchUpdateValues([
+      {
+        range: `Skills Tracker!A${row}:L${row}`,
+        values: [[
+          data.date,
+          data.skill,
+          data.category,
+          data.progression,
+          data.sessionType,
+          data.attempts,
+          data.sets,
+          data.bestHold,
+          data.bestReps,
+          data.assistance,
+          data.quality,
+          data.completed ? "TRUE" : "FALSE",
+        ]],
+      },
+      { range: `Skills Tracker!O${row}`, values: [[data.notes]] },
     ]);
     return { ok: true, row };
   });
