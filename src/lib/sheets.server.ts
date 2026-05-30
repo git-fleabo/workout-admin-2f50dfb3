@@ -39,12 +39,21 @@ export async function batchUpdateValues(
   });
 }
 
-export async function findNextEmptyLogRow(): Promise<number> {
-  // headers row 4, data starts row 5; check column E (Exercise)
-  const rows = await getValues("Workout%20Log!E5:E1000");
+async function findNextEmptyRow(range: string, startRow: number): Promise<number> {
+  const rows = await getValues(range);
   let i = 0;
   while (i < rows.length && rows[i] && rows[i][0] && rows[i][0].toString().trim() !== "") {
     i++;
   }
-  return 5 + i;
+  return startRow + i;
+}
+
+export function findNextEmptyLogRow() {
+  // Workout Log: headers row 4, data starts row 5; check column E (Exercise)
+  return findNextEmptyRow("Workout%20Log!E5:E1000", 5);
+}
+
+export function findNextEmptySkillRow() {
+  // Skill Practice Log: headers row 40, data starts row 41; check column B (Skill)
+  return findNextEmptyRow("Skills%20Tracker!B41:B1000", 41);
 }
