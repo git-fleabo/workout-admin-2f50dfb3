@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   batchUpdateValues,
   findNextEmptyLogRow,
+  findNextEmptySkillRow,
   getValues,
 } from "./sheets.server";
 
