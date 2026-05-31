@@ -30,16 +30,24 @@ function parseDateParts(dateStr: string): { day: number; month: number; year: nu
   return null;
 }
 
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
 export function formatUKDate(dateStr: string): string {
   const d = parseDateParts(dateStr);
   if (!d) return dateStr || "";
-  return `${pad2(d.day)}/${pad2(d.month)}/${d.year}`;
+  return `${pad2(d.day)} ${MONTHS[d.month - 1]} ${d.year}`;
 }
 
 export function formatUKDateShort(dateStr: string): string {
   const d = parseDateParts(dateStr);
   if (!d) return dateStr || "—";
-  return `${pad2(d.day)}/${pad2(d.month)}`;
+  return `${pad2(d.day)} ${MONTHS[d.month - 1]}`;
+}
+
+export function formatUKDateNumeric(dateStr: string): string {
+  const d = parseDateParts(dateStr);
+  if (!d) return dateStr || "";
+  return `${pad2(d.day)}/${pad2(d.month)}/${d.year}`;
 }
 
 export function toISODate(dateStr: string): string {
