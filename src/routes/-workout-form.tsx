@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-import { addWorkout, getLibrary, getRecentLogs } from "@/lib/workout.functions";
+import { addWorkout, getLibrary, getRecentLogs, REST_OPTIONS } from "@/lib/workout.functions";
 import { Field, SimpleSelect, RecentList, type RecentEntry } from "./form-bits";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -28,6 +28,7 @@ type FormState = {
   duration: string;
   intensity: string;
   rpe: string;
+  restTime: string;
   completed: boolean;
   notes: string;
 };
@@ -43,6 +44,7 @@ const blank = (): FormState => ({
   duration: "",
   intensity: "",
   rpe: "",
+  restTime: "",
   completed: true,
   notes: "",
 });
@@ -195,6 +197,14 @@ export function WorkoutForm() {
             <Input inputMode="decimal" value={form.rpe} onChange={(e) => update("rpe", e.target.value)} />
           </Field>
         </div>
+
+        <Field label="Rest between sets">
+          <SimpleSelect
+            value={form.restTime}
+            onChange={(v) => update("restTime", v)}
+            options={REST_OPTIONS}
+          />
+        </Field>
 
         <Field label="Notes">
           <Textarea
