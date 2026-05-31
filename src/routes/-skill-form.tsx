@@ -68,6 +68,27 @@ export function SkillForm() {
 
   const skillNames = (lib.data?.skills ?? []).map((s) => s.name);
 
+  const recentSkillChips = useMemo(() => {
+    const seen = new Set<string>();
+    const chips: string[] = [];
+    for (const r of recent.data?.recent ?? []) {
+      const name = r.skill?.trim();
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      chips.push(name);
+      if (chips.length >= 8) break;
+    }
+    if (chips.length < 8) {
+      for (const n of skillNames) {
+        if (seen.has(n)) continue;
+        seen.add(n);
+        chips.push(n);
+        if (chips.length >= 8) break;
+      }
+    }
+    return chips;
+  }, [recent.data, skillNames]);
+
   const mutate = useMutation({
     mutationFn: () => addFn({ data: form }),
     onSuccess: (res) => {
