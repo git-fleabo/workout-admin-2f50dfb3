@@ -57,3 +57,8 @@ export function findNextEmptyClimbRow() {
   // Climbing Log: headers row 9, data starts row 10; check column A (Date)
   return findNextEmptyRow("Climbing%20Log!A10:A1000", 10);
 }
+
+export function findNextEmptySkillRow() {
+  // Skill Practice Log: headers row 40, data starts row 41; check column B (Skill)
+  return findNextEmptyRow("Skills%20Tracker!B41:B1000", 41);
+}

@@ -4,6 +4,7 @@ import {
   batchUpdateValues,
   findNextEmptyClimbRow,
   findNextEmptyLogRow,
+  findNextEmptySkillRow,
   getValues,
 } from "./sheets.server";
 
