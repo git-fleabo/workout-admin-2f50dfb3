@@ -9,7 +9,16 @@ import {
 } from "./sheets.server";
 
 export const REST_OPTIONS = [
-  "0:30", "1:00", "1:30", "2:00", "2:30", "3:00", "3:30", "4:00", "4:30", "5:00",
+  "0–30s",
+  "30–60s",
+  "60–90s",
+  "90–120s",
+  "120–150s",
+  "150–180s",
+  "180–210s",
+  "210–240s",
+  "240–270s",
+  "270–300s",
 ];
 
 export const getLibrary = createServerFn({ method: "GET" }).handler(async () => {
