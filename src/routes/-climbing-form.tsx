@@ -198,7 +198,25 @@ export function ClimbingForm() {
         </Button>
       </Card>
 
-      <RecentList loading={recent.isLoading} entries={recentEntries} />
+      <RecentList
+        loading={recent.isLoading}
+        entries={recentEntries}
+        onSelect={(i) => {
+          const r = recent.data?.recent[i];
+          if (!r) return;
+          setForm((f) => ({
+            ...f,
+            type: r.type ?? f.type,
+            trackingMode: r.trackingMode ?? f.trackingMode,
+            hours: r.hours ?? f.hours,
+            boulders: r.boulders ?? f.boulders,
+            grade: r.grade ?? f.grade,
+            gradient: r.gradient ?? f.gradient,
+            rpe: r.rpe ?? f.rpe,
+          }));
+          toast.message(`Prefilled from ${r.type || "climb"}`);
+        }}
+      />
     </div>
   );
 }

@@ -174,6 +174,7 @@ export function WorkoutForm() {
               onChange={(e) => update("exercise", e.target.value)}
               placeholder="e.g. Bench Press"
               list="exercise-list"
+              autoCapitalize="words"
             />
             <datalist id="exercise-list">
               {exerciseOptions.map((e) => (
@@ -267,7 +268,27 @@ export function WorkoutForm() {
         </Button>
       </Card>
 
-      <RecentList loading={recent.isLoading} entries={recentEntries} />
+      <RecentList
+        loading={recent.isLoading}
+        entries={recentEntries}
+        onSelect={(i) => {
+          const r = recent.data?.recent[i];
+          if (!r) return;
+          const meta = (lib.data?.exercises ?? []).find((e) => e.name === r.exercise);
+          setForm((f) => ({
+            ...f,
+            exercise: r.exercise ?? f.exercise,
+            workoutType: meta?.workoutType ?? r.workoutType ?? f.workoutType,
+            focusArea: meta?.focusArea ?? f.focusArea,
+            sets: r.sets ?? f.sets,
+            reps: r.reps ?? f.reps,
+            weight: r.weight ?? f.weight,
+            duration: r.duration ?? f.duration,
+            rpe: r.rpe ?? f.rpe,
+          }));
+          toast.message(`Prefilled from ${r.exercise}`);
+        }}
+      />
     </div>
   );
 }

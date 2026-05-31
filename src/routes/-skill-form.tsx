@@ -146,6 +146,7 @@ export function SkillForm() {
               onChange={(e) => update("skill", e.target.value)}
               placeholder="e.g. Front Lever"
               list="skill-list"
+              autoCapitalize="words"
             />
             <datalist id="skill-list">
               {skillNames.map((n) => (
@@ -175,6 +176,7 @@ export function SkillForm() {
               value={form.category}
               onChange={(e) => update("category", e.target.value)}
               placeholder="Calisthenics, Climbing…"
+              autoCapitalize="words"
             />
           </Field>
           <Field label="Session Type">
@@ -257,7 +259,25 @@ export function SkillForm() {
         </Button>
       </Card>
 
-      <RecentList loading={recent.isLoading} entries={recentEntries} />
+      <RecentList
+        loading={recent.isLoading}
+        entries={recentEntries}
+        onSelect={(i) => {
+          const r = recent.data?.recent[i];
+          if (!r) return;
+          setForm((f) => ({
+            ...f,
+            skill: r.skill ?? f.skill,
+            progression: r.progression ?? f.progression,
+            sessionType: r.sessionType ?? f.sessionType,
+            sets: r.sets ?? f.sets,
+            bestHold: r.bestHold ?? f.bestHold,
+            bestReps: r.bestReps ?? f.bestReps,
+            quality: r.quality ?? f.quality,
+          }));
+          toast.message(`Prefilled from ${r.skill}`);
+        }}
+      />
     </div>
   );
 }
