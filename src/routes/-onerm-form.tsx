@@ -20,6 +20,7 @@ import {
   addBodyweight,
   get1RMRecent,
 } from "@/lib/workout.functions";
+import { formatUKDate } from "@/lib/date";
 import { Field, SimpleSelect } from "./-form-bits";
 
 const today = () => new Date().toISOString().slice(0, 10);
