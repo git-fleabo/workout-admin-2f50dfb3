@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Dumbbell, Mountain } from "lucide-react";
+import { Dumbbell, Mountain, Sparkles } from "lucide-react";
 
 import { Toaster } from "@/components/ui/sonner";
 import { WorkoutForm } from "./-workout-form";
@@ -12,14 +12,14 @@ export const Route = createFileRoute("/")({
       { title: "Training Log" },
       {
         name: "description",
-        content: "Mobile-first logger for workouts and climbing sessions, synced to your training spreadsheet.",
+        content: "Mobile-first logger for workouts, calisthenics, and climbing sessions, synced to your training spreadsheet.",
       },
     ],
   }),
   component: Index,
 });
 
-type Mode = "workout" | "climb";
+type Mode = "workout" | "calisthenics" | "climb";
 
 function Index() {
   const [mode, setMode] = useState<Mode>("workout");
@@ -46,7 +46,11 @@ function Index() {
       </header>
 
       <main className="mx-auto max-w-xl px-4 pb-24 pt-6">
-        {mode === "workout" ? <WorkoutForm /> : <ClimbingForm />}
+        {mode === "workout" && <WorkoutForm />}
+        {mode === "calisthenics" && (
+          <WorkoutForm lockedType="Calisthenics" heading="New calisthenics session" />
+        )}
+        {mode === "climb" && <ClimbingForm />}
       </main>
     </div>
   );
@@ -55,10 +59,11 @@ function Index() {
 function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
   const tabs: { id: Mode; label: string; icon: React.ReactNode }[] = [
     { id: "workout", label: "Workout", icon: <Dumbbell className="h-4 w-4" /> },
+    { id: "calisthenics", label: "Calisthenics", icon: <Sparkles className="h-4 w-4" /> },
     { id: "climb", label: "Climbing", icon: <Mountain className="h-4 w-4" /> },
   ];
   return (
-    <div className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-secondary/40 p-1">
+    <div className="grid grid-cols-3 gap-1 rounded-xl border border-border bg-secondary/40 p-1">
       {tabs.map((t) => {
         const active = mode === t.id;
         return (
@@ -66,7 +71,7 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
             key={t.id}
             type="button"
             onClick={() => onChange(t.id)}
-            className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium transition sm:text-sm ${
               active
                 ? "bg-card text-foreground shadow"
                 : "text-muted-foreground hover:text-foreground"
