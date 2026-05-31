@@ -38,6 +38,7 @@ const blank = (): ClimbState => ({
   hours: "",
   boulders: "",
   grade: "",
+  gradient: "",
   intensity: "",
   rpe: "",
   completed: true,
