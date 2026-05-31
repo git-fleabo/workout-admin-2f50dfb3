@@ -49,7 +49,7 @@ const blank = (): FormState => ({
   notes: "",
 });
 
-export function WorkoutForm({ lockedType, heading }: { lockedType?: string; heading?: string } = {}) {
+export function WorkoutForm() {
   const qc = useQueryClient();
   const libFn = useServerFn(getLibrary);
   const recentFn = useServerFn(getRecentLogs);
@@ -58,30 +58,28 @@ export function WorkoutForm({ lockedType, heading }: { lockedType?: string; head
   const lib = useQuery({ queryKey: ["library"], queryFn: () => libFn() });
   const recent = useQuery({ queryKey: ["recent-workouts"], queryFn: () => recentFn() });
 
-  const [form, setForm] = useState<FormState>(() => ({ ...blank(), workoutType: lockedType ?? "" }));
+  const [form, setForm] = useState<FormState>(blank);
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
-  const effectiveType = lockedType ?? form.workoutType;
-
   const exerciseOptions = useMemo(() => {
     const ex = lib.data?.exercises ?? [];
-    if (!effectiveType && !form.focusArea) return ex;
+    if (!form.workoutType && !form.focusArea) return ex;
     return ex.filter(
       (e) =>
-        (!effectiveType || e.workoutType === effectiveType) &&
+        (!form.workoutType || e.workoutType === form.workoutType) &&
         (!form.focusArea || e.focusArea === form.focusArea),
     );
-  }, [lib.data, effectiveType, form.focusArea]);
+  }, [lib.data, form.workoutType, form.focusArea]);
 
   const mutate = useMutation({
-    mutationFn: () => addFn({ data: { ...form, workoutType: effectiveType } }),
+    mutationFn: () => addFn({ data: form }),
     onSuccess: (res) => {
       toast.success(`Logged to row ${res.row}`);
       setForm((f) => ({
         ...blank(),
         date: f.date,
-        workoutType: lockedType ?? f.workoutType,
+        workoutType: f.workoutType,
         focusArea: f.focusArea,
       }));
       qc.invalidateQueries({ queryKey: ["recent-workouts"] });
@@ -91,12 +89,8 @@ export function WorkoutForm({ lockedType, heading }: { lockedType?: string; head
 
   const canSubmit = form.date && form.exercise && !mutate.isPending;
 
-  const filteredRecent = lockedType
-    ? recent.data?.recent.filter((r) => r.workoutType === lockedType)
-    : recent.data?.recent;
-
   const recentEntries: RecentEntry[] =
-    filteredRecent?.map((r) => ({
+    recent.data?.recent.map((r) => ({
       date: r.date,
       title: r.exercise,
       meta:
@@ -115,18 +109,24 @@ export function WorkoutForm({ lockedType, heading }: { lockedType?: string; head
     <div className="space-y-6">
       <Card className="space-y-5 border-border bg-card p-5">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">{heading ?? "New workout"}</h2>
+          <h2 className="text-base font-semibold">New workout</h2>
           <Badge variant="outline" className="gap-1 border-border text-muted-foreground">
             <Calendar className="h-3 w-3" /> {form.date}
           </Badge>
         </div>
 
-
         <Field label="Date">
           <Input type="date" value={form.date} onChange={(e) => update("date", e.target.value)} />
         </Field>
 
-        {lockedType ? (
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Type">
+            <SimpleSelect
+              value={form.workoutType}
+              onChange={(v) => update("workoutType", v)}
+              options={lib.data?.workoutTypes ?? []}
+            />
+          </Field>
           <Field label="Focus">
             <SimpleSelect
               value={form.focusArea}
@@ -134,24 +134,7 @@ export function WorkoutForm({ lockedType, heading }: { lockedType?: string; head
               options={lib.data?.focusAreas ?? []}
             />
           </Field>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Type">
-              <SimpleSelect
-                value={form.workoutType}
-                onChange={(v) => update("workoutType", v)}
-                options={lib.data?.workoutTypes ?? []}
-              />
-            </Field>
-            <Field label="Focus">
-              <SimpleSelect
-                value={form.focusArea}
-                onChange={(v) => update("focusArea", v)}
-                options={lib.data?.focusAreas ?? []}
-              />
-            </Field>
-          </div>
-        )}
+        </div>
 
         <Field label="Exercise">
           <div className="space-y-2">
