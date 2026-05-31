@@ -27,6 +27,20 @@ function parseDateParts(dateStr: string): { day: number; month: number; year: nu
     return { day, month, year };
   }
 
+  // DD MMM YYYY or DD Month YYYY (UK display format)
+  const dmyText = dateStr.trim().match(/^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{2,4})$/);
+  if (dmyText) {
+    let year = parseInt(dmyText[3]);
+    const monthName = dmyText[2].slice(0, 3).toLowerCase();
+    const month = MONTHS.findIndex((m) => m.toLowerCase() === monthName) + 1;
+    const day = parseInt(dmyText[1]);
+    if (year < 100) year += 2000;
+    if (month < 1 || day < 1 || day > 31) return null;
+    const r = new Date(Date.UTC(year, month - 1, day));
+    if (r.getUTCDate() !== day || r.getUTCMonth() !== month - 1) return null;
+    return { day, month, year };
+  }
+
   return null;
 }
 
