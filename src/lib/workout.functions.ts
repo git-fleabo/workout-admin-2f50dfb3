@@ -7,6 +7,7 @@ import {
   findNextEmptySkillRow,
   getValues,
 } from "./sheets.server";
+import { appSecretAuth } from "./auth-middleware";
 
 export const REST_OPTIONS = [
   "0–30s",
