@@ -1,25 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Dumbbell, Sparkles } from "lucide-react";
+import { Dumbbell, Mountain } from "lucide-react";
 
 import { Toaster } from "@/components/ui/sonner";
 import { WorkoutForm } from "./-workout-form";
-import { SkillForm } from "./-skill-form";
+import { ClimbingForm } from "./-climbing-form";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Workout Logger" },
+      { title: "Training Log" },
       {
         name: "description",
-        content: "Mobile-first logger for strength workouts and calisthenics skill sessions, synced to your training spreadsheet.",
+        content: "Mobile-first logger for workouts and climbing sessions, synced to your training spreadsheet.",
       },
     ],
   }),
   component: Index,
 });
 
-type Mode = "workout" | "skill";
+type Mode = "workout" | "climb";
 
 function Index() {
   const [mode, setMode] = useState<Mode>("workout");
@@ -46,7 +46,7 @@ function Index() {
       </header>
 
       <main className="mx-auto max-w-xl px-4 pb-24 pt-6">
-        {mode === "workout" ? <WorkoutForm /> : <SkillForm />}
+        {mode === "workout" ? <WorkoutForm /> : <ClimbingForm />}
       </main>
     </div>
   );
@@ -55,7 +55,7 @@ function Index() {
 function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
   const tabs: { id: Mode; label: string; icon: React.ReactNode }[] = [
     { id: "workout", label: "Workout", icon: <Dumbbell className="h-4 w-4" /> },
-    { id: "skill", label: "Calisthenics", icon: <Sparkles className="h-4 w-4" /> },
+    { id: "climb", label: "Climbing", icon: <Mountain className="h-4 w-4" /> },
   ];
   return (
     <div className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-secondary/40 p-1">
