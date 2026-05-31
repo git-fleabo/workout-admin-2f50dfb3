@@ -79,6 +79,7 @@ export function ClimbingForm() {
           r.hours && `${r.hours}h`,
           r.boulders && `${r.boulders} boulders`,
           r.grade,
+          r.gradient,
           r.rpe && `RPE ${r.rpe}`,
         ]
           .filter(Boolean)
