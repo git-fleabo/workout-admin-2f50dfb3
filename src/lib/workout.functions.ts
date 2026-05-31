@@ -22,6 +22,9 @@ export const REST_OPTIONS = [
   "270–300s",
 ];
 
+export const BOARD_GRADIENTS = ["0°", "15°", "30°", "45°", "60°"];
+
+
 export const getLibrary = createServerFn({ method: "GET" }).middleware([appSecretAuth]).handler(async () => {
   const [libRaw, settingsRaw] = await Promise.all([
     getValues("Exercise%20Library!A5:H200"),
