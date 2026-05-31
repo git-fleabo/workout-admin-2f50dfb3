@@ -151,9 +151,9 @@ export function SkillForm() {
                 <option key={n} value={n} />
               ))}
             </datalist>
-            {skillNames.length > 0 && (
+            {recentSkillChips.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
-                {skillNames.slice(0, 8).map((n) => (
+                {recentSkillChips.map((n) => (
                   <button
                     key={n}
                     type="button"
