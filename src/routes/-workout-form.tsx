@@ -13,10 +13,10 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 import { addWorkout, getLibrary, getRecentLogs, REST_OPTIONS } from "@/lib/workout.functions";
-import { formatUKDate } from "@/lib/date";
-import { Field, SimpleSelect, RecentList, type RecentEntry } from "./-form-bits";
+import { formatUKDate, todayISO } from "@/lib/date";
+import { DateInput, Field, SimpleSelect, RecentList, type RecentEntry } from "./-form-bits";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = todayISO;
 
 type FormState = {
   date: string;
@@ -147,7 +147,7 @@ export function WorkoutForm() {
         </div>
 
         <Field label="Date">
-          <Input type="date" value={form.date} onChange={(e) => update("date", e.target.value)} />
+          <DateInput value={form.date} onChange={(v) => update("date", v)} />
         </Field>
 
         <div className="grid grid-cols-2 gap-3">

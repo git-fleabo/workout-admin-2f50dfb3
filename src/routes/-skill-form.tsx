@@ -17,10 +17,10 @@ import {
   getRecentSkills,
   getSkillsLibrary,
 } from "@/lib/workout.functions";
-import { formatUKDate } from "@/lib/date";
-import { Field, SimpleSelect, RecentList, type RecentEntry } from "./-form-bits";
+import { formatUKDate, todayISO } from "@/lib/date";
+import { DateInput, Field, SimpleSelect, RecentList, type RecentEntry } from "./-form-bits";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = todayISO;
 
 type SkillState = {
   date: string;
@@ -136,7 +136,7 @@ export function SkillForm() {
         </div>
 
         <Field label="Date">
-          <Input type="date" value={form.date} onChange={(e) => update("date", e.target.value)} />
+          <DateInput value={form.date} onChange={(v) => update("date", v)} />
         </Field>
 
         <Field label="Skill">

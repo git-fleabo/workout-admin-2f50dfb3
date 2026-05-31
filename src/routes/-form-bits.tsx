@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { History } from "lucide-react";
-import { formatUKDateShort } from "@/lib/date";
+import { formatUKDate, formatUKDateShort, toISODate } from "@/lib/date";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -25,6 +27,35 @@ export function Field({ label, children }: { label: string; children: React.Reac
       </Label>
       {children}
     </div>
+  );
+}
+
+export function DateInput({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [text, setText] = useState(() => formatUKDate(value));
+
+  useEffect(() => {
+    setText(formatUKDate(value));
+  }, [value]);
+
+  return (
+    <Input
+      inputMode="numeric"
+      value={text}
+      onChange={(e) => {
+        const next = e.target.value;
+        setText(next);
+        const iso = toISODate(next);
+        if (iso) onChange(iso);
+      }}
+      onBlur={() => setText(formatUKDate(value))}
+      placeholder="DD/MM/YYYY"
+    />
   );
 }
 
