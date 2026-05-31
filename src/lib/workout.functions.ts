@@ -220,19 +220,19 @@ export const getRecentSkills = createServerFn({ method: "GET" }).handler(async (
 });
 
 const SkillInput = z.object({
-  date: z.string().min(1),
-  skill: z.string().min(1),
-  category: z.string().default(""),
-  progression: z.string().default(""),
-  sessionType: z.string().default(""),
-  attempts: z.string().default(""),
-  sets: z.string().default(""),
-  bestHold: z.string().default(""),
-  bestReps: z.string().default(""),
-  assistance: z.string().default(""),
-  quality: z.string().default(""),
+  date: z.string().min(1).max(40),
+  skill: z.string().min(1).max(200),
+  category: shortText(100),
+  progression: shortText(200),
+  sessionType: shortText(60),
+  attempts: shortText(20),
+  sets: shortText(20),
+  bestHold: shortText(20),
+  bestReps: shortText(20),
+  assistance: shortText(100),
+  quality: shortText(40),
   completed: z.boolean().default(true),
-  notes: z.string().default(""),
+  notes: longText(2000),
 });
 
 export const addSkillSession = createServerFn({ method: "POST" })
