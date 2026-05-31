@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import {
   batchUpdateValues,
+  findNextEmpty1RMRow,
+  findNextEmptyBodyweightRow,
   findNextEmptyClimbRow,
   findNextEmptyLogRow,
   findNextEmptySkillRow,
