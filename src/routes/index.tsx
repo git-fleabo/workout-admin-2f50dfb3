@@ -22,7 +22,7 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Mode = "workout" | "skill" | "climb";
+type Mode = "workout" | "skill" | "climb" | "onerm";
 
 function Index() {
   const [mode, setMode] = useState<Mode>("workout");
