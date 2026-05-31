@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Dumbbell, Mountain, Sparkles } from "lucide-react";
+import { Dumbbell, Mountain, Sparkles, Trophy } from "lucide-react";
 
 import { Toaster } from "@/components/ui/sonner";
 import { PasswordGate } from "@/components/password-gate";
 import { WorkoutForm } from "./-workout-form";
 import { SkillForm } from "./-skill-form";
 import { ClimbingForm } from "./-climbing-form";
+import { OneRMForm } from "./-onerm-form";
 
 export const Route = createFileRoute("/")({
   head: () => ({
