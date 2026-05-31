@@ -64,3 +64,13 @@ export function findNextEmptySkillRow() {
   // Skill Practice Log: headers row 40, data starts row 41; check column B (Skill)
   return findNextEmptyRow("Skills%20Tracker!B41:B1000", 41);
 }
+
+export function findNextEmpty1RMRow() {
+  // 1RM Test Log: headers row 69, data starts row 70; check column D (Exercise)
+  return findNextEmptyRow("1RM%20Tracker!D70:D1000", 70);
+}
+
+export function findNextEmptyBodyweightRow() {
+  // Bodyweight Log: headers row 6, data starts row 7; check column J (Date)
+  return findNextEmptyRow("1RM%20Tracker!J7:J200", 7);
+}
