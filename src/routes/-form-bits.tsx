@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { History } from "lucide-react";
-import { formatUKDate, formatUKDateShort, toISODate } from "@/lib/date";
+import { formatUKDate, formatUKDateShort, formatUKDateNumeric, toISODate } from "@/lib/date";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
