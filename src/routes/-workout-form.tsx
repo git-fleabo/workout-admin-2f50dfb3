@@ -72,6 +72,36 @@ export function WorkoutForm() {
     );
   }, [lib.data, form.workoutType, form.focusArea]);
 
+  const recentExerciseChips = useMemo(() => {
+    const ex = lib.data?.exercises ?? [];
+    const byName = new Map(ex.map((e) => [e.name, e]));
+    const seen = new Set<string>();
+    const chips: { name: string; workoutType: string; focusArea: string }[] = [];
+    for (const r of recent.data?.recent ?? []) {
+      const name = r.exercise?.trim();
+      if (!name || seen.has(name)) continue;
+      const meta = byName.get(name);
+      if (form.workoutType && meta && meta.workoutType !== form.workoutType) continue;
+      if (form.focusArea && meta && meta.focusArea !== form.focusArea) continue;
+      seen.add(name);
+      chips.push({
+        name,
+        workoutType: meta?.workoutType ?? r.workoutType ?? "",
+        focusArea: meta?.focusArea ?? "",
+      });
+      if (chips.length >= 6) break;
+    }
+    if (chips.length < 6) {
+      for (const e of exerciseOptions) {
+        if (seen.has(e.name)) continue;
+        seen.add(e.name);
+        chips.push(e);
+        if (chips.length >= 6) break;
+      }
+    }
+    return chips;
+  }, [recent.data, lib.data, exerciseOptions, form.workoutType, form.focusArea]);
+
   const mutate = useMutation({
     mutationFn: () => addFn({ data: form }),
     onSuccess: (res) => {
@@ -149,16 +179,16 @@ export function WorkoutForm() {
                 <option key={e.name} value={e.name} />
               ))}
             </datalist>
-            {exerciseOptions.length > 0 && (
+            {recentExerciseChips.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
-                {exerciseOptions.slice(0, 6).map((e) => (
+                {recentExerciseChips.map((e) => (
                   <button
                     key={e.name}
                     type="button"
                     onClick={() => {
                       update("exercise", e.name);
-                      if (!form.workoutType) update("workoutType", e.workoutType);
-                      if (!form.focusArea) update("focusArea", e.focusArea);
+                      if (!form.workoutType && e.workoutType) update("workoutType", e.workoutType);
+                      if (!form.focusArea && e.focusArea) update("focusArea", e.focusArea);
                     }}
                     className="rounded-full border border-border bg-secondary px-2.5 py-1 text-xs text-secondary-foreground transition hover:border-primary hover:text-primary"
                   >

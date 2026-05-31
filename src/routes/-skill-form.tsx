@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -68,6 +68,27 @@ export function SkillForm() {
 
   const skillNames = (lib.data?.skills ?? []).map((s) => s.name);
 
+  const recentSkillChips = useMemo(() => {
+    const seen = new Set<string>();
+    const chips: string[] = [];
+    for (const r of recent.data?.recent ?? []) {
+      const name = r.skill?.trim();
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      chips.push(name);
+      if (chips.length >= 8) break;
+    }
+    if (chips.length < 8) {
+      for (const n of skillNames) {
+        if (seen.has(n)) continue;
+        seen.add(n);
+        chips.push(n);
+        if (chips.length >= 8) break;
+      }
+    }
+    return chips;
+  }, [recent.data, skillNames]);
+
   const mutate = useMutation({
     mutationFn: () => addFn({ data: form }),
     onSuccess: (res) => {
@@ -130,9 +151,9 @@ export function SkillForm() {
                 <option key={n} value={n} />
               ))}
             </datalist>
-            {skillNames.length > 0 && (
+            {recentSkillChips.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
-                {skillNames.slice(0, 8).map((n) => (
+                {recentSkillChips.map((n) => (
                   <button
                     key={n}
                     type="button"
