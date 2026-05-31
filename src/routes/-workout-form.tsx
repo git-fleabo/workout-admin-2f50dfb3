@@ -179,16 +179,16 @@ export function WorkoutForm() {
                 <option key={e.name} value={e.name} />
               ))}
             </datalist>
-            {exerciseOptions.length > 0 && (
+            {recentExerciseChips.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
-                {exerciseOptions.slice(0, 6).map((e) => (
+                {recentExerciseChips.map((e) => (
                   <button
                     key={e.name}
                     type="button"
                     onClick={() => {
                       update("exercise", e.name);
-                      if (!form.workoutType) update("workoutType", e.workoutType);
-                      if (!form.focusArea) update("focusArea", e.focusArea);
+                      if (!form.workoutType && e.workoutType) update("workoutType", e.workoutType);
+                      if (!form.focusArea && e.focusArea) update("focusArea", e.focusArea);
                     }}
                     className="rounded-full border border-border bg-secondary px-2.5 py-1 text-xs text-secondary-foreground transition hover:border-primary hover:text-primary"
                   >
