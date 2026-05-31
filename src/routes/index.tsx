@@ -4,6 +4,7 @@ import { Dumbbell, Mountain, Sparkles } from "lucide-react";
 
 import { Toaster } from "@/components/ui/sonner";
 import { WorkoutForm } from "./-workout-form";
+import { SkillForm } from "./-skill-form";
 import { ClimbingForm } from "./-climbing-form";
 
 export const Route = createFileRoute("/")({
@@ -19,7 +20,7 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Mode = "workout" | "calisthenics" | "climb";
+type Mode = "workout" | "skill" | "climb";
 
 function Index() {
   const [mode, setMode] = useState<Mode>("workout");
@@ -47,9 +48,7 @@ function Index() {
 
       <main className="mx-auto max-w-xl px-4 pb-24 pt-6">
         {mode === "workout" && <WorkoutForm />}
-        {mode === "calisthenics" && (
-          <WorkoutForm lockedType="Calisthenics" heading="New calisthenics session" />
-        )}
+        {mode === "skill" && <SkillForm />}
         {mode === "climb" && <ClimbingForm />}
       </main>
     </div>
@@ -59,7 +58,7 @@ function Index() {
 function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
   const tabs: { id: Mode; label: string; icon: React.ReactNode }[] = [
     { id: "workout", label: "Workout", icon: <Dumbbell className="h-4 w-4" /> },
-    { id: "calisthenics", label: "Calisthenics", icon: <Sparkles className="h-4 w-4" /> },
+    { id: "skill", label: "Calisthenics", icon: <Sparkles className="h-4 w-4" /> },
     { id: "climb", label: "Climbing", icon: <Mountain className="h-4 w-4" /> },
   ];
   return (
