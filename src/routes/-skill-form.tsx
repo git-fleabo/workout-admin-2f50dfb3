@@ -146,6 +146,7 @@ export function SkillForm() {
               onChange={(e) => update("skill", e.target.value)}
               placeholder="e.g. Front Lever"
               list="skill-list"
+              autoCapitalize="words"
             />
             <datalist id="skill-list">
               {skillNames.map((n) => (
@@ -175,6 +176,7 @@ export function SkillForm() {
               value={form.category}
               onChange={(e) => update("category", e.target.value)}
               placeholder="Calisthenics, Climbing…"
+              autoCapitalize="words"
             />
           </Field>
           <Field label="Session Type">
