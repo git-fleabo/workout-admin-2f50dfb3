@@ -13,7 +13,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 import { addClimb, getLibrary, getRecentClimbs } from "@/lib/workout.functions";
-import { Field, SimpleSelect, RecentList, type RecentEntry } from "./form-bits";
+import { Field, SimpleSelect, RecentList, type RecentEntry } from "./-form-bits";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
