@@ -72,6 +72,36 @@ export function WorkoutForm() {
     );
   }, [lib.data, form.workoutType, form.focusArea]);
 
+  const recentExerciseChips = useMemo(() => {
+    const ex = lib.data?.exercises ?? [];
+    const byName = new Map(ex.map((e) => [e.name, e]));
+    const seen = new Set<string>();
+    const chips: { name: string; workoutType: string; focusArea: string }[] = [];
+    for (const r of recent.data?.recent ?? []) {
+      const name = r.exercise?.trim();
+      if (!name || seen.has(name)) continue;
+      const meta = byName.get(name);
+      if (form.workoutType && meta && meta.workoutType !== form.workoutType) continue;
+      if (form.focusArea && meta && meta.focusArea !== form.focusArea) continue;
+      seen.add(name);
+      chips.push({
+        name,
+        workoutType: meta?.workoutType ?? r.workoutType ?? "",
+        focusArea: meta?.focusArea ?? "",
+      });
+      if (chips.length >= 6) break;
+    }
+    if (chips.length < 6) {
+      for (const e of exerciseOptions) {
+        if (seen.has(e.name)) continue;
+        seen.add(e.name);
+        chips.push(e);
+        if (chips.length >= 6) break;
+      }
+    }
+    return chips;
+  }, [recent.data, lib.data, exerciseOptions, form.workoutType, form.focusArea]);
+
   const mutate = useMutation({
     mutationFn: () => addFn({ data: form }),
     onSuccess: (res) => {
