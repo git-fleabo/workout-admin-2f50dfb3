@@ -37,10 +37,10 @@ export function DateInput({
   value: string;
   onChange: (v: string) => void;
 }) {
-  const [text, setText] = useState(() => formatUKDate(value));
+  const [text, setText] = useState(() => formatUKDateNumeric(value));
 
   useEffect(() => {
-    setText(formatUKDate(value));
+    setText(formatUKDateNumeric(value));
   }, [value]);
 
   return (
@@ -53,7 +53,7 @@ export function DateInput({
         const iso = toISODate(next);
         if (iso) onChange(iso);
       }}
-      onBlur={() => setText(formatUKDate(value))}
+      onBlur={() => setText(formatUKDateNumeric(value))}
       placeholder="DD/MM/YYYY"
     />
   );
