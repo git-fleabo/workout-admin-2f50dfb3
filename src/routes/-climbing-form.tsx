@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-import { addClimb, getLibrary, getRecentClimbs } from "@/lib/workout.functions";
+import { addClimb, getLibrary, getRecentClimbs, BOARD_GRADIENTS } from "@/lib/workout.functions";
 import { Field, SimpleSelect, RecentList, type RecentEntry } from "./-form-bits";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -24,6 +24,7 @@ type ClimbState = {
   hours: string;
   boulders: string;
   grade: string;
+  gradient: string;
   intensity: string;
   rpe: string;
   completed: boolean;
@@ -37,6 +38,7 @@ const blank = (): ClimbState => ({
   hours: "",
   boulders: "",
   grade: "",
+  gradient: "",
   intensity: "",
   rpe: "",
   completed: true,
@@ -77,6 +79,7 @@ export function ClimbingForm() {
           r.hours && `${r.hours}h`,
           r.boulders && `${r.boulders} boulders`,
           r.grade,
+          r.gradient,
           r.rpe && `RPE ${r.rpe}`,
         ]
           .filter(Boolean)
@@ -133,7 +136,7 @@ export function ClimbingForm() {
           </Field>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <Field label="Grade">
             <Input
               value={form.grade}
@@ -141,6 +144,17 @@ export function ClimbingForm() {
               placeholder="V4, 6a…"
             />
           </Field>
+          <Field label="Board gradient">
+            <SimpleSelect
+              value={form.gradient}
+              onChange={(v) => update("gradient", v)}
+              options={BOARD_GRADIENTS}
+            />
+          </Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+
           <Field label="Intensity">
             <SimpleSelect
               value={form.intensity}
