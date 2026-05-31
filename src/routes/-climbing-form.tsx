@@ -135,7 +135,7 @@ export function ClimbingForm() {
           </Field>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <Field label="Grade">
             <Input
               value={form.grade}
@@ -143,6 +143,17 @@ export function ClimbingForm() {
               placeholder="V4, 6a…"
             />
           </Field>
+          <Field label="Board gradient">
+            <SimpleSelect
+              value={form.gradient}
+              onChange={(v) => update("gradient", v)}
+              options={BOARD_GRADIENTS}
+            />
+          </Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+
           <Field label="Intensity">
             <SimpleSelect
               value={form.intensity}
