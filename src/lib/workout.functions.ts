@@ -133,7 +133,7 @@ export const addWorkout = createServerFn({ method: "POST" }).middleware([appSecr
 // ===== Climbing =====
 
 export const getRecentClimbs = createServerFn({ method: "GET" }).middleware([appSecretAuth]).handler(async () => {
-  const rows = await getValues("Climbing%20Log!A10:K1000");
+  const rows = await getValues("Climbing%20Log!A10:L1000");
   const populated = rows.filter((r) => r[0]);
   const recent = populated.slice(-15).reverse().map((r) => ({
     date: r[0] ?? "",
@@ -142,10 +142,11 @@ export const getRecentClimbs = createServerFn({ method: "GET" }).middleware([app
     hours: r[4] ?? "",
     boulders: r[5] ?? "",
     grade: r[6] ?? "",
-    intensity: r[7] ?? "",
-    rpe: r[8] ?? "",
-    completed: (r[9] ?? "").toString().toUpperCase() === "TRUE",
-    notes: r[10] ?? "",
+    gradient: r[7] ?? "",
+    intensity: r[8] ?? "",
+    rpe: r[9] ?? "",
+    completed: (r[10] ?? "").toString().toUpperCase() === "TRUE",
+    notes: r[11] ?? "",
   }));
   return { recent };
 });
@@ -157,6 +158,7 @@ const ClimbInput = z.object({
   hours: shortText(20),
   boulders: shortText(40),
   grade: shortText(40),
+  gradient: shortText(20),
   intensity: shortText(60),
   rpe: shortText(20),
   completed: z.boolean().default(true),
@@ -167,17 +169,18 @@ export const addClimb = createServerFn({ method: "POST" }).middleware([appSecret
   .inputValidator((d: unknown) => ClimbInput.parse(d))
   .handler(async ({ data }) => {
     const row = await findNextEmptyClimbRow();
-    // Skip B (Day), L (Week Start), M (Month) — formulas. Write A, C:K.
+    // Skip B (Day), M (Week Start), N (Month) — formulas. Write A, C:L.
     await batchUpdateValues([
       { range: `Climbing Log!A${row}`, values: [[data.date]] },
       {
-        range: `Climbing Log!C${row}:K${row}`,
+        range: `Climbing Log!C${row}:L${row}`,
         values: [[
           data.type,
           data.trackingMode,
           data.hours,
           data.boulders,
           data.grade,
+          data.gradient,
           data.intensity,
           data.rpe,
           data.completed ? "TRUE" : "FALSE",
@@ -187,6 +190,7 @@ export const addClimb = createServerFn({ method: "POST" }).middleware([appSecret
     ]);
     return { ok: true, row };
   });
+
 
 // ===== Calisthenics / Skills =====
 
