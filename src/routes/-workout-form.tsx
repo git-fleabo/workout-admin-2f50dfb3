@@ -174,6 +174,7 @@ export function WorkoutForm() {
               onChange={(e) => update("exercise", e.target.value)}
               placeholder="e.g. Bench Press"
               list="exercise-list"
+              autoCapitalize="words"
             />
             <datalist id="exercise-list">
               {exerciseOptions.map((e) => (
