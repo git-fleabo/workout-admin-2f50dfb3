@@ -126,14 +126,7 @@ export function WorkoutForm({ lockedType, heading }: { lockedType?: string; head
           <Input type="date" value={form.date} onChange={(e) => update("date", e.target.value)} />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Type">
-            <SimpleSelect
-              value={form.workoutType}
-              onChange={(v) => update("workoutType", v)}
-              options={lib.data?.workoutTypes ?? []}
-            />
-          </Field>
+        {lockedType ? (
           <Field label="Focus">
             <SimpleSelect
               value={form.focusArea}
@@ -141,7 +134,24 @@ export function WorkoutForm({ lockedType, heading }: { lockedType?: string; head
               options={lib.data?.focusAreas ?? []}
             />
           </Field>
-        </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Type">
+              <SimpleSelect
+                value={form.workoutType}
+                onChange={(v) => update("workoutType", v)}
+                options={lib.data?.workoutTypes ?? []}
+              />
+            </Field>
+            <Field label="Focus">
+              <SimpleSelect
+                value={form.focusArea}
+                onChange={(v) => update("focusArea", v)}
+                options={lib.data?.focusAreas ?? []}
+              />
+            </Field>
+          </div>
+        )}
 
         <Field label="Exercise">
           <div className="space-y-2">
