@@ -271,3 +271,117 @@ export const addSkillSession = createServerFn({ method: "POST" }).middleware([ap
     ]);
     return { ok: true, row };
   });
+
+// ===== 1RM =====
+
+export const ONE_RM_EXERCISES = [
+  "Back Squat",
+  "Bench Press",
+  "Deadlift",
+  "Overhead Press",
+  "Barbell Row",
+  "Weighted Pull-Up",
+  "Weighted Chin-Up",
+  "Weighted Dip",
+  "Push-Up",
+  "Bulgarian Split Squat",
+  "Hip Thrust",
+  "Other",
+];
+
+export const ONE_RM_TYPES = ["External Load", "Weighted Bodyweight"];
+export const ONE_RM_SOURCES = ["Test", "Workout", "Estimate"];
+export const ONE_RM_FORMULAS = ["Brzycki", "Epley"];
+
+export const get1RMRecent = createServerFn({ method: "GET" })
+  .middleware([appSecretAuth])
+  .handler(async () => {
+    const [tests, bw] = await Promise.all([
+      getValues("1RM%20Tracker!A70:R200"),
+      getValues("1RM%20Tracker!J7:L60"),
+    ]);
+    const recent = tests
+      .filter((r) => r[3])
+      .slice(-15)
+      .reverse()
+      .map((r) => ({
+        date: r[0] ?? "",
+        source: r[2] ?? "",
+        exercise: r[3] ?? "",
+        type: r[4] ?? "",
+        externalWeight: r[8] ?? "",
+        reps: r[9] ?? "",
+        rpe: r[10] ?? "",
+        estTotal: r[13] ?? "",
+        estExternal: r[14] ?? "",
+        pr: (r[15] ?? "").toString().includes("PR"),
+      }));
+    const bodyweight = bw
+      .filter((r) => r[0])
+      .slice(-10)
+      .reverse()
+      .map((r) => ({ date: r[0] ?? "", bodyweight: r[1] ?? "", notes: r[2] ?? "" }));
+    const latestBodyweight = bodyweight[0]?.bodyweight ?? "";
+    return { recent, bodyweight, latestBodyweight };
+  });
+
+const OneRMInput = z.object({
+  date: z.string().min(1).max(40),
+  source: shortText(60),
+  exercise: z.string().min(1).max(200),
+  type: shortText(60),
+  bodyweightUsed: z.boolean().default(false),
+  bwContribution: shortText(20), // e.g. "100%" or 1 / 0.65
+  externalWeight: shortText(40),
+  reps: shortText(20),
+  rpe: shortText(20),
+  formula: shortText(20), // Brzycki | Epley
+});
+
+export const add1RMTest = createServerFn({ method: "POST" })
+  .middleware([appSecretAuth])
+  .inputValidator((d: unknown) => OneRMInput.parse(d))
+  .handler(async ({ data }) => {
+    const row = await findNextEmpty1RMRow();
+    // Skip B (Week Start), H (Latest Bodyweight), L? L=Formula is user input.
+    // Skip M..R (formulas).
+    // Write A; C:G; I:L individually.
+    await batchUpdateValues([
+      { range: `1RM Tracker!A${row}`, values: [[data.date]] },
+      {
+        range: `1RM Tracker!C${row}:G${row}`,
+        values: [[
+          data.source,
+          data.exercise,
+          data.type,
+          data.bodyweightUsed ? "TRUE" : "FALSE",
+          data.bwContribution,
+        ]],
+      },
+      {
+        range: `1RM Tracker!I${row}:L${row}`,
+        values: [[data.externalWeight, data.reps, data.rpe, data.formula]],
+      },
+    ]);
+    return { ok: true, row };
+  });
+
+const BodyweightInput = z.object({
+  date: z.string().min(1).max(40),
+  bodyweight: z.string().min(1).max(20),
+  notes: longText(500),
+});
+
+export const addBodyweight = createServerFn({ method: "POST" })
+  .middleware([appSecretAuth])
+  .inputValidator((d: unknown) => BodyweightInput.parse(d))
+  .handler(async ({ data }) => {
+    const row = await findNextEmptyBodyweightRow();
+    await batchUpdateValues([
+      {
+        range: `1RM Tracker!J${row}:L${row}`,
+        values: [[data.date, data.bodyweight, data.notes]],
+      },
+    ]);
+    return { ok: true, row };
+  });
