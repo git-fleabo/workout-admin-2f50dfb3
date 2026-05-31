@@ -53,6 +53,7 @@ function Index() {
           {mode === "workout" && <WorkoutForm />}
           {mode === "skill" && <SkillForm />}
           {mode === "climb" && <ClimbingForm />}
+          {mode === "onerm" && <OneRMForm />}
         </main>
       </div>
     </PasswordGate>
