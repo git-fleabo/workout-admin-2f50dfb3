@@ -92,9 +92,11 @@ export function SimpleSelect({
 export function RecentList({
   loading,
   entries,
+  onSelect,
 }: {
   loading: boolean;
   entries: RecentEntry[];
+  onSelect?: (index: number) => void;
 }) {
   return (
     <section className="space-y-3">
@@ -103,28 +105,53 @@ export function RecentList({
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Recent
         </h2>
+        {onSelect && (
+          <span className="ml-auto text-[10px] uppercase tracking-wider text-muted-foreground">
+            tap to re-log
+          </span>
+        )}
       </div>
       {loading && <Card className="p-4 text-sm text-muted-foreground">Loading…</Card>}
       {!loading && entries.length === 0 && (
         <Card className="p-4 text-sm text-muted-foreground">No entries yet.</Card>
       )}
       <div className="space-y-2">
-        {entries.map((r, i) => (
-          <Card key={i} className="flex items-start gap-3 border-border bg-card p-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs font-mono text-muted-foreground">
-              {formatUKDateShort(r.date)}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <p className="truncate font-medium">{r.title}</p>
-                {r.completed && (
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                )}
+        {entries.map((r, i) => {
+          const inner = (
+            <>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs font-mono text-muted-foreground">
+                {formatUKDateShort(r.date)}
               </div>
-              <p className="truncate text-xs text-muted-foreground">{r.meta}</p>
-            </div>
-          </Card>
-        ))}
+              <div className="min-w-0 flex-1 text-left">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate font-medium">{r.title}</p>
+                  {r.completed && (
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                  )}
+                </div>
+                <p className="truncate text-xs text-muted-foreground">{r.meta}</p>
+              </div>
+            </>
+          );
+          if (onSelect) {
+            return (
+              <Card key={i} className="border-border bg-card p-0">
+                <button
+                  type="button"
+                  onClick={() => onSelect(i)}
+                  className="flex w-full items-start gap-3 rounded-xl p-3 text-left transition hover:border-primary/40 hover:bg-secondary/40"
+                >
+                  {inner}
+                </button>
+              </Card>
+            );
+          }
+          return (
+            <Card key={i} className="flex items-start gap-3 border-border bg-card p-3">
+              {inner}
+            </Card>
+          );
+        })}
       </div>
     </section>
   );
