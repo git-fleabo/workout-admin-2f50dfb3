@@ -141,7 +141,7 @@ export function WorkoutForm() {
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold">New workout</h2>
           <Badge variant="outline" className="gap-1 border-border text-muted-foreground">
-            <Calendar className="h-3 w-3" /> {form.date}
+            <Calendar className="h-3 w-3" /> {formatUKDate(form.date)}
           </Badge>
         </div>
 
