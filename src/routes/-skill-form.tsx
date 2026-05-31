@@ -259,7 +259,25 @@ export function SkillForm() {
         </Button>
       </Card>
 
-      <RecentList loading={recent.isLoading} entries={recentEntries} />
+      <RecentList
+        loading={recent.isLoading}
+        entries={recentEntries}
+        onSelect={(i) => {
+          const r = recent.data?.recent[i];
+          if (!r) return;
+          setForm((f) => ({
+            ...f,
+            skill: r.skill ?? f.skill,
+            progression: r.progression ?? f.progression,
+            sessionType: r.sessionType ?? f.sessionType,
+            sets: r.sets ?? f.sets,
+            bestHold: r.bestHold ?? f.bestHold,
+            bestReps: r.bestReps ?? f.bestReps,
+            quality: r.quality ?? f.quality,
+          }));
+          toast.message(`Prefilled from ${r.skill}`);
+        }}
+      />
     </div>
   );
 }
