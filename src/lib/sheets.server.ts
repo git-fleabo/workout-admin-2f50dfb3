@@ -36,7 +36,8 @@ export async function batchUpdateValues(
 ) {
   return gw(`/values:batchUpdate`, {
     method: "POST",
-    body: JSON.stringify({ valueInputOption: "USER_ENTERED", data }),
+    // RAW prevents formula injection (e.g. =IMPORTDATA) from user-supplied text.
+    body: JSON.stringify({ valueInputOption: "RAW", data }),
   });
 }
 
