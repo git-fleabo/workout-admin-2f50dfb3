@@ -24,6 +24,7 @@ type ClimbState = {
   hours: string;
   boulders: string;
   grade: string;
+  gradient: string;
   intensity: string;
   rpe: string;
   completed: boolean;
