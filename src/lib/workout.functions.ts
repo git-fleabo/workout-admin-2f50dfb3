@@ -147,16 +147,16 @@ export const getRecentClimbs = createServerFn({ method: "GET" }).handler(async (
 });
 
 const ClimbInput = z.object({
-  date: z.string().min(1),
-  type: z.string().default(""),
-  trackingMode: z.string().default(""),
-  hours: z.string().default(""),
-  boulders: z.string().default(""),
-  grade: z.string().default(""),
-  intensity: z.string().default(""),
-  rpe: z.string().default(""),
+  date: z.string().min(1).max(40),
+  type: shortText(100),
+  trackingMode: shortText(100),
+  hours: shortText(20),
+  boulders: shortText(40),
+  grade: shortText(40),
+  intensity: shortText(60),
+  rpe: shortText(20),
   completed: z.boolean().default(true),
-  notes: z.string().default(""),
+  notes: longText(2000),
 });
 
 export const addClimb = createServerFn({ method: "POST" })
