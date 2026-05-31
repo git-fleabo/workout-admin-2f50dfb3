@@ -78,20 +78,23 @@ export const getRecentLogs = createServerFn({ method: "GET" }).handler(async () 
   return { recent };
 });
 
+const shortText = (max = 200) => z.string().max(max).default("");
+const longText = (max = 2000) => z.string().max(max).default("");
+
 const WorkoutInput = z.object({
-  date: z.string().min(1),
-  workoutType: z.string().default(""),
-  focusArea: z.string().default(""),
-  exercise: z.string().min(1),
-  sets: z.string().default(""),
-  reps: z.string().default(""),
-  weight: z.string().default(""),
-  duration: z.string().default(""),
-  intensity: z.string().default(""),
-  rpe: z.string().default(""),
-  restTime: z.string().default(""),
+  date: z.string().min(1).max(40),
+  workoutType: shortText(100),
+  focusArea: shortText(100),
+  exercise: z.string().min(1).max(200),
+  sets: shortText(20),
+  reps: shortText(40),
+  weight: shortText(40),
+  duration: shortText(20),
+  intensity: shortText(60),
+  rpe: shortText(20),
+  restTime: shortText(40),
   completed: z.boolean().default(true),
-  notes: z.string().default(""),
+  notes: longText(2000),
 });
 
 export const addWorkout = createServerFn({ method: "POST" })
@@ -144,16 +147,16 @@ export const getRecentClimbs = createServerFn({ method: "GET" }).handler(async (
 });
 
 const ClimbInput = z.object({
-  date: z.string().min(1),
-  type: z.string().default(""),
-  trackingMode: z.string().default(""),
-  hours: z.string().default(""),
-  boulders: z.string().default(""),
-  grade: z.string().default(""),
-  intensity: z.string().default(""),
-  rpe: z.string().default(""),
+  date: z.string().min(1).max(40),
+  type: shortText(100),
+  trackingMode: shortText(100),
+  hours: shortText(20),
+  boulders: shortText(40),
+  grade: shortText(40),
+  intensity: shortText(60),
+  rpe: shortText(20),
   completed: z.boolean().default(true),
-  notes: z.string().default(""),
+  notes: longText(2000),
 });
 
 export const addClimb = createServerFn({ method: "POST" })
@@ -217,19 +220,19 @@ export const getRecentSkills = createServerFn({ method: "GET" }).handler(async (
 });
 
 const SkillInput = z.object({
-  date: z.string().min(1),
-  skill: z.string().min(1),
-  category: z.string().default(""),
-  progression: z.string().default(""),
-  sessionType: z.string().default(""),
-  attempts: z.string().default(""),
-  sets: z.string().default(""),
-  bestHold: z.string().default(""),
-  bestReps: z.string().default(""),
-  assistance: z.string().default(""),
-  quality: z.string().default(""),
+  date: z.string().min(1).max(40),
+  skill: z.string().min(1).max(200),
+  category: shortText(100),
+  progression: shortText(200),
+  sessionType: shortText(60),
+  attempts: shortText(20),
+  sets: shortText(20),
+  bestHold: shortText(20),
+  bestReps: shortText(20),
+  assistance: shortText(100),
+  quality: shortText(40),
   completed: z.boolean().default(true),
-  notes: z.string().default(""),
+  notes: longText(2000),
 });
 
 export const addSkillSession = createServerFn({ method: "POST" })

@@ -20,7 +20,8 @@ async function gw(path: string, init?: RequestInit) {
   });
   if (!res.ok) {
     const t = await res.text();
-    throw new Error(`Sheets API ${res.status}: ${t}`);
+    console.error("Sheets API error", res.status, t);
+    throw new Error("Failed to reach the spreadsheet. Please try again.");
   }
   return res.json();
 }
