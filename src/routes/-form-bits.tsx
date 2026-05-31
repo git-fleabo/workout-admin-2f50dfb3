@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { History } from "lucide-react";
-import { formatUKDate, formatUKDateShort, toISODate } from "@/lib/date";
+import { formatUKDate, formatUKDateShort, formatUKDateNumeric, toISODate } from "@/lib/date";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,10 +37,10 @@ export function DateInput({
   value: string;
   onChange: (v: string) => void;
 }) {
-  const [text, setText] = useState(() => formatUKDate(value));
+  const [text, setText] = useState(() => formatUKDateNumeric(value));
 
   useEffect(() => {
-    setText(formatUKDate(value));
+    setText(formatUKDateNumeric(value));
   }, [value]);
 
   return (
@@ -53,7 +53,7 @@ export function DateInput({
         const iso = toISODate(next);
         if (iso) onChange(iso);
       }}
-      onBlur={() => setText(formatUKDate(value))}
+      onBlur={() => setText(formatUKDateNumeric(value))}
       placeholder="DD/MM/YYYY"
     />
   );
