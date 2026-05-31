@@ -17,6 +17,7 @@ import {
   getRecentSkills,
   getSkillsLibrary,
 } from "@/lib/workout.functions";
+import { formatUKDate } from "@/lib/date";
 import { Field, SimpleSelect, RecentList, type RecentEntry } from "./-form-bits";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -130,7 +131,7 @@ export function SkillForm() {
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold">New skill session</h2>
           <Badge variant="outline" className="gap-1 border-border text-muted-foreground">
-            <Calendar className="h-3 w-3" /> {form.date}
+            <Calendar className="h-3 w-3" /> {formatUKDate(form.date)}
           </Badge>
         </div>
 

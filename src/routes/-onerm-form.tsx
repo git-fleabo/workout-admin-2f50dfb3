@@ -20,6 +20,7 @@ import {
   addBodyweight,
   get1RMRecent,
 } from "@/lib/workout.functions";
+import { formatUKDate, formatUKDateShort } from "@/lib/date";
 import { Field, SimpleSelect } from "./-form-bits";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -107,7 +108,7 @@ export function OneRMForm() {
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold">New 1RM test</h2>
           <Badge variant="outline" className="gap-1 border-border text-muted-foreground">
-            <Calendar className="h-3 w-3" /> {form.date}
+            <Calendar className="h-3 w-3" /> {formatUKDate(form.date)}
           </Badge>
         </div>
 
@@ -268,7 +269,7 @@ export function OneRMForm() {
           {recent.data?.recent.map((r, i) => (
             <Card key={i} className="flex items-start gap-3 border-border bg-card p-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs font-mono text-muted-foreground">
-                {r.date?.slice(5) || "—"}
+                {formatUKDateShort(r.date)}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">

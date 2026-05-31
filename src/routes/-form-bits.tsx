@@ -1,4 +1,5 @@
 import { History } from "lucide-react";
+import { formatUKDateShort } from "@/lib/date";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
@@ -81,7 +82,7 @@ export function RecentList({
         {entries.map((r, i) => (
           <Card key={i} className="flex items-start gap-3 border-border bg-card p-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs font-mono text-muted-foreground">
-              {r.date?.slice(5) || "—"}
+              {formatUKDateShort(r.date)}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
