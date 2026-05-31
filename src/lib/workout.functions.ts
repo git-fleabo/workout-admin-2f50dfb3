@@ -22,7 +22,7 @@ export const REST_OPTIONS = [
   "270–300s",
 ];
 
-export const getLibrary = createServerFn({ method: "GET" }).handler(async () => {
+export const getLibrary = createServerFn({ method: "GET" }).middleware([appSecretAuth]).handler(async () => {
   const [libRaw, settingsRaw] = await Promise.all([
     getValues("Exercise%20Library!A5:H200"),
     getValues("Settings!A14:F40"),
@@ -58,7 +58,7 @@ export const getLibrary = createServerFn({ method: "GET" }).handler(async () => 
   return { exercises, workoutTypes, focusAreas, intensities, climbingTypes, trackingModes };
 });
 
-export const getRecentLogs = createServerFn({ method: "GET" }).handler(async () => {
+export const getRecentLogs = createServerFn({ method: "GET" }).middleware([appSecretAuth]).handler(async () => {
   const rows = await getValues("Workout%20Log!A5:P1000");
   const populated = rows.filter((r) => r[4]); // Exercise col
   const recent = populated.slice(-15).reverse().map((r) => ({
@@ -98,7 +98,7 @@ const WorkoutInput = z.object({
   notes: longText(2000),
 });
 
-export const addWorkout = createServerFn({ method: "POST" })
+export const addWorkout = createServerFn({ method: "POST" }).middleware([appSecretAuth])
   .inputValidator((d: unknown) => WorkoutInput.parse(d))
   .handler(async ({ data }) => {
     const row = await findNextEmptyLogRow();
@@ -129,7 +129,7 @@ export const addWorkout = createServerFn({ method: "POST" })
 
 // ===== Climbing =====
 
-export const getRecentClimbs = createServerFn({ method: "GET" }).handler(async () => {
+export const getRecentClimbs = createServerFn({ method: "GET" }).middleware([appSecretAuth]).handler(async () => {
   const rows = await getValues("Climbing%20Log!A10:K1000");
   const populated = rows.filter((r) => r[0]);
   const recent = populated.slice(-15).reverse().map((r) => ({
@@ -160,7 +160,7 @@ const ClimbInput = z.object({
   notes: longText(2000),
 });
 
-export const addClimb = createServerFn({ method: "POST" })
+export const addClimb = createServerFn({ method: "POST" }).middleware([appSecretAuth])
   .inputValidator((d: unknown) => ClimbInput.parse(d))
   .handler(async ({ data }) => {
     const row = await findNextEmptyClimbRow();
@@ -187,7 +187,7 @@ export const addClimb = createServerFn({ method: "POST" })
 
 // ===== Calisthenics / Skills =====
 
-export const getSkillsLibrary = createServerFn({ method: "GET" }).handler(async () => {
+export const getSkillsLibrary = createServerFn({ method: "GET" }).middleware([appSecretAuth]).handler(async () => {
   const rows = await getValues("Skills%20Tracker!B10:C30");
   const skills = rows
     .filter((r) => r[0])
@@ -199,7 +199,7 @@ export const getSkillsLibrary = createServerFn({ method: "GET" }).handler(async 
   };
 });
 
-export const getRecentSkills = createServerFn({ method: "GET" }).handler(async () => {
+export const getRecentSkills = createServerFn({ method: "GET" }).middleware([appSecretAuth]).handler(async () => {
   const rows = await getValues("Skills%20Tracker!A41:O500");
   const populated = rows.filter((r) => r[1]);
   const recent = populated.slice(-15).reverse().map((r) => ({
@@ -236,7 +236,7 @@ const SkillInput = z.object({
   notes: longText(2000),
 });
 
-export const addSkillSession = createServerFn({ method: "POST" })
+export const addSkillSession = createServerFn({ method: "POST" }).middleware([appSecretAuth])
   .inputValidator((d: unknown) => SkillInput.parse(d))
   .handler(async ({ data }) => {
     const row = await findNextEmptySkillRow();
