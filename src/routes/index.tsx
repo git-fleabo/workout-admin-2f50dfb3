@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Dumbbell, Mountain, Sparkles } from "lucide-react";
 
 import { Toaster } from "@/components/ui/sonner";
+import { PasswordGate } from "@/components/password-gate";
 import { WorkoutForm } from "./-workout-form";
 import { SkillForm } from "./-skill-form";
 import { ClimbingForm } from "./-climbing-form";
@@ -26,32 +27,34 @@ function Index() {
   const [mode, setMode] = useState<Mode>("workout");
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <Toaster richColors position="top-center" />
-      <header className="sticky top-0 z-10 border-b border-border bg-background/85 backdrop-blur">
-        <div className="mx-auto flex max-w-xl items-center gap-3 px-4 py-4">
-          <div
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-primary-foreground"
-            style={{ backgroundImage: "var(--gradient-primary)" }}
-          >
-            <Dumbbell className="h-5 w-5" />
+    <PasswordGate>
+      <div className="min-h-screen bg-background text-foreground">
+        <Toaster richColors position="top-center" />
+        <header className="sticky top-0 z-10 border-b border-border bg-background/85 backdrop-blur">
+          <div className="mx-auto flex max-w-xl items-center gap-3 px-4 py-4">
+            <div
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-primary-foreground"
+              style={{ backgroundImage: "var(--gradient-primary)" }}
+            >
+              <Dumbbell className="h-5 w-5" />
+            </div>
+            <div className="flex-1">
+              <h1 className="text-lg font-semibold leading-none">Training Log</h1>
+              <p className="text-xs text-muted-foreground">Streaming to your sheet</p>
+            </div>
           </div>
-          <div className="flex-1">
-            <h1 className="text-lg font-semibold leading-none">Training Log</h1>
-            <p className="text-xs text-muted-foreground">Streaming to your sheet</p>
+          <div className="mx-auto max-w-xl px-4 pb-3">
+            <ModeSwitch mode={mode} onChange={setMode} />
           </div>
-        </div>
-        <div className="mx-auto max-w-xl px-4 pb-3">
-          <ModeSwitch mode={mode} onChange={setMode} />
-        </div>
-      </header>
+        </header>
 
-      <main className="mx-auto max-w-xl px-4 pb-24 pt-6">
-        {mode === "workout" && <WorkoutForm />}
-        {mode === "skill" && <SkillForm />}
-        {mode === "climb" && <ClimbingForm />}
-      </main>
-    </div>
+        <main className="mx-auto max-w-xl px-4 pb-24 pt-6">
+          {mode === "workout" && <WorkoutForm />}
+          {mode === "skill" && <SkillForm />}
+          {mode === "climb" && <ClimbingForm />}
+        </main>
+      </div>
+    </PasswordGate>
   );
 }
 
