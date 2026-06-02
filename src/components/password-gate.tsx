@@ -42,8 +42,7 @@ export function PasswordGate({ children }: { children: ReactNode }) {
     onError: () => setError("Couldn't verify right now. Try again."),
   });
 
-  if (!hydrated) return null;
-  if (unlocked) return <>{children}</>;
+  if (hydrated && unlocked) return <>{children}</>;
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
