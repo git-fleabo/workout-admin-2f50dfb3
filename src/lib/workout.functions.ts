@@ -370,7 +370,7 @@ export const add1RMTest = createServerFn({ method: "POST" })
       },
       {
         range: `1RM Tracker!I${row}:L${row}`,
-        values: [[data.externalWeight, data.reps, data.rpe, data.formula]],
+        values: [[num(data.externalWeight), num(data.reps), num(data.rpe), data.formula]],
       },
     ]);
     return { ok: true, row };
