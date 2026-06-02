@@ -87,6 +87,16 @@ export const getRecentLogs = createServerFn({ method: "GET" }).middleware([appSe
 const shortText = (max = 200) => z.string().max(max).default("");
 const longText = (max = 2000) => z.string().max(max).default("");
 
+// Coerce numeric strings to numbers so Sheets stores them as numbers (not text)
+// under RAW valueInputOption. Returns "" for empty / non-numeric input.
+const num = (v: string | undefined | null): number | "" => {
+  if (v == null) return "";
+  const t = v.toString().trim();
+  if (!t) return "";
+  const n = Number(t);
+  return Number.isFinite(n) ? n : "";
+};
+
 const WorkoutInput = z.object({
   date: z.string().min(1).max(40),
   workoutType: shortText(100),
