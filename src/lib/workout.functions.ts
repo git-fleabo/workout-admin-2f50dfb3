@@ -87,6 +87,16 @@ export const getRecentLogs = createServerFn({ method: "GET" }).middleware([appSe
 const shortText = (max = 200) => z.string().max(max).default("");
 const longText = (max = 2000) => z.string().max(max).default("");
 
+// Coerce numeric strings to numbers so Sheets stores them as numbers (not text)
+// under RAW valueInputOption. Returns "" for empty / non-numeric input.
+const num = (v: string | undefined | null): number | "" => {
+  if (v == null) return "";
+  const t = v.toString().trim();
+  if (!t) return "";
+  const n = Number(t);
+  return Number.isFinite(n) ? n : "";
+};
+
 const WorkoutInput = z.object({
   date: z.string().min(1).max(40),
   workoutType: shortText(100),
@@ -117,12 +127,12 @@ export const addWorkout = createServerFn({ method: "POST" }).middleware([appSecr
           data.workoutType,
           data.focusArea,
           data.exercise,
-          data.sets,
-          data.reps,
-          data.weight,
-          data.duration,
+          num(data.sets),
+          num(data.reps),
+          num(data.weight),
+          num(data.duration),
           data.intensity,
-          data.rpe,
+          num(data.rpe),
           data.restTime,
           data.completed ? "TRUE" : "FALSE",
         ]],
@@ -179,12 +189,12 @@ export const addClimb = createServerFn({ method: "POST" }).middleware([appSecret
         values: [[
           data.type,
           data.trackingMode,
-          data.hours,
-          data.boulders,
+          num(data.hours),
+          num(data.boulders),
           data.grade,
           data.gradient,
           data.intensity,
-          data.rpe,
+          num(data.rpe),
           data.completed ? "TRUE" : "FALSE",
           data.notes,
         ]],
@@ -258,10 +268,10 @@ export const addSkillSession = createServerFn({ method: "POST" }).middleware([ap
           data.category,
           data.progression,
           data.sessionType,
-          data.attempts,
-          data.sets,
-          data.bestHold,
-          data.bestReps,
+          num(data.attempts),
+          num(data.sets),
+          num(data.bestHold),
+          num(data.bestReps),
           data.assistance,
           data.quality,
           data.completed ? "TRUE" : "FALSE",
@@ -360,7 +370,7 @@ export const add1RMTest = createServerFn({ method: "POST" })
       },
       {
         range: `1RM Tracker!I${row}:L${row}`,
-        values: [[data.externalWeight, data.reps, data.rpe, data.formula]],
+        values: [[num(data.externalWeight), num(data.reps), num(data.rpe), data.formula]],
       },
     ]);
     return { ok: true, row };
@@ -380,7 +390,7 @@ export const addBodyweight = createServerFn({ method: "POST" })
     await batchUpdateValues([
       {
         range: `1RM Tracker!J${row}:L${row}`,
-        values: [[data.date, data.bodyweight, data.notes]],
+        values: [[data.date, num(data.bodyweight), data.notes]],
       },
     ]);
     return { ok: true, row };
