@@ -390,7 +390,7 @@ export const addBodyweight = createServerFn({ method: "POST" })
     await batchUpdateValues([
       {
         range: `1RM Tracker!J${row}:L${row}`,
-        values: [[data.date, data.bodyweight, data.notes]],
+        values: [[data.date, num(data.bodyweight), data.notes]],
       },
     ]);
     return { ok: true, row };
