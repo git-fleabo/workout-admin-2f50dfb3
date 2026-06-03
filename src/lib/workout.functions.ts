@@ -10,6 +10,7 @@ import {
   getValues,
 } from "./sheets.server";
 import { appSecretAuth } from "./auth-middleware";
+import { toSheetsSerial } from "./date";
 
 export const REST_OPTIONS = [
   "0–30s",
@@ -120,7 +121,7 @@ export const addWorkout = createServerFn({ method: "POST" }).middleware([appSecr
     // Skip B (Day), N (Consistency Credit), O (Volume), Q (Week Start), R (Month) — all formulas.
     // Write A, C:M, P.
     await batchUpdateValues([
-      { range: `Workout Log!A${row}`, values: [[data.date]] },
+      { range: `Workout Log!A${row}`, values: [[toSheetsSerial(data.date)]] },
       {
         range: `Workout Log!C${row}:M${row}`,
         values: [[
@@ -183,7 +184,7 @@ export const addClimb = createServerFn({ method: "POST" }).middleware([appSecret
     const row = await findNextEmptyClimbRow();
     // Skip B (Day), M (Week Start), N (Month) — formulas. Write A, C:L.
     await batchUpdateValues([
-      { range: `Climbing Log!A${row}`, values: [[data.date]] },
+      { range: `Climbing Log!A${row}`, values: [[toSheetsSerial(data.date)]] },
       {
         range: `Climbing Log!C${row}:L${row}`,
         values: [[
@@ -263,7 +264,7 @@ export const addSkillSession = createServerFn({ method: "POST" }).middleware([ap
       {
         range: `Skills Tracker!A${row}:L${row}`,
         values: [[
-          data.date,
+          toSheetsSerial(data.date),
           data.skill,
           data.category,
           data.progression,
@@ -357,7 +358,7 @@ export const add1RMTest = createServerFn({ method: "POST" })
     // Skip M..R (formulas).
     // Write A; C:G; I:L individually.
     await batchUpdateValues([
-      { range: `1RM Tracker!A${row}`, values: [[data.date]] },
+      { range: `1RM Tracker!A${row}`, values: [[toSheetsSerial(data.date)]] },
       {
         range: `1RM Tracker!C${row}:G${row}`,
         values: [[
@@ -390,7 +391,7 @@ export const addBodyweight = createServerFn({ method: "POST" })
     await batchUpdateValues([
       {
         range: `1RM Tracker!J${row}:L${row}`,
-        values: [[data.date, num(data.bodyweight), data.notes]],
+        values: [[toSheetsSerial(data.date), num(data.bodyweight), data.notes]],
       },
     ]);
     return { ok: true, row };
