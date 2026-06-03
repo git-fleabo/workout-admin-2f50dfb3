@@ -63,12 +63,12 @@ function Index() {
 }
 
 function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
-  const tabs: { id: Mode; label: string; icon: React.ReactNode }[] = [
-    { id: "workout", label: "Workout", icon: <Dumbbell className="h-4 w-4" /> },
-    { id: "skill", label: "Skills", icon: <Sparkles className="h-4 w-4" /> },
-    { id: "climb", label: "Climb", icon: <Mountain className="h-4 w-4" /> },
-    { id: "onerm", label: "1RM", icon: <Trophy className="h-4 w-4" /> },
-    { id: "prs", label: "PRs", icon: <Award className="h-4 w-4" /> },
+  const tabs: { id: Mode; label: string; icon: React.ReactNode; color: string }[] = [
+    { id: "workout", label: "Workout", icon: <Dumbbell className="h-4 w-4" />, color: "oklch(0.72 0.14 220)" },
+    { id: "skill", label: "Skills", icon: <Sparkles className="h-4 w-4" />, color: "oklch(0.78 0.14 80)" },
+    { id: "climb", label: "Climb", icon: <Mountain className="h-4 w-4" />, color: "oklch(0.75 0.14 150)" },
+    { id: "onerm", label: "1RM", icon: <Trophy className="h-4 w-4" />, color: "oklch(0.72 0.14 25)" },
+    { id: "prs", label: "PRs", icon: <Award className="h-4 w-4" />, color: "oklch(0.72 0.14 300)" },
   ];
   return (
     <div className="grid grid-cols-5 gap-1 rounded-xl border border-border bg-secondary/40 p-1">
@@ -86,8 +86,8 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
             }`}
             style={
               active
-                ? { boxShadow: "0 0 0 1px var(--color-border)" }
-                : undefined
+                ? { boxShadow: "0 0 0 1px var(--color-border)", color: t.color }
+                : { color: t.color, opacity: 0.55 }
             }
           >
             {t.icon}
