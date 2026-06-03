@@ -98,5 +98,3 @@ function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }
     </div>
   );
 }
-
-void Award;
