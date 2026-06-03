@@ -74,3 +74,15 @@ export function todayISO(): string {
   const now = new Date();
   return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
 }
+
+// Convert a date string to a Google Sheets serial number (days since 1899-12-30).
+// Sheets stores dates internally as numbers; sending a number with RAW
+// avoids the "text with leading apostrophe" problem while still blocking
+// formula injection. Returns "" when the input is not a valid date.
+export function toSheetsSerial(dateStr: string): number | "" {
+  const d = parseDateParts(dateStr);
+  if (!d) return "";
+  const utc = Date.UTC(d.year, d.month - 1, d.day);
+  const epoch = Date.UTC(1899, 11, 30);
+  return Math.round((utc - epoch) / 86400000);
+}
