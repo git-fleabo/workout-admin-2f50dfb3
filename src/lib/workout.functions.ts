@@ -396,3 +396,118 @@ export const addBodyweight = createServerFn({ method: "POST" })
     ]);
     return { ok: true, row };
   });
+
+// ===== PRs =====
+
+export type OneRMPR = {
+  exercise: string;
+  date: string;
+  type: string;
+  externalWeight: string;
+  reps: string;
+  estTotal: string;
+  estExternal: string;
+};
+
+export type SkillPR = {
+  skill: string;
+  progression: string;
+  metric: "hold" | "reps";
+  value: number;
+  unit: string;
+  date: string;
+};
+
+const toNum = (v: unknown): number => {
+  if (v == null) return NaN;
+  const t = v.toString().trim();
+  if (!t) return NaN;
+  // strip non-numeric units (e.g. "12s", "30kg")
+  const m = t.match(/-?\d+(?:\.\d+)?/);
+  return m ? Number(m[0]) : NaN;
+};
+
+export const getPRs = createServerFn({ method: "GET" })
+  .middleware([appSecretAuth])
+  .handler(async () => {
+    const [tests, skills] = await Promise.all([
+      getValues("1RM%20Tracker!A70:R200"),
+      getValues("Skills%20Tracker!A41:O500"),
+    ]);
+
+    // 1RM PRs: rows flagged as PR in column P (index 15). Keep latest per exercise.
+    const oneRmAll: OneRMPR[] = tests
+      .filter((r) => r[3] && (r[15] ?? "").toString().includes("PR"))
+      .map((r) => ({
+        exercise: r[3] ?? "",
+        date: r[0] ?? "",
+        type: r[4] ?? "",
+        externalWeight: r[8] ?? "",
+        reps: r[9] ?? "",
+        estTotal: r[13] ?? "",
+        estExternal: r[14] ?? "",
+      }));
+    const oneRmByEx = new Map<string, OneRMPR>();
+    for (const pr of oneRmAll) {
+      const cur = oneRmByEx.get(pr.exercise);
+      const curBest = toNum(cur?.estTotal);
+      const newBest = toNum(pr.estTotal);
+      if (!cur || (Number.isFinite(newBest) && (!Number.isFinite(curBest) || newBest > curBest))) {
+        oneRmByEx.set(pr.exercise, pr);
+      }
+    }
+    const oneRm = Array.from(oneRmByEx.values()).sort((a, b) =>
+      a.exercise.localeCompare(b.exercise),
+    );
+
+    // Skill PRs: best hold and best reps per skill+progression across all rows.
+    const skillBest = new Map<string, { hold?: SkillPR; reps?: SkillPR }>();
+    for (const r of skills) {
+      const skill = (r[1] ?? "").toString().trim();
+      if (!skill) continue;
+      const progression = (r[3] ?? "").toString().trim();
+      const date = r[0] ?? "";
+      const hold = toNum(r[7]);
+      const reps = toNum(r[8]);
+      const key = `${skill}::${progression}`;
+      const entry = skillBest.get(key) ?? {};
+      if (Number.isFinite(hold) && hold > 0) {
+        if (!entry.hold || hold > entry.hold.value) {
+          entry.hold = {
+            skill,
+            progression,
+            metric: "hold",
+            value: hold,
+            unit: "s",
+            date,
+          };
+        }
+      }
+      if (Number.isFinite(reps) && reps > 0) {
+        if (!entry.reps || reps > entry.reps.value) {
+          entry.reps = {
+            skill,
+            progression,
+            metric: "reps",
+            value: reps,
+            unit: "reps",
+            date,
+          };
+        }
+      }
+      skillBest.set(key, entry);
+    }
+    const skillPRs: SkillPR[] = [];
+    for (const entry of skillBest.values()) {
+      if (entry.hold) skillPRs.push(entry.hold);
+      if (entry.reps) skillPRs.push(entry.reps);
+    }
+    skillPRs.sort(
+      (a, b) =>
+        a.skill.localeCompare(b.skill) ||
+        a.progression.localeCompare(b.progression) ||
+        a.metric.localeCompare(b.metric),
+    );
+
+    return { oneRm, skills: skillPRs };
+  });

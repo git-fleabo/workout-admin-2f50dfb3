@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Dumbbell, Mountain, Sparkles, Trophy } from "lucide-react";
+import { Award, Dumbbell, Mountain, Sparkles, Trophy } from "lucide-react";
 
 import { Toaster } from "@/components/ui/sonner";
 import { PasswordGate } from "@/components/password-gate";
@@ -8,6 +8,7 @@ import { WorkoutForm } from "./-workout-form";
 import { SkillForm } from "./-skill-form";
 import { ClimbingForm } from "./-climbing-form";
 import { OneRMForm } from "./-onerm-form";
+import { PRsView } from "./-prs-view";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -22,7 +23,7 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Mode = "workout" | "skill" | "climb" | "onerm";
+type Mode = "workout" | "skill" | "climb" | "onerm" | "prs";
 
 function Index() {
   const [mode, setMode] = useState<Mode>("workout");
@@ -54,6 +55,7 @@ function Index() {
           {mode === "skill" && <SkillForm />}
           {mode === "climb" && <ClimbingForm />}
           {mode === "onerm" && <OneRMForm />}
+          {mode === "prs" && <PRsView />}
         </main>
       </div>
     </PasswordGate>
@@ -66,9 +68,10 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
     { id: "skill", label: "Skills", icon: <Sparkles className="h-4 w-4" /> },
     { id: "climb", label: "Climb", icon: <Mountain className="h-4 w-4" /> },
     { id: "onerm", label: "1RM", icon: <Trophy className="h-4 w-4" /> },
+    { id: "prs", label: "PRs", icon: <Award className="h-4 w-4" /> },
   ];
   return (
-    <div className="grid grid-cols-4 gap-1 rounded-xl border border-border bg-secondary/40 p-1">
+    <div className="grid grid-cols-5 gap-1 rounded-xl border border-border bg-secondary/40 p-1">
       {tabs.map((t) => {
         const active = mode === t.id;
         return (
