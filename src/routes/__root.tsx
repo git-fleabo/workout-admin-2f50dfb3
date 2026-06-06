@@ -11,9 +11,6 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { PasswordGate } from "@/components/password-gate";
-import { AdminShell } from "@/components/admin-shell";
-import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -80,15 +77,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Training Admin" },
-      { name: "description", content: "Admin dashboard for the training spreadsheet: progress charts, exercise library editor, and goals." },
+      { title: "Workout Admin" },
+      { name: "description", content: "Log and track your regular and calisthenics workouts with this mobile-friendly exercise tracker." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Training Admin" },
-      { property: "og:description", content: "Admin dashboard for the training spreadsheet: progress charts, exercise library editor, and goals." },
+      { property: "og:title", content: "Workout Admin" },
+      { property: "og:description", content: "Log and track your regular and calisthenics workouts with this mobile-friendly exercise tracker." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:title", content: "Training Admin" },
-      { name: "twitter:description", content: "Admin dashboard for the training spreadsheet: progress charts, exercise library editor, and goals." },
+      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Workout Admin" },
+      { name: "twitter:description", content: "Log and track your regular and calisthenics workouts with this mobile-friendly exercise tracker." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/2d2ba048-049f-433d-af76-257cb1b732d6/id-preview-46daf711--f5b41aaa-913d-486f-9fcc-2d36e65fbf53.lovable.app-1780138771549.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/2d2ba048-049f-433d-af76-257cb1b732d6/id-preview-46daf711--f5b41aaa-913d-486f-9fcc-2d36e65fbf53.lovable.app-1780138771549.png" },
     ],
     links: [
       {
@@ -128,12 +128,8 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <PasswordGate>
-        <AdminShell>
-          <Toaster richColors position="top-center" />
-          <Outlet />
-        </AdminShell>
-      </PasswordGate>
+      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+      <Outlet />
     </QueryClientProvider>
   );
 }
