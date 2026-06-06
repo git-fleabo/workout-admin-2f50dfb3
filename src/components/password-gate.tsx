@@ -61,7 +61,7 @@ export function PasswordGate({ children }: { children: ReactNode }) {
             <Lock className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-base font-semibold leading-tight">Training Log</h1>
+            <h1 className="text-base font-semibold leading-tight">Training Admin</h1>
             <p className="text-xs text-muted-foreground">Enter password to continue</p>
           </div>
         </div>
