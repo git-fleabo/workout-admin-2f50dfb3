@@ -41,6 +41,40 @@ export async function batchUpdateValues(
   });
 }
 
+// Spreadsheet-level batchUpdate (e.g. deleteDimension, addSheet).
+export async function spreadsheetBatchUpdate(requests: unknown[]) {
+  return gw(`:batchUpdate`, {
+    method: "POST",
+    body: JSON.stringify({ requests }),
+  });
+}
+
+// Known sheet IDs in the spreadsheet.
+export const SHEET_IDS = {
+  exerciseLibrary: 1064688843,
+  goals: 1975505418,
+  workoutLog: 1179123507,
+  climbingLog: 962168523,
+  oneRMTracker: 117611871,
+  skillsTracker: 257980060,
+} as const;
+
+// Delete a single sheet row (1-based row number).
+export async function deleteSheetRow(sheetId: number, rowNumber: number) {
+  await spreadsheetBatchUpdate([
+    {
+      deleteDimension: {
+        range: {
+          sheetId,
+          dimension: "ROWS",
+          startIndex: rowNumber - 1,
+          endIndex: rowNumber,
+        },
+      },
+    },
+  ]);
+}
+
 async function findNextEmptyRow(range: string, startRow: number): Promise<number> {
   const rows = await getValues(range);
   let i = 0;
