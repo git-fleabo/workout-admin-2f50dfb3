@@ -1,7 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 
-// Access-password protection is temporarily disabled.
-// verifyAppSecret always reports success so any remaining UI gate unlocks.
 export const verifyAppSecret = createServerFn({ method: "POST" })
-  .inputValidator((_d: unknown) => ({}))
-  .handler(async () => ({ ok: true as const }));
+  .inputValidator((d: { password: string }) => ({
+    password: typeof d?.password === "string" ? d.password : "",
+  }))
+  .handler(async ({ data }) => {
+    const expected = process.env.APP_SECRET;
+    if (!expected) {
+      throw new Error("Server misconfigured: APP_SECRET is not set.");
+    }
+    return { ok: data.password === expected };
+  });

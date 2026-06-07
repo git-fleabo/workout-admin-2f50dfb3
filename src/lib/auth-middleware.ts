@@ -1,21 +1,51 @@
 import { createMiddleware } from "@tanstack/react-start";
+import { getRequestHeader } from "@tanstack/react-start/server";
 
-// Access-password protection is temporarily disabled.
-// These helpers are kept as no-ops so existing imports continue to compile.
+const STORAGE_KEY = "app-secret";
+const HEADER_NAME = "x-app-secret";
 
 export function getStoredSecret(): string | null {
-  return null;
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
 }
 
-export function setStoredSecret(_value: string) {
-  /* no-op */
+export function setStoredSecret(value: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, value);
+  } catch {
+    /* ignore */
+  }
 }
 
 export function clearStoredSecret() {
-  /* no-op */
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
-// Pass-through middleware — no header sent, no server-side check.
 export const appSecretAuth = createMiddleware({ type: "function" })
-  .client(async ({ next }) => next())
-  .server(async ({ next }) => next());
+  .client(async ({ next }) => {
+    const secret = getStoredSecret();
+    return next({
+      headers: secret ? { [HEADER_NAME]: secret } : {},
+    });
+  })
+  .server(async ({ next }) => {
+    const expected = process.env.APP_SECRET;
+    if (!expected) {
+      throw new Error("Server misconfigured: APP_SECRET is not set.");
+    }
+    const provided = getRequestHeader(HEADER_NAME);
+    if (provided !== expected) {
+      throw new Error("Unauthorized — enter the access password.");
+    }
+    return next();
+  });
