@@ -1,25 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Activity,
   Award,
+  CalendarRange,
   Clock,
+  Dumbbell,
   Loader2,
   Mountain,
   Scale,
   Sparkles,
+  Target,
+  TrendingDown,
+  TrendingUp,
   Trophy,
 } from "lucide-react";
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -27,8 +27,16 @@ import {
 } from "recharts";
 
 import { Card } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { getDashboardData } from "@/lib/admin.functions";
-import { formatUKDateShort } from "@/lib/date";
+import { formatUKDate, formatUKDateShort } from "@/lib/date";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -36,12 +44,21 @@ export const Route = createFileRoute("/")({
       { title: "Dashboard · Training Admin" },
       {
         name: "description",
-        content: "Progress overview: weekly workouts, climbing hours, bodyweight trend and recent PRs.",
+        content:
+          "Weekly snapshot, calendar, climbing and strength panels, monthly summary and long-term trend.",
       },
     ],
   }),
   component: DashboardPage,
 });
+
+type Data = Awaited<ReturnType<typeof getDashboardData>>;
+
+const WEEKLY_GOAL = 4;
+const MINUTE_GOAL = 180;
+
+const fmt = (v: number | null | undefined, suffix = "") =>
+  v == null || (typeof v === "number" && !Number.isFinite(v)) ? "—" : `${v}${suffix}`;
 
 function DashboardPage() {
   const fetchData = useServerFn(getDashboardData);
@@ -67,288 +84,455 @@ function DashboardPage() {
     );
   }
 
-  const { kpis, workoutsByWeek, climbingByMonth, bodyweight, recentPRs } = data;
+  const weekStartLabel = formatUKDate(data.thisWeekStart);
+  const bwDelta = data.trend.bodyweightDelta;
+  const TrendIcon = bwDelta == null ? Activity : bwDelta < 0 ? TrendingDown : TrendingUp;
 
   return (
-    <div className="space-y-6">
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KPICard
-          icon={<Activity className="h-4 w-4" />}
-          label="Workouts this week"
-          value={kpis.workoutsThisWeek.toString()}
-          color="oklch(0.72 0.14 220)"
+    <div className="space-y-4">
+      {/* Header */}
+      <header className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            {data.kpis.workoutsThisWeek} workouts ·{" "}
+            {Math.round(data.kpis.minutesThisWeek || 0)} min ·{" "}
+            {data.kpis.activeDaysThisWeek} active days this week
+          </p>
+        </div>
+        <div className="text-right text-xs text-muted-foreground">
+          Week starting <span className="text-foreground">{weekStartLabel}</span>
+        </div>
+      </header>
+
+      {/* Top status row */}
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatusTile
+          icon={<CalendarRange className="h-3.5 w-3.5" />}
+          label="Week starting"
+          value={formatUKDateShort(data.thisWeekStart)}
         />
-        <KPICard
-          icon={<Clock className="h-4 w-4" />}
-          label="Active minutes"
-          value={kpis.minutesThisWeek ? `${Math.round(kpis.minutesThisWeek)}` : "—"}
-          color="oklch(0.78 0.14 80)"
+        <StatusTile
+          icon={<Target className="h-3.5 w-3.5" />}
+          label="Weekly goal"
+          value={`${data.kpis.workoutsThisWeek}/${WEEKLY_GOAL}`}
+          hint="workouts"
         />
-        <KPICard
-          icon={<Mountain className="h-4 w-4" />}
-          label="Climbing this month"
+        <StatusTile
+          icon={<Clock className="h-3.5 w-3.5" />}
+          label="Minute goal"
+          value={`${Math.round(data.kpis.minutesThisWeek || 0)}/${MINUTE_GOAL}`}
+          hint="min"
+        />
+        <StatusTile
+          icon={<TrendIcon className="h-3.5 w-3.5" />}
+          label="Trend since start"
           value={
-            kpis.climbingHoursThisMonth
-              ? `${kpis.climbingHoursThisMonth.toFixed(1)}h`
-              : `${kpis.climbingSessionsThisMonth} sess.`
+            bwDelta == null
+              ? "—"
+              : `${bwDelta > 0 ? "+" : ""}${bwDelta}kg`
           }
-          color="oklch(0.75 0.14 150)"
-        />
-        <KPICard
-          icon={<Scale className="h-4 w-4" />}
-          label="Latest bodyweight"
-          value={kpis.latestBodyweight != null ? `${kpis.latestBodyweight}kg` : "—"}
-          color="oklch(0.72 0.14 25)"
+          hint={`${data.trend.weeksTraining || 0}w training`}
         />
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Workouts per week" subtitle="Last 12 weeks">
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={workoutsByWeek}>
-              <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
-              <XAxis
-                dataKey="label"
-                stroke="var(--color-muted-foreground)"
-                fontSize={11}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis
-                allowDecimals={false}
-                stroke="var(--color-muted-foreground)"
-                fontSize={11}
-                tickLine={false}
-                axisLine={false}
-                width={28}
-              />
-              <Tooltip
-                cursor={{ fill: "color-mix(in oklab, var(--color-primary) 12%, transparent)" }}
-                contentStyle={chartTooltipStyle}
-                labelStyle={{ color: "var(--color-foreground)" }}
-              />
-              <Bar
-                dataKey="workouts"
-                fill="var(--color-chart-1)"
-                radius={[6, 6, 0, 0]}
-                maxBarSize={32}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
+      {/* Weekly snapshot + Calendar */}
+      <section className="grid gap-4 lg:grid-cols-3">
+        <WeeklySnapshot data={data} />
+        <div className="lg:col-span-2">
+          <WeekCalendar data={data} />
+        </div>
+      </section>
 
-        <ChartCard title="Active minutes per week" subtitle="Workout durations">
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={workoutsByWeek}>
-              <defs>
-                <linearGradient id="minutesFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-chart-2)" stopOpacity={0.55} />
-                  <stop offset="100%" stopColor="var(--color-chart-2)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
-              <XAxis
-                dataKey="label"
-                stroke="var(--color-muted-foreground)"
-                fontSize={11}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis
-                stroke="var(--color-muted-foreground)"
-                fontSize={11}
-                tickLine={false}
-                axisLine={false}
-                width={32}
-              />
-              <Tooltip contentStyle={chartTooltipStyle} />
-              <Area
-                type="monotone"
-                dataKey="minutes"
-                stroke="var(--color-chart-2)"
-                strokeWidth={2}
-                fill="url(#minutesFill)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </ChartCard>
+      {/* Climbing + Strength */}
+      <section className="grid gap-4 lg:grid-cols-2">
+        <ClimbingSummary data={data} />
+        <StrengthSnapshot data={data} />
+      </section>
 
-        <ChartCard title="Climbing hours" subtitle="Last 6 months">
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={climbingByMonth}>
-              <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
-              <XAxis
-                dataKey="label"
-                stroke="var(--color-muted-foreground)"
-                fontSize={11}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis
-                stroke="var(--color-muted-foreground)"
-                fontSize={11}
-                tickLine={false}
-                axisLine={false}
-                width={28}
-              />
-              <Tooltip contentStyle={chartTooltipStyle} />
-              <Bar
-                dataKey="hours"
-                fill="var(--color-chart-3)"
-                radius={[6, 6, 0, 0]}
-                maxBarSize={40}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
+      {/* Monthly summary + Recent PRs */}
+      <section className="grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <MonthlySummary data={data} />
+        </div>
+        <RecentPRs data={data} />
+      </section>
 
-        <ChartCard title="Bodyweight" subtitle="All entries">
-          {bodyweight.length === 0 ? (
-            <EmptyChart message="No bodyweight entries yet." />
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={bodyweight}>
-                <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={formatUKDateShort}
-                  stroke="var(--color-muted-foreground)"
-                  fontSize={11}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  domain={["dataMin - 1", "dataMax + 1"]}
-                  stroke="var(--color-muted-foreground)"
-                  fontSize={11}
-                  tickLine={false}
-                  axisLine={false}
-                  width={32}
-                />
-                <Tooltip
-                  contentStyle={chartTooltipStyle}
-                  labelFormatter={(v: string) => formatUKDateShort(v)}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="bodyweight"
-                  stroke="var(--color-chart-4)"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: "var(--color-chart-4)" }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </ChartCard>
-      </div>
-
-      <RecentPRs items={recentPRs} total={kpis.totalPRs} />
+      {/* Trend since start */}
+      <section className="grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <TrendChart data={data} />
+        </div>
+        <TrendSummary data={data} />
+      </section>
     </div>
   );
 }
 
-const chartTooltipStyle = {
-  backgroundColor: "var(--color-popover)",
-  border: "1px solid var(--color-border)",
-  borderRadius: 10,
-  fontSize: 12,
-  color: "var(--color-popover-foreground)",
-};
+/* ---------------- Panels ---------------- */
 
-function KPICard({
-  icon,
-  label,
-  value,
-  color,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  color: string;
-}) {
-  return (
-    <Card className="space-y-1.5 border-border bg-card p-4">
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        <span style={{ color }}>{icon}</span>
-        <span className="truncate">{label}</span>
-      </div>
-      <p className="text-2xl font-semibold leading-none">{value}</p>
-    </Card>
-  );
-}
-
-function ChartCard({
+function Panel({
   title,
-  subtitle,
+  icon,
+  action,
   children,
+  className = "",
 }: {
   title: string;
-  subtitle?: string;
+  icon?: React.ReactNode;
+  action?: React.ReactNode;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <Card className="border-border bg-card p-4">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
+    <Card className={`border-border bg-card p-4 ${className}`}>
+      <div className="mb-3 flex items-center gap-2">
+        {icon && <span className="text-muted-foreground">{icon}</span>}
         <h2 className="text-sm font-semibold">{title}</h2>
-        {subtitle && (
-          <p className="text-xs text-muted-foreground">{subtitle}</p>
-        )}
+        {action && <div className="ml-auto">{action}</div>}
       </div>
       {children}
     </Card>
   );
 }
 
-function EmptyChart({ message }: { message: string }) {
+function StatusTile({
+  icon,
+  label,
+  value,
+  hint,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  hint?: string;
+}) {
   return (
-    <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">
-      {message}
+    <Card className="border-border bg-card px-3 py-2.5">
+      <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        {icon}
+        <span className="truncate">{label}</span>
+      </div>
+      <div className="mt-1 flex items-baseline gap-1.5">
+        <p className="text-lg font-semibold leading-none">{value}</p>
+        {hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}
+      </div>
+    </Card>
+  );
+}
+
+function WeeklySnapshot({ data }: { data: Data }) {
+  const pct = Math.min(
+    100,
+    Math.round(((data.kpis.workoutsThisWeek || 0) / WEEKLY_GOAL) * 100),
+  );
+  return (
+    <Panel title="Weekly Snapshot" icon={<Activity className="h-4 w-4" />}>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+        <Stat label="Workouts" value={data.kpis.workoutsThisWeek.toString()} />
+        <Stat label="Minutes" value={fmt(Math.round(data.kpis.minutesThisWeek || 0))} />
+        <Stat label="Active days" value={`${data.kpis.activeDaysThisWeek}/7`} />
+        <Stat label="Goal" value={`${WEEKLY_GOAL} workouts`} />
+      </dl>
+      <div className="mt-3 space-y-1">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>Progress</span>
+          <span>{pct}%</span>
+        </div>
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+          <div
+            className="h-full bg-primary transition-all"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2 border-b border-border/40 py-1.5 last:border-0">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="font-medium">{value}</dd>
     </div>
   );
 }
 
-function RecentPRs({
-  items,
-  total,
-}: {
-  items: Awaited<ReturnType<typeof getDashboardData>>["recentPRs"];
-  total: number;
-}) {
-  const filtered = useMemo(() => items.filter((i) => i.title), [items]);
+function WeekCalendar({ data }: { data: Data }) {
   return (
-    <Card className="space-y-3 border-border bg-card p-4">
-      <div className="flex items-center gap-2">
-        <Award className="h-4 w-4 text-primary" />
-        <h2 className="text-sm font-semibold">Recent PRs</h2>
-        <span className="ml-auto text-xs text-muted-foreground">{total} tracked</span>
+    <Panel title="This Week" icon={<CalendarRange className="h-4 w-4" />}>
+      <div className="grid grid-cols-7 gap-1.5">
+        {data.weekDays.map((d) => {
+          const done = d.workouts > 0;
+          return (
+            <div
+              key={d.date}
+              className={`rounded-md border p-2 text-center transition ${
+                d.isToday
+                  ? "border-primary/60 bg-primary/5"
+                  : "border-border bg-secondary/20"
+              }`}
+            >
+              <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                {d.label}
+              </div>
+              <div className="mt-0.5 text-sm font-semibold">
+                {Number(d.date.slice(8, 10))}
+              </div>
+              <div
+                className={`mt-1.5 text-[11px] font-medium ${
+                  done ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
+                {done ? `${d.workouts}× · ${Math.round(d.minutes)}m` : "Rest"}
+              </div>
+              <div
+                className={`mx-auto mt-1 h-1 w-6 rounded-full ${
+                  done ? "bg-primary" : "bg-border"
+                }`}
+              />
+            </div>
+          );
+        })}
       </div>
-      {filtered.length === 0 ? (
+    </Panel>
+  );
+}
+
+function ClimbingSummary({ data }: { data: Data }) {
+  const c = data.climbing;
+  return (
+    <Panel title="Climbing Summary" icon={<Mountain className="h-4 w-4" />}>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
+        <Stat label="Sessions" value={fmt(c.sessionsThisMonth)} />
+        <Stat label="Hours" value={fmt(c.hoursThisMonth, "h")} />
+        <Stat label="Boulders" value={fmt(c.bouldersThisMonth)} />
+        <Stat label="Latest grade" value={c.latestClimb?.grade || "—"} />
+      </dl>
+      <div className="mt-3 rounded-md border border-border/60 bg-secondary/20 p-2.5 text-xs text-muted-foreground">
+        {c.latestClimb ? (
+          <>
+            Last climb:{" "}
+            <span className="text-foreground">
+              {c.latestClimb.name || c.latestClimb.grade || "Session"}
+            </span>{" "}
+            · {formatUKDate(c.latestClimb.date)}
+          </>
+        ) : (
+          "No climbing logged yet."
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+function StrengthSnapshot({ data }: { data: Data }) {
+  const s = data.strength;
+  return (
+    <Panel title="Strength Snapshot" icon={<Dumbbell className="h-4 w-4" />}>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+        <Stat
+          label="Best 1RM"
+          value={s.bestLift ? `${s.bestLift.value}kg` : "—"}
+        />
+        <Stat
+          label="Latest test"
+          value={s.latestTest ? `${s.latestTest.value}kg` : "—"}
+        />
+        <Stat label="Exercises" value={s.exercisesTracked.toString()} />
+      </dl>
+      <div className="mt-3 space-y-1.5 text-xs">
+        {s.bestLift && (
+          <div className="flex items-center justify-between rounded-md border border-border/60 bg-secondary/20 px-2.5 py-1.5">
+            <span className="truncate">
+              <span className="text-muted-foreground">Best:</span>{" "}
+              <span className="text-foreground">{s.bestLift.name}</span>
+            </span>
+            <span className="text-muted-foreground">
+              {formatUKDateShort(s.bestLift.date)}
+            </span>
+          </div>
+        )}
+        {s.latestTest && (
+          <div className="flex items-center justify-between rounded-md border border-border/60 bg-secondary/20 px-2.5 py-1.5">
+            <span className="truncate">
+              <span className="text-muted-foreground">Latest:</span>{" "}
+              <span className="text-foreground">{s.latestTest.name}</span>
+            </span>
+            <span className="text-muted-foreground">
+              {formatUKDateShort(s.latestTest.date)}
+            </span>
+          </div>
+        )}
+        {!s.bestLift && !s.latestTest && (
+          <p className="text-muted-foreground">No 1RM tests logged yet.</p>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+function MonthlySummary({ data }: { data: Data }) {
+  return (
+    <Panel title="Monthly Summary" icon={<CalendarRange className="h-4 w-4" />}>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="h-8">Month</TableHead>
+            <TableHead className="h-8 text-right">Workouts</TableHead>
+            <TableHead className="h-8 text-right">Minutes</TableHead>
+            <TableHead className="h-8 text-right">Climb sess.</TableHead>
+            <TableHead className="h-8 text-right">Climb hrs</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.monthlySummary.map((m) => (
+            <TableRow key={m.monthStart}>
+              <TableCell className="py-1.5 font-medium">{m.label}</TableCell>
+              <TableCell className="py-1.5 text-right">{m.workouts || "—"}</TableCell>
+              <TableCell className="py-1.5 text-right">
+                {m.minutes ? Math.round(m.minutes) : "—"}
+              </TableCell>
+              <TableCell className="py-1.5 text-right">
+                {m.climbSessions || "—"}
+              </TableCell>
+              <TableCell className="py-1.5 text-right">
+                {m.climbHours ? m.climbHours.toFixed(1) : "—"}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </Panel>
+  );
+}
+
+function RecentPRs({ data }: { data: Data }) {
+  const items = data.recentPRs.filter((i) => i.title);
+  return (
+    <Panel
+      title="Recent PRs"
+      icon={<Award className="h-4 w-4" />}
+      action={
+        <span className="text-xs text-muted-foreground">
+          {data.kpis.totalPRs} tracked
+        </span>
+      }
+    >
+      {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">No PRs logged yet.</p>
       ) : (
-        <ul className="space-y-2">
-          {filtered.map((pr, i) => (
+        <ul className="space-y-1.5">
+          {items.slice(0, 6).map((pr, i) => (
             <li
-              key={`${pr.title}-${pr.detail}-${i}`}
-              className="flex items-start gap-3 rounded-lg border border-border/60 bg-secondary/20 p-3"
+              key={`${pr.title}-${i}`}
+              className="flex items-center gap-2.5 rounded-md border border-border/60 bg-secondary/20 px-2.5 py-1.5"
             >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
-                {pr.kind === "1rm" ? <Trophy className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+              <span className="text-muted-foreground">
+                {pr.kind === "1rm" ? (
+                  <Trophy className="h-3.5 w-3.5" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
               </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-sm font-medium">{pr.title}</p>
-                  <span className="shrink-0 text-sm font-semibold text-primary">{pr.value}</span>
-                </div>
-                <p className="truncate text-xs text-muted-foreground">
-                  {[pr.detail, pr.date && formatUKDateShort(pr.date)]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
-              </div>
+              <span className="min-w-0 flex-1 truncate text-sm">{pr.title}</span>
+              <span className="shrink-0 text-sm font-semibold text-primary">
+                {pr.value}
+              </span>
+              <span className="shrink-0 text-[11px] text-muted-foreground">
+                {pr.date ? formatUKDateShort(pr.date) : ""}
+              </span>
             </li>
           ))}
         </ul>
       )}
-    </Card>
+    </Panel>
+  );
+}
+
+function TrendChart({ data }: { data: Data }) {
+  return (
+    <Panel title="Trend Since Start" icon={<TrendingUp className="h-4 w-4" />}>
+      {data.workoutsByWeek.length === 0 ? (
+        <p className="py-10 text-center text-sm text-muted-foreground">
+          No workout data yet.
+        </p>
+      ) : (
+        <ResponsiveContainer width="100%" height={180}>
+          <AreaChart data={data.workoutsByWeek}>
+            <defs>
+              <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0.5} />
+                <stop offset="100%" stopColor="var(--color-chart-1)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid
+              stroke="var(--color-border)"
+              strokeDasharray="3 3"
+              vertical={false}
+            />
+            <XAxis
+              dataKey="label"
+              stroke="var(--color-muted-foreground)"
+              fontSize={10}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis
+              allowDecimals={false}
+              stroke="var(--color-muted-foreground)"
+              fontSize={10}
+              tickLine={false}
+              axisLine={false}
+              width={24}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "var(--color-popover)",
+                border: "1px solid var(--color-border)",
+                borderRadius: 8,
+                fontSize: 12,
+                color: "var(--color-popover-foreground)",
+              }}
+            />
+            <Area
+              type="monotone"
+              dataKey="workouts"
+              stroke="var(--color-chart-1)"
+              strokeWidth={2}
+              fill="url(#trendFill)"
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
+    </Panel>
+  );
+}
+
+function TrendSummary({ data }: { data: Data }) {
+  const t = data.trend;
+  return (
+    <Panel title="Lifetime Totals" icon={<Scale className="h-4 w-4" />}>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+        <Stat
+          label="Started"
+          value={t.firstWorkoutDate ? formatUKDateShort(t.firstWorkoutDate) : "—"}
+        />
+        <Stat label="Weeks" value={t.weeksTraining ? `${t.weeksTraining}` : "—"} />
+        <Stat label="Workouts" value={fmt(t.totalWorkouts)} />
+        <Stat label="Minutes" value={fmt(t.totalMinutes)} />
+        <Stat label="Climb hrs" value={fmt(t.totalClimbHours, "h")} />
+        <Stat label="Avg / week" value={fmt(t.avgWorkoutsPerWeek)} />
+        <Stat
+          label="BW start"
+          value={t.startingBodyweight != null ? `${t.startingBodyweight}kg` : "—"}
+        />
+        <Stat
+          label="BW now"
+          value={data.kpis.latestBodyweight != null ? `${data.kpis.latestBodyweight}kg` : "—"}
+        />
+      </dl>
+    </Panel>
   );
 }

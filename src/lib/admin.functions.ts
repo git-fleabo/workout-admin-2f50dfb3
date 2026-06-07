@@ -331,6 +331,23 @@ export type PRItem = {
   date: string;
 };
 
+export type WeekDay = {
+  date: string;
+  label: string;
+  workouts: number;
+  minutes: number;
+  isToday: boolean;
+};
+
+export type MonthRow = {
+  monthStart: string;
+  label: string;
+  workouts: number;
+  minutes: number;
+  climbSessions: number;
+  climbHours: number;
+};
+
 export const getDashboardData = createServerFn({ method: "GET" })
   .middleware([appSecretAuth])
   .handler(async () => {
@@ -345,8 +362,17 @@ export const getDashboardData = createServerFn({ method: "GET" })
     const now = new Date();
     const thisWeekStart = startOfWeekUTC(now);
     const thisMonthStart = startOfMonthUTC(now);
+    const todayISO = toISODateString(now);
 
-    // ---- Workouts by week (last 12 weeks) ----
+    const weekDayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const weekDays: WeekDay[] = weekDayLabels.map((label, i) => {
+      const d = new Date(thisWeekStart);
+      d.setUTCDate(d.getUTCDate() + i);
+      const iso = toISODateString(d);
+      return { date: iso, label, workouts: 0, minutes: 0, isToday: iso === todayISO };
+    });
+    const weekDayByISO = new Map(weekDays.map((w) => [w.date, w]));
+
     const weekBuckets = new Map<string, WeekStat>();
     for (let i = 11; i >= 0; i--) {
       const ws = new Date(thisWeekStart);
@@ -364,29 +390,71 @@ export const getDashboardData = createServerFn({ method: "GET" })
       });
     }
 
+    const monthRows = new Map<string, MonthRow>();
+    for (let i = 5; i >= 0; i--) {
+      const ms = new Date(thisMonthStart);
+      ms.setUTCMonth(ms.getUTCMonth() - i);
+      const iso = toISODateString(ms);
+      monthRows.set(iso, {
+        monthStart: iso,
+        label: ms.toLocaleDateString("en-GB", {
+          month: "short",
+          year: "2-digit",
+          timeZone: "UTC",
+        }),
+        workouts: 0,
+        minutes: 0,
+        climbSessions: 0,
+        climbHours: 0,
+      });
+    }
+
     let workoutsThisWeek = 0;
     let minutesThisWeek = 0;
+    const activeDaysThisWeek = new Set<string>();
+    let totalWorkouts = 0;
+    let totalMinutes = 0;
+    let firstWorkoutDate: Date | null = null;
+
     for (const r of workouts) {
       const exercise = (r[4] ?? "").toString().trim();
       if (!exercise) continue;
       const d = parseAnyDate(r[0]);
       if (!d) continue;
       const minutes = toNum(r[8]);
+      const minutesSafe = Number.isFinite(minutes) ? minutes : 0;
+      totalWorkouts += 1;
+      totalMinutes += minutesSafe;
+      if (!firstWorkoutDate || d < firstWorkoutDate) firstWorkoutDate = d;
+
       const ws = startOfWeekUTC(d);
-      const iso = toISODateString(ws);
-      const bucket = weekBuckets.get(iso);
+      const wsISO = toISODateString(ws);
+      const bucket = weekBuckets.get(wsISO);
       if (bucket) {
         bucket.workouts += 1;
-        if (Number.isFinite(minutes)) bucket.minutes += minutes;
+        bucket.minutes += minutesSafe;
       }
       if (ws.getTime() === thisWeekStart.getTime()) {
         workoutsThisWeek += 1;
-        if (Number.isFinite(minutes)) minutesThisWeek += minutes;
+        minutesThisWeek += minutesSafe;
+        const dayISO = toISODateString(d);
+        const day = weekDayByISO.get(dayISO);
+        if (day) {
+          day.workouts += 1;
+          day.minutes += minutesSafe;
+          activeDaysThisWeek.add(dayISO);
+        }
+      }
+
+      const ms = startOfMonthUTC(d);
+      const mRow = monthRows.get(toISODateString(ms));
+      if (mRow) {
+        mRow.workouts += 1;
+        mRow.minutes += minutesSafe;
       }
     }
     const workoutsByWeek = Array.from(weekBuckets.values());
 
-    // ---- Climbing hours by month (last 6 months) ----
     const monthBuckets = new Map<string, MonthStat>();
     for (let i = 5; i >= 0; i--) {
       const ms = new Date(thisMonthStart);
@@ -400,22 +468,44 @@ export const getDashboardData = createServerFn({ method: "GET" })
     }
     let climbingHoursThisMonth = 0;
     let climbingSessionsThisMonth = 0;
+    let bouldersThisMonth = 0;
+    let totalClimbHours = 0;
+    let totalClimbSessions = 0;
+    let latestClimb: { date: string; grade: string; name: string } | null = null;
     for (const r of climbs) {
       const d = parseAnyDate(r[0]);
       if (!d) continue;
       const hours = toNum(r[4]);
+      const hoursSafe = Number.isFinite(hours) ? hours : 0;
+      totalClimbHours += hoursSafe;
+      totalClimbSessions += 1;
       const ms = startOfMonthUTC(d);
       const iso = toISODateString(ms);
       const bucket = monthBuckets.get(iso);
-      if (bucket && Number.isFinite(hours)) bucket.hours += hours;
+      if (bucket) bucket.hours += hoursSafe;
+      const mRow = monthRows.get(iso);
+      if (mRow) {
+        mRow.climbSessions += 1;
+        mRow.climbHours += hoursSafe;
+      }
       if (ms.getTime() === thisMonthStart.getTime()) {
         climbingSessionsThisMonth += 1;
-        if (Number.isFinite(hours)) climbingHoursThisMonth += hours;
+        climbingHoursThisMonth += hoursSafe;
+        const boulders = toNum(r[5]);
+        if (Number.isFinite(boulders)) bouldersThisMonth += boulders;
+      }
+      const dateISO = toISODateString(d);
+      if (!latestClimb || dateISO > latestClimb.date) {
+        latestClimb = {
+          date: dateISO,
+          grade: (r[2] ?? r[3] ?? "").toString().trim(),
+          name: (r[1] ?? "").toString().trim(),
+        };
       }
     }
     const climbingByMonth = Array.from(monthBuckets.values());
+    const monthlySummary = Array.from(monthRows.values());
 
-    // ---- Bodyweight time series ----
     const bodyweight: BodyweightPoint[] = [];
     for (const r of bw) {
       const d = parseAnyDate(r[0]);
@@ -427,11 +517,29 @@ export const getDashboardData = createServerFn({ method: "GET" })
     const latestBodyweight = bodyweight.length
       ? bodyweight[bodyweight.length - 1].bodyweight
       : null;
+    const startingBodyweight = bodyweight.length ? bodyweight[0].bodyweight : null;
+    const bodyweightDelta =
+      latestBodyweight != null && startingBodyweight != null
+        ? Math.round((latestBodyweight - startingBodyweight) * 10) / 10
+        : null;
 
-    // ---- Recent PRs (mix of 1RM + skills, sorted by date desc, top 8) ----
+    const exerciseSet = new Set<string>();
+    let bestLift: { name: string; value: number; date: string } | null = null;
+    let latestTest: { name: string; value: number; date: string } | null = null;
+    for (const r of oneRM) {
+      const name = (r[3] ?? "").toString().trim();
+      if (!name) continue;
+      exerciseSet.add(name);
+      const est = toNum(r[13] ?? r[14] ?? r[8]);
+      const d = parseAnyDate(r[0]);
+      if (!Number.isFinite(est) || !d) continue;
+      const dateISO = toISODateString(d);
+      if (!bestLift || est > bestLift.value) bestLift = { name, value: est, date: dateISO };
+      if (!latestTest || dateISO > latestTest.date)
+        latestTest = { name, value: est, date: dateISO };
+    }
+
     const prs: PRItem[] = [];
-
-    // 1RM PRs (PR flag in column P / index 15)
     for (const r of oneRM) {
       if (!r[3] || !(r[15] ?? "").toString().includes("PR")) continue;
       const date = parseAnyDate(r[0]);
@@ -446,8 +554,6 @@ export const getDashboardData = createServerFn({ method: "GET" })
         date: date ? toISODateString(date) : "",
       });
     }
-
-    // Skill PRs — best hold and best reps per skill+progression
     type SkillBest = { hold?: PRItem; reps?: PRItem };
     const skillMap = new Map<string, SkillBest>();
     for (const r of skills) {
@@ -492,19 +598,57 @@ export const getDashboardData = createServerFn({ method: "GET" })
     prs.sort((a, b) => b.date.localeCompare(a.date));
     const recentPRs = prs.slice(0, 8);
 
+    const weeksTraining = firstWorkoutDate
+      ? Math.max(
+          1,
+          Math.round(
+            (now.getTime() - (firstWorkoutDate as Date).getTime()) / (7 * 86400000),
+          ),
+        )
+      : 0;
+    const trend = {
+      firstWorkoutDate: firstWorkoutDate ? toISODateString(firstWorkoutDate as Date) : null,
+      weeksTraining,
+      totalWorkouts,
+      totalMinutes: Math.round(totalMinutes),
+      totalClimbHours: Math.round(totalClimbHours * 10) / 10,
+      totalClimbSessions,
+      avgWorkoutsPerWeek: weeksTraining
+        ? Math.round((totalWorkouts / weeksTraining) * 10) / 10
+        : 0,
+      bodyweightDelta,
+      startingBodyweight,
+    };
+
     return {
       kpis: {
         workoutsThisWeek,
         minutesThisWeek,
+        activeDaysThisWeek: activeDaysThisWeek.size,
         climbingHoursThisMonth,
         climbingSessionsThisMonth,
         latestBodyweight,
         totalPRs: prs.length,
       },
+      thisWeekStart: toISODateString(thisWeekStart),
+      weekDays,
       workoutsByWeek,
       climbingByMonth,
+      monthlySummary,
       bodyweight,
       recentPRs,
+      climbing: {
+        sessionsThisMonth: climbingSessionsThisMonth,
+        hoursThisMonth: Math.round(climbingHoursThisMonth * 10) / 10,
+        bouldersThisMonth,
+        latestClimb,
+      },
+      strength: {
+        bestLift,
+        latestTest,
+        exercisesTracked: exerciseSet.size,
+      },
+      trend,
     };
   });
 
