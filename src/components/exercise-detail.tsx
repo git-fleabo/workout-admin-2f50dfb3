@@ -13,7 +13,11 @@ import {
 import { Loader2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { getExerciseHistory, type LibraryRow } from "@/lib/admin.functions";
+import {
+  getExerciseHistory,
+  type ExerciseHistory,
+  type LibraryRow,
+} from "@/lib/admin.functions";
 import { formatUKDateShort } from "@/lib/date";
 import { cn } from "@/lib/utils";
 
