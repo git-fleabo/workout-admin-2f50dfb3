@@ -144,6 +144,8 @@ function LibraryPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const showDesktopPanel = !!selected && !isMobile;
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end gap-3">
