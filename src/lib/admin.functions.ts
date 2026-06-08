@@ -358,7 +358,7 @@ export const getDashboardData = createServerFn({ method: "GET" })
   .middleware([appSecretAuth])
   .handler(async () => {
     const [workouts, climbs, oneRM, bw, skills] = await Promise.all([
-      getValues("Workout%20Log!A5:M1000"),
+      getValues("Workout%20Log!A5:O1000"),
       getValues("Climbing%20Log!A10:L1000"),
       getValues("1RM%20Tracker!A70:R400"),
       getValues("1RM%20Tracker!J7:L60"),
@@ -375,7 +375,14 @@ export const getDashboardData = createServerFn({ method: "GET" })
       const d = new Date(thisWeekStart);
       d.setUTCDate(d.getUTCDate() + i);
       const iso = toISODateString(d);
-      return { date: iso, label, workouts: 0, minutes: 0, isToday: iso === todayISO };
+      return {
+        date: iso,
+        label,
+        workouts: 0,
+        minutes: 0,
+        exercises: [],
+        isToday: iso === todayISO,
+      };
     });
     const weekDayByISO = new Map(weekDays.map((w) => [w.date, w]));
 
@@ -427,35 +434,45 @@ export const getDashboardData = createServerFn({ method: "GET" })
       if (!exercise) continue;
       const d = parseAnyDate(r[0]);
       if (!d) continue;
+      const completed = isTrue(r[12]);
+      if (!completed) continue;
+      const credit = toNum(r[13]);
+      const counts = credit === 1;
       const minutes = toNum(r[8]);
       const minutesSafe = Number.isFinite(minutes) ? minutes : 0;
-      totalWorkouts += 1;
+
+      if (counts) {
+        totalWorkouts += 1;
+        if (!firstWorkoutDate || d < firstWorkoutDate) firstWorkoutDate = d;
+      }
       totalMinutes += minutesSafe;
-      if (!firstWorkoutDate || d < firstWorkoutDate) firstWorkoutDate = d;
 
       const ws = startOfWeekUTC(d);
       const wsISO = toISODateString(ws);
       const bucket = weekBuckets.get(wsISO);
       if (bucket) {
-        bucket.workouts += 1;
+        if (counts) bucket.workouts += 1;
         bucket.minutes += minutesSafe;
       }
       if (ws.getTime() === thisWeekStart.getTime()) {
-        workoutsThisWeek += 1;
+        if (counts) workoutsThisWeek += 1;
         minutesThisWeek += minutesSafe;
         const dayISO = toISODateString(d);
         const day = weekDayByISO.get(dayISO);
         if (day) {
-          day.workouts += 1;
+          if (counts) {
+            day.workouts += 1;
+            activeDaysThisWeek.add(dayISO);
+          }
           day.minutes += minutesSafe;
-          activeDaysThisWeek.add(dayISO);
+          if (!day.exercises.includes(exercise)) day.exercises.push(exercise);
         }
       }
 
       const ms = startOfMonthUTC(d);
       const mRow = monthRows.get(toISODateString(ms));
       if (mRow) {
-        mRow.workouts += 1;
+        if (counts) mRow.workouts += 1;
         mRow.minutes += minutesSafe;
       }
     }
