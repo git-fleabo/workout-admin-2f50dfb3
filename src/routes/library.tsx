@@ -192,66 +192,101 @@ function LibraryPage() {
         </Button>
       </div>
 
-      {list.isLoading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading library…
-        </div>
-      ) : filtered.length === 0 ? (
-        <Card className="p-6 text-sm text-muted-foreground">
-          No exercises match the current filters.
-        </Card>
-      ) : (
-        <div className="space-y-2">
-          {filtered.map((ex) => (
-            <Card key={ex.row} className="flex items-start gap-3 border-border bg-card p-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <p className="font-medium">{ex.name}</p>
-                  {ex.workoutType && (
-                    <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] uppercase tracking-wider text-secondary-foreground">
-                      {ex.workoutType}
-                    </span>
-                  )}
-                  {ex.focusArea && (
-                    <span className="text-xs text-muted-foreground">{ex.focusArea}</span>
-                  )}
-                </div>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {[
-                    ex.equipment,
-                    ex.metric,
-                    ex.suggestedSets && `${ex.suggestedSets} sets`,
-                    ex.suggestedReps && `${ex.suggestedReps}`,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ") || "—"}
-                </p>
-                {ex.notes && (
-                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground/90">{ex.notes}</p>
-                )}
-              </div>
-              <div className="flex shrink-0 gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setEditor({ mode: "edit", row: ex })}
-                  aria-label="Edit"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setPendingDelete(ex)}
-                  aria-label="Delete"
-                  className="text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
+      <div
+        className={
+          showDesktopPanel
+            ? "grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]"
+            : ""
+        }
+      >
+        <div>
+          {list.isLoading ? (
+            <div className="flex items-center justify-center py-16 text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading library…
+            </div>
+          ) : filtered.length === 0 ? (
+            <Card className="p-6 text-sm text-muted-foreground">
+              No exercises match the current filters.
             </Card>
-          ))}
+          ) : (
+            <div className="space-y-2">
+              {filtered.map((ex) => {
+                const isSelected = selected?.row === ex.row;
+                return (
+                  <Card
+                    key={ex.row}
+                    onClick={() => setSelected(ex)}
+                    className={`flex cursor-pointer items-start gap-3 border-border bg-card p-3 transition hover:border-primary/50 ${
+                      isSelected ? "border-primary/70 ring-1 ring-primary/40" : ""
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-baseline gap-2">
+                        <p className="font-medium">{ex.name}</p>
+                        {ex.workoutType && (
+                          <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] uppercase tracking-wider text-secondary-foreground">
+                            {ex.workoutType}
+                          </span>
+                        )}
+                        {ex.focusArea && (
+                          <span className="text-xs text-muted-foreground">{ex.focusArea}</span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {[
+                          ex.equipment,
+                          ex.metric,
+                          ex.suggestedSets && `${ex.suggestedSets} sets`,
+                          ex.suggestedReps && `${ex.suggestedReps}`,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "—"}
+                      </p>
+                      {ex.notes && (
+                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground/90">
+                          {ex.notes}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 gap-1" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setEditor({ mode: "edit", row: ex })}
+                        aria-label="Edit"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setPendingDelete(ex)}
+                        aria-label="Delete"
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
+
+        {showDesktopPanel && selected && (
+          <aside className="sticky top-4 h-[calc(100vh-7rem)] overflow-hidden rounded-lg border border-border bg-card">
+            <ExerciseDetail exercise={selected} onClose={() => setSelected(null)} />
+          </aside>
+        )}
+      </div>
+
+      {isMobile && selected && (
+        <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+          <SheetContent side="right" className="w-full max-w-full p-0 sm:max-w-md">
+            <ExerciseDetail exercise={selected} onClose={() => setSelected(null)} />
+          </SheetContent>
+        </Sheet>
       )}
 
       <ExerciseEditorDialog
