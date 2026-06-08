@@ -264,11 +264,12 @@ function WeekCalendar({ data }: { data: Data }) {
     <Panel title="This Week" icon={<CalendarRange className="h-4 w-4" />}>
       <div className="grid grid-cols-7 gap-1.5">
         {data.weekDays.map((d) => {
-          const done = d.workouts > 0;
+          const credited = d.workouts > 0;
+          const logged = d.exercises.length > 0;
           return (
             <div
               key={d.date}
-              className={`rounded-md border p-2 text-center transition ${
+              className={`flex min-h-[110px] flex-col rounded-md border p-2 text-center transition ${
                 d.isToday
                   ? "border-primary/60 bg-primary/5"
                   : "border-border bg-secondary/20"
@@ -281,15 +282,33 @@ function WeekCalendar({ data }: { data: Data }) {
                 {Number(d.date.slice(8, 10))}
               </div>
               <div
-                className={`mt-1.5 text-[11px] font-medium ${
-                  done ? "text-primary" : "text-muted-foreground"
+                className={`mt-1 text-[11px] font-medium ${
+                  credited ? "text-primary" : "text-muted-foreground"
                 }`}
               >
-                {done ? `${d.workouts}× · ${Math.round(d.minutes)}m` : "Rest"}
+                {credited
+                  ? `${d.workouts}× · ${Math.round(d.minutes)}m`
+                  : logged
+                    ? `${Math.round(d.minutes)}m`
+                    : "Rest"}
               </div>
+              {logged && (
+                <ul className="mt-1 space-y-0.5 text-left text-[10px] leading-tight text-muted-foreground">
+                  {d.exercises.slice(0, 4).map((ex) => (
+                    <li key={ex} className="truncate" title={ex}>
+                      · {ex}
+                    </li>
+                  ))}
+                  {d.exercises.length > 4 && (
+                    <li className="text-muted-foreground/70">
+                      +{d.exercises.length - 4} more
+                    </li>
+                  )}
+                </ul>
+              )}
               <div
-                className={`mx-auto mt-1 h-1 w-6 rounded-full ${
-                  done ? "bg-primary" : "bg-border"
+                className={`mx-auto mt-auto h-1 w-6 rounded-full ${
+                  credited ? "bg-primary" : "bg-border"
                 }`}
               />
             </div>
