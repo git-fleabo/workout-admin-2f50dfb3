@@ -690,3 +690,167 @@ export const getLibraryDropdowns = createServerFn({ method: "GET" })
     }
     return { workoutTypes, focusAreas };
   });
+
+// ===== Exercise history (drill-down) =====
+
+export type ExerciseSessionPoint = {
+  date: string;
+  sessions: number; // log rows on this date
+  totalReps: number;
+  totalVolume: number;
+  maxWeight: number | null;
+  totalDuration: number;
+  est1RM: number | null;
+};
+
+export type ExerciseHistory = {
+  name: string;
+  totalSessions: number;
+  totalRows: number;
+  points: ExerciseSessionPoint[];
+  available: {
+    weight: boolean;
+    reps: boolean;
+    duration: boolean;
+    est1RM: boolean;
+    volume: boolean;
+  };
+  stats: {
+    latest1RM: number | null;
+    best1RM: number | null;
+    maxWeight: number | null;
+    fourWeekChange: number | null; // % change in best est1RM (or maxWeight fallback) over last 4w vs prior 4w
+  };
+};
+
+const ExerciseHistoryInput = z.object({
+  name: z.string().min(1).max(200),
+});
+
+export const getExerciseHistory = createServerFn({ method: "POST" })
+  .middleware([appSecretAuth])
+  .inputValidator((d: unknown) => ExerciseHistoryInput.parse(d))
+  .handler(async ({ data }) => {
+    const rows = await getValues("Workout%20Log!A5:O1000");
+    const needle = data.name.trim().toLowerCase();
+
+    const byDate = new Map<string, ExerciseSessionPoint>();
+    let anyWeight = false;
+    let anyReps = false;
+    let anyDuration = false;
+    let totalRows = 0;
+
+    for (const r of rows) {
+      const exercise = (r[4] ?? "").toString().trim();
+      if (!exercise || exercise.toLowerCase() !== needle) continue;
+      if (!isTrue(r[12])) continue;
+      const d = parseAnyDate(r[0]);
+      if (!d) continue;
+      const dateISO = toISODateString(d);
+      const sets = toNum(r[5]);
+      const reps = toNum(r[6]);
+      const weight = toNum(r[7]);
+      const duration = toNum(r[8]);
+
+      const setsN = Number.isFinite(sets) && sets > 0 ? sets : 1;
+      const repsN = Number.isFinite(reps) ? reps : 0;
+      const weightN = Number.isFinite(weight) ? weight : null;
+      const durN = Number.isFinite(duration) ? duration : 0;
+
+      if (weightN != null && weightN > 0) anyWeight = true;
+      if (repsN > 0) anyReps = true;
+      if (durN > 0) anyDuration = true;
+
+      const point =
+        byDate.get(dateISO) ??
+        ({
+          date: dateISO,
+          sessions: 0,
+          totalReps: 0,
+          totalVolume: 0,
+          maxWeight: null,
+          totalDuration: 0,
+          est1RM: null,
+        } satisfies ExerciseSessionPoint);
+
+      point.sessions += 1;
+      point.totalReps += setsN * repsN;
+      point.totalDuration += durN;
+      if (weightN != null) {
+        point.totalVolume += setsN * repsN * weightN;
+        if (point.maxWeight == null || weightN > point.maxWeight) point.maxWeight = weightN;
+        if (repsN > 0) {
+          const est = weightN * (1 + repsN / 30);
+          if (point.est1RM == null || est > point.est1RM) point.est1RM = est;
+        }
+      }
+      byDate.set(dateISO, point);
+      totalRows += 1;
+    }
+
+    const points = Array.from(byDate.values()).sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
+    // round volumes for cleaner display
+    for (const p of points) {
+      p.totalVolume = Math.round(p.totalVolume);
+      if (p.est1RM != null) p.est1RM = Math.round(p.est1RM * 10) / 10;
+    }
+
+    const anyEst1RM = points.some((p) => p.est1RM != null);
+    const anyVolume = points.some((p) => p.totalVolume > 0);
+
+    const latest1RM = [...points].reverse().find((p) => p.est1RM != null)?.est1RM ?? null;
+    const best1RM = points.reduce<number | null>(
+      (m, p) => (p.est1RM != null && (m == null || p.est1RM > m) ? p.est1RM : m),
+      null,
+    );
+    const maxWeight = points.reduce<number | null>(
+      (m, p) => (p.maxWeight != null && (m == null || p.maxWeight > m) ? p.maxWeight : m),
+      null,
+    );
+
+    // 4-week change using best est1RM in window; fall back to maxWeight.
+    const now = Date.now();
+    const FOUR_W = 28 * 86400000;
+    const inWindow = (iso: string, fromAgo: number, toAgo: number) => {
+      const t = new Date(iso + "T00:00:00Z").getTime();
+      return t >= now - fromAgo && t < now - toAgo;
+    };
+    const bestIn = (fromAgo: number, toAgo: number): number | null => {
+      let best: number | null = null;
+      for (const p of points) {
+        if (!inWindow(p.date, fromAgo, toAgo)) continue;
+        const v = p.est1RM ?? p.maxWeight;
+        if (v != null && (best == null || v > best)) best = v;
+      }
+      return best;
+    };
+    const recent = bestIn(FOUR_W, 0);
+    const prior = bestIn(2 * FOUR_W, FOUR_W);
+    const fourWeekChange =
+      recent != null && prior != null && prior !== 0
+        ? Math.round(((recent - prior) / prior) * 1000) / 10
+        : null;
+
+    const result: ExerciseHistory = {
+      name: data.name,
+      totalSessions: points.length,
+      totalRows,
+      points,
+      available: {
+        weight: anyWeight,
+        reps: anyReps,
+        duration: anyDuration,
+        est1RM: anyEst1RM,
+        volume: anyVolume,
+      },
+      stats: {
+        latest1RM,
+        best1RM,
+        maxWeight,
+        fourWeekChange,
+      },
+    };
+    return result;
+  });
