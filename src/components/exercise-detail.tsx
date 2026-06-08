@@ -238,7 +238,7 @@ export function ExerciseDetail({
 function StatGrid({
   data,
 }: {
-  data: NonNullable<ReturnType<typeof useStub>>;
+  data: ExerciseHistory;
 }) {
   const fmt = (n: number | null, unit = "") =>
     n == null ? "—" : `${Math.round(n * 10) / 10}${unit}`;
@@ -272,7 +272,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 function HistoryList({
   data,
 }: {
-  data: NonNullable<ReturnType<typeof useStub>>;
+  data: ExerciseHistory;
 }) {
   const rows = [...data.points].reverse().slice(0, 12);
   return (
@@ -312,4 +312,3 @@ function HistoryList({
 }
 
 // Type helper so StatGrid/HistoryList can infer data shape without re-import.
-declare function useStub(): Awaited<ReturnType<typeof getExerciseHistory>>;
