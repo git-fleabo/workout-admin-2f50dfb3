@@ -95,6 +95,8 @@ function LibraryPage() {
   const [focusFilter, setFocusFilter] = useState<string>("");
   const [editor, setEditor] = useState<EditorState>({ mode: "closed" });
   const [pendingDelete, setPendingDelete] = useState<LibraryRow | null>(null);
+  const [selected, setSelected] = useState<LibraryRow | null>(null);
+  const isMobile = useIsMobile();
 
   const filtered = useMemo(() => {
     const items = list.data?.items ?? [];
