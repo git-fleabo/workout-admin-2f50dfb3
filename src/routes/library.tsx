@@ -43,6 +43,9 @@ import {
   updateExercise,
   type LibraryRow,
 } from "@/lib/admin.functions";
+import { ExerciseDetail } from "@/components/exercise-detail";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 export const Route = createFileRoute("/library")({
   head: () => ({
