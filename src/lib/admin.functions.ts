@@ -336,6 +336,7 @@ export type WeekDay = {
   label: string;
   workouts: number;
   minutes: number;
+  exercises: string[];
   isToday: boolean;
 };
 
@@ -346,6 +347,11 @@ export type MonthRow = {
   minutes: number;
   climbSessions: number;
   climbHours: number;
+};
+
+const isTrue = (v: unknown) => {
+  const s = (v ?? "").toString().trim().toLowerCase();
+  return s === "true" || s === "yes" || s === "1" || s === "✓" || s === "x";
 };
 
 export const getDashboardData = createServerFn({ method: "GET" })
