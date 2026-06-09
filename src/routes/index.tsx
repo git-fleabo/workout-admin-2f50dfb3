@@ -115,13 +115,13 @@ function DashboardPage() {
         <StatusTile
           icon={<Target className="h-3.5 w-3.5" />}
           label="Weekly goal"
-          value={`${data.kpis.workoutsThisWeek}/${WEEKLY_GOAL}`}
+          value={`${data.kpis.workoutsThisWeek}/${data.goals?.weeklyWorkouts ?? DEFAULT_WEEKLY_GOAL}`}
           hint="workouts"
         />
         <StatusTile
           icon={<Clock className="h-3.5 w-3.5" />}
           label="Minute goal"
-          value={`${Math.round(data.kpis.minutesThisWeek || 0)}/${MINUTE_GOAL}`}
+          value={`${Math.round(data.kpis.minutesThisWeek || 0)}/${data.goals?.weeklyMinutes ?? DEFAULT_MINUTE_GOAL}`}
           hint="min"
         />
         <StatusTile
