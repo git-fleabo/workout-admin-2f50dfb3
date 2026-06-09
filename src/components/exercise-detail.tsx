@@ -300,8 +300,11 @@ function HistoryList({
                 .join(" · ") || "—"}
             </span>
             {p.est1RM != null && (
-              <span className="shrink-0 font-semibold text-primary">
-                {p.est1RM}kg
+              <span
+                className="shrink-0 font-semibold text-primary"
+                title="Estimated 1RM (reps per set inferred from Reps / Sets)"
+              >
+                ~{p.est1RM}kg
               </span>
             )}
           </li>
