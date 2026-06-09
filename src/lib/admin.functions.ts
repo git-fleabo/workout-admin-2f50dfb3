@@ -705,8 +705,13 @@ export const getDashboardData = createServerFn({ method: "GET" })
         exercisesTracked: exerciseSet.size,
       },
       trend,
+      goals: {
+        weeklyWorkouts: weeklyWorkoutsGoal,
+        weeklyMinutes: weeklyMinutesGoal,
+      },
     };
   });
+
 
 // ===== Library / settings dropdowns =====
 
