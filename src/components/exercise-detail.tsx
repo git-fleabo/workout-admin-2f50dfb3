@@ -246,8 +246,8 @@ function StatGrid({
   return (
     <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       <Stat label="Sessions" value={data.totalSessions.toString()} />
-      <Stat label="Latest 1RM" value={fmt(data.stats.latest1RM, "kg")} />
-      <Stat label="Best 1RM" value={fmt(data.stats.best1RM, "kg")} />
+      <Stat label="Max weight" value={fmt(data.stats.maxWeight, "kg")} />
+      <Stat label="Best est. 1RM" value={fmt(data.stats.best1RM, "kg")} />
       <Stat
         label="4-week change"
         value={
