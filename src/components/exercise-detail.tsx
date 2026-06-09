@@ -27,7 +27,7 @@ const METRIC_LABEL: Record<MetricKey, string> = {
   est1RM: "Est. 1RM",
   volume: "Volume",
   maxWeight: "Max weight",
-  reps: "Reps",
+  reps: "Total reps",
   duration: "Duration",
 };
 
@@ -55,13 +55,13 @@ export function ExerciseDetail({
 
   const available = q.data?.available;
   const defaultMetric: MetricKey = useMemo(() => {
-    if (!available) return "est1RM";
-    if (available.est1RM) return "est1RM";
-    if (available.volume) return "volume";
+    if (!available) return "maxWeight";
     if (available.weight) return "maxWeight";
+    if (available.volume) return "volume";
     if (available.reps) return "reps";
     if (available.duration) return "duration";
-    return "est1RM";
+    if (available.est1RM) return "est1RM";
+    return "maxWeight";
   }, [available]);
 
   const [metric, setMetric] = useState<MetricKey>(defaultMetric);
@@ -246,8 +246,8 @@ function StatGrid({
   return (
     <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       <Stat label="Sessions" value={data.totalSessions.toString()} />
-      <Stat label="Latest 1RM" value={fmt(data.stats.latest1RM, "kg")} />
-      <Stat label="Best 1RM" value={fmt(data.stats.best1RM, "kg")} />
+      <Stat label="Max weight" value={fmt(data.stats.maxWeight, "kg")} />
+      <Stat label="Best est. 1RM" value={fmt(data.stats.best1RM, "kg")} />
       <Stat
         label="4-week change"
         value={
@@ -292,7 +292,7 @@ function HistoryList({
             <span className="flex-1 truncate text-muted-foreground">
               {[
                 p.maxWeight != null ? `${p.maxWeight}kg max` : null,
-                p.totalReps > 0 ? `${p.totalReps} reps` : null,
+                p.totalReps > 0 ? `${p.totalReps} total reps` : null,
                 p.totalVolume > 0 ? `${p.totalVolume}kg vol` : null,
                 p.totalDuration > 0 ? `${p.totalDuration}m` : null,
               ]
@@ -300,8 +300,11 @@ function HistoryList({
                 .join(" · ") || "—"}
             </span>
             {p.est1RM != null && (
-              <span className="shrink-0 font-semibold text-primary">
-                {p.est1RM}kg
+              <span
+                className="shrink-0 font-semibold text-primary"
+                title="Estimated 1RM (reps per set inferred from Reps / Sets)"
+              >
+                ~{p.est1RM}kg
               </span>
             )}
           </li>

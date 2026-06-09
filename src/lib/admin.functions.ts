@@ -752,13 +752,15 @@ export const getExerciseHistory = createServerFn({ method: "POST" })
       const weight = toNum(r[7]);
       const duration = toNum(r[8]);
 
-      const setsN = Number.isFinite(sets) && sets > 0 ? sets : 1;
-      const repsN = Number.isFinite(reps) ? reps : 0;
-      const weightN = Number.isFinite(weight) ? weight : null;
-      const durN = Number.isFinite(duration) ? duration : 0;
+      // "Reps" is TOTAL reps performed for this entry, not reps per set.
+      // "Sets" is informational/programming context — never used as a multiplier.
+      const setsKnown = Number.isFinite(sets) && sets > 0;
+      const repsN = Number.isFinite(reps) && reps > 0 ? reps : null;
+      const weightN = Number.isFinite(weight) && weight > 0 ? weight : null;
+      const durN = Number.isFinite(duration) && duration > 0 ? duration : 0;
 
-      if (weightN != null && weightN > 0) anyWeight = true;
-      if (repsN > 0) anyReps = true;
+      if (weightN != null) anyWeight = true;
+      if (repsN != null) anyReps = true;
       if (durN > 0) anyDuration = true;
 
       const point =
@@ -774,14 +776,22 @@ export const getExerciseHistory = createServerFn({ method: "POST" })
         } satisfies ExerciseSessionPoint);
 
       point.sessions += 1;
-      point.totalReps += setsN * repsN;
+      if (repsN != null) point.totalReps += repsN;
       point.totalDuration += durN;
       if (weightN != null) {
-        point.totalVolume += setsN * repsN * weightN;
         if (point.maxWeight == null || weightN > point.maxWeight) point.maxWeight = weightN;
-        if (repsN > 0) {
-          const est = weightN * (1 + repsN / 30);
-          if (point.est1RM == null || est > point.est1RM) point.est1RM = est;
+        // Volume = Reps * Weight (requires both)
+        if (repsN != null) {
+          point.totalVolume += repsN * weightN;
+          // Estimated 1RM (Epley) needs reps PER SET. Only estimate when
+          // Sets is known and > 0; otherwise skip (do not blindly use total reps).
+          if (setsKnown) {
+            const perSetReps = repsN / (sets as number);
+            if (perSetReps > 0) {
+              const est = weightN * (1 + perSetReps / 30);
+              if (point.est1RM == null || est > point.est1RM) point.est1RM = est;
+            }
+          }
         }
       }
       byDate.set(dateISO, point);
