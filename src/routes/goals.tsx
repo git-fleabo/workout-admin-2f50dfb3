@@ -88,7 +88,7 @@ function GoalsPage() {
     onSuccess: () => {
       toast.success("Goal added");
       setEditor({ mode: "closed" });
-      qc.invalidateQueries({ queryKey: ["goals"] });
+      qc.invalidateQueries({ queryKey: ["goals"] }); qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -99,7 +99,7 @@ function GoalsPage() {
     onSuccess: () => {
       toast.success("Goal updated");
       setEditor({ mode: "closed" });
-      qc.invalidateQueries({ queryKey: ["goals"] });
+      qc.invalidateQueries({ queryKey: ["goals"] }); qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -109,7 +109,7 @@ function GoalsPage() {
     onSuccess: () => {
       toast.success("Goal deleted");
       setPendingDelete(null);
-      qc.invalidateQueries({ queryKey: ["goals"] });
+      qc.invalidateQueries({ queryKey: ["goals"] }); qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
