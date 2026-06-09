@@ -357,13 +357,46 @@ const isTrue = (v: unknown) => {
 export const getDashboardData = createServerFn({ method: "GET" })
   .middleware([appSecretAuth])
   .handler(async () => {
-    const [workouts, climbs, oneRM, bw, skills] = await Promise.all([
+    const [workouts, climbs, oneRM, bw, skills, goalRows] = await Promise.all([
       getValues("Workout%20Log!A5:O1000"),
       getValues("Climbing%20Log!A10:L1000"),
       getValues("1RM%20Tracker!A70:R400"),
       getValues("1RM%20Tracker!J7:L60"),
       getValues("Skills%20Tracker!A41:O500"),
+      getValues("Goals!A2:E200"),
     ]);
+
+    // Parse weekly targets from the Goals tab.
+    // We look for rows whose period mentions "week" and pick the first
+    // number from the target column (e.g. "4 workouts" -> 4, "180" -> 180).
+    let weeklyWorkoutsGoal: number | null = null;
+    let weeklyMinutesGoal: number | null = null;
+    for (const r of goalRows) {
+      const goal = (r[0] ?? "").toString().toLowerCase();
+      const metric = (r[1] ?? "").toString().toLowerCase();
+      const target = (r[2] ?? "").toString();
+      const period = (r[3] ?? "").toString().toLowerCase();
+      if (!goal && !metric) continue;
+      const isWeekly = period.includes("week") || metric.includes("week") || goal.includes("week");
+      if (!isWeekly) continue;
+      const num = Number(target.replace(/[^0-9.]/g, ""));
+      if (!Number.isFinite(num) || num <= 0) continue;
+      const blob = `${goal} ${metric} ${target.toLowerCase()}`;
+      if (
+        weeklyMinutesGoal == null &&
+        (blob.includes("minute") || /\bmin\b/.test(blob))
+      ) {
+        weeklyMinutesGoal = Math.round(num);
+        continue;
+      }
+      if (
+        weeklyWorkoutsGoal == null &&
+        (blob.includes("workout") || blob.includes("session") || blob.includes("train"))
+      ) {
+        weeklyWorkoutsGoal = Math.round(num);
+      }
+    }
+
 
     const now = new Date();
     const thisWeekStart = startOfWeekUTC(now);
@@ -672,8 +705,13 @@ export const getDashboardData = createServerFn({ method: "GET" })
         exercisesTracked: exerciseSet.size,
       },
       trend,
+      goals: {
+        weeklyWorkouts: weeklyWorkoutsGoal,
+        weeklyMinutes: weeklyMinutesGoal,
+      },
     };
   });
+
 
 // ===== Library / settings dropdowns =====
 

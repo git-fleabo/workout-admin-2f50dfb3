@@ -54,8 +54,8 @@ export const Route = createFileRoute("/")({
 
 type Data = Awaited<ReturnType<typeof getDashboardData>>;
 
-const WEEKLY_GOAL = 4;
-const MINUTE_GOAL = 180;
+const DEFAULT_WEEKLY_GOAL = 4;
+const DEFAULT_MINUTE_GOAL = 180;
 
 const fmt = (v: number | null | undefined, suffix = "") =>
   v == null || (typeof v === "number" && !Number.isFinite(v)) ? "—" : `${v}${suffix}`;
@@ -115,13 +115,13 @@ function DashboardPage() {
         <StatusTile
           icon={<Target className="h-3.5 w-3.5" />}
           label="Weekly goal"
-          value={`${data.kpis.workoutsThisWeek}/${WEEKLY_GOAL}`}
+          value={`${data.kpis.workoutsThisWeek}/${data.goals?.weeklyWorkouts ?? DEFAULT_WEEKLY_GOAL}`}
           hint="workouts"
         />
         <StatusTile
           icon={<Clock className="h-3.5 w-3.5" />}
           label="Minute goal"
-          value={`${Math.round(data.kpis.minutesThisWeek || 0)}/${MINUTE_GOAL}`}
+          value={`${Math.round(data.kpis.minutesThisWeek || 0)}/${data.goals?.weeklyMinutes ?? DEFAULT_MINUTE_GOAL}`}
           hint="min"
         />
         <StatusTile
@@ -222,9 +222,10 @@ function StatusTile({
 }
 
 function WeeklySnapshot({ data }: { data: Data }) {
+  const weeklyGoal = data.goals?.weeklyWorkouts ?? DEFAULT_WEEKLY_GOAL;
   const pct = Math.min(
     100,
-    Math.round(((data.kpis.workoutsThisWeek || 0) / WEEKLY_GOAL) * 100),
+    Math.round(((data.kpis.workoutsThisWeek || 0) / weeklyGoal) * 100),
   );
   return (
     <Panel title="Weekly Snapshot" icon={<Activity className="h-4 w-4" />}>
@@ -232,7 +233,7 @@ function WeeklySnapshot({ data }: { data: Data }) {
         <Stat label="Workouts" value={data.kpis.workoutsThisWeek.toString()} />
         <Stat label="Minutes" value={fmt(Math.round(data.kpis.minutesThisWeek || 0))} />
         <Stat label="Active days" value={`${data.kpis.activeDaysThisWeek}/7`} />
-        <Stat label="Goal" value={`${WEEKLY_GOAL} workouts`} />
+        <Stat label="Goal" value={`${weeklyGoal} workouts`} />
       </dl>
       <div className="mt-3 space-y-1">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
