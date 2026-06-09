@@ -55,13 +55,13 @@ export function ExerciseDetail({
 
   const available = q.data?.available;
   const defaultMetric: MetricKey = useMemo(() => {
-    if (!available) return "est1RM";
-    if (available.est1RM) return "est1RM";
-    if (available.volume) return "volume";
+    if (!available) return "maxWeight";
     if (available.weight) return "maxWeight";
+    if (available.volume) return "volume";
     if (available.reps) return "reps";
     if (available.duration) return "duration";
-    return "est1RM";
+    if (available.est1RM) return "est1RM";
+    return "maxWeight";
   }, [available]);
 
   const [metric, setMetric] = useState<MetricKey>(defaultMetric);
