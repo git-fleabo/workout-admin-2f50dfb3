@@ -222,9 +222,10 @@ function StatusTile({
 }
 
 function WeeklySnapshot({ data }: { data: Data }) {
+  const weeklyGoal = data.goals?.weeklyWorkouts ?? DEFAULT_WEEKLY_GOAL;
   const pct = Math.min(
     100,
-    Math.round(((data.kpis.workoutsThisWeek || 0) / WEEKLY_GOAL) * 100),
+    Math.round(((data.kpis.workoutsThisWeek || 0) / weeklyGoal) * 100),
   );
   return (
     <Panel title="Weekly Snapshot" icon={<Activity className="h-4 w-4" />}>
@@ -232,7 +233,7 @@ function WeeklySnapshot({ data }: { data: Data }) {
         <Stat label="Workouts" value={data.kpis.workoutsThisWeek.toString()} />
         <Stat label="Minutes" value={fmt(Math.round(data.kpis.minutesThisWeek || 0))} />
         <Stat label="Active days" value={`${data.kpis.activeDaysThisWeek}/7`} />
-        <Stat label="Goal" value={`${WEEKLY_GOAL} workouts`} />
+        <Stat label="Goal" value={`${weeklyGoal} workouts`} />
       </dl>
       <div className="mt-3 space-y-1">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
