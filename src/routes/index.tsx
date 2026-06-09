@@ -54,8 +54,8 @@ export const Route = createFileRoute("/")({
 
 type Data = Awaited<ReturnType<typeof getDashboardData>>;
 
-const WEEKLY_GOAL = 4;
-const MINUTE_GOAL = 180;
+const DEFAULT_WEEKLY_GOAL = 4;
+const DEFAULT_MINUTE_GOAL = 180;
 
 const fmt = (v: number | null | undefined, suffix = "") =>
   v == null || (typeof v === "number" && !Number.isFinite(v)) ? "—" : `${v}${suffix}`;
