@@ -27,7 +27,7 @@ const METRIC_LABEL: Record<MetricKey, string> = {
   est1RM: "Est. 1RM",
   volume: "Volume",
   maxWeight: "Max weight",
-  reps: "Reps",
+  reps: "Total reps",
   duration: "Duration",
 };
 
