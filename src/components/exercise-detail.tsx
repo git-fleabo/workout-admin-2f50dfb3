@@ -292,7 +292,7 @@ function HistoryList({
             <span className="flex-1 truncate text-muted-foreground">
               {[
                 p.maxWeight != null ? `${p.maxWeight}kg max` : null,
-                p.totalReps > 0 ? `${p.totalReps} reps` : null,
+                p.totalReps > 0 ? `${p.totalReps} total reps` : null,
                 p.totalVolume > 0 ? `${p.totalVolume}kg vol` : null,
                 p.totalDuration > 0 ? `${p.totalDuration}m` : null,
               ]
