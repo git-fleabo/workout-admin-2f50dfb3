@@ -1,0 +1,23 @@
+{
+  "name": "Workout Settings",
+  "short_name": "Workout",
+  "description": "Log and track your regular and calisthenics workouts.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0d12",
+  "theme_color": "#1d4ed8",
+  "icons": [
+    {
+      "src": "/__l5e/assets-v1/1bce3402-a2eb-4ba2-9cdd-2262478ca93c/app-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/__l5e/assets-v1/1bce3402-a2eb-4ba2-9cdd-2262478ca93c/app-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
