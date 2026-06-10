@@ -81,11 +81,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 to={item.to}
                 className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-1.5 text-xs font-medium transition sm:text-sm ${
                   active
-                    ? "border-border bg-card text-foreground shadow"
+                    ? item.activeClass
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {item.icon}
+                <span className={active ? item.iconClass : ""}>{item.icon}</span>
                 {item.label}
               </Link>
             );
