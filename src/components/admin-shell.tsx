@@ -5,12 +5,36 @@ import { Activity, BookOpen, LogOut, Settings as SettingsIcon, ShieldCheck } fro
 import { Button } from "@/components/ui/button";
 import { clearStoredSecret } from "@/lib/auth-middleware";
 
-type NavItem = { to: string; label: string; icon: ReactNode };
+type NavItem = {
+  to: string;
+  label: string;
+  icon: ReactNode;
+  activeClass: string;
+  iconClass: string;
+};
 
 const NAV: NavItem[] = [
-  { to: "/", label: "Dashboard", icon: <Activity className="h-4 w-4" /> },
-  { to: "/library", label: "Library", icon: <BookOpen className="h-4 w-4" /> },
-  { to: "/goals", label: "Goals", icon: <SettingsIcon className="h-4 w-4" /> },
+  {
+    to: "/",
+    label: "Dashboard",
+    icon: <Activity className="h-4 w-4" />,
+    activeClass: "border-sky-500/40 bg-sky-500/10 text-sky-300 shadow",
+    iconClass: "text-sky-400",
+  },
+  {
+    to: "/library",
+    label: "Library",
+    icon: <BookOpen className="h-4 w-4" />,
+    activeClass: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300 shadow",
+    iconClass: "text-emerald-400",
+  },
+  {
+    to: "/goals",
+    label: "Goals",
+    icon: <SettingsIcon className="h-4 w-4" />,
+    activeClass: "border-amber-500/40 bg-amber-500/10 text-amber-300 shadow",
+    iconClass: "text-amber-400",
+  },
 ];
 
 export function AdminShell({ children }: { children: ReactNode }) {
