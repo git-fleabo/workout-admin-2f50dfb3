@@ -79,6 +79,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "theme-color", content: "#1d4ed8" },
       { title: "Workout Settings" },
       { name: "description", content: "Log and track your regular and calisthenics workouts with this mobile-friendly exercise tracker." },
       { name: "author", content: "Lovable" },
@@ -97,6 +98,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
+      { rel: "icon", type: "image/png", href: "/__l5e/assets-v1/1bce3402-a2eb-4ba2-9cdd-2262478ca93c/app-icon.png" },
+      { rel: "apple-touch-icon", href: "/__l5e/assets-v1/1bce3402-a2eb-4ba2-9cdd-2262478ca93c/app-icon.png" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
