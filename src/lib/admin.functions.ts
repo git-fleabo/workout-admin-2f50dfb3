@@ -550,6 +550,10 @@ export const getDashboardData = createServerFn({ method: "GET" })
         const boulders = toNum(r[5]);
         if (Number.isFinite(boulders)) bouldersThisMonth += boulders;
       }
+      const ws = startOfWeekUTC(d);
+      if (ws.getTime() === thisWeekStart.getTime()) {
+        activeDaysThisWeek.add(toISODateString(d));
+      }
       const dateISO = toISODateString(d);
       if (!latestClimb || dateISO > latestClimb.date) {
         latestClimb = {
