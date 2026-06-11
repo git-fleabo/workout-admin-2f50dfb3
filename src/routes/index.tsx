@@ -475,7 +475,7 @@ function StrengthSnapshot({ data }: { data: Data }) {
 
 function MonthlySummary({ data }: { data: Data }) {
   return (
-    <Panel title="Monthly Summary" icon={<CalendarRange className="h-4 w-4" />}>
+    <Panel title="Monthly Summary" icon={<CalendarRange className="h-4 w-4" />} accent="violet">
       <Table>
         <TableHeader>
           <TableRow>
