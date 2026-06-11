@@ -403,7 +403,7 @@ function WeekCalendar({ data }: { data: Data }) {
 function ClimbingSummary({ data }: { data: Data }) {
   const c = data.climbing;
   return (
-    <Panel title="Climbing Summary" icon={<Mountain className="h-4 w-4" />}>
+    <Panel title="Climbing Summary" icon={<Mountain className="h-4 w-4" />} accent="emerald">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
         <Stat label="Sessions" value={fmt(c.sessionsThisMonth)} />
         <Stat label="Hours" value={fmt(c.hoursThisMonth, "h")} />
