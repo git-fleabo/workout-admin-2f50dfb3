@@ -341,20 +341,29 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function WeekCalendar({ data }: { data: Data }) {
+  const [openDate, setOpenDate] = React.useState<string | null>(null);
+  const openDay = openDate
+    ? data.weekDays.find((d) => d.date === openDate) ?? null
+    : null;
+
   return (
     <Panel title="This Week" icon={<CalendarRange className="h-4 w-4" />} accent="cyan">
       <div className="grid grid-cols-7 gap-1.5">
         {data.weekDays.map((d) => {
           const credited = d.workouts > 0;
           const logged = d.exercises.length > 0;
+          const interactive = logged || credited;
           return (
-            <div
+            <button
               key={d.date}
+              type="button"
+              onClick={() => interactive && setOpenDate(d.date)}
+              disabled={!interactive}
               className={`flex min-h-[110px] flex-col rounded-md border p-2 text-center transition ${
                 d.isToday
                   ? "border-primary/60 bg-primary/5"
                   : "border-border bg-secondary/20"
-              }`}
+              } ${interactive ? "cursor-pointer hover:border-primary/50 hover:bg-primary/5" : "cursor-default opacity-80"}`}
             >
               <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 {d.label}
@@ -392,11 +401,97 @@ function WeekCalendar({ data }: { data: Data }) {
                   credited ? "bg-primary" : "bg-border"
                 }`}
               />
-            </div>
+            </button>
           );
         })}
       </div>
+
+      <Dialog open={openDay != null} onOpenChange={(v) => !v && setOpenDate(null)}>
+        <DialogContent className="max-w-lg">
+          {openDay && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{formatUKDate(openDay.date)}</DialogTitle>
+                <DialogDescription>
+                  {openDay.workouts > 0
+                    ? `${openDay.workouts} workout${openDay.workouts === 1 ? "" : "s"} · ${Math.round(openDay.minutes)} min`
+                    : openDay.entries.length > 0
+                      ? `${Math.round(openDay.minutes)} min logged`
+                      : "Rest day"}
+                </DialogDescription>
+              </DialogHeader>
+              {openDay.entries.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Nothing logged for this day.
+                </p>
+              ) : (
+                <ul className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+                  {openDay.entries.map((e, i) => (
+                    <li
+                      key={`${e.exercise}-${i}`}
+                      className="rounded-md border border-border/60 bg-secondary/20 p-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">
+                            {e.exercise}
+                          </p>
+                          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                            {e.kind === "climb" ? "Climbing" : "Workout"}
+                            {!e.counts && e.kind === "workout" ? " · no credit" : ""}
+                          </p>
+                        </div>
+                        {e.minutes != null && (
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {Math.round(e.minutes)} min
+                          </span>
+                        )}
+                      </div>
+                      <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                        {e.sets != null && (
+                          <Detail label="Sets" value={`${e.sets}`} />
+                        )}
+                        {e.reps != null && (
+                          <Detail
+                            label={e.kind === "climb" ? "Boulders" : "Total reps"}
+                            value={`${e.reps}`}
+                          />
+                        )}
+                        {e.weight != null && (
+                          <Detail label="Weight" value={`${e.weight} kg`} />
+                        )}
+                        {e.weight != null && e.reps != null && (
+                          <Detail
+                            label="Volume"
+                            value={`${Math.round(e.weight * e.reps)} kg`}
+                          />
+                        )}
+                      </dl>
+                      {e.notes && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {e.notes}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </Panel>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded border border-border/40 bg-background/40 px-2 py-1">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
+      <div className="text-sm font-medium">{value}</div>
+    </div>
   );
 }
 
