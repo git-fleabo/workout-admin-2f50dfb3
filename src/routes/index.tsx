@@ -308,7 +308,7 @@ function WeeklySnapshot({ data }: { data: Data }) {
     Math.round(((data.kpis.workoutsThisWeek || 0) / weeklyGoal) * 100),
   );
   return (
-    <Panel title="Weekly Snapshot" icon={<Activity className="h-4 w-4" />}>
+    <Panel title="Weekly Snapshot" icon={<Activity className="h-4 w-4" />} accent="sky">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <Stat label="Workouts" value={data.kpis.workoutsThisWeek.toString()} />
         <Stat label="Minutes" value={fmt(Math.round(data.kpis.minutesThisWeek || 0))} />
