@@ -514,6 +514,7 @@ function RecentPRs({ data }: { data: Data }) {
     <Panel
       title="Recent PRs"
       icon={<Award className="h-4 w-4" />}
+      accent="amber"
       action={
         <span className="text-xs text-muted-foreground">
           {data.kpis.totalPRs} tracked
