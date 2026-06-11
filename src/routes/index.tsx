@@ -614,7 +614,7 @@ function TrendChart({ data }: { data: Data }) {
 function TrendSummary({ data }: { data: Data }) {
   const t = data.trend;
   return (
-    <Panel title="Lifetime Totals" icon={<Scale className="h-4 w-4" />}>
+    <Panel title="Lifetime Totals" icon={<Scale className="h-4 w-4" />} accent="cyan">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <Stat
           label="Started"
