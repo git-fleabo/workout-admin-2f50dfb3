@@ -111,18 +111,21 @@ function DashboardPage() {
           icon={<CalendarRange className="h-3.5 w-3.5" />}
           label="Week starting"
           value={formatUKDateShort(data.thisWeekStart)}
+          accent="cyan"
         />
         <StatusTile
           icon={<Target className="h-3.5 w-3.5" />}
           label="Weekly goal"
           value={`${data.kpis.workoutsThisWeek}/${data.goals?.weeklyWorkouts ?? DEFAULT_WEEKLY_GOAL}`}
           hint="workouts"
+          accent="sky"
         />
         <StatusTile
           icon={<Clock className="h-3.5 w-3.5" />}
           label="Minute goal"
           value={`${Math.round(data.kpis.minutesThisWeek || 0)}/${data.goals?.weeklyMinutes ?? DEFAULT_MINUTE_GOAL}`}
           hint="min"
+          accent="amber"
         />
         <StatusTile
           icon={<TrendIcon className="h-3.5 w-3.5" />}
@@ -133,6 +136,7 @@ function DashboardPage() {
               : `${bwDelta > 0 ? "+" : ""}${bwDelta}kg`
           }
           hint={`${data.trend.weeksTraining || 0}w training`}
+          accent="violet"
         />
       </section>
 
@@ -171,24 +175,93 @@ function DashboardPage() {
 
 /* ---------------- Panels ---------------- */
 
+type Accent = "sky" | "emerald" | "amber" | "violet" | "rose" | "cyan" | "lime";
+
+const ACCENTS: Record<
+  Accent,
+  { card: string; icon: string; title: string; bar: string; tile: string; tileIcon: string }
+> = {
+  sky: {
+    card: "border-sky-500/30 bg-gradient-to-br from-sky-500/[0.07] to-transparent",
+    icon: "text-sky-400",
+    title: "text-sky-200",
+    bar: "bg-sky-400",
+    tile: "border-sky-500/30 bg-sky-500/[0.06]",
+    tileIcon: "text-sky-400",
+  },
+  emerald: {
+    card: "border-emerald-500/30 bg-gradient-to-br from-emerald-500/[0.07] to-transparent",
+    icon: "text-emerald-400",
+    title: "text-emerald-200",
+    bar: "bg-emerald-400",
+    tile: "border-emerald-500/30 bg-emerald-500/[0.06]",
+    tileIcon: "text-emerald-400",
+  },
+  amber: {
+    card: "border-amber-500/30 bg-gradient-to-br from-amber-500/[0.07] to-transparent",
+    icon: "text-amber-400",
+    title: "text-amber-200",
+    bar: "bg-amber-400",
+    tile: "border-amber-500/30 bg-amber-500/[0.06]",
+    tileIcon: "text-amber-400",
+  },
+  violet: {
+    card: "border-violet-500/30 bg-gradient-to-br from-violet-500/[0.07] to-transparent",
+    icon: "text-violet-400",
+    title: "text-violet-200",
+    bar: "bg-violet-400",
+    tile: "border-violet-500/30 bg-violet-500/[0.06]",
+    tileIcon: "text-violet-400",
+  },
+  rose: {
+    card: "border-rose-500/30 bg-gradient-to-br from-rose-500/[0.07] to-transparent",
+    icon: "text-rose-400",
+    title: "text-rose-200",
+    bar: "bg-rose-400",
+    tile: "border-rose-500/30 bg-rose-500/[0.06]",
+    tileIcon: "text-rose-400",
+  },
+  cyan: {
+    card: "border-cyan-500/30 bg-gradient-to-br from-cyan-500/[0.07] to-transparent",
+    icon: "text-cyan-400",
+    title: "text-cyan-200",
+    bar: "bg-cyan-400",
+    tile: "border-cyan-500/30 bg-cyan-500/[0.06]",
+    tileIcon: "text-cyan-400",
+  },
+  lime: {
+    card: "border-lime-500/30 bg-gradient-to-br from-lime-500/[0.07] to-transparent",
+    icon: "text-lime-400",
+    title: "text-lime-200",
+    bar: "bg-lime-400",
+    tile: "border-lime-500/30 bg-lime-500/[0.06]",
+    tileIcon: "text-lime-400",
+  },
+};
+
 function Panel({
   title,
   icon,
   action,
   children,
   className = "",
+  accent,
 }: {
   title: string;
   icon?: React.ReactNode;
   action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  accent?: Accent;
 }) {
+  const a = accent ? ACCENTS[accent] : null;
   return (
-    <Card className={`border-border bg-card p-4 ${className}`}>
+    <Card
+      className={`p-4 ${a ? a.card : "border-border bg-card"} ${className}`}
+    >
       <div className="mb-3 flex items-center gap-2">
-        {icon && <span className="text-muted-foreground">{icon}</span>}
-        <h2 className="text-sm font-semibold">{title}</h2>
+        {icon && <span className={a ? a.icon : "text-muted-foreground"}>{icon}</span>}
+        <h2 className={`text-sm font-semibold ${a ? a.title : ""}`}>{title}</h2>
         {action && <div className="ml-auto">{action}</div>}
       </div>
       {children}
@@ -201,15 +274,22 @@ function StatusTile({
   label,
   value,
   hint,
+  accent,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   hint?: string;
+  accent?: Accent;
 }) {
+  const a = accent ? ACCENTS[accent] : null;
   return (
-    <Card className="border-border bg-card px-3 py-2.5">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+    <Card className={`px-3 py-2.5 ${a ? a.tile : "border-border bg-card"}`}>
+      <div
+        className={`flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider ${
+          a ? a.tileIcon : "text-muted-foreground"
+        }`}
+      >
         {icon}
         <span className="truncate">{label}</span>
       </div>
@@ -228,7 +308,7 @@ function WeeklySnapshot({ data }: { data: Data }) {
     Math.round(((data.kpis.workoutsThisWeek || 0) / weeklyGoal) * 100),
   );
   return (
-    <Panel title="Weekly Snapshot" icon={<Activity className="h-4 w-4" />}>
+    <Panel title="Weekly Snapshot" icon={<Activity className="h-4 w-4" />} accent="sky">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <Stat label="Workouts" value={data.kpis.workoutsThisWeek.toString()} />
         <Stat label="Minutes" value={fmt(Math.round(data.kpis.minutesThisWeek || 0))} />
@@ -262,7 +342,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function WeekCalendar({ data }: { data: Data }) {
   return (
-    <Panel title="This Week" icon={<CalendarRange className="h-4 w-4" />}>
+    <Panel title="This Week" icon={<CalendarRange className="h-4 w-4" />} accent="cyan">
       <div className="grid grid-cols-7 gap-1.5">
         {data.weekDays.map((d) => {
           const credited = d.workouts > 0;
@@ -323,7 +403,7 @@ function WeekCalendar({ data }: { data: Data }) {
 function ClimbingSummary({ data }: { data: Data }) {
   const c = data.climbing;
   return (
-    <Panel title="Climbing Summary" icon={<Mountain className="h-4 w-4" />}>
+    <Panel title="Climbing Summary" icon={<Mountain className="h-4 w-4" />} accent="emerald">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
         <Stat label="Sessions" value={fmt(c.sessionsThisMonth)} />
         <Stat label="Hours" value={fmt(c.hoursThisMonth, "h")} />
@@ -350,7 +430,7 @@ function ClimbingSummary({ data }: { data: Data }) {
 function StrengthSnapshot({ data }: { data: Data }) {
   const s = data.strength;
   return (
-    <Panel title="Strength Snapshot" icon={<Dumbbell className="h-4 w-4" />}>
+    <Panel title="Strength Snapshot" icon={<Dumbbell className="h-4 w-4" />} accent="rose">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
         <Stat
           label="Best 1RM"
@@ -395,7 +475,7 @@ function StrengthSnapshot({ data }: { data: Data }) {
 
 function MonthlySummary({ data }: { data: Data }) {
   return (
-    <Panel title="Monthly Summary" icon={<CalendarRange className="h-4 w-4" />}>
+    <Panel title="Monthly Summary" icon={<CalendarRange className="h-4 w-4" />} accent="violet">
       <Table>
         <TableHeader>
           <TableRow>
@@ -434,6 +514,7 @@ function RecentPRs({ data }: { data: Data }) {
     <Panel
       title="Recent PRs"
       icon={<Award className="h-4 w-4" />}
+      accent="amber"
       action={
         <span className="text-xs text-muted-foreground">
           {data.kpis.totalPRs} tracked
@@ -473,7 +554,7 @@ function RecentPRs({ data }: { data: Data }) {
 
 function TrendChart({ data }: { data: Data }) {
   return (
-    <Panel title="Trend Since Start" icon={<TrendingUp className="h-4 w-4" />}>
+    <Panel title="Trend Since Start" icon={<TrendingUp className="h-4 w-4" />} accent="lime">
       {data.workoutsByWeek.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
           No workout data yet.
@@ -533,7 +614,7 @@ function TrendChart({ data }: { data: Data }) {
 function TrendSummary({ data }: { data: Data }) {
   const t = data.trend;
   return (
-    <Panel title="Lifetime Totals" icon={<Scale className="h-4 w-4" />}>
+    <Panel title="Lifetime Totals" icon={<Scale className="h-4 w-4" />} accent="cyan">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <Stat
           label="Started"
