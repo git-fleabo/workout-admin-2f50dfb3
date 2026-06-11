@@ -342,7 +342,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function WeekCalendar({ data }: { data: Data }) {
   return (
-    <Panel title="This Week" icon={<CalendarRange className="h-4 w-4" />}>
+    <Panel title="This Week" icon={<CalendarRange className="h-4 w-4" />} accent="cyan">
       <div className="grid grid-cols-7 gap-1.5">
         {data.weekDays.map((d) => {
           const credited = d.workouts > 0;
