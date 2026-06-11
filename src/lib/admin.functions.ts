@@ -513,6 +513,20 @@ export const getDashboardData = createServerFn({ method: "GET" })
           }
           day.minutes += minutesSafe;
           if (!day.exercises.includes(exercise)) day.exercises.push(exercise);
+          const setsN = toNum(r[5]);
+          const repsN = toNum(r[6]);
+          const weightN = toNum(r[7]);
+          day.entries.push({
+            kind: "workout",
+            exercise,
+            sets: Number.isFinite(setsN) ? setsN : null,
+            reps: Number.isFinite(repsN) ? repsN : null,
+            weight: Number.isFinite(weightN) ? weightN : null,
+            minutes: Number.isFinite(minutes) ? minutes : null,
+            completed,
+            counts,
+            notes: (r[10] ?? r[11] ?? "").toString().trim(),
+          });
         }
       }
 
