@@ -430,7 +430,7 @@ function ClimbingSummary({ data }: { data: Data }) {
 function StrengthSnapshot({ data }: { data: Data }) {
   const s = data.strength;
   return (
-    <Panel title="Strength Snapshot" icon={<Dumbbell className="h-4 w-4" />}>
+    <Panel title="Strength Snapshot" icon={<Dumbbell className="h-4 w-4" />} accent="rose">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
         <Stat
           label="Best 1RM"
