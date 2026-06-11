@@ -554,7 +554,7 @@ function RecentPRs({ data }: { data: Data }) {
 
 function TrendChart({ data }: { data: Data }) {
   return (
-    <Panel title="Trend Since Start" icon={<TrendingUp className="h-4 w-4" />}>
+    <Panel title="Trend Since Start" icon={<TrendingUp className="h-4 w-4" />} accent="lime">
       {data.workoutsByWeek.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
           No workout data yet.
