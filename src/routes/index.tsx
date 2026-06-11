@@ -414,7 +414,7 @@ function WeekCalendar({ data }: { data: Data }) {
         })}
       </div>
 
-      <Dialog open={openDay != null} onOpenChange={(v) => !v && setOpenDate(null)}>
+      <Dialog open={openDay != null} onOpenChange={(v: boolean) => !v && setOpenDate(null)}>
         <DialogContent className="max-w-lg">
           {openDay && (
             <>
