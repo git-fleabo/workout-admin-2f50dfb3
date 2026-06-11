@@ -331,12 +331,25 @@ export type PRItem = {
   date: string;
 };
 
+export type WeekDayEntry = {
+  kind: "workout" | "climb";
+  exercise: string;
+  sets: number | null;
+  reps: number | null;
+  weight: number | null;
+  minutes: number | null;
+  completed: boolean;
+  counts: boolean;
+  notes: string;
+};
+
 export type WeekDay = {
   date: string;
   label: string;
   workouts: number;
   minutes: number;
   exercises: string[];
+  entries: WeekDayEntry[];
   isToday: boolean;
 };
 
