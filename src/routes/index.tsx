@@ -171,24 +171,93 @@ function DashboardPage() {
 
 /* ---------------- Panels ---------------- */
 
+type Accent = "sky" | "emerald" | "amber" | "violet" | "rose" | "cyan" | "lime";
+
+const ACCENTS: Record<
+  Accent,
+  { card: string; icon: string; title: string; bar: string; tile: string; tileIcon: string }
+> = {
+  sky: {
+    card: "border-sky-500/30 bg-gradient-to-br from-sky-500/[0.07] to-transparent",
+    icon: "text-sky-400",
+    title: "text-sky-200",
+    bar: "bg-sky-400",
+    tile: "border-sky-500/30 bg-sky-500/[0.06]",
+    tileIcon: "text-sky-400",
+  },
+  emerald: {
+    card: "border-emerald-500/30 bg-gradient-to-br from-emerald-500/[0.07] to-transparent",
+    icon: "text-emerald-400",
+    title: "text-emerald-200",
+    bar: "bg-emerald-400",
+    tile: "border-emerald-500/30 bg-emerald-500/[0.06]",
+    tileIcon: "text-emerald-400",
+  },
+  amber: {
+    card: "border-amber-500/30 bg-gradient-to-br from-amber-500/[0.07] to-transparent",
+    icon: "text-amber-400",
+    title: "text-amber-200",
+    bar: "bg-amber-400",
+    tile: "border-amber-500/30 bg-amber-500/[0.06]",
+    tileIcon: "text-amber-400",
+  },
+  violet: {
+    card: "border-violet-500/30 bg-gradient-to-br from-violet-500/[0.07] to-transparent",
+    icon: "text-violet-400",
+    title: "text-violet-200",
+    bar: "bg-violet-400",
+    tile: "border-violet-500/30 bg-violet-500/[0.06]",
+    tileIcon: "text-violet-400",
+  },
+  rose: {
+    card: "border-rose-500/30 bg-gradient-to-br from-rose-500/[0.07] to-transparent",
+    icon: "text-rose-400",
+    title: "text-rose-200",
+    bar: "bg-rose-400",
+    tile: "border-rose-500/30 bg-rose-500/[0.06]",
+    tileIcon: "text-rose-400",
+  },
+  cyan: {
+    card: "border-cyan-500/30 bg-gradient-to-br from-cyan-500/[0.07] to-transparent",
+    icon: "text-cyan-400",
+    title: "text-cyan-200",
+    bar: "bg-cyan-400",
+    tile: "border-cyan-500/30 bg-cyan-500/[0.06]",
+    tileIcon: "text-cyan-400",
+  },
+  lime: {
+    card: "border-lime-500/30 bg-gradient-to-br from-lime-500/[0.07] to-transparent",
+    icon: "text-lime-400",
+    title: "text-lime-200",
+    bar: "bg-lime-400",
+    tile: "border-lime-500/30 bg-lime-500/[0.06]",
+    tileIcon: "text-lime-400",
+  },
+};
+
 function Panel({
   title,
   icon,
   action,
   children,
   className = "",
+  accent,
 }: {
   title: string;
   icon?: React.ReactNode;
   action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  accent?: Accent;
 }) {
+  const a = accent ? ACCENTS[accent] : null;
   return (
-    <Card className={`border-border bg-card p-4 ${className}`}>
+    <Card
+      className={`p-4 ${a ? a.card : "border-border bg-card"} ${className}`}
+    >
       <div className="mb-3 flex items-center gap-2">
-        {icon && <span className="text-muted-foreground">{icon}</span>}
-        <h2 className="text-sm font-semibold">{title}</h2>
+        {icon && <span className={a ? a.icon : "text-muted-foreground"}>{icon}</span>}
+        <h2 className={`text-sm font-semibold ${a ? a.title : ""}`}>{title}</h2>
         {action && <div className="ml-auto">{action}</div>}
       </div>
       {children}
