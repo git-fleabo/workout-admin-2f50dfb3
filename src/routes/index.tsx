@@ -270,15 +270,22 @@ function StatusTile({
   label,
   value,
   hint,
+  accent,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   hint?: string;
+  accent?: Accent;
 }) {
+  const a = accent ? ACCENTS[accent] : null;
   return (
-    <Card className="border-border bg-card px-3 py-2.5">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+    <Card className={`px-3 py-2.5 ${a ? a.tile : "border-border bg-card"}`}>
+      <div
+        className={`flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider ${
+          a ? a.tileIcon : "text-muted-foreground"
+        }`}
+      >
         {icon}
         <span className="truncate">{label}</span>
       </div>
