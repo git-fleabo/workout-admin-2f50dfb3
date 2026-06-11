@@ -586,7 +586,21 @@ export const getDashboardData = createServerFn({ method: "GET" })
         if (day) {
           const label = (r[1] ?? "").toString().trim() || "Climbing";
           if (!day.exercises.includes(label)) day.exercises.push(label);
-          day.minutes += hoursSafe * 60;
+          const climbMinutes = hoursSafe * 60;
+          day.minutes += climbMinutes;
+          const grade = (r[2] ?? r[3] ?? "").toString().trim();
+          const boulders = toNum(r[5]);
+          day.entries.push({
+            kind: "climb",
+            exercise: label,
+            sets: null,
+            reps: Number.isFinite(boulders) ? boulders : null,
+            weight: null,
+            minutes: climbMinutes || null,
+            completed: true,
+            counts: false,
+            notes: grade ? `Grade ${grade}` : "",
+          });
         }
       }
       const dateISO = toISODateString(d);
