@@ -552,7 +552,14 @@ export const getDashboardData = createServerFn({ method: "GET" })
       }
       const ws = startOfWeekUTC(d);
       if (ws.getTime() === thisWeekStart.getTime()) {
-        activeDaysThisWeek.add(toISODateString(d));
+        const dISO = toISODateString(d);
+        activeDaysThisWeek.add(dISO);
+        const day = weekDayByISO.get(dISO);
+        if (day) {
+          const label = (r[1] ?? "").toString().trim() || "Climbing";
+          if (!day.exercises.includes(label)) day.exercises.push(label);
+          day.minutes += hoursSafe * 60;
+        }
       }
       const dateISO = toISODateString(d);
       if (!latestClimb || dateISO > latestClimb.date) {
