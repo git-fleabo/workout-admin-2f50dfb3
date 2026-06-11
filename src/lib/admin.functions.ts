@@ -331,12 +331,25 @@ export type PRItem = {
   date: string;
 };
 
+export type WeekDayEntry = {
+  kind: "workout" | "climb";
+  exercise: string;
+  sets: number | null;
+  reps: number | null;
+  weight: number | null;
+  minutes: number | null;
+  completed: boolean;
+  counts: boolean;
+  notes: string;
+};
+
 export type WeekDay = {
   date: string;
   label: string;
   workouts: number;
   minutes: number;
   exercises: string[];
+  entries: WeekDayEntry[];
   isToday: boolean;
 };
 
@@ -414,6 +427,7 @@ export const getDashboardData = createServerFn({ method: "GET" })
         workouts: 0,
         minutes: 0,
         exercises: [],
+        entries: [],
         isToday: iso === todayISO,
       };
     });
@@ -499,6 +513,20 @@ export const getDashboardData = createServerFn({ method: "GET" })
           }
           day.minutes += minutesSafe;
           if (!day.exercises.includes(exercise)) day.exercises.push(exercise);
+          const setsN = toNum(r[5]);
+          const repsN = toNum(r[6]);
+          const weightN = toNum(r[7]);
+          day.entries.push({
+            kind: "workout",
+            exercise,
+            sets: Number.isFinite(setsN) ? setsN : null,
+            reps: Number.isFinite(repsN) ? repsN : null,
+            weight: Number.isFinite(weightN) ? weightN : null,
+            minutes: Number.isFinite(minutes) ? minutes : null,
+            completed,
+            counts,
+            notes: (r[10] ?? r[11] ?? "").toString().trim(),
+          });
         }
       }
 
@@ -558,7 +586,21 @@ export const getDashboardData = createServerFn({ method: "GET" })
         if (day) {
           const label = (r[1] ?? "").toString().trim() || "Climbing";
           if (!day.exercises.includes(label)) day.exercises.push(label);
-          day.minutes += hoursSafe * 60;
+          const climbMinutes = hoursSafe * 60;
+          day.minutes += climbMinutes;
+          const grade = (r[2] ?? r[3] ?? "").toString().trim();
+          const boulders = toNum(r[5]);
+          day.entries.push({
+            kind: "climb",
+            exercise: label,
+            sets: null,
+            reps: Number.isFinite(boulders) ? boulders : null,
+            weight: null,
+            minutes: climbMinutes || null,
+            completed: true,
+            counts: false,
+            notes: grade ? `Grade ${grade}` : "",
+          });
         }
       }
       const dateISO = toISODateString(d);
