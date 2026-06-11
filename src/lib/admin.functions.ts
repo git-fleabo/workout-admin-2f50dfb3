@@ -427,6 +427,7 @@ export const getDashboardData = createServerFn({ method: "GET" })
         workouts: 0,
         minutes: 0,
         exercises: [],
+        entries: [],
         isToday: iso === todayISO,
       };
     });
