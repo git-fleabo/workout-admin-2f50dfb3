@@ -111,18 +111,21 @@ function DashboardPage() {
           icon={<CalendarRange className="h-3.5 w-3.5" />}
           label="Week starting"
           value={formatUKDateShort(data.thisWeekStart)}
+          accent="cyan"
         />
         <StatusTile
           icon={<Target className="h-3.5 w-3.5" />}
           label="Weekly goal"
           value={`${data.kpis.workoutsThisWeek}/${data.goals?.weeklyWorkouts ?? DEFAULT_WEEKLY_GOAL}`}
           hint="workouts"
+          accent="sky"
         />
         <StatusTile
           icon={<Clock className="h-3.5 w-3.5" />}
           label="Minute goal"
           value={`${Math.round(data.kpis.minutesThisWeek || 0)}/${data.goals?.weeklyMinutes ?? DEFAULT_MINUTE_GOAL}`}
           hint="min"
+          accent="amber"
         />
         <StatusTile
           icon={<TrendIcon className="h-3.5 w-3.5" />}
@@ -133,6 +136,7 @@ function DashboardPage() {
               : `${bwDelta > 0 ? "+" : ""}${bwDelta}kg`
           }
           hint={`${data.trend.weeksTraining || 0}w training`}
+          accent="violet"
         />
       </section>
 
