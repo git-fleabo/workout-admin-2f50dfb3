@@ -374,17 +374,31 @@ const isTrue = (v: unknown) => {
   return s === "true" || s === "yes" || s === "1" || s === "✓" || s === "x";
 };
 
+async function getDashboardValues(range: string) {
+  try {
+    return { rows: await getValues(range), error: null };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Dashboard range failed: ${range}`, message);
+    return { rows: [] as string[][], error: message };
+  }
+}
+
 export const getDashboardData = createServerFn({ method: "GET" })
   .middleware([appSecretAuth])
   .handler(async () => {
-    const [workouts, climbs, oneRM, bw, skills, goalRows] = await Promise.all([
-      getValues("Workout%20Log!A5:O1000"),
-      getValues("Climbing%20Log!A10:L1000"),
-      getValues("1RM%20Tracker!A70:R400"),
-      getValues("1RM%20Tracker!J7:L60"),
-      getValues("Skills%20Tracker!A41:O500"),
-      getValues("Goals!A2:E200"),
+    const results = await Promise.all([
+      getDashboardValues("Workout%20Log!A5:O1000"),
+      getDashboardValues("Climbing%20Log!A10:L1000"),
+      getDashboardValues("1RM%20Tracker!A70:R400"),
+      getDashboardValues("1RM%20Tracker!J7:L60"),
+      getDashboardValues("Skills%20Tracker!A41:O500"),
+      getDashboardValues("Goals!A2:E200"),
     ]);
+    const [workouts, climbs, oneRM, bw, skills, goalRows] = results.map((r) => r.rows);
+    if (results.every((r) => r.error)) {
+      throw new Error(results[0]?.error || "Spreadsheet connection failed.");
+    }
 
     // Parse weekly targets from the Goals tab.
     // We look for rows whose period mentions "week" and pick the first

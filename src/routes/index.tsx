@@ -85,9 +85,10 @@ function DashboardPage() {
   }
 
   if (error || !data) {
+    const message = error instanceof Error ? error.message : "Check the spreadsheet connection and try again.";
     return (
       <Card className="p-6 text-sm text-destructive">
-        Couldn’t load the dashboard. Check the spreadsheet connection and try again.
+        Couldn’t load the dashboard. {message}
       </Card>
     );
   }
