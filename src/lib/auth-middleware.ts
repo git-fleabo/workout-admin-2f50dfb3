@@ -3,6 +3,7 @@ import { getRequestHeader } from "@tanstack/react-start/server";
 
 const STORAGE_KEY = "app-secret";
 const HEADER_NAME = "x-app-secret";
+const PREVIEW_FALLBACK_SECRET = "preview";
 
 export function getStoredSecret(): string | null {
   if (typeof window === "undefined") return null;
@@ -39,10 +40,8 @@ export const appSecretAuth = createMiddleware({ type: "function" })
     });
   })
   .server(async ({ next }) => {
-    const expected = process.env.APP_SECRET;
-    if (!expected) {
-      throw new Error("Server misconfigured: APP_SECRET is not set.");
-    }
+    // Temporary staging-preview fallback. Remove before merging/releasing.
+    const expected = process.env.APP_SECRET || PREVIEW_FALLBACK_SECRET;
     const provided = getRequestHeader(HEADER_NAME);
     if (provided !== expected) {
       throw new Error("Unauthorized — enter the access password.");
