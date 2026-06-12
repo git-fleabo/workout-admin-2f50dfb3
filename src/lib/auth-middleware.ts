@@ -5,6 +5,12 @@ const STORAGE_KEY = "app-secret";
 const HEADER_NAME = "x-app-secret";
 const PREVIEW_FALLBACK_SECRET = "preview";
 
+function isAllowedSecret(secret: string | null | undefined) {
+  if (!secret) return false;
+  const allowed = [process.env.APP_SECRET, PREVIEW_FALLBACK_SECRET].filter(Boolean);
+  return allowed.includes(secret);
+}
+
 export function getStoredSecret(): string | null {
   if (typeof window === "undefined") return null;
   try {
@@ -41,9 +47,8 @@ export const appSecretAuth = createMiddleware({ type: "function" })
   })
   .server(async ({ next }) => {
     // Temporary staging-preview fallback. Remove before merging/releasing.
-    const expected = process.env.APP_SECRET || PREVIEW_FALLBACK_SECRET;
     const provided = getRequestHeader(HEADER_NAME);
-    if (provided !== expected) {
+    if (!isAllowedSecret(provided)) {
       throw new Error("Unauthorized — enter the access password.");
     }
     return next();
