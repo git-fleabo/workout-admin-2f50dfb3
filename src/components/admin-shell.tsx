@@ -1,6 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { type ReactNode } from "react";
-import { Activity, BookOpen, LogOut, Settings as SettingsIcon, ShieldCheck } from "lucide-react";
+import { Activity, BookOpen, Dumbbell, LogOut, Settings as SettingsIcon, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { clearStoredSecret } from "@/lib/auth-middleware";
@@ -20,6 +20,13 @@ const NAV: NavItem[] = [
     icon: <Activity className="h-4 w-4" />,
     activeClass: "border-sky-500/40 bg-sky-500/10 text-sky-300 shadow",
     iconClass: "text-sky-400",
+  },
+  {
+    to: "/log",
+    label: "Log",
+    icon: <Dumbbell className="h-4 w-4" />,
+    activeClass: "border-violet-500/40 bg-violet-500/10 text-violet-300 shadow",
+    iconClass: "text-violet-400",
   },
   {
     to: "/library",

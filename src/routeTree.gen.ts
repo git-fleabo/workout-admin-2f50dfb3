@@ -9,10 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as LogRouteImport } from './routes/log'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as GoalsRouteImport } from './routes/goals'
 import { Route as IndexRouteImport } from './routes/index'
 
+const LogRoute = LogRouteImport.update({
+  id: '/log',
+  path: '/log',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LibraryRoute = LibraryRouteImport.update({
   id: '/library',
   path: '/library',
@@ -33,34 +39,45 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/goals': typeof GoalsRoute
   '/library': typeof LibraryRoute
+  '/log': typeof LogRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/goals': typeof GoalsRoute
   '/library': typeof LibraryRoute
+  '/log': typeof LogRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/goals': typeof GoalsRoute
   '/library': typeof LibraryRoute
+  '/log': typeof LogRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/goals' | '/library'
+  fullPaths: '/' | '/goals' | '/library' | '/log'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/goals' | '/library'
-  id: '__root__' | '/' | '/goals' | '/library'
+  to: '/' | '/goals' | '/library' | '/log'
+  id: '__root__' | '/' | '/goals' | '/library' | '/log'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   GoalsRoute: typeof GoalsRoute
   LibraryRoute: typeof LibraryRoute
+  LogRoute: typeof LogRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/log': {
+      id: '/log'
+      path: '/log'
+      fullPath: '/log'
+      preLoaderRoute: typeof LogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/library': {
       id: '/library'
       path: '/library'
@@ -89,6 +106,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   GoalsRoute: GoalsRoute,
   LibraryRoute: LibraryRoute,
+  LogRoute: LogRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
