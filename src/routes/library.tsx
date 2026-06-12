@@ -53,7 +53,7 @@ export const Route = createFileRoute("/library")({
       { title: "Exercise Library · Training Admin" },
       {
         name: "description",
-        content: "Add, edit and remove exercises in the training spreadsheet's library.",
+        content: "Add, edit and remove movements in the training spreadsheet's library.",
       },
     ],
   }),
@@ -116,7 +116,7 @@ function LibraryPage() {
   const addMutation = useMutation({
     mutationFn: (fields: typeof BLANK) => addFn({ data: fields }),
     onSuccess: () => {
-      toast.success("Exercise added");
+      toast.success("Movement added");
       setEditor({ mode: "closed" });
       qc.invalidateQueries({ queryKey: ["library"] });
     },
@@ -127,7 +127,7 @@ function LibraryPage() {
     mutationFn: ({ row, fields }: { row: number; fields: typeof BLANK }) =>
       updateFn({ data: { row, fields } }),
     onSuccess: () => {
-      toast.success("Exercise updated");
+      toast.success("Movement updated");
       setEditor({ mode: "closed" });
       qc.invalidateQueries({ queryKey: ["library"] });
     },
@@ -137,7 +137,7 @@ function LibraryPage() {
   const deleteMutation = useMutation({
     mutationFn: (row: number) => deleteFn({ data: { row } }),
     onSuccess: () => {
-      toast.success("Exercise deleted");
+      toast.success("Movement deleted");
       setPendingDelete(null);
       qc.invalidateQueries({ queryKey: ["library"] });
     },
@@ -188,7 +188,7 @@ function LibraryPage() {
           className="ml-auto h-10 font-medium"
           style={{ backgroundImage: "var(--gradient-primary)", color: "var(--primary-foreground)" }}
         >
-          <Plus className="mr-1 h-4 w-4" /> Add exercise
+          <Plus className="mr-1 h-4 w-4" /> Add movement
         </Button>
       </div>
 
@@ -206,7 +206,7 @@ function LibraryPage() {
             </div>
           ) : filtered.length === 0 ? (
             <Card className="p-6 text-sm text-muted-foreground">
-              No exercises match the current filters.
+              No movements match the current filters.
             </Card>
           ) : (
             <div className="space-y-2">
@@ -310,7 +310,7 @@ function LibraryPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this exercise?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this movement?</AlertDialogTitle>
             <AlertDialogDescription>
               {pendingDelete?.name} will be removed from the library. This deletes the row from
               the spreadsheet permanently.
@@ -409,12 +409,12 @@ function ExerciseEditorDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {state.mode === "edit" ? "Edit exercise" : "New exercise"}
+            {state.mode === "edit" ? "Edit movement" : "New movement"}
           </DialogTitle>
           <DialogDescription>
             {state.mode === "edit"
               ? `Update the spreadsheet row for ${state.row.name}.`
-              : "Add a new entry to the Exercise Library tab."}
+              : "Add a new exercise or skill to the Exercise Library tab."}
           </DialogDescription>
         </DialogHeader>
 

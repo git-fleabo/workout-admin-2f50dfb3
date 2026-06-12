@@ -1,5 +1,10 @@
-const SHEET_ID = "17bxY64sce1_QcoWVf0gYHlbWkOVwu3MvZj6eUtTbT7o";
+// Test branch fallback: point Lovable previews at the copied spreadsheet.
+const DEFAULT_SHEET_ID = "18o8XFxH3iJQaaXAnbbOtkZ-a6E8xayQ34HaE1-L9ECk";
 const GATEWAY = "https://connector-gateway.lovable.dev/google_sheets/v4";
+
+function sheetId() {
+  return DEFAULT_SHEET_ID;
+}
 
 function authHeaders() {
   const lov = process.env.LOVABLE_API_KEY;
@@ -14,7 +19,7 @@ function authHeaders() {
 }
 
 async function gw(path: string, init?: RequestInit) {
-  const res = await fetch(`${GATEWAY}/spreadsheets/${SHEET_ID}${path}`, {
+  const res = await fetch(`${GATEWAY}/spreadsheets/${sheetId()}${path}`, {
     ...init,
     headers: { ...authHeaders(), ...(init?.headers ?? {}) },
   });

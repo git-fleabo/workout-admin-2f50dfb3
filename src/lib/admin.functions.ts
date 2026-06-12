@@ -779,6 +779,7 @@ export const getLibraryDropdowns = createServerFn({ method: "GET" })
       if (row[0]) workoutTypes.push(row[0]);
       if (row[1]) focusAreas.push(row[1]);
     }
+    if (!workoutTypes.includes("Skill")) workoutTypes.push("Skill");
     return { workoutTypes, focusAreas };
   });
 
