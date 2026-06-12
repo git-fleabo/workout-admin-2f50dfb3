@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { Activity, Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -234,6 +234,16 @@ function LibraryPage() {
                       )}
                     </div>
                     <div className="flex shrink-0 gap-1" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelected(ex)}
+                        aria-label={`View history for ${ex.name}`}
+                        className="gap-1 px-2 text-xs"
+                      >
+                        <Activity className="h-4 w-4" />
+                        History
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"

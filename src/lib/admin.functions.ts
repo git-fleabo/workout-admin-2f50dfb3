@@ -20,6 +20,14 @@ function normalizeWorkoutType(value: string) {
   return trimmed;
 }
 
+function normalizeLibraryType(workoutType: string, focusArea: string) {
+  const normalized = normalizeWorkoutType(workoutType);
+  const focus = focusArea.trim();
+  if (focus === "Grip") return "Grip";
+  if (focus === "Skill" || focus === "Calisthenics") return SKILL_WORKOUT_TYPE;
+  return normalized;
+}
+
 const toNum = (v: unknown): number => {
   if (v == null) return NaN;
   const t = v.toString().trim();
@@ -126,7 +134,7 @@ export const listExercises = createServerFn({ method: "GET" })
       if (!name) return;
       items.push({
         row: 5 + idx,
-        workoutType: normalizeWorkoutType(r[0] ?? ""),
+        workoutType: normalizeLibraryType(r[0] ?? "", r[1] ?? ""),
         focusArea: r[1] ?? "",
         name,
         equipment: r[3] ?? "",
