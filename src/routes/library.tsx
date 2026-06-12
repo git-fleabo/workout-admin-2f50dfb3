@@ -92,7 +92,6 @@ function LibraryPage() {
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("");
-  const [focusFilter, setFocusFilter] = useState<string>("");
   const [editor, setEditor] = useState<EditorState>({ mode: "closed" });
   const [pendingDelete, setPendingDelete] = useState<LibraryRow | null>(null);
   const [selected, setSelected] = useState<LibraryRow | null>(null);
@@ -103,7 +102,6 @@ function LibraryPage() {
     const q = search.trim().toLowerCase();
     return items.filter((i) => {
       if (typeFilter && i.workoutType !== typeFilter) return false;
-      if (focusFilter && i.focusArea !== focusFilter) return false;
       if (!q) return true;
       return (
         i.name.toLowerCase().includes(q) ||
@@ -111,7 +109,7 @@ function LibraryPage() {
         i.notes.toLowerCase().includes(q)
       );
     });
-  }, [list.data, search, typeFilter, focusFilter]);
+  }, [list.data, search, typeFilter]);
 
   const addMutation = useMutation({
     mutationFn: (fields: typeof BLANK) => addFn({ data: fields }),
@@ -173,16 +171,6 @@ function LibraryPage() {
             options={dropdowns.data?.workoutTypes ?? []}
           />
         </div>
-        <div className="flex flex-col gap-1">
-          <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Focus
-          </Label>
-          <FilterSelect
-            value={focusFilter}
-            onChange={setFocusFilter}
-            options={dropdowns.data?.focusAreas ?? []}
-          />
-        </div>
         <Button
           onClick={() => setEditor({ mode: "create" })}
           className="ml-auto h-10 font-medium"
@@ -227,9 +215,6 @@ function LibraryPage() {
                           <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] uppercase tracking-wider text-secondary-foreground">
                             {ex.workoutType}
                           </span>
-                        )}
-                        {ex.focusArea && (
-                          <span className="text-xs text-muted-foreground">{ex.focusArea}</span>
                         )}
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">
@@ -293,7 +278,6 @@ function LibraryPage() {
         state={editor}
         onClose={() => setEditor({ mode: "closed" })}
         workoutTypes={dropdowns.data?.workoutTypes ?? []}
-        focusAreas={dropdowns.data?.focusAreas ?? []}
         onSubmit={(fields) => {
           if (editor.mode === "create") {
             addMutation.mutate(fields);
@@ -371,20 +355,18 @@ function ExerciseEditorDialog({
   onSubmit,
   isPending,
   workoutTypes,
-  focusAreas,
 }: {
   state: EditorState;
   onClose: () => void;
   onSubmit: (fields: typeof BLANK) => void;
   isPending: boolean;
   workoutTypes: string[];
-  focusAreas: string[];
 }) {
   const initial =
     state.mode === "edit"
       ? {
           workoutType: state.row.workoutType,
-          focusArea: state.row.focusArea,
+          focusArea: "",
           name: state.row.name,
           equipment: state.row.equipment,
           metric: state.row.metric,
@@ -438,26 +420,15 @@ function ExerciseEditorDialog({
               autoCapitalize="words"
             />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Type">
-              <DatalistInput
-                value={form.workoutType}
-                onChange={(v) => update("workoutType", v)}
-                options={workoutTypes}
-                placeholder="Strength"
-                listId="lib-types"
-              />
-            </Field>
-            <Field label="Focus">
-              <DatalistInput
-                value={form.focusArea}
-                onChange={(v) => update("focusArea", v)}
-                options={focusAreas}
-                placeholder="Push, Pull…"
-                listId="lib-focus"
-              />
-            </Field>
-          </div>
+          <Field label="Type">
+            <DatalistInput
+              value={form.workoutType}
+              onChange={(v) => update("workoutType", v)}
+              options={workoutTypes}
+              placeholder="Strength"
+              listId="lib-types"
+            />
+          </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Equipment">
               <Input

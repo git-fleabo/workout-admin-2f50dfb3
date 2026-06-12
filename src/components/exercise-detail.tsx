@@ -104,11 +104,6 @@ export function ExerciseDetail({
                 {exercise.workoutType}
               </span>
             )}
-            {exercise.focusArea && (
-              <span className="rounded-full border border-border px-2 py-0.5 text-muted-foreground">
-                {exercise.focusArea}
-              </span>
-            )}
           </div>
           <p className="mt-1.5 text-xs text-muted-foreground">
             {[exercise.equipment, exercise.metric].filter(Boolean).join(" · ") || "—"}

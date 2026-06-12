@@ -12,6 +12,13 @@ import { appSecretAuth } from "./auth-middleware";
 
 const shortText = (max = 200) => z.string().max(max).default("");
 const longText = (max = 2000) => z.string().max(max).default("");
+const SKILL_WORKOUT_TYPE = "Skills/Calisthenics";
+
+function normalizeWorkoutType(value: string) {
+  const trimmed = value.trim();
+  if (trimmed === "Skill" || trimmed === "Calisthenics") return SKILL_WORKOUT_TYPE;
+  return trimmed;
+}
 
 const toNum = (v: unknown): number => {
   if (v == null) return NaN;
@@ -119,7 +126,7 @@ export const listExercises = createServerFn({ method: "GET" })
       if (!name) return;
       items.push({
         row: 5 + idx,
-        workoutType: r[0] ?? "",
+        workoutType: normalizeWorkoutType(r[0] ?? ""),
         focusArea: r[1] ?? "",
         name,
         equipment: r[3] ?? "",
@@ -150,8 +157,8 @@ export const addExercise = createServerFn({ method: "POST" })
       {
         range: `Exercise Library!A${row}:H${row}`,
         values: [[
-          data.workoutType,
-          data.focusArea,
+          normalizeWorkoutType(data.workoutType),
+          "",
           data.name,
           data.equipment,
           data.metric,
@@ -178,8 +185,8 @@ export const updateExercise = createServerFn({ method: "POST" })
       {
         range: `Exercise Library!A${row}:H${row}`,
         values: [[
-          fields.workoutType,
-          fields.focusArea,
+          normalizeWorkoutType(fields.workoutType),
+          "",
           fields.name,
           fields.equipment,
           fields.metric,
@@ -773,14 +780,18 @@ export const getLibraryDropdowns = createServerFn({ method: "GET" })
   .handler(async () => {
     const rows = await getValues("Settings!A14:F40");
     const workoutTypes: string[] = [];
-    const focusAreas: string[] = [];
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i] ?? [];
-      if (row[0]) workoutTypes.push(row[0]);
-      if (row[1]) focusAreas.push(row[1]);
+      if (row[0]) {
+        const workoutType = normalizeWorkoutType(row[0]);
+        if (workoutType && workoutType !== "Recovery" && !workoutTypes.includes(workoutType)) {
+          workoutTypes.push(workoutType);
+        }
+      }
     }
-    if (!workoutTypes.includes("Skill")) workoutTypes.push("Skill");
-    return { workoutTypes, focusAreas };
+    if (!workoutTypes.includes(SKILL_WORKOUT_TYPE)) workoutTypes.push(SKILL_WORKOUT_TYPE);
+    if (!workoutTypes.includes("Grip")) workoutTypes.push("Grip");
+    return { workoutTypes, focusAreas: [] };
   });
 
 // ===== Exercise history (drill-down) =====
