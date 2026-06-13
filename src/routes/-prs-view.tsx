@@ -78,6 +78,8 @@ export function PRsView() {
                   {[pr.progression, pr.metric === "hold" ? "Best hold" : "Best reps"]
                     .filter(Boolean)
                     .join(" · ")}
+                  {pr.assistance === "assisted" &&
+                    ` · Assisted${pr.assistanceLabel ? `: ${pr.assistanceLabel}` : ""}`}
                 </p>
               </div>
             </Card>

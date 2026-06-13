@@ -382,6 +382,32 @@ const isTrue = (v: unknown) => {
   return s === "true" || s === "yes" || s === "1" || s === "✓" || s === "x";
 };
 
+function assistanceInfo(type: unknown, detail: unknown) {
+  const rawType = (type ?? "").toString().trim();
+  const rawDetail = (detail ?? "").toString().trim();
+  const isNone = !rawType || rawType.toLowerCase() === "none";
+  const label = [isNone ? "" : rawType, rawDetail].filter(Boolean).join(" · ");
+  const amount = toNum(rawDetail || rawType);
+  return {
+    assisted: !isNone || Boolean(rawDetail),
+    amount: Number.isFinite(amount) ? amount : null,
+    label,
+  };
+}
+
+function isBetterSkillPR(
+  next: { value: number; assistanceAmount: number | null },
+  current: { value: string; assistanceAmount?: number | null } | undefined,
+) {
+  if (!current) return true;
+  const currentValue = toNum(current.value);
+  if (next.value !== currentValue) return next.value > currentValue;
+  if (next.assistanceAmount != null && current.assistanceAmount != null) {
+    return next.assistanceAmount < current.assistanceAmount;
+  }
+  return false;
+}
+
 async function getDashboardValues(range: string) {
   try {
     return { rows: await getValues(range), error: null };
@@ -396,7 +422,7 @@ export const getDashboardData = createServerFn({ method: "GET" })
   .middleware([appSecretAuth])
   .handler(async () => {
     const results = await Promise.all([
-      getDashboardValues("Workout%20Log!A5:O1000"),
+      getDashboardValues("Workout%20Log!A5:X1000"),
       getDashboardValues("Climbing%20Log!A10:L1000"),
       getDashboardValues("1RM%20Tracker!A70:R400"),
       getDashboardValues("1RM%20Tracker!J7:L60"),
@@ -692,8 +718,62 @@ export const getDashboardData = createServerFn({ method: "GET" })
         date: date ? toISODateString(date) : "",
       });
     }
-    type SkillBest = { hold?: PRItem; reps?: PRItem };
+    type SkillBest = PRItem & { valueNumber: number; assistanceAmount?: number | null };
     const skillMap = new Map<string, SkillBest>();
+    const considerSkillPR = (pr: SkillBest & {
+      progression: string;
+      metric: "hold" | "reps";
+      assisted: boolean;
+      assistanceLabel: string;
+    }) => {
+      const key = `${pr.title}::${pr.progression}::${pr.metric}::${pr.assisted ? "assisted" : "unassisted"}`;
+      const current = skillMap.get(key);
+      if (isBetterSkillPR({ value: pr.valueNumber, assistanceAmount: pr.assistanceAmount ?? null }, current)) {
+        const detailParts = [
+          pr.progression,
+          pr.metric === "hold" ? "Best hold" : "Best reps",
+          pr.assisted ? `Assisted${pr.assistanceLabel ? `: ${pr.assistanceLabel}` : ""}` : "",
+        ].filter(Boolean);
+        skillMap.set(key, {
+          kind: "skill",
+          title: pr.title,
+          value: pr.value,
+          detail: detailParts.join(" · "),
+          date: pr.date,
+          valueNumber: pr.valueNumber,
+          assistanceAmount: pr.assistanceAmount,
+        });
+      }
+    };
+
+    for (const r of workouts) {
+      const entryKind = (r[18] ?? "").toString().trim();
+      const workoutType = normalizeWorkoutType((r[2] ?? "").toString());
+      if (entryKind !== "Skill" && workoutType !== SKILL_WORKOUT_TYPE) continue;
+      if (!isTrue(r[12])) continue;
+      const skill = (r[4] ?? "").toString().trim();
+      if (!skill) continue;
+      const progression = (r[19] ?? "").toString().trim();
+      const date = parseAnyDate(r[0]);
+      const hold = toNum(r[20]);
+      const reps = toNum(r[6]);
+      const assistance = assistanceInfo(r[21], r[22]);
+      const base = {
+        title: skill,
+        progression,
+        date: date ? toISODateString(date) : "",
+        assisted: assistance.assisted,
+        assistanceLabel: assistance.label,
+        assistanceAmount: assistance.amount,
+      };
+      if (Number.isFinite(hold) && hold > 0) {
+        considerSkillPR({ ...base, kind: "skill", value: `${hold}s`, valueNumber: hold, detail: "", metric: "hold" });
+      }
+      if (Number.isFinite(reps) && reps > 0) {
+        considerSkillPR({ ...base, kind: "skill", value: `${reps} reps`, valueNumber: reps, detail: "", metric: "reps" });
+      }
+    }
+
     for (const r of skills) {
       const skill = (r[1] ?? "").toString().trim();
       if (!skill) continue;
@@ -701,38 +781,22 @@ export const getDashboardData = createServerFn({ method: "GET" })
       const date = parseAnyDate(r[0]);
       const hold = toNum(r[7]);
       const reps = toNum(r[8]);
-      const key = `${skill}::${progression}`;
-      const entry = skillMap.get(key) ?? {};
+      const base = {
+        title: skill,
+        progression,
+        date: date ? toISODateString(date) : "",
+        assisted: false,
+        assistanceLabel: "",
+        assistanceAmount: null,
+      };
       if (Number.isFinite(hold) && hold > 0) {
-        const prev = entry.hold ? toNum(entry.hold.value) : -Infinity;
-        if (hold > prev) {
-          entry.hold = {
-            kind: "skill",
-            title: skill,
-            value: `${hold}s`,
-            detail: progression ? `${progression} · hold` : "Best hold",
-            date: date ? toISODateString(date) : "",
-          };
-        }
+        considerSkillPR({ ...base, kind: "skill", value: `${hold}s`, valueNumber: hold, detail: "", metric: "hold" });
       }
       if (Number.isFinite(reps) && reps > 0) {
-        const prev = entry.reps ? toNum(entry.reps.value) : -Infinity;
-        if (reps > prev) {
-          entry.reps = {
-            kind: "skill",
-            title: skill,
-            value: `${reps} reps`,
-            detail: progression ? `${progression} · reps` : "Best reps",
-            date: date ? toISODateString(date) : "",
-          };
-        }
+        considerSkillPR({ ...base, kind: "skill", value: `${reps} reps`, valueNumber: reps, detail: "", metric: "reps" });
       }
-      skillMap.set(key, entry);
     }
-    for (const v of skillMap.values()) {
-      if (v.hold) prs.push(v.hold);
-      if (v.reps) prs.push(v.reps);
-    }
+    prs.push(...Array.from(skillMap.values()).map(({ valueNumber, assistanceAmount, ...pr }) => pr));
     prs.sort((a, b) => b.date.localeCompare(a.date));
     const recentPRs = prs.slice(0, 8);
 

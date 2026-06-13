@@ -438,6 +438,8 @@ export type SkillPR = {
   value: number;
   unit: string;
   date: string;
+  assistance: "assisted" | "unassisted";
+  assistanceLabel: string;
 };
 
 const toNum = (v: unknown): number => {
@@ -449,12 +451,43 @@ const toNum = (v: unknown): number => {
   return m ? Number(m[0]) : NaN;
 };
 
+const isTrue = (v: unknown) => {
+  const s = (v ?? "").toString().trim().toLowerCase();
+  return s === "true" || s === "yes" || s === "1" || s === "✓" || s === "x";
+};
+
+function assistanceInfo(type: unknown, detail: unknown) {
+  const rawType = (type ?? "").toString().trim();
+  const rawDetail = (detail ?? "").toString().trim();
+  const isNone = !rawType || rawType.toLowerCase() === "none";
+  const label = [isNone ? "" : rawType, rawDetail].filter(Boolean).join(" · ");
+  const amount = toNum(rawDetail || rawType);
+  return {
+    assisted: !isNone || Boolean(rawDetail),
+    amount: Number.isFinite(amount) ? amount : null,
+    label,
+  };
+}
+
+function isBetterSkillPR(
+  next: Pick<SkillPR, "value"> & { assistanceAmount: number | null },
+  current: (Pick<SkillPR, "value"> & { assistanceAmount?: number | null }) | undefined,
+) {
+  if (!current) return true;
+  if (next.value !== current.value) return next.value > current.value;
+  if (next.assistanceAmount != null && current.assistanceAmount != null) {
+    return next.assistanceAmount < current.assistanceAmount;
+  }
+  return false;
+}
+
 export const getPRs = createServerFn({ method: "GET" })
   .middleware([appSecretAuth])
   .handler(async () => {
-    const [tests, skills] = await Promise.all([
+    const [tests, skills, workouts] = await Promise.all([
       getValues("1RM%20Tracker!A70:R200"),
       getValues("Skills%20Tracker!A41:O500"),
+      getValues("Workout%20Log!A5:X1000"),
     ]);
 
     // 1RM PRs: rows flagged as PR in column P (index 15). Keep latest per exercise.
@@ -482,8 +515,46 @@ export const getPRs = createServerFn({ method: "GET" })
       a.exercise.localeCompare(b.exercise),
     );
 
-    // Skill PRs: best hold and best reps per skill+progression across all rows.
-    const skillBest = new Map<string, { hold?: SkillPR; reps?: SkillPR }>();
+    // Skill PRs: unified workout-log skill rows, plus legacy Skill Tracker rows
+    // as unassisted historical data. Assisted and unassisted PRs are separate.
+    type SkillBest = SkillPR & { assistanceAmount?: number | null };
+    const skillBest = new Map<string, SkillBest>();
+    const considerSkillPR = (pr: SkillBest) => {
+      const key = `${pr.skill}::${pr.progression}::${pr.metric}::${pr.assistance}`;
+      const current = skillBest.get(key);
+      if (isBetterSkillPR({ value: pr.value, assistanceAmount: pr.assistanceAmount ?? null }, current)) {
+        skillBest.set(key, pr);
+      }
+    };
+
+    for (const r of workouts) {
+      const entryKind = (r[18] ?? "").toString().trim();
+      const workoutType = normalizeWorkoutType((r[2] ?? "").toString());
+      if (entryKind !== "Skill" && workoutType !== SKILL_WORKOUT_TYPE) continue;
+      if (!isTrue(r[12])) continue;
+      const skill = (r[4] ?? "").toString().trim();
+      if (!skill) continue;
+      const progression = (r[19] ?? "").toString().trim();
+      const date = r[0] ?? "";
+      const reps = toNum(r[6]);
+      const hold = toNum(r[20]);
+      const assistance = assistanceInfo(r[21], r[22]);
+      const base = {
+        skill,
+        progression,
+        date,
+        assistance: assistance.assisted ? "assisted" as const : "unassisted" as const,
+        assistanceLabel: assistance.label,
+        assistanceAmount: assistance.amount,
+      };
+      if (Number.isFinite(hold) && hold > 0) {
+        considerSkillPR({ ...base, metric: "hold", value: hold, unit: "s" });
+      }
+      if (Number.isFinite(reps) && reps > 0) {
+        considerSkillPR({ ...base, metric: "reps", value: reps, unit: "reps" });
+      }
+    }
+
     for (const r of skills) {
       const skill = (r[1] ?? "").toString().trim();
       if (!skill) continue;
@@ -491,39 +562,25 @@ export const getPRs = createServerFn({ method: "GET" })
       const date = r[0] ?? "";
       const hold = toNum(r[7]);
       const reps = toNum(r[8]);
-      const key = `${skill}::${progression}`;
-      const entry = skillBest.get(key) ?? {};
+      const base = {
+        skill,
+        progression,
+        date,
+        assistance: "unassisted" as const,
+        assistanceLabel: "",
+        assistanceAmount: null,
+      };
       if (Number.isFinite(hold) && hold > 0) {
-        if (!entry.hold || hold > entry.hold.value) {
-          entry.hold = {
-            skill,
-            progression,
-            metric: "hold",
-            value: hold,
-            unit: "s",
-            date,
-          };
-        }
+        considerSkillPR({ ...base, metric: "hold", value: hold, unit: "s" });
       }
       if (Number.isFinite(reps) && reps > 0) {
-        if (!entry.reps || reps > entry.reps.value) {
-          entry.reps = {
-            skill,
-            progression,
-            metric: "reps",
-            value: reps,
-            unit: "reps",
-            date,
-          };
-        }
+        considerSkillPR({ ...base, metric: "reps", value: reps, unit: "reps" });
       }
-      skillBest.set(key, entry);
     }
-    const skillPRs: SkillPR[] = [];
-    for (const entry of skillBest.values()) {
-      if (entry.hold) skillPRs.push(entry.hold);
-      if (entry.reps) skillPRs.push(entry.reps);
-    }
+
+    const skillPRs: SkillPR[] = Array.from(skillBest.values()).map(
+      ({ assistanceAmount, ...pr }) => pr,
+    );
     skillPRs.sort(
       (a, b) =>
         a.skill.localeCompare(b.skill) ||
