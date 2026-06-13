@@ -22,9 +22,33 @@ export function PasswordGate({ children }: { children: ReactNode }) {
   const verifyFn = useServerFn(verifyAppSecret);
 
   useEffect(() => {
-    setUnlocked(Boolean(getStoredSecret()));
-    setHydrated(true);
-  }, []);
+    let cancelled = false;
+    const stored = getStoredSecret();
+    if (!stored) {
+      setHydrated(true);
+      return;
+    }
+
+    verifyFn({ data: { password: stored } })
+      .then((res) => {
+        if (cancelled) return;
+        if (res.ok) {
+          setUnlocked(true);
+        } else {
+          clearStoredSecret();
+        }
+      })
+      .catch(() => {
+        if (!cancelled) clearStoredSecret();
+      })
+      .finally(() => {
+        if (!cancelled) setHydrated(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [verifyFn]);
 
   const verify = useMutation({
     mutationFn: (pwd: string) => verifyFn({ data: { password: pwd } }),
