@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -44,8 +44,6 @@ import {
   type LibraryRow,
 } from "@/lib/admin.functions";
 import { ExerciseDetail } from "@/components/exercise-detail";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 export const Route = createFileRoute("/library")({
   head: () => ({
@@ -95,7 +93,6 @@ function LibraryPage() {
   const [editor, setEditor] = useState<EditorState>({ mode: "closed" });
   const [pendingDelete, setPendingDelete] = useState<LibraryRow | null>(null);
   const [selected, setSelected] = useState<LibraryRow | null>(null);
-  const isMobile = useIsMobile();
 
   const filtered = useMemo(() => {
     const items = list.data?.items ?? [];
@@ -142,8 +139,6 @@ function LibraryPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const showDesktopPanel = !!selected && !isMobile;
-
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end gap-3">
@@ -180,30 +175,23 @@ function LibraryPage() {
         </Button>
       </div>
 
-      <div
-        className={
-          showDesktopPanel
-            ? "grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]"
-            : ""
-        }
-      >
-        <div>
-          {list.isLoading ? (
-            <div className="flex items-center justify-center py-16 text-muted-foreground">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading library…
-            </div>
-          ) : filtered.length === 0 ? (
-            <Card className="p-6 text-sm text-muted-foreground">
-              No movements match the current filters.
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {filtered.map((ex) => {
-                const isSelected = selected?.row === ex.row;
-                return (
+      <div>
+        {list.isLoading ? (
+          <div className="flex items-center justify-center py-16 text-muted-foreground">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading library…
+          </div>
+        ) : filtered.length === 0 ? (
+          <Card className="p-6 text-sm text-muted-foreground">
+            No movements match the current filters.
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {filtered.map((ex) => {
+              const isSelected = selected?.row === ex.row;
+              return (
+                <Fragment key={ex.row}>
                   <Card
-                    key={ex.row}
-                    onClick={() => setSelected(ex)}
+                    onClick={() => setSelected(isSelected ? null : ex)}
                     className={`flex cursor-pointer items-start gap-3 border-border bg-card p-3 transition hover:border-primary/50 ${
                       isSelected ? "border-primary/70 ring-1 ring-primary/40" : ""
                     }`}
@@ -237,12 +225,12 @@ function LibraryPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setSelected(ex)}
+                        onClick={() => setSelected(isSelected ? null : ex)}
                         aria-label={`View history for ${ex.name}`}
                         className="gap-1 px-2 text-xs"
                       >
                         <Activity className="h-4 w-4" />
-                        History
+                        {isSelected ? "Hide" : "History"}
                       </Button>
                       <Button
                         variant="ghost"
@@ -263,26 +251,17 @@ function LibraryPage() {
                       </Button>
                     </div>
                   </Card>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {showDesktopPanel && selected && (
-          <aside className="sticky top-4 h-[calc(100vh-7rem)] overflow-hidden rounded-lg border border-border bg-card">
-            <ExerciseDetail exercise={selected} onClose={() => setSelected(null)} />
-          </aside>
+                  {isSelected && (
+                    <div className="overflow-hidden rounded-lg border border-primary/30 bg-card">
+                      <ExerciseDetail exercise={ex} onClose={() => setSelected(null)} />
+                    </div>
+                  )}
+                </Fragment>
+              );
+            })}
+          </div>
         )}
       </div>
-
-      {isMobile && selected && (
-        <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-          <SheetContent side="right" className="w-full max-w-full p-0 sm:max-w-md">
-            <ExerciseDetail exercise={selected} onClose={() => setSelected(null)} />
-          </SheetContent>
-        </Sheet>
-      )}
 
       <ExerciseEditorDialog
         state={editor}
