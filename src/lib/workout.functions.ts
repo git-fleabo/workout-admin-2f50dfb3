@@ -8,7 +8,6 @@ import {
   findNextEmptyLogRow,
   getValues,
 } from "./sheets.server";
-import { appSecretAuth } from "./auth-middleware";
 import { toSheetsSerial } from "./date";
 
 export const REST_OPTIONS = [
@@ -199,7 +198,7 @@ const WorkoutInput = z.object({
   quality: shortText(40),
 });
 
-export const addWorkout = createServerFn({ method: "POST" }).middleware([appSecretAuth])
+export const addWorkout = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => WorkoutInput.parse(d))
   .handler(async ({ data }) => {
     const row = await findNextEmptyLogRow();
@@ -246,7 +245,7 @@ export const addWorkout = createServerFn({ method: "POST" }).middleware([appSecr
 
 // ===== Climbing =====
 
-export const getRecentClimbs = createServerFn({ method: "GET" }).middleware([appSecretAuth]).handler(async () => {
+export const getRecentClimbs = createServerFn({ method: "GET" }).handler(async () => {
   const rows = await getValues("Climbing%20Log!A10:L1000");
   const populated = rows.filter((r) => r[0]);
   const recent = populated.slice(-15).reverse().map((r) => ({
@@ -279,7 +278,7 @@ const ClimbInput = z.object({
   notes: longText(2000),
 });
 
-export const addClimb = createServerFn({ method: "POST" }).middleware([appSecretAuth])
+export const addClimb = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => ClimbInput.parse(d))
   .handler(async ({ data }) => {
     const row = await findNextEmptyClimbRow();
@@ -327,7 +326,6 @@ export const ONE_RM_SOURCES = ["Test", "Workout", "Estimate"];
 export const ONE_RM_FORMULAS = ["Brzycki", "Epley"];
 
 export const get1RMRecent = createServerFn({ method: "GET" })
-  .middleware([appSecretAuth])
   .handler(async () => {
     const [tests, bw] = await Promise.all([
       getValues("1RM%20Tracker!A70:R200"),
@@ -372,7 +370,6 @@ const OneRMInput = z.object({
 });
 
 export const add1RMTest = createServerFn({ method: "POST" })
-  .middleware([appSecretAuth])
   .inputValidator((d: unknown) => OneRMInput.parse(d))
   .handler(async ({ data }) => {
     const row = await findNextEmpty1RMRow();
@@ -406,7 +403,6 @@ const BodyweightInput = z.object({
 });
 
 export const addBodyweight = createServerFn({ method: "POST" })
-  .middleware([appSecretAuth])
   .inputValidator((d: unknown) => BodyweightInput.parse(d))
   .handler(async ({ data }) => {
     const row = await findNextEmptyBodyweightRow();
@@ -482,7 +478,6 @@ function isBetterSkillPR(
 }
 
 export const getPRs = createServerFn({ method: "GET" })
-  .middleware([appSecretAuth])
   .handler(async () => {
     const [tests, skills, workouts] = await Promise.all([
       getValues("1RM%20Tracker!A70:R200"),

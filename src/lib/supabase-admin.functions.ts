@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { appSecretAuth } from "./auth-middleware";
 import {
   supabaseDelete,
   supabaseInsert,
@@ -71,7 +70,6 @@ async function getNoamPersonId() {
 }
 
 export const listExercisesFromSupabase = createServerFn({ method: "GET" })
-  .middleware([appSecretAuth])
   .handler(async () => {
     const rows = await supabaseSelect<ExerciseRecord>("exercises", {
       select:
@@ -94,7 +92,6 @@ export const listExercisesFromSupabase = createServerFn({ method: "GET" })
   });
 
 export const listGoalsFromSupabase = createServerFn({ method: "GET" })
-  .middleware([appSecretAuth])
   .handler(async () => {
     const rows = await supabaseSelect<GoalRecord>("goals", {
       select: "source_row,goal,metric,target,period,notes",
@@ -123,7 +120,6 @@ async function findNextGoalSourceRow() {
 }
 
 export const addGoalToSupabase = createServerFn({ method: "POST" })
-  .middleware([appSecretAuth])
   .inputValidator((d: unknown) => GoalInput.parse(d))
   .handler(async ({ data }) => {
     const [personId, row] = await Promise.all([
@@ -144,7 +140,6 @@ export const addGoalToSupabase = createServerFn({ method: "POST" })
   });
 
 export const updateGoalInSupabase = createServerFn({ method: "POST" })
-  .middleware([appSecretAuth])
   .inputValidator((d: unknown) => UpdateGoalInput.parse(d))
   .handler(async ({ data }) => {
     const { row, fields } = data;
@@ -163,7 +158,6 @@ export const updateGoalInSupabase = createServerFn({ method: "POST" })
   });
 
 export const deleteGoalFromSupabase = createServerFn({ method: "POST" })
-  .middleware([appSecretAuth])
   .inputValidator((d: unknown) => DeleteGoalInput.parse(d))
   .handler(async ({ data }) => {
     await supabaseDelete<GoalMutationRecord>("goals", {
@@ -174,7 +168,6 @@ export const deleteGoalFromSupabase = createServerFn({ method: "POST" })
   });
 
 export const getSupabaseImportSummary = createServerFn({ method: "GET" })
-  .middleware([appSecretAuth])
   .handler(async () => {
     const [
       exercises,

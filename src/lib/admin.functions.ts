@@ -6,7 +6,6 @@ import {
   getValues,
   SHEET_IDS,
 } from "./sheets.server";
-import { appSecretAuth } from "./auth-middleware";
 
 // ===== Shared helpers =====
 
@@ -125,7 +124,6 @@ const ExerciseInput = z.object({
 });
 
 export const listExercises = createServerFn({ method: "GET" })
-  .middleware([appSecretAuth])
   .handler(async () => {
     const rows = await getValues("Exercise%20Library!A5:H400");
     const items: LibraryRow[] = [];
@@ -157,7 +155,6 @@ async function findNextLibraryRow(): Promise<number> {
 }
 
 export const addExercise = createServerFn({ method: "POST" })
-  .middleware([appSecretAuth])
   .inputValidator((d: unknown) => ExerciseInput.parse(d))
   .handler(async ({ data }) => {
     const row = await findNextLibraryRow();
@@ -185,7 +182,6 @@ const UpdateExerciseInput = z.object({
 });
 
 export const updateExercise = createServerFn({ method: "POST" })
-  .middleware([appSecretAuth])
   .inputValidator((d: unknown) => UpdateExerciseInput.parse(d))
   .handler(async ({ data }) => {
     const { row, fields } = data;
@@ -212,7 +208,6 @@ const DeleteExerciseInput = z.object({
 });
 
 export const deleteExercise = createServerFn({ method: "POST" })
-  .middleware([appSecretAuth])
   .inputValidator((d: unknown) => DeleteExerciseInput.parse(d))
   .handler(async ({ data }) => {
     await deleteSheetRow(SHEET_IDS.exerciseLibrary, data.row);
@@ -239,7 +234,6 @@ const GoalInput = z.object({
 });
 
 export const listGoals = createServerFn({ method: "GET" })
-  .middleware([appSecretAuth])
   .handler(async () => {
     const rows = await getValues("Goals!A2:E200");
     const items: GoalRow[] = [];
@@ -268,7 +262,6 @@ async function findNextGoalRow(): Promise<number> {
 }
 
 export const addGoal = createServerFn({ method: "POST" })
-  .middleware([appSecretAuth])
   .inputValidator((d: unknown) => GoalInput.parse(d))
   .handler(async ({ data }) => {
     const row = await findNextGoalRow();
@@ -287,7 +280,6 @@ const UpdateGoalInput = z.object({
 });
 
 export const updateGoal = createServerFn({ method: "POST" })
-  .middleware([appSecretAuth])
   .inputValidator((d: unknown) => UpdateGoalInput.parse(d))
   .handler(async ({ data }) => {
     const { row, fields } = data;
@@ -311,7 +303,6 @@ const DeleteGoalInput = z.object({
 });
 
 export const deleteGoal = createServerFn({ method: "POST" })
-  .middleware([appSecretAuth])
   .inputValidator((d: unknown) => DeleteGoalInput.parse(d))
   .handler(async ({ data }) => {
     await deleteSheetRow(SHEET_IDS.goals, data.row);
@@ -419,7 +410,6 @@ async function getDashboardValues(range: string) {
 }
 
 export const getDashboardData = createServerFn({ method: "GET" })
-  .middleware([appSecretAuth])
   .handler(async () => {
     const results = await Promise.all([
       getDashboardValues("Workout%20Log!A5:X1000"),
@@ -862,7 +852,6 @@ export const getDashboardData = createServerFn({ method: "GET" })
 // ===== Library / settings dropdowns =====
 
 export const getLibraryDropdowns = createServerFn({ method: "GET" })
-  .middleware([appSecretAuth])
   .handler(async () => {
     const rows = await getValues("Settings!A14:F40");
     const workoutTypes: string[] = [];
@@ -917,7 +906,6 @@ const ExerciseHistoryInput = z.object({
 });
 
 export const getExerciseHistory = createServerFn({ method: "POST" })
-  .middleware([appSecretAuth])
   .inputValidator((d: unknown) => ExerciseHistoryInput.parse(d))
   .handler(async ({ data }) => {
     const rows = await getValues("Workout%20Log!A5:O1000");
