@@ -347,7 +347,7 @@ function LibraryPage() {
       <ExerciseEditorDialog
         state={editor}
         onClose={() => setEditor({ mode: "closed" })}
-        workoutTypes={dropdowns.data?.workoutTypes ?? []}
+        workoutTypes={list.data?.workoutTypes ?? []}
           onSubmit={(fields) => {
             if (editor.mode === "create") {
               addMutation.mutate(fields);
