@@ -1,7 +1,6 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import {
   Activity,
   Award,
@@ -43,8 +42,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getDashboardData } from "@/lib/admin.functions";
 import { formatUKDate, formatUKDateShort } from "@/lib/date";
+import {
+  getDashboardDataClient,
+  type DashboardData,
+} from "@/lib/supabase-dashboard.browser";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -60,7 +62,7 @@ export const Route = createFileRoute("/")({
   component: DashboardPage,
 });
 
-type Data = Awaited<ReturnType<typeof getDashboardData>>;
+type Data = DashboardData;
 
 const DEFAULT_WEEKLY_GOAL = 4;
 const DEFAULT_MINUTE_GOAL = 180;
@@ -69,10 +71,9 @@ const fmt = (v: number | null | undefined, suffix = "") =>
   v == null || (typeof v === "number" && !Number.isFinite(v)) ? "—" : `${v}${suffix}`;
 
 function DashboardPage() {
-  const fetchData = useServerFn(getDashboardData);
   const { data, isLoading, error } = useQuery({
     queryKey: ["dashboard"],
-    queryFn: () => fetchData(),
+    queryFn: () => getDashboardDataClient(),
     staleTime: 60_000,
   });
 
@@ -85,7 +86,7 @@ function DashboardPage() {
   }
 
   if (error || !data) {
-    const message = error instanceof Error ? error.message : "Check the spreadsheet connection and try again.";
+    const message = error instanceof Error ? error.message : "Check the Supabase connection and try again.";
     return (
       <Card className="p-6 text-sm text-destructive">
         Couldn’t load the dashboard. {message}
