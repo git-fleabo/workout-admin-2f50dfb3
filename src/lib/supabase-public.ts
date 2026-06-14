@@ -66,6 +66,11 @@ async function authRequest<T>(path: string, body: Record<string, unknown>) {
   return res.json() as Promise<T>;
 }
 
+function getAuthRedirectTo() {
+  if (typeof window === "undefined") return undefined;
+  return window.location.origin;
+}
+
 export async function signInWithPassword(email: string, password: string) {
   const data = await authRequest<Session>("token?grant_type=password", {
     email,
@@ -76,7 +81,11 @@ export async function signInWithPassword(email: string, password: string) {
 }
 
 export async function signUpWithPassword(email: string, password: string) {
-  const data = await authRequest<Session>("signup", { email, password });
+  const redirectTo = getAuthRedirectTo();
+  const path = redirectTo
+    ? `signup?redirect_to=${encodeURIComponent(redirectTo)}`
+    : "signup";
+  const data = await authRequest<Session>(path, { email, password });
   if (data.access_token) setSupabaseSession(data);
   return data;
 }
