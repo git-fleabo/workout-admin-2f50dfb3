@@ -1,6 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import {
   Area,
   AreaChart,
@@ -13,11 +12,8 @@ import {
 import { Loader2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  getExerciseHistory,
-  type ExerciseHistory,
-  type LibraryRow,
-} from "@/lib/admin.functions";
+import { type ExerciseHistory, type LibraryRow } from "@/lib/admin.functions";
+import { getExerciseHistoryClient } from "@/lib/supabase-history.browser";
 import { formatUKDateShort } from "@/lib/date";
 import { cn } from "@/lib/utils";
 
@@ -43,13 +39,12 @@ export function ExerciseDetail({
   exercise,
   onClose,
 }: {
-  exercise: LibraryRow;
+  exercise: LibraryRow & { id?: string };
   onClose: () => void;
 }) {
-  const fetchHistory = useServerFn(getExerciseHistory);
   const q = useQuery({
-    queryKey: ["exercise-history", exercise.name],
-    queryFn: () => fetchHistory({ data: { name: exercise.name } }),
+    queryKey: ["exercise-history", exercise.id ?? exercise.name],
+    queryFn: () => getExerciseHistoryClient({ id: exercise.id, name: exercise.name }),
     staleTime: 60_000,
   });
 
@@ -65,12 +60,10 @@ export function ExerciseDetail({
   }, [available]);
 
   const [metric, setMetric] = useState<MetricKey>(defaultMetric);
-  // sync default once data loads
-  const [synced, setSynced] = useState(false);
-  if (available && !synced) {
-    setMetric(defaultMetric);
-    setSynced(true);
-  }
+
+  useEffect(() => {
+    if (available) setMetric(defaultMetric);
+  }, [available, defaultMetric, exercise.id, exercise.name]);
 
   const chartData = useMemo(() => {
     if (!q.data) return [] as { label: string; value: number }[];

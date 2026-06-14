@@ -767,6 +767,69 @@ create policy person_exercises_delete_managed
     )
   );
 
+create policy sessions_select_managed
+  on public.sessions
+  for select
+  to authenticated
+  using (
+    person_id in (
+      select id
+      from public.people
+      where auth_user_id = (select auth.uid())
+    )
+    or person_id in (
+      select ap.managed_person_id
+      from public.admin_people ap
+      join public.people p on p.id = ap.admin_person_id
+      where p.auth_user_id = (select auth.uid())
+    )
+  );
+
+create policy session_entries_select_managed
+  on public.session_entries
+  for select
+  to authenticated
+  using (
+    session_id in (
+      select s.id
+      from public.sessions s
+      where s.person_id in (
+        select id
+        from public.people
+        where auth_user_id = (select auth.uid())
+      )
+      or s.person_id in (
+        select ap.managed_person_id
+        from public.admin_people ap
+        join public.people p on p.id = ap.admin_person_id
+        where p.auth_user_id = (select auth.uid())
+      )
+    )
+  );
+
+create policy entry_sets_select_managed
+  on public.entry_sets
+  for select
+  to authenticated
+  using (
+    session_entry_id in (
+      select se.id
+      from public.session_entries se
+      join public.sessions s on s.id = se.session_id
+      where s.person_id in (
+        select id
+        from public.people
+        where auth_user_id = (select auth.uid())
+      )
+      or s.person_id in (
+        select ap.managed_person_id
+        from public.admin_people ap
+        join public.people p on p.id = ap.admin_person_id
+        where p.auth_user_id = (select auth.uid())
+      )
+    )
+  );
+
 create policy goals_select_managed
   on public.goals
   for select
