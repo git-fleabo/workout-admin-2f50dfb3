@@ -31,7 +31,7 @@ function LogPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Log Training</h1>
           <p className="text-sm text-muted-foreground">
-            Add sessions directly to your training spreadsheet.
+            Add sessions directly to your training database.
           </p>
         </div>
       </header>

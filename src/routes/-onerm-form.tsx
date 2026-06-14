@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Calendar, Loader2, Plus, Trophy } from "lucide-react";
 
@@ -16,10 +15,10 @@ import {
   ONE_RM_FORMULAS,
   ONE_RM_SOURCES,
   ONE_RM_TYPES,
-  add1RMTest,
-  addBodyweight,
-  get1RMRecent,
-} from "@/lib/workout.functions";
+  add1RMTestClient,
+  addBodyweightClient,
+  get1RMRecentClient,
+} from "@/lib/supabase-log.browser";
 import { formatUKDate, formatUKDateShort, todayISO } from "@/lib/date";
 import { DateInput, Field, SimpleSelect } from "./-form-bits";
 
@@ -56,11 +55,7 @@ const blankBw = (): BwState => ({ date: today(), bodyweight: "", notes: "" });
 
 export function OneRMForm() {
   const qc = useQueryClient();
-  const recentFn = useServerFn(get1RMRecent);
-  const addFn = useServerFn(add1RMTest);
-  const addBwFn = useServerFn(addBodyweight);
-
-  const recent = useQuery({ queryKey: ["recent-1rm"], queryFn: () => recentFn() });
+  const recent = useQuery({ queryKey: ["recent-1rm"], queryFn: get1RMRecentClient });
 
   const [form, setForm] = useState<TestState>(blankTest);
   const update = <K extends keyof TestState>(k: K, v: TestState[K]) =>
@@ -71,9 +66,9 @@ export function OneRMForm() {
     setBw((f) => ({ ...f, [k]: v }));
 
   const mutate = useMutation({
-    mutationFn: () => addFn({ data: form }),
+    mutationFn: () => add1RMTestClient(form),
     onSuccess: (res) => {
-      toast.success(`Logged 1RM test to row ${res.row}`);
+      toast.success(`Logged 1RM test to ${res.row}`);
       setForm((f) => ({
         ...blankTest(),
         date: f.date,
@@ -89,9 +84,9 @@ export function OneRMForm() {
   });
 
   const bwMutate = useMutation({
-    mutationFn: () => addBwFn({ data: bw }),
+    mutationFn: () => addBodyweightClient(bw),
     onSuccess: (res) => {
-      toast.success(`Logged bodyweight to row ${res.row}`);
+      toast.success(`Logged bodyweight to ${res.row}`);
       setBw(blankBw());
       qc.invalidateQueries({ queryKey: ["recent-1rm"] });
     },

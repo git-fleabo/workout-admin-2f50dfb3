@@ -599,6 +599,12 @@ grant insert, update, delete on public.goals to authenticated;
 grant insert, update on public.activity_types to authenticated;
 grant insert, update on public.exercises to authenticated;
 grant insert, update, delete on public.person_exercises to authenticated;
+grant insert on public.sessions to authenticated;
+grant insert on public.session_entries to authenticated;
+grant insert on public.entry_sets to authenticated;
+grant insert on public.entry_metrics to authenticated;
+grant insert on public.one_rm_tests to authenticated;
+grant insert on public.bodyweight_logs to authenticated;
 grant update (auth_user_id) on public.people to authenticated;
 grant usage on schema app_private to authenticated;
 grant execute on function app_private.current_person_id() to authenticated;
@@ -716,6 +722,12 @@ create policy sessions_select_managed
   to authenticated
   using (app_private.person_is_accessible(person_id));
 
+create policy sessions_insert_managed
+  on public.sessions
+  for insert
+  to authenticated
+  with check (app_private.person_is_accessible(person_id));
+
 create policy session_entries_select_managed
   on public.session_entries
   for select
@@ -729,11 +741,38 @@ create policy session_entries_select_managed
     )
   );
 
+create policy session_entries_insert_managed
+  on public.session_entries
+  for insert
+  to authenticated
+  with check (
+    exists (
+      select 1
+      from public.sessions s
+      where s.id = session_id
+        and app_private.person_is_accessible(s.person_id)
+    )
+  );
+
 create policy entry_sets_select_managed
   on public.entry_sets
   for select
   to authenticated
   using (
+    exists (
+      select 1
+      from public.session_entries se
+      join public.sessions s on s.id = se.session_id
+      where se.id = session_entry_id
+        and app_private.person_is_accessible(s.person_id)
+    )
+  );
+
+create policy entry_sets_insert_managed
+  on public.entry_sets
+  for insert
+  to authenticated
+  with check (
     exists (
       select 1
       from public.session_entries se
@@ -757,17 +796,43 @@ create policy entry_metrics_select_managed
     )
   );
 
+create policy entry_metrics_insert_managed
+  on public.entry_metrics
+  for insert
+  to authenticated
+  with check (
+    exists (
+      select 1
+      from public.session_entries se
+      join public.sessions s on s.id = se.session_id
+      where se.id = session_entry_id
+        and app_private.person_is_accessible(s.person_id)
+    )
+  );
+
 create policy one_rm_tests_select_managed
   on public.one_rm_tests
   for select
   to authenticated
   using (app_private.person_is_accessible(person_id));
 
+create policy one_rm_tests_insert_managed
+  on public.one_rm_tests
+  for insert
+  to authenticated
+  with check (app_private.person_is_accessible(person_id));
+
 create policy bodyweight_logs_select_managed
   on public.bodyweight_logs
   for select
   to authenticated
   using (app_private.person_is_accessible(person_id));
+
+create policy bodyweight_logs_insert_managed
+  on public.bodyweight_logs
+  for insert
+  to authenticated
+  with check (app_private.person_is_accessible(person_id));
 
 create policy goals_select_managed
   on public.goals

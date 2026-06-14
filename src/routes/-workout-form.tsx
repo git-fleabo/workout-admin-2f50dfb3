@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Calendar, Loader2, Plus } from "lucide-react";
 
@@ -12,7 +11,12 @@ import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-import { addWorkout, getLibrary, getRecentLogs, REST_OPTIONS } from "@/lib/workout.functions";
+import {
+  addWorkoutClient,
+  getLibraryClient,
+  getRecentLogsClient,
+  REST_OPTIONS,
+} from "@/lib/supabase-log.browser";
 import { formatUKDate, todayISO } from "@/lib/date";
 import { DateInput, Field, SimpleSelect, RecentList, type RecentEntry } from "./-form-bits";
 
@@ -121,12 +125,8 @@ export function WorkoutForm({
   title?: string;
 }) {
   const qc = useQueryClient();
-  const libFn = useServerFn(getLibrary);
-  const recentFn = useServerFn(getRecentLogs);
-  const addFn = useServerFn(addWorkout);
-
-  const lib = useQuery({ queryKey: ["library"], queryFn: () => libFn() });
-  const recent = useQuery({ queryKey: ["recent-workouts"], queryFn: () => recentFn() });
+  const lib = useQuery({ queryKey: ["library"], queryFn: getLibraryClient });
+  const recent = useQuery({ queryKey: ["recent-workouts"], queryFn: getRecentLogsClient });
 
   const [form, setForm] = useState<FormState>(() => blank(defaultWorkoutType));
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) =>
@@ -169,18 +169,16 @@ export function WorkoutForm({
 
   const mutate = useMutation({
     mutationFn: () =>
-      addFn({
-        data: {
-          ...form,
-          workoutType: selectedExercise?.workoutType ?? form.workoutType,
-          focusArea: "",
-          progressionLevel: isGrip ? form.gripStyle : form.progressionLevel,
-          assistanceType: isGrip ? form.gripLoadType : form.assistanceType,
-          entryKind: isYoga ? "Workout" : isGrip ? GRIP_WORKOUT_TYPE : isSkill ? "Skill" : form.entryKind || "Workout",
-        },
+      addWorkoutClient({
+        ...form,
+        workoutType: selectedExercise?.workoutType ?? form.workoutType,
+        focusArea: "",
+        progressionLevel: isGrip ? form.gripStyle : form.progressionLevel,
+        assistanceType: isGrip ? form.gripLoadType : form.assistanceType,
+        entryKind: isYoga ? "Workout" : isGrip ? GRIP_WORKOUT_TYPE : isSkill ? "Skill" : form.entryKind || "Workout",
       }),
     onSuccess: (res) => {
-      toast.success(`Logged to row ${res.row}`);
+      toast.success(`Logged to ${res.row}`);
         setForm((f) => ({
           ...blank(defaultWorkoutType),
           date: f.date,

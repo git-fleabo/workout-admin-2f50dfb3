@@ -1,16 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { Sparkles, Trophy } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
-import { getPRs } from "@/lib/workout.functions";
+import { getPRsClient } from "@/lib/supabase-log.browser";
 import { formatUKDateShort } from "@/lib/date";
 
 export function PRsView() {
-  const fetchPRs = useServerFn(getPRs);
   const { data, isLoading, error } = useQuery({
     queryKey: ["prs"],
-    queryFn: () => fetchPRs(),
+    queryFn: getPRsClient,
   });
 
   return (

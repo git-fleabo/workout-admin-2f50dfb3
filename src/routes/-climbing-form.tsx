@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Calendar, Loader2, Plus } from "lucide-react";
 
@@ -12,7 +11,12 @@ import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-import { addClimb, getLibrary, getRecentClimbs, BOARD_GRADIENTS } from "@/lib/workout.functions";
+import {
+  addClimbClient,
+  BOARD_GRADIENTS,
+  getLibraryClient,
+  getRecentClimbsClient,
+} from "@/lib/supabase-log.browser";
 import { formatUKDate, todayISO } from "@/lib/date";
 import { DateInput, Field, SimpleSelect, RecentList, type RecentEntry } from "./-form-bits";
 
@@ -48,21 +52,17 @@ const blank = (): ClimbState => ({
 
 export function ClimbingForm() {
   const qc = useQueryClient();
-  const libFn = useServerFn(getLibrary);
-  const recentFn = useServerFn(getRecentClimbs);
-  const addFn = useServerFn(addClimb);
-
-  const lib = useQuery({ queryKey: ["library"], queryFn: () => libFn() });
-  const recent = useQuery({ queryKey: ["recent-climbs"], queryFn: () => recentFn() });
+  const lib = useQuery({ queryKey: ["library"], queryFn: getLibraryClient });
+  const recent = useQuery({ queryKey: ["recent-climbs"], queryFn: getRecentClimbsClient });
 
   const [form, setForm] = useState<ClimbState>(blank);
   const update = <K extends keyof ClimbState>(k: K, v: ClimbState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
   const mutate = useMutation({
-    mutationFn: () => addFn({ data: form }),
+    mutationFn: () => addClimbClient(form),
     onSuccess: (res) => {
-      toast.success(`Logged to row ${res.row}`);
+      toast.success(`Logged to ${res.row}`);
       setForm((f) => ({ ...blank(), date: f.date, type: f.type, trackingMode: f.trackingMode }));
       qc.invalidateQueries({ queryKey: ["recent-climbs"] });
     },
