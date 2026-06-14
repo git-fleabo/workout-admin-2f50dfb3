@@ -1,9 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Loader2, Pencil, Plus, Target, Trash2, X } from "lucide-react";
+import { Loader2, Pencil, Plus, Target, Trash2, UserCheck, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,12 +35,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  addGoal,
-  deleteGoal,
-  listGoals,
-  updateGoal,
   type GoalRow,
 } from "@/lib/admin.functions";
+import {
+  addGoalClient,
+  claimNoamProfile,
+  deleteGoalClient,
+  listGoalsClient,
+  updateGoalClient,
+} from "@/lib/supabase-goals.browser";
 
 export const Route = createFileRoute("/goals")({
   head: () => ({
@@ -49,7 +51,7 @@ export const Route = createFileRoute("/goals")({
       { title: "Goals · Training Admin" },
       {
         name: "description",
-        content: "Set, edit and remove training goals stored in the spreadsheet's Goals tab.",
+        content: "Set, edit and remove training goals stored in Supabase.",
       },
     ],
   }),
@@ -73,18 +75,14 @@ const BLANK: Omit<GoalRow, "row"> = {
 
 function GoalsPage() {
   const qc = useQueryClient();
-  const listFn = useServerFn(listGoals);
-  const addFn = useServerFn(addGoal);
-  const updateFn = useServerFn(updateGoal);
-  const deleteFn = useServerFn(deleteGoal);
 
-  const list = useQuery({ queryKey: ["goals"], queryFn: () => listFn() });
+  const list = useQuery({ queryKey: ["goals"], queryFn: () => listGoalsClient() });
 
   const [editor, setEditor] = useState<EditorState>({ mode: "closed" });
   const [pendingDelete, setPendingDelete] = useState<GoalRow | null>(null);
 
   const addMutation = useMutation({
-    mutationFn: (fields: typeof BLANK) => addFn({ data: fields }),
+    mutationFn: (fields: typeof BLANK) => addGoalClient(fields),
     onSuccess: () => {
       toast.success("Goal added");
       setEditor({ mode: "closed" });
@@ -95,7 +93,7 @@ function GoalsPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ row, fields }: { row: number; fields: typeof BLANK }) =>
-      updateFn({ data: { row, fields } }),
+      updateGoalClient(row, fields),
     onSuccess: () => {
       toast.success("Goal updated");
       setEditor({ mode: "closed" });
@@ -105,11 +103,20 @@ function GoalsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (row: number) => deleteFn({ data: { row } }),
+    mutationFn: (row: number) => deleteGoalClient(row),
     onSuccess: () => {
       toast.success("Goal deleted");
       setPendingDelete(null);
       qc.invalidateQueries({ queryKey: ["goals"] }); qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const claimMutation = useMutation({
+    mutationFn: () => claimNoamProfile(),
+    onSuccess: () => {
+      toast.success("Profile connected");
+      qc.invalidateQueries({ queryKey: ["goals"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -132,7 +139,7 @@ function GoalsPage() {
         <div>
           <h2 className="text-lg font-semibold">Goals</h2>
           <p className="text-xs text-muted-foreground">
-            Saved to the <span className="font-mono">Goals</span> tab on the spreadsheet
+            Saved to Supabase
           </p>
         </div>
         <Button
@@ -148,6 +155,28 @@ function GoalsPage() {
         <div className="flex items-center justify-center py-16 text-muted-foreground">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading goals…
         </div>
+      ) : list.data?.needsProfileClaim ? (
+        <Card className="space-y-4 border-border bg-card p-5">
+          <div>
+            <h3 className="text-sm font-semibold">Connect your profile</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Link this Supabase login to Noam's imported training data.
+            </p>
+          </div>
+          <Button
+            onClick={() => claimMutation.mutate()}
+            disabled={claimMutation.isPending}
+            className="h-10 font-medium"
+            style={{ backgroundImage: "var(--gradient-primary)", color: "var(--primary-foreground)" }}
+          >
+            {claimMutation.isPending ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <UserCheck className="mr-1 h-4 w-4" />
+            )}
+            Connect profile
+          </Button>
+        </Card>
       ) : grouped.length === 0 ? (
         <Card className="p-6 text-sm text-muted-foreground">
           No goals yet — add your first one.
@@ -227,7 +256,7 @@ function GoalsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this goal?</AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingDelete?.goal} will be removed from the Goals tab permanently.
+              {pendingDelete?.goal} will be removed from Supabase permanently.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -288,8 +317,8 @@ function GoalEditorDialog({
           </DialogTitle>
           <DialogDescription>
             {state.mode === "edit"
-              ? "Update the goal row in the Goals tab."
-              : "Add a new row to the Goals tab."}
+              ? "Update this goal in Supabase."
+              : "Add a new goal to Supabase."}
           </DialogDescription>
         </DialogHeader>
 

@@ -1,0 +1,112 @@
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { Loader2, LogIn } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  getSupabaseSession,
+  signInWithPassword,
+  signUpWithPassword,
+} from "@/lib/supabase-public";
+
+export function SupabaseAuthGate({ children }: { children: ReactNode }) {
+  const [signedIn, setSignedIn] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+  const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSignedIn(Boolean(getSupabaseSession()?.access_token));
+    setHydrated(true);
+  }, []);
+
+  if (hydrated && signedIn) return <>{children}</>;
+
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (mode === "sign-in") {
+        await signInWithPassword(email.trim(), password);
+      } else {
+        const session = await signUpWithPassword(email.trim(), password);
+        if (!session.access_token) {
+          setError("Check your email, then sign in.");
+          return;
+        }
+      }
+      setSignedIn(true);
+      setPassword("");
+    } catch {
+      setError(mode === "sign-in" ? "Could not sign in." : "Could not create account.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <Card className="w-full max-w-sm space-y-5 border-border bg-card p-6">
+        <div className="flex items-center gap-3">
+          <div
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-primary-foreground"
+            style={{ backgroundImage: "var(--gradient-primary)" }}
+          >
+            <LogIn className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-base font-semibold leading-tight">Training Admin</h1>
+            <p className="text-xs text-muted-foreground">
+              {mode === "sign-in" ? "Sign in with Supabase" : "Create your Supabase login"}
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={onSubmit} className="space-y-3">
+          <Input
+            type="email"
+            autoFocus
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            autoComplete="email"
+          />
+          <Input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
+          />
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <Button
+            type="submit"
+            disabled={!email.trim() || !password || busy}
+            className="h-11 w-full text-sm font-semibold"
+            style={{ backgroundImage: "var(--gradient-primary)", color: "var(--primary-foreground)" }}
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === "sign-in" ? "Sign in" : "Create account"}
+          </Button>
+        </form>
+
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full text-xs text-muted-foreground"
+          onClick={() => {
+            setError(null);
+            setMode(mode === "sign-in" ? "sign-up" : "sign-in");
+          }}
+        >
+          {mode === "sign-in" ? "Create account" : "Use existing account"}
+        </Button>
+      </Card>
+    </div>
+  );
+}

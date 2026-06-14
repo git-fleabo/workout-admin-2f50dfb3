@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { PasswordGate } from "../components/password-gate";
 import { AdminShell } from "../components/admin-shell";
+import { SupabaseAuthGate } from "../components/supabase-auth-gate";
 
 function NotFoundComponent() {
   return (
@@ -135,10 +136,12 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <PasswordGate>
-        <AdminShell>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
-        </AdminShell>
+        <SupabaseAuthGate>
+          <AdminShell>
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            <Outlet />
+          </AdminShell>
+        </SupabaseAuthGate>
       </PasswordGate>
     </QueryClientProvider>
   );
