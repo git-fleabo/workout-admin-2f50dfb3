@@ -1,15 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Fragment, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Activity, Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { Activity, Loader2, Pencil, Plus, Search, Trash2, UserCheck, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -36,13 +36,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  addExercise,
-  deleteExercise,
-  getLibraryDropdowns,
-  listExercises,
-  updateExercise,
   type LibraryRow,
 } from "@/lib/admin.functions";
+import {
+  addExerciseClient,
+  claimNoamProfile,
+  hideExerciseClient,
+  listLibraryClient,
+  setExerciseEnabledClient,
+  updateExerciseClient,
+  type LibraryClientRow,
+} from "@/lib/supabase-library.browser";
 import { ExerciseDetail } from "@/components/exercise-detail";
 
 export const Route = createFileRoute("/library")({
@@ -51,7 +55,7 @@ export const Route = createFileRoute("/library")({
       { title: "Exercise Library · Training Admin" },
       {
         name: "description",
-        content: "Add, edit and remove movements in the training spreadsheet's library.",
+        content: "Add, edit and remove movements in the Supabase exercise library.",
       },
     ],
   }),
@@ -61,7 +65,7 @@ export const Route = createFileRoute("/library")({
 type EditorState =
   | { mode: "closed" }
   | { mode: "create" }
-  | { mode: "edit"; row: LibraryRow };
+  | { mode: "edit"; row: LibraryClientRow };
 
 const BLANK: Omit<LibraryRow, "row"> = {
   workoutType: "",
@@ -76,23 +80,20 @@ const BLANK: Omit<LibraryRow, "row"> = {
 
 function LibraryPage() {
   const qc = useQueryClient();
-  const listFn = useServerFn(listExercises);
-  const dropdownsFn = useServerFn(getLibraryDropdowns);
-  const addFn = useServerFn(addExercise);
-  const updateFn = useServerFn(updateExercise);
-  const deleteFn = useServerFn(deleteExercise);
 
-  const list = useQuery({ queryKey: ["library"], queryFn: () => listFn() });
-  const dropdowns = useQuery({
-    queryKey: ["library-dropdowns"],
-    queryFn: () => dropdownsFn(),
+  const [selectedPersonId, setSelectedPersonId] = useState<string>("");
+  const list = useQuery({
+    queryKey: ["library", selectedPersonId],
+    queryFn: () => listLibraryClient(selectedPersonId || undefined),
   });
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [editor, setEditor] = useState<EditorState>({ mode: "closed" });
-  const [pendingDelete, setPendingDelete] = useState<LibraryRow | null>(null);
-  const [selected, setSelected] = useState<LibraryRow | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<LibraryClientRow | null>(null);
+  const [selected, setSelected] = useState<LibraryClientRow | null>(null);
+
+  const effectivePersonId = list.data?.selectedPersonId ?? selectedPersonId;
 
   const filtered = useMemo(() => {
     const items = list.data?.items ?? [];
@@ -109,7 +110,8 @@ function LibraryPage() {
   }, [list.data, search, typeFilter]);
 
   const addMutation = useMutation({
-    mutationFn: (fields: typeof BLANK) => addFn({ data: fields }),
+    mutationFn: (fields: typeof BLANK) =>
+      addExerciseClient(fields, effectivePersonId || undefined),
     onSuccess: () => {
       toast.success("Movement added");
       setEditor({ mode: "closed" });
@@ -119,8 +121,8 @@ function LibraryPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ row, fields }: { row: number; fields: typeof BLANK }) =>
-      updateFn({ data: { row, fields } }),
+    mutationFn: ({ id, fields }: { id: string; fields: typeof BLANK }) =>
+      updateExerciseClient(id, fields),
     onSuccess: () => {
       toast.success("Movement updated");
       setEditor({ mode: "closed" });
@@ -130,10 +132,26 @@ function LibraryPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (row: number) => deleteFn({ data: { row } }),
+    mutationFn: (id: string) => hideExerciseClient(id),
     onSuccess: () => {
       toast.success("Movement deleted");
       setPendingDelete(null);
+      qc.invalidateQueries({ queryKey: ["library"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const enableMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      setExerciseEnabledClient(id, enabled, effectivePersonId || undefined),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["library"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const claimMutation = useMutation({
+    mutationFn: () => claimNoamProfile(),
+    onSuccess: () => {
+      toast.success("Profile connected");
       qc.invalidateQueries({ queryKey: ["library"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -163,9 +181,34 @@ function LibraryPage() {
           <FilterSelect
             value={typeFilter}
             onChange={setTypeFilter}
-            options={dropdowns.data?.workoutTypes ?? []}
+            options={list.data?.workoutTypes ?? []}
           />
         </div>
+        {(list.data?.people.length ?? 0) > 1 && (
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Person
+            </Label>
+            <Select
+              value={effectivePersonId || ""}
+              onValueChange={(v) => {
+                setSelected(null);
+                setSelectedPersonId(v);
+              }}
+            >
+              <SelectTrigger className="h-10 w-[150px]">
+                <SelectValue placeholder="Person" />
+              </SelectTrigger>
+              <SelectContent>
+                {list.data?.people.map((person) => (
+                  <SelectItem key={person.id} value={person.id}>
+                    {person.display_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <Button
           onClick={() => setEditor({ mode: "create" })}
           className="ml-auto h-10 font-medium"
@@ -180,6 +223,28 @@ function LibraryPage() {
           <div className="flex items-center justify-center py-16 text-muted-foreground">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading library…
           </div>
+        ) : list.data?.needsProfileClaim ? (
+          <Card className="space-y-4 border-border bg-card p-5">
+            <div>
+              <h3 className="text-sm font-semibold">Connect your profile</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Link this Supabase login to Noam's imported training data.
+              </p>
+            </div>
+            <Button
+              onClick={() => claimMutation.mutate()}
+              disabled={claimMutation.isPending}
+              className="h-10 font-medium"
+              style={{ backgroundImage: "var(--gradient-primary)", color: "var(--primary-foreground)" }}
+            >
+              {claimMutation.isPending ? (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              ) : (
+                <UserCheck className="mr-1 h-4 w-4" />
+              )}
+              Connect profile
+            </Button>
+          </Card>
         ) : filtered.length === 0 ? (
           <Card className="p-6 text-sm text-muted-foreground">
             No movements match the current filters.
@@ -204,6 +269,11 @@ function LibraryPage() {
                             {ex.workoutType}
                           </span>
                         )}
+                        {!ex.enabled && (
+                          <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                            Disabled
+                          </span>
+                        )}
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {[
@@ -222,6 +292,17 @@ function LibraryPage() {
                       )}
                     </div>
                     <div className="flex shrink-0 gap-1" onClick={(e) => e.stopPropagation()}>
+                      <div className="mr-1 flex items-center gap-2 rounded-md border border-border px-2 py-1">
+                        <span className="text-xs text-muted-foreground">Use</span>
+                        <Switch
+                          checked={ex.enabled}
+                          onCheckedChange={(enabled) =>
+                            enableMutation.mutate({ id: ex.id, enabled })
+                          }
+                          disabled={enableMutation.isPending}
+                          aria-label={`${ex.enabled ? "Disable" : "Enable"} ${ex.name}`}
+                        />
+                      </div>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -267,14 +348,14 @@ function LibraryPage() {
         state={editor}
         onClose={() => setEditor({ mode: "closed" })}
         workoutTypes={dropdowns.data?.workoutTypes ?? []}
-        onSubmit={(fields) => {
-          if (editor.mode === "create") {
-            addMutation.mutate(fields);
-          } else if (editor.mode === "edit") {
-            updateMutation.mutate({ row: editor.row.row, fields });
-          }
-        }}
-        isPending={addMutation.isPending || updateMutation.isPending}
+          onSubmit={(fields) => {
+            if (editor.mode === "create") {
+              addMutation.mutate(fields);
+            } else if (editor.mode === "edit") {
+              updateMutation.mutate({ id: editor.row.id, fields });
+            }
+          }}
+          isPending={addMutation.isPending || updateMutation.isPending}
       />
 
       <AlertDialog
@@ -285,14 +366,13 @@ function LibraryPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this movement?</AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingDelete?.name} will be removed from the library. This deletes the row from
-              the spreadsheet permanently.
+              {pendingDelete?.name} will be removed from the active library. Training history stays preserved.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => pendingDelete && deleteMutation.mutate(pendingDelete.row)}
+              onClick={() => pendingDelete && deleteMutation.mutate(pendingDelete.id)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteMutation.isPending ? (
@@ -355,7 +435,7 @@ function ExerciseEditorDialog({
     state.mode === "edit"
       ? {
           workoutType: state.row.workoutType,
-          focusArea: "",
+          focusArea: state.row.focusArea,
           name: state.row.name,
           equipment: state.row.equipment,
           metric: state.row.metric,
@@ -384,8 +464,8 @@ function ExerciseEditorDialog({
           </DialogTitle>
           <DialogDescription>
             {state.mode === "edit"
-              ? `Update the spreadsheet row for ${state.row.name}.`
-              : "Add a new exercise or skill to the Exercise Library tab."}
+              ? `Update ${state.row.name} in Supabase.`
+              : "Add a new exercise or skill to Supabase."}
           </DialogDescription>
         </DialogHeader>
 

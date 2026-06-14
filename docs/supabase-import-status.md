@@ -126,6 +126,8 @@ Notes:
 - `prepare_bodyweight_import`
 - `enable_auth_rls_for_client_goals`
 - `optimize_active_rls_auth_uid_calls`
+- `enable_client_library_management`
+- `combine_people_select_rls_policies`
 
 ## Still To Import Or Reconcile
 
@@ -174,11 +176,15 @@ Lovable note:
 
 - Goals is the first Supabase-backed screen.
 - `src/routes/goals.tsx` now uses browser-side Supabase Auth/RLS for list, create, update, and delete.
+- Library is the second Supabase-backed screen.
+- `src/routes/library.tsx` now uses browser-side Supabase Auth/RLS for the master exercise list, add/edit/hide, person selection, and enable/disable toggles.
 - `src/components/supabase-auth-gate.tsx` adds email/password Supabase login.
 - `src/lib/supabase-public.ts` contains the public Supabase URL/key and REST/Auth helpers.
+- `src/lib/supabase-people.browser.ts` contains shared person/profile helpers.
 - `src/lib/supabase-goals.browser.ts` contains the Goals data layer and Noam-profile claim flow.
+- `src/lib/supabase-library.browser.ts` contains the Library data layer.
 - Dashboard still reads goals from the spreadsheet until its data layer is migrated.
-- Library, Log, Dashboard, PRs, and history remain Sheets-backed.
+- Log, Dashboard, PRs, and exercise history remain Sheets-backed.
 - The old `PasswordGate` is still in front of the app while those Sheets-backed screens depend on the existing server auth middleware.
 
 ## Current Auth Model
@@ -196,10 +202,12 @@ In the app preview:
 2. Open Goals.
 3. Click `Connect profile` to link your Supabase user to the imported Noam data.
 4. Add, edit, and delete one test goal, then remove it.
+5. Open Library and confirm the exercise list loads from Supabase.
+6. Toggle one movement off/on for Noam and confirm the disabled badge appears/disappears.
 
 Then migrate the remaining screens away from the spreadsheet in this order:
 
-1. Library and person exercise selection.
+1. Exercise history panel on Library.
 2. Dashboard weekly summary and goals summary.
 3. Workout/climbing log creation and recent history.
 4. PR/history calculations, especially assisted/unassisted skill PRs.
