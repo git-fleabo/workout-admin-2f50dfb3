@@ -7,7 +7,7 @@ import type {
   PRItem,
   WeekDay,
   WeekStat,
-} from "./admin.functions";
+} from "./training-types";
 
 type ActivityTypeRef = { name: string | null } | null;
 

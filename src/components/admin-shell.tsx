@@ -60,7 +60,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <div className="flex-1">
             <h1 className="text-base font-semibold leading-none sm:text-lg">Training Admin</h1>
             <p className="text-xs text-muted-foreground">
-              Dashboard, library and goals for your training spreadsheet
+              Dashboard, library, goals and logs for your training database
             </p>
           </div>
           <Button

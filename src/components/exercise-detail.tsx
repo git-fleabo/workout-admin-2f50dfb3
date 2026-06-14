@@ -12,7 +12,7 @@ import {
 import { Loader2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { type ExerciseHistory, type LibraryRow } from "@/lib/admin.functions";
+import type { ExerciseHistory, LibraryRow } from "@/lib/training-types";
 import { getExerciseHistoryClient } from "@/lib/supabase-history.browser";
 import { formatUKDateShort } from "@/lib/date";
 import { cn } from "@/lib/utils";

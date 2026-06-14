@@ -7,7 +7,7 @@ import {
   supabaseSelect,
   supabaseUpdate,
 } from "./supabase.server";
-import type { GoalRow, LibraryRow } from "./admin.functions";
+import type { GoalRow, LibraryRow } from "./training-types";
 
 type ExerciseRecord = {
   source_row: number | null;

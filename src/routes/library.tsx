@@ -35,9 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  type LibraryRow,
-} from "@/lib/admin.functions";
+import type { LibraryRow } from "@/lib/training-types";
 import {
   addExerciseClient,
   claimNoamProfile,

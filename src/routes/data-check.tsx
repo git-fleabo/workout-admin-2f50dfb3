@@ -4,12 +4,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { AlertCircle, CheckCircle2, Database, Loader2 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
-import { listExercises, listGoals, type GoalRow, type LibraryRow } from "@/lib/admin.functions";
+import { listExercises, listGoals } from "@/lib/admin.functions";
 import {
   getSupabaseImportSummary,
   listExercisesFromSupabase,
   listGoalsFromSupabase,
 } from "@/lib/supabase-admin.functions";
+import type { GoalRow, LibraryRow } from "@/lib/training-types";
 
 export const Route = createFileRoute("/data-check")({
   head: () => ({

@@ -6,6 +6,18 @@ import {
   getValues,
   SHEET_IDS,
 } from "./sheets.server";
+import type {
+  BodyweightPoint,
+  ExerciseHistory,
+  ExerciseSessionPoint,
+  GoalRow,
+  LibraryRow,
+  MonthRow,
+  MonthStat,
+  PRItem,
+  WeekDay,
+  WeekStat,
+} from "./training-types";
 
 // ===== Shared helpers =====
 
@@ -99,18 +111,6 @@ function startOfMonthUTC(date: Date): Date {
 }
 
 // ===== Exercise Library CRUD =====
-
-export type LibraryRow = {
-  row: number; // sheet row number (5-based for data)
-  workoutType: string;
-  focusArea: string;
-  name: string;
-  equipment: string;
-  metric: string;
-  suggestedSets: string;
-  suggestedReps: string;
-  notes: string;
-};
 
 const ExerciseInput = z.object({
   workoutType: shortText(100),
@@ -216,15 +216,6 @@ export const deleteExercise = createServerFn({ method: "POST" })
 
 // ===== Goals CRUD =====
 
-export type GoalRow = {
-  row: number; // 2-based
-  goal: string;
-  metric: string;
-  target: string;
-  period: string;
-  notes: string;
-};
-
 const GoalInput = z.object({
   goal: z.string().min(1).max(150),
   metric: shortText(60),
@@ -310,63 +301,6 @@ export const deleteGoal = createServerFn({ method: "POST" })
   });
 
 // ===== Dashboard =====
-
-export type WeekStat = {
-  weekStart: string; // ISO date
-  label: string; // "DD MMM"
-  workouts: number;
-  minutes: number;
-};
-
-export type MonthStat = {
-  monthStart: string;
-  label: string;
-  hours: number;
-};
-
-export type BodyweightPoint = {
-  date: string;
-  bodyweight: number;
-};
-
-export type PRItem = {
-  kind: "1rm" | "skill";
-  title: string;
-  value: string;
-  detail: string;
-  date: string;
-};
-
-export type WeekDayEntry = {
-  kind: "workout" | "climb";
-  exercise: string;
-  sets: number | null;
-  reps: number | null;
-  weight: number | null;
-  minutes: number | null;
-  completed: boolean;
-  counts: boolean;
-  notes: string;
-};
-
-export type WeekDay = {
-  date: string;
-  label: string;
-  workouts: number;
-  minutes: number;
-  exercises: string[];
-  entries: WeekDayEntry[];
-  isToday: boolean;
-};
-
-export type MonthRow = {
-  monthStart: string;
-  label: string;
-  workouts: number;
-  minutes: number;
-  climbSessions: number;
-  climbHours: number;
-};
 
 const isTrue = (v: unknown) => {
   const s = (v ?? "").toString().trim().toLowerCase();
@@ -870,36 +804,6 @@ export const getLibraryDropdowns = createServerFn({ method: "GET" })
   });
 
 // ===== Exercise history (drill-down) =====
-
-export type ExerciseSessionPoint = {
-  date: string;
-  sessions: number; // log rows on this date
-  totalReps: number;
-  totalVolume: number;
-  maxWeight: number | null;
-  totalDuration: number;
-  est1RM: number | null;
-};
-
-export type ExerciseHistory = {
-  name: string;
-  totalSessions: number;
-  totalRows: number;
-  points: ExerciseSessionPoint[];
-  available: {
-    weight: boolean;
-    reps: boolean;
-    duration: boolean;
-    est1RM: boolean;
-    volume: boolean;
-  };
-  stats: {
-    latest1RM: number | null;
-    best1RM: number | null;
-    maxWeight: number | null;
-    fourWeekChange: number | null; // % change in best est1RM (or maxWeight fallback) over last 4w vs prior 4w
-  };
-};
 
 const ExerciseHistoryInput = z.object({
   name: z.string().min(1).max(200),

@@ -1,5 +1,5 @@
 import { supabasePublicSelect } from "./supabase-public";
-import type { ExerciseHistory, ExerciseSessionPoint } from "./admin.functions";
+import type { ExerciseHistory, ExerciseSessionPoint } from "./training-types";
 
 type EntrySetRecord = {
   set_number: number | null;

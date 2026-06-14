@@ -5,7 +5,7 @@ import {
   supabasePublicUpdate,
 } from "./supabase-public";
 import { getCurrentPerson, claimNoamProfile } from "./supabase-people.browser";
-import type { GoalRow } from "./admin.functions";
+import type { GoalRow } from "./training-types";
 
 type GoalRecord = {
   source_row: number | null;

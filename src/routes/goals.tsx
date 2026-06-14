@@ -34,9 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  type GoalRow,
-} from "@/lib/admin.functions";
+import type { GoalRow } from "@/lib/training-types";
 import {
   addGoalClient,
   claimNoamProfile,

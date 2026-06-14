@@ -9,7 +9,7 @@ import {
   listManagedPeopleClient,
   type PersonRecord,
 } from "./supabase-people.browser";
-import type { LibraryRow } from "./admin.functions";
+import type { LibraryRow } from "./training-types";
 
 type ActivityTypeRecord = {
   id: string;
