@@ -25,6 +25,63 @@ begin
 end;
 $$;
 
+create schema if not exists app_private;
+revoke all on schema app_private from public;
+
+create or replace function app_private.current_person_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p.id
+  from public.people p
+  where p.auth_user_id = (select auth.uid())
+  limit 1;
+$$;
+
+create or replace function app_private.person_is_managed(target_person_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.admin_people ap
+    where ap.admin_person_id = app_private.current_person_id()
+      and ap.managed_person_id = target_person_id
+  );
+$$;
+
+create or replace function app_private.person_is_accessible(target_person_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select target_person_id = app_private.current_person_id()
+    or app_private.person_is_managed(target_person_id);
+$$;
+
+create or replace function app_private.current_person_is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.admin_people ap
+    where ap.admin_person_id = app_private.current_person_id()
+      and ap.role = 'admin'
+  );
+$$;
+
 create table if not exists public.people (
   id uuid primary key default gen_random_uuid(),
   auth_user_id uuid unique,
@@ -543,6 +600,11 @@ grant insert, update on public.activity_types to authenticated;
 grant insert, update on public.exercises to authenticated;
 grant insert, update, delete on public.person_exercises to authenticated;
 grant update (auth_user_id) on public.people to authenticated;
+grant usage on schema app_private to authenticated;
+grant execute on function app_private.current_person_id() to authenticated;
+grant execute on function app_private.person_is_managed(uuid) to authenticated;
+grant execute on function app_private.person_is_accessible(uuid) to authenticated;
+grant execute on function app_private.current_person_is_admin() to authenticated;
 
 create policy people_select_accessible
   on public.people
@@ -551,12 +613,7 @@ create policy people_select_accessible
   using (
     auth_user_id = (select auth.uid())
     or (auth_user_id is null and display_name = 'Noam')
-    or id in (
-      select ap.managed_person_id
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-    )
+    or app_private.person_is_managed(id)
   );
 
 create policy people_claim_unclaimed_noam
@@ -570,13 +627,7 @@ create policy admin_people_select_for_admin
   on public.admin_people
   for select
   to authenticated
-  using (
-    admin_person_id in (
-      select id
-      from public.people
-      where auth_user_id = (select auth.uid())
-    )
-  );
+  using (admin_person_id = app_private.current_person_id());
 
 create policy app_profiles_select_authenticated
   on public.app_profiles
@@ -594,38 +645,14 @@ create policy activity_types_insert_admin
   on public.activity_types
   for insert
   to authenticated
-  with check (
-    exists (
-      select 1
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-        and ap.role = 'admin'
-    )
-  );
+  with check (app_private.current_person_is_admin());
 
 create policy activity_types_update_admin
   on public.activity_types
   for update
   to authenticated
-  using (
-    exists (
-      select 1
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-        and ap.role = 'admin'
-    )
-  )
-  with check (
-    exists (
-      select 1
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-        and ap.role = 'admin'
-    )
-  );
+  using (app_private.current_person_is_admin())
+  with check (app_private.current_person_is_admin());
 
 create policy exercises_select_authenticated
   on public.exercises
@@ -637,38 +664,14 @@ create policy exercises_insert_admin
   on public.exercises
   for insert
   to authenticated
-  with check (
-    exists (
-      select 1
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-        and ap.role = 'admin'
-    )
-  );
+  with check (app_private.current_person_is_admin());
 
 create policy exercises_update_admin
   on public.exercises
   for update
   to authenticated
-  using (
-    exists (
-      select 1
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-        and ap.role = 'admin'
-    )
-  )
-  with check (
-    exists (
-      select 1
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-        and ap.role = 'admin'
-    )
-  );
+  using (app_private.current_person_is_admin())
+  with check (app_private.current_person_is_admin());
 
 create policy exercise_tags_select_authenticated
   on public.exercise_tags
@@ -686,124 +689,43 @@ create policy person_exercises_select_managed
   on public.person_exercises
   for select
   to authenticated
-  using (
-    person_id in (
-      select id
-      from public.people
-      where auth_user_id = (select auth.uid())
-    )
-    or person_id in (
-      select ap.managed_person_id
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-    )
-  );
+  using (app_private.person_is_accessible(person_id));
 
 create policy person_exercises_insert_managed
   on public.person_exercises
   for insert
   to authenticated
-  with check (
-    person_id in (
-      select id
-      from public.people
-      where auth_user_id = (select auth.uid())
-    )
-    or person_id in (
-      select ap.managed_person_id
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-    )
-  );
+  with check (app_private.person_is_accessible(person_id));
 
 create policy person_exercises_update_managed
   on public.person_exercises
   for update
   to authenticated
-  using (
-    person_id in (
-      select id
-      from public.people
-      where auth_user_id = (select auth.uid())
-    )
-    or person_id in (
-      select ap.managed_person_id
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-    )
-  )
-  with check (
-    person_id in (
-      select id
-      from public.people
-      where auth_user_id = (select auth.uid())
-    )
-    or person_id in (
-      select ap.managed_person_id
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-    )
-  );
+  using (app_private.person_is_accessible(person_id))
+  with check (app_private.person_is_accessible(person_id));
 
 create policy person_exercises_delete_managed
   on public.person_exercises
   for delete
   to authenticated
-  using (
-    person_id in (
-      select id
-      from public.people
-      where auth_user_id = (select auth.uid())
-    )
-    or person_id in (
-      select ap.managed_person_id
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-    )
-  );
+  using (app_private.person_is_accessible(person_id));
 
 create policy sessions_select_managed
   on public.sessions
   for select
   to authenticated
-  using (
-    person_id in (
-      select id
-      from public.people
-      where auth_user_id = (select auth.uid())
-    )
-    or person_id in (
-      select ap.managed_person_id
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-    )
-  );
+  using (app_private.person_is_accessible(person_id));
 
 create policy session_entries_select_managed
   on public.session_entries
   for select
   to authenticated
   using (
-    session_id in (
-      select s.id
+    exists (
+      select 1
       from public.sessions s
-      where s.person_id in (
-        select id
-        from public.people
-        where auth_user_id = (select auth.uid())
-      )
-      or s.person_id in (
-        select ap.managed_person_id
-        from public.admin_people ap
-        join public.people p on p.id = ap.admin_person_id
-        where p.auth_user_id = (select auth.uid())
-      )
+      where s.id = session_id
+        and app_private.person_is_accessible(s.person_id)
     )
   );
 
@@ -812,21 +734,12 @@ create policy entry_sets_select_managed
   for select
   to authenticated
   using (
-    session_entry_id in (
-      select se.id
+    exists (
+      select 1
       from public.session_entries se
       join public.sessions s on s.id = se.session_id
-      where s.person_id in (
-        select id
-        from public.people
-        where auth_user_id = (select auth.uid())
-      )
-      or s.person_id in (
-        select ap.managed_person_id
-        from public.admin_people ap
-        join public.people p on p.id = ap.admin_person_id
-        where p.auth_user_id = (select auth.uid())
-      )
+      where se.id = session_entry_id
+        and app_private.person_is_accessible(s.person_id)
     )
   );
 
@@ -835,21 +748,12 @@ create policy entry_metrics_select_managed
   for select
   to authenticated
   using (
-    session_entry_id in (
-      select se.id
+    exists (
+      select 1
       from public.session_entries se
       join public.sessions s on s.id = se.session_id
-      where s.person_id in (
-        select id
-        from public.people
-        where auth_user_id = (select auth.uid())
-      )
-      or s.person_id in (
-        select ap.managed_person_id
-        from public.admin_people ap
-        join public.people p on p.id = ap.admin_person_id
-        where p.auth_user_id = (select auth.uid())
-      )
+      where se.id = session_entry_id
+        and app_private.person_is_accessible(s.person_id)
     )
   );
 
@@ -857,119 +761,35 @@ create policy one_rm_tests_select_managed
   on public.one_rm_tests
   for select
   to authenticated
-  using (
-    person_id in (
-      select id
-      from public.people
-      where auth_user_id = (select auth.uid())
-    )
-    or person_id in (
-      select ap.managed_person_id
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-    )
-  );
+  using (app_private.person_is_accessible(person_id));
 
 create policy bodyweight_logs_select_managed
   on public.bodyweight_logs
   for select
   to authenticated
-  using (
-    person_id in (
-      select id
-      from public.people
-      where auth_user_id = (select auth.uid())
-    )
-    or person_id in (
-      select ap.managed_person_id
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-    )
-  );
+  using (app_private.person_is_accessible(person_id));
 
 create policy goals_select_managed
   on public.goals
   for select
   to authenticated
-  using (
-    person_id in (
-      select id
-      from public.people
-      where auth_user_id = (select auth.uid())
-    )
-    or person_id in (
-      select ap.managed_person_id
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-    )
-  );
+  using (app_private.person_is_accessible(person_id));
 
 create policy goals_insert_managed
   on public.goals
   for insert
   to authenticated
-  with check (
-    person_id in (
-      select id
-      from public.people
-      where auth_user_id = (select auth.uid())
-    )
-    or person_id in (
-      select ap.managed_person_id
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-    )
-  );
+  with check (app_private.person_is_accessible(person_id));
 
 create policy goals_update_managed
   on public.goals
   for update
   to authenticated
-  using (
-    person_id in (
-      select id
-      from public.people
-      where auth_user_id = (select auth.uid())
-    )
-    or person_id in (
-      select ap.managed_person_id
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-    )
-  )
-  with check (
-    person_id in (
-      select id
-      from public.people
-      where auth_user_id = (select auth.uid())
-    )
-    or person_id in (
-      select ap.managed_person_id
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-    )
-  );
+  using (app_private.person_is_accessible(person_id))
+  with check (app_private.person_is_accessible(person_id));
 
 create policy goals_delete_managed
   on public.goals
   for delete
   to authenticated
-  using (
-    person_id in (
-      select id
-      from public.people
-      where auth_user_id = (select auth.uid())
-    )
-    or person_id in (
-      select ap.managed_person_id
-      from public.admin_people ap
-      join public.people p on p.id = ap.admin_person_id
-      where p.auth_user_id = (select auth.uid())
-    )
-  );
+  using (app_private.person_is_accessible(person_id));

@@ -1,5 +1,5 @@
 import { supabasePublicSelect } from "./supabase-public";
-import { getCurrentPerson } from "./supabase-people.browser";
+import { claimNoamProfile, getCurrentPerson } from "./supabase-people.browser";
 import type {
   BodyweightPoint,
   MonthRow,
@@ -249,7 +249,7 @@ function parseWeeklyGoals(goals: GoalRecord[]) {
 }
 
 export async function getDashboardDataClient(): Promise<DashboardData> {
-  const person = await getCurrentPerson();
+  const person = (await getCurrentPerson()) ?? (await claimNoamProfile());
   if (!person) throw new Error("Link this login to your profile first.");
 
   const [sessions, oneRM, bodyweightRows, goalRows] = await Promise.all([
