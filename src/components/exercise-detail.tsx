@@ -87,8 +87,8 @@ export function ExerciseDetail({
   }, [q.data, metric]);
 
   return (
-    <div className="flex h-full flex-col">
-      <header className="flex items-start gap-3 border-b border-border p-4">
+    <div className="flex h-full flex-col bg-[oklch(0.19_0.024_210)]">
+      <header className="flex items-start gap-3 border-b border-sky-400/20 bg-sky-400/5 p-4">
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-lg font-semibold">{exercise.name}</h2>
           <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
@@ -107,7 +107,7 @@ export function ExerciseDetail({
         </Button>
       </header>
 
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto bg-sky-400/[0.025] p-4">
         {q.isLoading ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading history…
@@ -149,7 +149,7 @@ export function ExerciseDetail({
               })}
             </div>
 
-            <div className="rounded-md border border-border bg-card p-2">
+            <div className="rounded-md border border-sky-400/25 bg-sky-400/[0.06] p-2 shadow-inner">
               {chartData.length === 0 ? (
                 <p className="py-8 text-center text-xs text-muted-foreground">
                   No data for {METRIC_LABEL[metric]}.
@@ -248,7 +248,7 @@ function StatGrid({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-border bg-secondary/30 px-2.5 py-2">
+    <div className="rounded-md border border-sky-400/20 bg-sky-400/[0.07] px-2.5 py-2">
       <dt className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
         {label}
       </dt>
@@ -264,15 +264,15 @@ function HistoryList({
 }) {
   const rows = [...data.points].reverse().slice(0, 12);
   return (
-    <div>
-      <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+    <div className="rounded-md border border-sky-400/20 bg-sky-400/[0.05] p-3">
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-sky-200/80">
         Recent sessions
       </h3>
       <ul className="space-y-1">
         {rows.map((p) => (
           <li
             key={p.date}
-            className="flex items-center gap-2 rounded-md border border-border/60 bg-secondary/20 px-2.5 py-1.5 text-xs"
+            className="flex items-center gap-2 rounded-md border border-sky-400/15 bg-background/35 px-2.5 py-1.5 text-xs"
           >
             <span className="w-16 shrink-0 font-medium">
               {formatUKDateShort(p.date)}

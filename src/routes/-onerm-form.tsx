@@ -69,8 +69,10 @@ export function OneRMForm() {
 
   const mutate = useMutation({
     mutationFn: () => add1RMTestClient(form),
-    onSuccess: (res) => {
-      toast.success(`Logged 1RM test to ${res.row}`);
+    onSuccess: () => {
+      toast.success("1RM test saved", {
+        description: `${form.exercise} was added to your tests.`,
+      });
       setForm((f) => ({
         ...blankTest(),
         date: f.date,
@@ -87,8 +89,10 @@ export function OneRMForm() {
 
   const bwMutate = useMutation({
     mutationFn: () => addBodyweightClient(bw),
-    onSuccess: (res) => {
-      toast.success(`Logged bodyweight to ${res.row}`);
+    onSuccess: () => {
+      toast.success("Bodyweight saved", {
+        description: `${bw.bodyweight}kg was added to your log.`,
+      });
       setBw(blankBw());
       qc.invalidateQueries({ queryKey: ["recent-1rm"] });
     },

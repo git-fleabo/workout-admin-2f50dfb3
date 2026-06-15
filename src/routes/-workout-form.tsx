@@ -178,8 +178,10 @@ export function WorkoutForm({
         assistanceType: isGrip ? form.gripLoadType : form.assistanceType,
         entryKind: isYoga ? "Workout" : isGrip ? GRIP_WORKOUT_TYPE : isSkill ? "Skill" : form.entryKind || "Workout",
       }),
-    onSuccess: (res) => {
-      toast.success(`Logged to ${res.row}`);
+    onSuccess: () => {
+      toast.success("Workout saved", {
+        description: `${form.exercise} was added to your log.`,
+      });
         setForm((f) => ({
           ...blank(defaultWorkoutType),
           date: f.date,

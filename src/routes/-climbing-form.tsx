@@ -62,8 +62,10 @@ export function ClimbingForm() {
 
   const mutate = useMutation({
     mutationFn: () => addClimbClient(form),
-    onSuccess: (res) => {
-      toast.success(`Logged to ${res.row}`);
+    onSuccess: () => {
+      toast.success("Climb saved", {
+        description: `${form.type || "Climbing"} was added to your log.`,
+      });
       setForm((f) => ({ ...blank(), date: f.date, type: f.type, trackingMode: f.trackingMode }));
       qc.invalidateQueries({ queryKey: ["recent-climbs"] });
     },
