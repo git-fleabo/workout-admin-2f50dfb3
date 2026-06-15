@@ -3,6 +3,7 @@ import { type ReactNode } from "react";
 import { Activity, BookOpen, Dumbbell, LogOut, Settings as SettingsIcon, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { APP_BUILD_LABEL } from "@/lib/build-info";
 import { signOutOfSupabase } from "@/lib/supabase-public";
 
 type NavItem = {
@@ -61,6 +62,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <h1 className="text-base font-semibold leading-none sm:text-lg">Training Admin</h1>
             <p className="text-xs text-muted-foreground">
               Dashboard, library, goals and logs for your training database
+            </p>
+            <p className="mt-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground/60">
+              {APP_BUILD_LABEL}
             </p>
           </div>
           <Button

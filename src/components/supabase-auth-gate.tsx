@@ -4,6 +4,7 @@ import { Loader2, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { APP_BUILD_LABEL } from "@/lib/build-info";
 import {
   getSupabaseSession,
   signInWithPassword,
@@ -84,6 +85,9 @@ export function SupabaseAuthGate({ children }: { children: ReactNode }) {
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign in"}
           </Button>
         </form>
+        <p className="text-center font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
+          {APP_BUILD_LABEL}
+        </p>
       </Card>
     </div>
   );
