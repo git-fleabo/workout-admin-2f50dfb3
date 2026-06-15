@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 
 import {
   addWorkoutClient,
+  deleteSessionClient,
   getLibraryClient,
   getRecentLogsClient,
   REST_OPTIONS,
@@ -191,10 +192,22 @@ export function WorkoutForm({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteSessionClient(id),
+    onSuccess: () => {
+      toast.success("Workout deleted");
+      qc.invalidateQueries({ queryKey: ["recent-workouts"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["prs"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const canSubmit = form.date && form.exercise && !mutate.isPending;
 
   const recentEntries: RecentEntry[] =
     recent.data?.recent.map((r) => ({
+      id: r.id,
       date: r.date,
       title: r.exercise,
       meta:
@@ -410,6 +423,12 @@ export function WorkoutForm({
       <RecentList
         loading={recent.isLoading}
         entries={recentEntries}
+        deletingId={deleteMutation.variables ?? null}
+        onDelete={(entry) => {
+          if (!entry.id) return;
+          if (!window.confirm(`Delete ${entry.title} from ${formatUKDate(entry.date)}?`)) return;
+          deleteMutation.mutate(entry.id);
+        }}
         onSelect={(i) => {
           const r = recent.data?.recent[i];
           if (!r) return;

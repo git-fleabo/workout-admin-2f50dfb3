@@ -1,6 +1,7 @@
-import { History } from "lucide-react";
+import { History, Loader2, Trash2 } from "lucide-react";
 import { formatUKDateShort } from "@/lib/date";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/select";
 
 export type RecentEntry = {
+  id?: string;
   date: string;
   title: string;
   meta: string;
@@ -83,10 +85,14 @@ export function RecentList({
   loading,
   entries,
   onSelect,
+  onDelete,
+  deletingId,
 }: {
   loading: boolean;
   entries: RecentEntry[];
   onSelect?: (index: number) => void;
+  onDelete?: (entry: RecentEntry, index: number) => void;
+  deletingId?: string | null;
 }) {
   return (
     <section className="space-y-3">
@@ -107,6 +113,28 @@ export function RecentList({
       )}
       <div className="space-y-2">
         {entries.map((r, i) => {
+          const deleting = Boolean(r.id && deletingId === r.id);
+          const deleteButton = onDelete && r.id ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={deleting}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(r, i);
+              }}
+              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+              aria-label={`Delete ${r.title}`}
+              title="Delete"
+            >
+              {deleting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+            </Button>
+          ) : null;
           const inner = (
             <>
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs font-mono text-muted-foreground">
@@ -125,20 +153,22 @@ export function RecentList({
           );
           if (onSelect) {
             return (
-              <Card key={i} className="border-border bg-card p-0">
+              <Card key={i} className="flex items-start gap-1 border-border bg-card p-0">
                 <button
                   type="button"
                   onClick={() => onSelect(i)}
-                  className="flex w-full items-start gap-3 rounded-xl p-3 text-left transition hover:border-primary/40 hover:bg-secondary/40"
+                  className="flex min-w-0 flex-1 items-start gap-3 rounded-xl p-3 text-left transition hover:border-primary/40 hover:bg-secondary/40"
                 >
                   {inner}
                 </button>
+                {deleteButton && <div className="pr-2 pt-2">{deleteButton}</div>}
               </Card>
             );
           }
           return (
             <Card key={i} className="flex items-start gap-3 border-border bg-card p-3">
               {inner}
+              {deleteButton}
             </Card>
           );
         })}

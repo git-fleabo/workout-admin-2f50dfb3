@@ -1,4 +1,8 @@
-import { supabasePublicInsert, supabasePublicSelect } from "./supabase-public";
+import {
+  supabasePublicDelete,
+  supabasePublicInsert,
+  supabasePublicSelect,
+} from "./supabase-public";
 import { claimNoamProfile, getCurrentPerson } from "./supabase-people.browser";
 
 export const REST_OPTIONS = [
@@ -98,6 +102,7 @@ type SessionEntryRecord = {
   entry_sets: EntrySetRecord[] | null;
   entry_metrics: EntryMetricRecord[] | null;
   sessions: {
+    id: string;
     session_date: string;
     title: string | null;
     completed: boolean;
@@ -124,6 +129,7 @@ type SessionRecord = {
 };
 
 type OneRMRecord = {
+  id: string;
   test_date: string;
   source: string | null;
   exercise_name: string;
@@ -137,6 +143,7 @@ type OneRMRecord = {
 };
 
 type BodyweightRecord = {
+  id: string;
   logged_date: string;
   bodyweight: number | string;
   notes: string | null;
@@ -313,7 +320,7 @@ export async function getRecentLogsClient() {
   await requirePerson();
   const rows = await supabasePublicSelect<SessionEntryRecord>("session_entries", {
     select:
-      "id,entry_kind,name,progression_level,completed,notes,source_sheet,exercises(name,focus_area,activity_types(name)),activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality),sessions!inner(session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name))",
+      "id,entry_kind,name,progression_level,completed,notes,source_sheet,exercises(name,focus_area,activity_types(name)),activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality),sessions!inner(id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name))",
     "sessions.source_sheet": "eq.Workout Log",
     order: "created_at.desc",
     limit: 15,
@@ -324,6 +331,7 @@ export async function getRecentLogsClient() {
       const set = firstSet(row);
       return {
         date: row.sessions?.session_date ?? "",
+        id: row.sessions?.id ?? "",
         workoutType:
           row.activity_types?.name ??
           row.exercises?.activity_types?.name ??
@@ -416,6 +424,12 @@ export async function addWorkoutClient(data: WorkoutLogInput) {
   return { ok: true, row: session.source_row ?? "Supabase" };
 }
 
+export async function deleteSessionClient(id: string) {
+  if (!id) throw new Error("Missing session id.");
+  await supabasePublicDelete("sessions", { id: `eq.${id}` });
+  return { ok: true };
+}
+
 export async function getRecentClimbsClient() {
   await requirePerson();
   const rows = await supabasePublicSelect<SessionRecord>("sessions", {
@@ -430,6 +444,7 @@ export async function getRecentClimbsClient() {
       const entry = row.session_entries?.[0];
       const metrics = entry?.entry_metrics;
       return {
+        id: row.id,
         date: row.session_date,
         type: row.activity_types?.name ?? row.title ?? "",
         trackingMode: metricValue(metrics, "tracking_mode"),
@@ -506,12 +521,12 @@ export async function get1RMRecentClient() {
   const [tests, bodyweight] = await Promise.all([
     supabasePublicSelect<OneRMRecord>("one_rm_tests", {
       select:
-        "test_date,source,exercise_name,load_type,external_weight,reps,rpe,estimated_total,estimated_external,is_pr",
+        "id,test_date,source,exercise_name,load_type,external_weight,reps,rpe,estimated_total,estimated_external,is_pr",
       order: "test_date.desc,created_at.desc",
       limit: 15,
     }),
     supabasePublicSelect<BodyweightRecord>("bodyweight_logs", {
-      select: "logged_date,bodyweight,notes",
+      select: "id,logged_date,bodyweight,notes",
       order: "logged_date.desc,created_at.desc",
       limit: 10,
     }),
@@ -520,6 +535,7 @@ export async function get1RMRecentClient() {
   return {
     recent: tests.map((row) => ({
       date: row.test_date,
+      id: row.id,
       source: row.source ?? "",
       exercise: row.exercise_name,
       type: row.load_type ?? "",
@@ -532,11 +548,24 @@ export async function get1RMRecentClient() {
     })),
     bodyweight: bodyweight.map((row) => ({
       date: row.logged_date,
+      id: row.id,
       bodyweight: asText(row.bodyweight),
       notes: row.notes ?? "",
     })),
     latestBodyweight: asText(bodyweight[0]?.bodyweight),
   };
+}
+
+export async function delete1RMTestClient(id: string) {
+  if (!id) throw new Error("Missing 1RM test id.");
+  await supabasePublicDelete("one_rm_tests", { id: `eq.${id}` });
+  return { ok: true };
+}
+
+export async function deleteBodyweightClient(id: string) {
+  if (!id) throw new Error("Missing bodyweight id.");
+  await supabasePublicDelete("bodyweight_logs", { id: `eq.${id}` });
+  return { ok: true };
 }
 
 export async function add1RMTestClient(data: OneRMInput) {
@@ -596,14 +625,14 @@ export async function getPRsClient() {
   const [tests, skills] = await Promise.all([
     supabasePublicSelect<OneRMRecord>("one_rm_tests", {
       select:
-        "test_date,source,exercise_name,load_type,external_weight,reps,rpe,estimated_total,estimated_external,is_pr",
+        "id,test_date,source,exercise_name,load_type,external_weight,reps,rpe,estimated_total,estimated_external,is_pr",
       is_pr: "eq.true",
       order: "exercise_name.asc,test_date.desc",
       limit: 200,
     }),
     supabasePublicSelect<SessionEntryRecord>("session_entries", {
       select:
-        "id,entry_kind,name,progression_level,completed,notes,entry_sets(reps,duration_seconds,assistance_type,assistance_detail),sessions!inner(session_date,completed,source_sheet,activity_types(name))",
+        "id,entry_kind,name,progression_level,completed,notes,entry_sets(reps,duration_seconds,assistance_type,assistance_detail),sessions!inner(id,session_date,completed,source_sheet,activity_types(name))",
       completed: "eq.true",
       "sessions.completed": "eq.true",
       limit: 1000,

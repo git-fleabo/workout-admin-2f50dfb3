@@ -605,6 +605,9 @@ grant insert on public.entry_sets to authenticated;
 grant insert on public.entry_metrics to authenticated;
 grant insert on public.one_rm_tests to authenticated;
 grant insert on public.bodyweight_logs to authenticated;
+grant delete on public.sessions to authenticated;
+grant delete on public.one_rm_tests to authenticated;
+grant delete on public.bodyweight_logs to authenticated;
 grant update (auth_user_id) on public.people to authenticated;
 grant usage on schema app_private to authenticated;
 grant execute on function app_private.current_person_id() to authenticated;
@@ -728,6 +731,12 @@ create policy sessions_insert_managed
   to authenticated
   with check (app_private.person_is_accessible(person_id));
 
+create policy sessions_delete_managed
+  on public.sessions
+  for delete
+  to authenticated
+  using (app_private.person_is_accessible(person_id));
+
 create policy session_entries_select_managed
   on public.session_entries
   for select
@@ -822,6 +831,12 @@ create policy one_rm_tests_insert_managed
   to authenticated
   with check (app_private.person_is_accessible(person_id));
 
+create policy one_rm_tests_delete_managed
+  on public.one_rm_tests
+  for delete
+  to authenticated
+  using (app_private.person_is_accessible(person_id));
+
 create policy bodyweight_logs_select_managed
   on public.bodyweight_logs
   for select
@@ -833,6 +848,12 @@ create policy bodyweight_logs_insert_managed
   for insert
   to authenticated
   with check (app_private.person_is_accessible(person_id));
+
+create policy bodyweight_logs_delete_managed
+  on public.bodyweight_logs
+  for delete
+  to authenticated
+  using (app_private.person_is_accessible(person_id));
 
 create policy goals_select_managed
   on public.goals

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Calendar, Loader2, Plus, Trophy } from "lucide-react";
+import { Calendar, Loader2, Plus, Trash2, Trophy } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,8 @@ import {
   ONE_RM_TYPES,
   add1RMTestClient,
   addBodyweightClient,
+  delete1RMTestClient,
+  deleteBodyweightClient,
   get1RMRecentClient,
 } from "@/lib/supabase-log.browser";
 import { formatUKDate, formatUKDateShort, todayISO } from "@/lib/date";
@@ -89,6 +91,27 @@ export function OneRMForm() {
       toast.success(`Logged bodyweight to ${res.row}`);
       setBw(blankBw());
       qc.invalidateQueries({ queryKey: ["recent-1rm"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteTestMutation = useMutation({
+    mutationFn: (id: string) => delete1RMTestClient(id),
+    onSuccess: () => {
+      toast.success("1RM test deleted");
+      qc.invalidateQueries({ queryKey: ["recent-1rm"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["prs"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteBwMutation = useMutation({
+    mutationFn: (id: string) => deleteBodyweightClient(id),
+    onSuccess: () => {
+      toast.success("Bodyweight deleted");
+      qc.invalidateQueries({ queryKey: ["recent-1rm"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -250,6 +273,51 @@ export function OneRMForm() {
         </Button>
       </Card>
 
+      {(recent.data?.bodyweight.length ?? 0) > 0 && (
+        <section className="space-y-3">
+          <h2 className="px-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Recent bodyweight
+          </h2>
+          <div className="space-y-2">
+            {recent.data?.bodyweight.map((r) => {
+              const deleting = deleteBwMutation.variables === r.id;
+              return (
+                <Card key={r.id} className="flex items-start gap-3 border-border bg-card p-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs font-mono text-muted-foreground">
+                    {formatUKDateShort(r.date)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{r.bodyweight}kg</p>
+                    {r.notes && (
+                      <p className="truncate text-xs text-muted-foreground">{r.notes}</p>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={deleting}
+                    onClick={() => {
+                      if (!window.confirm(`Delete bodyweight from ${formatUKDate(r.date)}?`)) return;
+                      deleteBwMutation.mutate(r.id);
+                    }}
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    aria-label="Delete bodyweight"
+                    title="Delete"
+                  >
+                    {deleting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                </Card>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       <section className="space-y-3">
         <h2 className="px-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Recent tests
@@ -261,8 +329,10 @@ export function OneRMForm() {
           <Card className="p-4 text-sm text-muted-foreground">No tests logged yet.</Card>
         )}
         <div className="space-y-2">
-          {recent.data?.recent.map((r, i) => (
-            <Card key={i} className="flex items-start gap-3 border-border bg-card p-3">
+          {recent.data?.recent.map((r) => {
+            const deleting = deleteTestMutation.variables === r.id;
+            return (
+            <Card key={r.id} className="flex items-start gap-3 border-border bg-card p-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs font-mono text-muted-foreground">
                 {formatUKDateShort(r.date)}
               </div>
@@ -284,8 +354,28 @@ export function OneRMForm() {
                     .join(" · ") || r.source}
                 </p>
               </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={deleting}
+                onClick={() => {
+                  if (!window.confirm(`Delete ${r.exercise} test from ${formatUKDate(r.date)}?`)) return;
+                  deleteTestMutation.mutate(r.id);
+                }}
+                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                aria-label={`Delete ${r.exercise} test`}
+                title="Delete"
+              >
+                {deleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+              </Button>
             </Card>
-          ))}
+            );
+          })}
         </div>
       </section>
     </div>

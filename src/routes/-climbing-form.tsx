@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   addClimbClient,
   BOARD_GRADIENTS,
+  deleteSessionClient,
   getLibraryClient,
   getRecentClimbsClient,
 } from "@/lib/supabase-log.browser";
@@ -69,10 +70,21 @@ export function ClimbingForm() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteSessionClient(id),
+    onSuccess: () => {
+      toast.success("Climb deleted");
+      qc.invalidateQueries({ queryKey: ["recent-climbs"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const canSubmit = form.date && (form.hours || form.boulders) && !mutate.isPending;
 
   const recentEntries: RecentEntry[] =
     recent.data?.recent.map((r) => ({
+      id: r.id,
       date: r.date,
       title: r.type || "Climbing",
       meta:
@@ -201,6 +213,12 @@ export function ClimbingForm() {
       <RecentList
         loading={recent.isLoading}
         entries={recentEntries}
+        deletingId={deleteMutation.variables ?? null}
+        onDelete={(entry) => {
+          if (!entry.id) return;
+          if (!window.confirm(`Delete ${entry.title} from ${formatUKDate(entry.date)}?`)) return;
+          deleteMutation.mutate(entry.id);
+        }}
         onSelect={(i) => {
           const r = recent.data?.recent[i];
           if (!r) return;
