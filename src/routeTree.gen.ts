@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LogRouteImport } from './routes/log'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as GoalsRouteImport } from './routes/goals'
-import { Route as DataCheckRouteImport } from './routes/data-check'
 import { Route as IndexRouteImport } from './routes/index'
 
 const LogRoute = LogRouteImport.update({
@@ -30,11 +29,6 @@ const GoalsRoute = GoalsRouteImport.update({
   path: '/goals',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DataCheckRoute = DataCheckRouteImport.update({
-  id: '/data-check',
-  path: '/data-check',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -43,14 +37,12 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/data-check': typeof DataCheckRoute
   '/goals': typeof GoalsRoute
   '/library': typeof LibraryRoute
   '/log': typeof LogRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/data-check': typeof DataCheckRoute
   '/goals': typeof GoalsRoute
   '/library': typeof LibraryRoute
   '/log': typeof LogRoute
@@ -58,22 +50,20 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/data-check': typeof DataCheckRoute
   '/goals': typeof GoalsRoute
   '/library': typeof LibraryRoute
   '/log': typeof LogRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/data-check' | '/goals' | '/library' | '/log'
+  fullPaths: '/' | '/goals' | '/library' | '/log'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/data-check' | '/goals' | '/library' | '/log'
-  id: '__root__' | '/' | '/data-check' | '/goals' | '/library' | '/log'
+  to: '/' | '/goals' | '/library' | '/log'
+  id: '__root__' | '/' | '/goals' | '/library' | '/log'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DataCheckRoute: typeof DataCheckRoute
   GoalsRoute: typeof GoalsRoute
   LibraryRoute: typeof LibraryRoute
   LogRoute: typeof LogRoute
@@ -102,13 +92,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GoalsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/data-check': {
-      id: '/data-check'
-      path: '/data-check'
-      fullPath: '/data-check'
-      preLoaderRoute: typeof DataCheckRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -121,7 +104,6 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DataCheckRoute: DataCheckRoute,
   GoalsRoute: GoalsRoute,
   LibraryRoute: LibraryRoute,
   LogRoute: LogRoute,

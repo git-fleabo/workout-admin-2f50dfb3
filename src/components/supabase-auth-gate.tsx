@@ -7,13 +7,11 @@ import { Input } from "@/components/ui/input";
 import {
   getSupabaseSession,
   signInWithPassword,
-  signUpWithPassword,
 } from "@/lib/supabase-public";
 
 export function SupabaseAuthGate({ children }: { children: ReactNode }) {
   const [signedIn, setSignedIn] = useState(false);
   const [hydrated, setHydrated] = useState(false);
-  const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -32,19 +30,11 @@ export function SupabaseAuthGate({ children }: { children: ReactNode }) {
     setBusy(true);
     setError(null);
     try {
-      if (mode === "sign-in") {
-        await signInWithPassword(email.trim(), password);
-      } else {
-        const session = await signUpWithPassword(email.trim(), password);
-        if (!session.access_token) {
-          setError("Check your email, then sign in.");
-          return;
-        }
-      }
+      await signInWithPassword(email.trim(), password);
       setSignedIn(true);
       setPassword("");
     } catch {
-      setError(mode === "sign-in" ? "Could not sign in." : "Could not create account.");
+      setError("Could not sign in.");
     } finally {
       setBusy(false);
     }
@@ -63,7 +53,7 @@ export function SupabaseAuthGate({ children }: { children: ReactNode }) {
           <div>
             <h1 className="text-base font-semibold leading-tight">Training Admin</h1>
             <p className="text-xs text-muted-foreground">
-              {mode === "sign-in" ? "Sign in with Supabase" : "Create your Supabase login"}
+              Sign in with your approved account
             </p>
           </div>
         </div>
@@ -82,7 +72,7 @@ export function SupabaseAuthGate({ children }: { children: ReactNode }) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
-            autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
+            autoComplete="current-password"
           />
           {error && <p className="text-xs text-destructive">{error}</p>}
           <Button
@@ -91,21 +81,9 @@ export function SupabaseAuthGate({ children }: { children: ReactNode }) {
             className="h-11 w-full text-sm font-semibold"
             style={{ backgroundImage: "var(--gradient-primary)", color: "var(--primary-foreground)" }}
           >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === "sign-in" ? "Sign in" : "Create account"}
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign in"}
           </Button>
         </form>
-
-        <Button
-          type="button"
-          variant="ghost"
-          className="w-full text-xs text-muted-foreground"
-          onClick={() => {
-            setError(null);
-            setMode(mode === "sign-in" ? "sign-up" : "sign-in");
-          }}
-        >
-          {mode === "sign-in" ? "Create account" : "Use existing account"}
-        </Button>
       </Card>
     </div>
   );
