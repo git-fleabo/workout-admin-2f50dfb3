@@ -3,7 +3,7 @@ import { type ReactNode } from "react";
 import { Activity, BookOpen, Dumbbell, LogOut, Settings as SettingsIcon, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { clearStoredSecret } from "@/lib/auth-middleware";
+import { signOutOfSupabase } from "@/lib/supabase-public";
 
 type NavItem = {
   to: string;
@@ -66,8 +66,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              clearStoredSecret();
+            onClick={async () => {
+              await signOutOfSupabase();
               window.location.reload();
             }}
             className="text-muted-foreground hover:text-foreground"
