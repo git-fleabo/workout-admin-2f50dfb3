@@ -11,6 +11,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export type RecentEntry = {
   id?: string;
@@ -174,5 +184,56 @@ export function RecentList({
         })}
       </div>
     </section>
+  );
+}
+
+export type DeleteTarget = {
+  id: string;
+  title: string;
+  description: string;
+};
+
+export function DeleteConfirmDialog({
+  target,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  target: DeleteTarget | null;
+  busy?: boolean;
+  onCancel: () => void;
+  onConfirm: (id: string) => void;
+}) {
+  return (
+    <AlertDialog open={Boolean(target)} onOpenChange={(open) => !open && onCancel()}>
+      <AlertDialogContent className="max-w-sm">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete this entry?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {target?.description}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={!target || busy}
+            onClick={(e) => {
+              e.preventDefault();
+              if (target) onConfirm(target.id);
+            }}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {busy ? (
+              <>
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                Deleting
+              </>
+            ) : (
+              "Delete"
+            )}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

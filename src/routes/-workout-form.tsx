@@ -19,7 +19,15 @@ import {
   REST_OPTIONS,
 } from "@/lib/supabase-log.browser";
 import { formatUKDate, todayISO } from "@/lib/date";
-import { DateInput, Field, SimpleSelect, RecentList, type RecentEntry } from "./-form-bits";
+import {
+  DateInput,
+  DeleteConfirmDialog,
+  Field,
+  SimpleSelect,
+  RecentList,
+  type DeleteTarget,
+  type RecentEntry,
+} from "./-form-bits";
 
 const today = todayISO;
 const SKILL_WORKOUT_TYPE = "Skills/Calisthenics";
@@ -130,6 +138,7 @@ export function WorkoutForm({
   const recent = useQuery({ queryKey: ["recent-workouts"], queryFn: getRecentLogsClient });
 
   const [form, setForm] = useState<FormState>(() => blank(defaultWorkoutType));
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
   const libraryExercises =
@@ -198,6 +207,7 @@ export function WorkoutForm({
     mutationFn: (id: string) => deleteSessionClient(id),
     onSuccess: () => {
       toast.success("Workout deleted");
+      setDeleteTarget(null);
       qc.invalidateQueries({ queryKey: ["recent-workouts"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["prs"] });
@@ -428,8 +438,11 @@ export function WorkoutForm({
         deletingId={deleteMutation.variables ?? null}
         onDelete={(entry) => {
           if (!entry.id) return;
-          if (!window.confirm(`Delete ${entry.title} from ${formatUKDate(entry.date)}?`)) return;
-          deleteMutation.mutate(entry.id);
+          setDeleteTarget({
+            id: entry.id,
+            title: entry.title,
+            description: `${entry.title} from ${formatUKDate(entry.date)} will be permanently removed from your log.`,
+          });
         }}
         onSelect={(i) => {
           const r = recent.data?.recent[i];
@@ -462,6 +475,12 @@ export function WorkoutForm({
           }));
           toast.message(`Prefilled from ${r.exercise}`);
         }}
+      />
+      <DeleteConfirmDialog
+        target={deleteTarget}
+        busy={deleteMutation.isPending}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={(id) => deleteMutation.mutate(id)}
       />
     </div>
   );

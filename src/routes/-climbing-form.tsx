@@ -19,7 +19,15 @@ import {
   getRecentClimbsClient,
 } from "@/lib/supabase-log.browser";
 import { formatUKDate, todayISO } from "@/lib/date";
-import { DateInput, Field, SimpleSelect, RecentList, type RecentEntry } from "./-form-bits";
+import {
+  DateInput,
+  DeleteConfirmDialog,
+  Field,
+  SimpleSelect,
+  RecentList,
+  type DeleteTarget,
+  type RecentEntry,
+} from "./-form-bits";
 
 const today = todayISO;
 
@@ -57,6 +65,7 @@ export function ClimbingForm() {
   const recent = useQuery({ queryKey: ["recent-climbs"], queryFn: getRecentClimbsClient });
 
   const [form, setForm] = useState<ClimbState>(blank);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const update = <K extends keyof ClimbState>(k: K, v: ClimbState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
@@ -76,6 +85,7 @@ export function ClimbingForm() {
     mutationFn: (id: string) => deleteSessionClient(id),
     onSuccess: () => {
       toast.success("Climb deleted");
+      setDeleteTarget(null);
       qc.invalidateQueries({ queryKey: ["recent-climbs"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
@@ -218,8 +228,11 @@ export function ClimbingForm() {
         deletingId={deleteMutation.variables ?? null}
         onDelete={(entry) => {
           if (!entry.id) return;
-          if (!window.confirm(`Delete ${entry.title} from ${formatUKDate(entry.date)}?`)) return;
-          deleteMutation.mutate(entry.id);
+          setDeleteTarget({
+            id: entry.id,
+            title: entry.title,
+            description: `${entry.title} from ${formatUKDate(entry.date)} will be permanently removed from your log.`,
+          });
         }}
         onSelect={(i) => {
           const r = recent.data?.recent[i];
@@ -236,6 +249,12 @@ export function ClimbingForm() {
           }));
           toast.message(`Prefilled from ${r.type || "climb"}`);
         }}
+      />
+      <DeleteConfirmDialog
+        target={deleteTarget}
+        busy={deleteMutation.isPending}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={(id) => deleteMutation.mutate(id)}
       />
     </div>
   );

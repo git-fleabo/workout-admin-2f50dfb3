@@ -22,7 +22,13 @@ import {
   get1RMRecentClient,
 } from "@/lib/supabase-log.browser";
 import { formatUKDate, formatUKDateShort, todayISO } from "@/lib/date";
-import { DateInput, Field, SimpleSelect } from "./-form-bits";
+import {
+  DateInput,
+  DeleteConfirmDialog,
+  Field,
+  SimpleSelect,
+  type DeleteTarget,
+} from "./-form-bits";
 
 const today = todayISO;
 
@@ -64,6 +70,9 @@ export function OneRMForm() {
     setForm((f) => ({ ...f, [k]: v }));
 
   const [bw, setBw] = useState<BwState>(blankBw);
+  const [deleteTarget, setDeleteTarget] = useState<
+    (DeleteTarget & { kind: "test" | "bodyweight" }) | null
+  >(null);
   const updateBw = <K extends keyof BwState>(k: K, v: BwState[K]) =>
     setBw((f) => ({ ...f, [k]: v }));
 
@@ -103,6 +112,7 @@ export function OneRMForm() {
     mutationFn: (id: string) => delete1RMTestClient(id),
     onSuccess: () => {
       toast.success("1RM test deleted");
+      setDeleteTarget(null);
       qc.invalidateQueries({ queryKey: ["recent-1rm"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["prs"] });
@@ -114,6 +124,7 @@ export function OneRMForm() {
     mutationFn: (id: string) => deleteBodyweightClient(id),
     onSuccess: () => {
       toast.success("Bodyweight deleted");
+      setDeleteTarget(null);
       qc.invalidateQueries({ queryKey: ["recent-1rm"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
@@ -302,8 +313,12 @@ export function OneRMForm() {
                     size="icon"
                     disabled={deleting}
                     onClick={() => {
-                      if (!window.confirm(`Delete bodyweight from ${formatUKDate(r.date)}?`)) return;
-                      deleteBwMutation.mutate(r.id);
+                      setDeleteTarget({
+                        id: r.id,
+                        kind: "bodyweight",
+                        title: "Bodyweight",
+                        description: `${r.bodyweight}kg from ${formatUKDate(r.date)} will be permanently removed from your log.`,
+                      });
                     }}
                     className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                     aria-label="Delete bodyweight"
@@ -364,8 +379,12 @@ export function OneRMForm() {
                 size="icon"
                 disabled={deleting}
                 onClick={() => {
-                  if (!window.confirm(`Delete ${r.exercise} test from ${formatUKDate(r.date)}?`)) return;
-                  deleteTestMutation.mutate(r.id);
+                  setDeleteTarget({
+                    id: r.id,
+                    kind: "test",
+                    title: r.exercise,
+                    description: `${r.exercise} test from ${formatUKDate(r.date)} will be permanently removed from your tests.`,
+                  });
                 }}
                 className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                 aria-label={`Delete ${r.exercise} test`}
@@ -382,6 +401,18 @@ export function OneRMForm() {
           })}
         </div>
       </section>
+      <DeleteConfirmDialog
+        target={deleteTarget}
+        busy={deleteTestMutation.isPending || deleteBwMutation.isPending}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={(id) => {
+          if (deleteTarget?.kind === "bodyweight") {
+            deleteBwMutation.mutate(id);
+          } else {
+            deleteTestMutation.mutate(id);
+          }
+        }}
+      />
     </div>
   );
 }
