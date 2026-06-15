@@ -1,6 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { type ReactNode } from "react";
-import { Activity, BookOpen, Dumbbell, LogOut, Settings as SettingsIcon, ShieldCheck } from "lucide-react";
+import { Activity, BookOpen, Dumbbell, History, LogOut, Settings as SettingsIcon, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { APP_BUILD_LABEL } from "@/lib/build-info";
@@ -35,6 +35,13 @@ const NAV: NavItem[] = [
     icon: <BookOpen className="h-4 w-4" />,
     activeClass: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300 shadow",
     iconClass: "text-emerald-400",
+  },
+  {
+    to: "/history",
+    label: "History",
+    icon: <History className="h-4 w-4" />,
+    activeClass: "border-rose-500/40 bg-rose-500/10 text-rose-300 shadow",
+    iconClass: "text-rose-400",
   },
   {
     to: "/goals",
