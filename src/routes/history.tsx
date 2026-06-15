@@ -176,7 +176,9 @@ function HistoryPage() {
 
   const summary = useMemo(() => {
     const activeDays = new Set(periodEntries.map((entry) => entry.date));
-    const workouts = periodEntries.filter((entry) => entry.kind === "workout").length;
+    const workoutDays = new Set(
+      periodEntries.filter((entry) => entry.kind === "workout").map((entry) => entry.date),
+    );
     const climbHours = periodEntries
       .filter((entry) => entry.kind === "climb")
       .reduce((total, entry) => total + (entry.minutes ?? 0) / 60, 0);
@@ -184,7 +186,7 @@ function HistoryPage() {
     return {
       entries: periodEntries.length,
       activeDays: activeDays.size,
-      workouts,
+      workouts: workoutDays.size,
       climbHours: Math.round(climbHours * 10) / 10,
       prs,
     };
