@@ -824,6 +824,59 @@ Earlier important commits:
 - `person_exercises` row count can lag master `exercises` count; the library can still display master exercises, and per-person enable rows can be added as needed.
 - When changing library data directly in Supabase, also update `supabase/approved_logging_library_updates.sql` or another tracked SQL file so the change is reproducible.
 
+## Future Stage: People And Access Admin
+
+Before opening the app to friends or clients, build an admin-only `People & Access` screen. This should make user setup safe and non-manual, replacing direct database edits for routine access management.
+
+Purpose:
+
+- Keep public signup disabled while still allowing invite-only use.
+- Let Noam create and manage people from the app.
+- Link a Supabase Auth user to a `people` row.
+- Choose which app profile a person should use.
+- Select/deselect exercises for that person from the master library.
+- Prepare for assigning programs or suggested workouts later.
+
+Suggested screen capabilities:
+
+- List people with status, linked/unlinked auth state, app profile, and admin/coach relationship.
+- Add a new person with display name, email, status, and notes.
+- Link an existing Supabase Auth user ID or invited email to a person.
+- Assign one or more `app_profiles`, with one default profile.
+- Create or update `admin_people` rows so Noam can manage that person.
+- Bulk enable a sensible starting exercise set for the person.
+- Toggle individual `person_exercises` rows on/off.
+- Show whether the person has recent logs/goals/bodyweight data before archiving.
+- Archive/deactivate a person without deleting their history.
+
+Tables involved:
+
+- `people`: person identity, auth link, status, notes.
+- `admin_people`: Noam/admin-to-managed-person relationship.
+- `app_profiles`: available app experiences such as full admin, simple logger, runs/classes.
+- `person_app_profiles`: app profile assignments per person.
+- `exercises`: master library.
+- `person_exercises`: per-person library visibility/selection.
+- Future: `programs`, `program_workouts`, `program_workout_entries`, `program_assignments`, `suggested_workouts`.
+
+Permission and safety notes:
+
+- Only an approved admin should be able to access this screen.
+- Users should not be able to manage the master library or other people unless they are explicitly admin/coach.
+- Keep the current admin app gate strict: signed-in account must be linked to `people` and have an `admin_people` row.
+- Do not rely on user-editable auth metadata for permissions.
+- Avoid deleting people with history. Prefer `status = 'inactive'` or `status = 'archived'`.
+- If opening to clients/friends, verify RLS policies so normal users can see only their own data and Noam can see/manage only people linked through `admin_people`.
+
+Possible first implementation:
+
+1. Add a new top-level `People` or `Access` nav item visible only to admin.
+2. Build read-only list/detail first.
+3. Add create/edit person.
+4. Add app profile assignment.
+5. Add exercise selection.
+6. Add program/suggested workout assignment later.
+
 ## Suggested Next Steps
 
 Recommended next work, in order:
