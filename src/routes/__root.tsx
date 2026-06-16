@@ -11,7 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { PasswordGate } from "../components/password-gate";
+import { SupabaseAuthGate } from "../components/supabase-auth-gate";
 import { AdminShell } from "../components/admin-shell";
 
 function NotFoundComponent() {
@@ -134,12 +134,12 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <PasswordGate>
+      <SupabaseAuthGate>
         <AdminShell>
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           <Outlet />
         </AdminShell>
-      </PasswordGate>
+      </SupabaseAuthGate>
     </QueryClientProvider>
   );
 }
