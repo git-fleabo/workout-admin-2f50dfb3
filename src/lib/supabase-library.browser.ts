@@ -163,9 +163,16 @@ export async function listLibraryClient(personId?: string) {
   ]);
 
   const byExercise = new Map(personExercises.map((pe) => [pe.exercise_id, pe]));
+  const activeExerciseTypes = new Set(
+    exercises.map((row) => row.activity_types?.name).filter(Boolean),
+  );
   const workoutTypes = activityTypes
     .map((t) => t.name)
-    .filter((name, index, all) => name && all.indexOf(name) === index);
+    .filter((name, index, all) => {
+      if (!name || all.indexOf(name) !== index) return false;
+      if (name === "Bouldering" || name === "Sport") return false;
+      return activeExerciseTypes.has(name);
+    });
 
   return {
     needsProfileClaim: false as const,

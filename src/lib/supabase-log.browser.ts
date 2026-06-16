@@ -169,6 +169,12 @@ export type WorkoutLogInput = {
   assistanceType: string;
   assistanceDetail: string;
   quality: string;
+  distance: string;
+  distanceUnit: string;
+  rounds: string;
+  feel: string;
+  height: string;
+  detail: string;
 };
 
 export type ClimbLogInput = {
@@ -288,7 +294,11 @@ export async function getLibraryClient() {
 
   const workoutTypes = activityTypes
     .map((type) => type.name)
-    .filter((name, index, all) => name && all.indexOf(name) === index);
+    .filter((name, index, all) => {
+      if (!name || all.indexOf(name) !== index) return false;
+      if (name === "Bouldering" || name === "Sport") return false;
+      return exercises.some((row) => row.activity_types?.name === name);
+    });
 
   return {
     exercises: exercises.map((row) => ({
@@ -407,12 +417,15 @@ export async function addWorkoutClient(data: WorkoutLogInput) {
   if (!entry) throw new Error("Workout entry was not saved.");
 
   const holdSeconds = toNum(data.holdSeconds);
+  const distance = toNum(data.distance);
   await supabasePublicInsert("entry_sets", {
     session_entry_id: entry.id,
     set_number: toNum(data.sets),
     reps: toNum(data.reps),
     weight: toNum(data.weight),
     duration_seconds: holdSeconds,
+    distance,
+    distance_unit: data.distanceUnit || null,
     rpe,
     rest_time: data.restTime || null,
     assistance_type: data.assistanceType || null,
@@ -421,6 +434,19 @@ export async function addWorkoutClient(data: WorkoutLogInput) {
     completed: data.completed,
     notes: data.notes || null,
   });
+
+  const metrics = [
+    { metric_key: "rounds", metric_value: toNum(data.rounds) },
+    { metric_key: "feel", metric_value: toNum(data.feel) },
+    { metric_key: "height", metric_value: toNum(data.height), metric_unit: "cm" },
+    { metric_key: "detail", metric_text: data.detail || null },
+  ].filter((metric) => metric.metric_value != null || metric.metric_text);
+  if (metrics.length) {
+    await supabasePublicInsert("entry_metrics", metrics.map((metric) => ({
+      session_entry_id: entry.id,
+      ...metric,
+    })));
+  }
 
   return { ok: true, row: session.source_row ?? "Supabase" };
 }

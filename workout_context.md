@@ -79,6 +79,17 @@ Successful logs show confirmation messages.
 
 Climbing is no longer a separate top-level Log tab. In the main Log form, choosing `Climbing` changes movement options to `Bouldering Session`, `Indoor Ropes`, `Kilter`, and `Mix`, and shows climbing-specific fields such as hours, boulders, max grade, and gradient.
 
+The logging library now supports approved flexible metric profiles rather than forcing every movement into sets/reps/weight:
+
+- Run: `Jog`, `Run`, `Sprint`
+- Class: `Yoga Class`, `Pilates Class`, `Strength Class`, `Conditioning Class`
+- Other: `Other Session`
+- Mobility positions: `Side Split`, `Pancake`, `Pike`, `Bridge`, `Shoulder Flexion`, using Distance (cm), Hold (sec), and Feel (1-5)
+- Climbing: `Bouldering Session`, `Indoor Ropes`, `Kilter`, `Mix`
+- Grip/carry/static holds/cardio/conditioning/power movements each get movement-appropriate fields
+
+Retired or hidden from the active library: separate `Sport` and `Bouldering` types, `Rice Bucket`, old `Indoor Climbing Session`, and duplicate Strength `Farmer Carry`. The changes are intentionally profile-based so a future customised app for another person can reuse the same master library while showing simpler or different logging fields.
+
 ### Library
 
 The library reads from Supabase. It supports managing movements and showing exercise history/details. History tiles were made visually distinct from exercise tiles.
