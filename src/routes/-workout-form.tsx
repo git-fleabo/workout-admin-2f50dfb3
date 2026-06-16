@@ -12,7 +12,9 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 import {
+  addClimbClient,
   addWorkoutClient,
+  BOARD_GRADIENTS,
   deleteSessionClient,
   getLibraryClient,
   getRecentLogsClient,
@@ -33,6 +35,8 @@ const today = todayISO;
 const SKILL_WORKOUT_TYPE = "Skills/Calisthenics";
 const GRIP_WORKOUT_TYPE = "Grip";
 const YOGA_WORKOUT_TYPE = "Yoga";
+const CLIMBING_WORKOUT_TYPE = "Climbing";
+const CLIMBING_MOVEMENTS = ["Bouldering Session", "Indoor Ropes", "Kilter", "Mix"];
 const GRIP_STYLES = [
   "Open hand",
   "Half crimp",
@@ -51,6 +55,7 @@ const GRIP_LOAD_TYPES = [
 const FALLBACK_WORKOUT_TYPES = [
   "Strength",
   "Cardio",
+  CLIMBING_WORKOUT_TYPE,
   YOGA_WORKOUT_TYPE,
   "Stretching",
   "Mobility",
@@ -100,6 +105,10 @@ type FormState = {
   quality: string;
   gripStyle: string;
   gripLoadType: string;
+  climbingHours: string;
+  climbingBoulders: string;
+  climbingMaxGrade: string;
+  climbingGradient: string;
 };
 
 const blank = (defaultWorkoutType = ""): FormState => ({
@@ -124,6 +133,10 @@ const blank = (defaultWorkoutType = ""): FormState => ({
   quality: "",
   gripStyle: "",
   gripLoadType: "",
+  climbingHours: "",
+  climbingBoulders: "",
+  climbingMaxGrade: "",
+  climbingGradient: "",
 });
 
 export function WorkoutForm({
@@ -147,10 +160,22 @@ export function WorkoutForm({
       : FALLBACK_MOVEMENTS;
   const workoutTypeOptions =
     lib.data?.workoutTypes && lib.data.workoutTypes.length > 0
-      ? lib.data.workoutTypes
+      ? Array.from(
+          new Set([
+            ...lib.data.workoutTypes.filter((type) => type !== "Bouldering"),
+            CLIMBING_WORKOUT_TYPE,
+          ]),
+        )
       : FALLBACK_WORKOUT_TYPES;
 
   const exerciseOptions = useMemo(() => {
+    if (form.workoutType === CLIMBING_WORKOUT_TYPE) {
+      return CLIMBING_MOVEMENTS.map((name) => ({
+        workoutType: CLIMBING_WORKOUT_TYPE,
+        focusArea: "",
+        name,
+      }));
+    }
     const ex = libraryExercises;
     if (!form.workoutType) return ex;
     return ex.filter(
@@ -176,19 +201,37 @@ export function WorkoutForm({
   const isYoga =
     form.workoutType === YOGA_WORKOUT_TYPE ||
     selectedExercise?.workoutType === YOGA_WORKOUT_TYPE;
+  const isClimbing = form.workoutType === CLIMBING_WORKOUT_TYPE;
 
   const mutate = useMutation({
-    mutationFn: () =>
-      addWorkoutClient({
+    mutationFn: () => {
+      if (isClimbing) {
+        return addClimbClient({
+          date: form.date,
+          type: CLIMBING_WORKOUT_TYPE,
+          movement: form.exercise,
+          trackingMode: form.climbingBoulders ? "Boulders" : "Hours",
+          hours: form.climbingHours,
+          boulders: form.climbingBoulders,
+          grade: form.climbingMaxGrade,
+          gradient: form.climbingGradient,
+          intensity: form.intensity,
+          rpe: form.rpe,
+          completed: form.completed,
+          notes: form.notes,
+        });
+      }
+      return addWorkoutClient({
         ...form,
         workoutType: selectedExercise?.workoutType ?? form.workoutType,
         focusArea: "",
         progressionLevel: isGrip ? form.gripStyle : form.progressionLevel,
         assistanceType: isGrip ? form.gripLoadType : form.assistanceType,
         entryKind: isYoga ? "Workout" : isGrip ? GRIP_WORKOUT_TYPE : isSkill ? "Skill" : form.entryKind || "Workout",
-      }),
+      });
+    },
     onSuccess: () => {
-      toast.success("Workout saved", {
+      toast.success(isClimbing ? "Climb saved" : "Workout saved", {
         description: `${form.exercise} was added to your log.`,
       });
         setForm((f) => ({
@@ -199,6 +242,8 @@ export function WorkoutForm({
           entryKind: defaultWorkoutType === SKILL_WORKOUT_TYPE ? "Skill" : f.entryKind,
         }));
       qc.invalidateQueries({ queryKey: ["recent-workouts"] });
+      qc.invalidateQueries({ queryKey: ["recent-climbs"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -215,7 +260,11 @@ export function WorkoutForm({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const canSubmit = form.date && form.exercise && !mutate.isPending;
+  const canSubmit =
+    form.date &&
+    form.exercise &&
+    (!isClimbing || Boolean(form.climbingHours || form.climbingBoulders)) &&
+    !mutate.isPending;
 
   const recentEntries: RecentEntry[] =
     recent.data?.recent.map((r) => ({
@@ -260,8 +309,15 @@ export function WorkoutForm({
               update("workoutType", v);
               update(
                 "entryKind",
-                v === SKILL_WORKOUT_TYPE ? "Skill" : v === GRIP_WORKOUT_TYPE ? GRIP_WORKOUT_TYPE : "Workout",
+                v === SKILL_WORKOUT_TYPE
+                  ? "Skill"
+                  : v === GRIP_WORKOUT_TYPE
+                    ? GRIP_WORKOUT_TYPE
+                    : v === CLIMBING_WORKOUT_TYPE
+                      ? "Climbing"
+                      : "Workout",
               );
+              if (v === CLIMBING_WORKOUT_TYPE) update("exercise", "");
               update("focusArea", "");
             }}
             options={workoutTypeOptions}
@@ -278,7 +334,45 @@ export function WorkoutForm({
           />
         </Field>
 
-        {!isYoga && (
+        {isClimbing && (
+          <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Hours">
+                <Input
+                  inputMode="decimal"
+                  value={form.climbingHours}
+                  onChange={(e) => update("climbingHours", e.target.value)}
+                  placeholder="e.g. 1.5"
+                />
+              </Field>
+              <Field label="Boulders">
+                <Input
+                  inputMode="numeric"
+                  value={form.climbingBoulders}
+                  onChange={(e) => update("climbingBoulders", e.target.value)}
+                />
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Max grade">
+                <Input
+                  value={form.climbingMaxGrade}
+                  onChange={(e) => update("climbingMaxGrade", e.target.value)}
+                  placeholder="V4, 6a..."
+                />
+              </Field>
+              <Field label="Gradient">
+                <SimpleSelect
+                  value={form.climbingGradient}
+                  onChange={(v) => update("climbingGradient", v)}
+                  options={BOARD_GRADIENTS}
+                />
+              </Field>
+            </div>
+          </div>
+        )}
+
+        {!isYoga && !isClimbing && (
           <div className="grid grid-cols-3 gap-3">
             <Field label="Sets">
               <Input inputMode="numeric" value={form.sets} onChange={(e) => update("sets", e.target.value)} />
@@ -293,10 +387,12 @@ export function WorkoutForm({
         )}
 
         {!isGrip && (
-          <div className="grid grid-cols-3 gap-3">
-            <Field label="Min">
-              <Input inputMode="numeric" value={form.duration} onChange={(e) => update("duration", e.target.value)} />
-            </Field>
+          <div className={`grid gap-3 ${isClimbing ? "grid-cols-2" : "grid-cols-3"}`}>
+            {!isClimbing && (
+              <Field label="Min">
+                <Input inputMode="numeric" value={form.duration} onChange={(e) => update("duration", e.target.value)} />
+              </Field>
+            )}
             <Field label="Intensity">
               <SimpleSelect
                 value={form.intensity}
@@ -325,7 +421,7 @@ export function WorkoutForm({
           </div>
         )}
 
-        {!isYoga && (
+        {!isYoga && !isClimbing && (
           <Field label="Rest between sets">
             <SimpleSelect
               value={form.restTime}

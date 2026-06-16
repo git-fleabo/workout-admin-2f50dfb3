@@ -44,7 +44,7 @@ const GRIP_WORKOUT_TYPE = "Grip";
 
 const FALLBACK_SETTINGS = {
   intensities: ["Low", "Moderate", "High", "Max"],
-  climbingTypes: ["Climbing", "Bouldering"],
+  climbingTypes: ["Climbing"],
   trackingModes: ["Hours", "Boulders"],
   assistanceTypes: ["None", "Band", "Counterweight", "Partner", "Wall/support", "Other"],
   qualities: ["Poor", "Okay", "Good", "Great"],
@@ -174,6 +174,7 @@ export type WorkoutLogInput = {
 export type ClimbLogInput = {
   date: string;
   type: string;
+  movement?: string;
   trackingMode: string;
   hours: string;
   boulders: string;
@@ -446,7 +447,7 @@ export async function getRecentClimbsClient() {
       return {
         id: row.id,
         date: row.session_date,
-        type: row.activity_types?.name ?? row.title ?? "",
+        type: row.title ?? row.activity_types?.name ?? "",
         trackingMode: metricValue(metrics, "tracking_mode"),
         hours: metricValue(metrics, "hours"),
         boulders: metricValue(metrics, "boulders"),
@@ -464,13 +465,14 @@ export async function getRecentClimbsClient() {
 export async function addClimbClient(data: ClimbLogInput) {
   const person = await requirePerson();
   const activityType = await getOrCreateActivityType(data.type || "Climbing");
+  const movement = data.movement || data.type || "Climbing";
   const hours = toNum(data.hours);
   const rpe = toNum(data.rpe);
   const insertedSession = await supabasePublicInsert<{ id: string; source_row: number | null }>("sessions", {
     person_id: person.id,
     activity_type_id: activityType?.id ?? null,
     session_date: data.date,
-    title: data.type || "Climbing",
+    title: movement,
     source: "manual",
     completed: data.completed,
     duration_minutes: hours == null ? null : hours * 60,
@@ -486,7 +488,7 @@ export async function addClimbClient(data: ClimbLogInput) {
     session_id: session.id,
     activity_type_id: activityType?.id ?? null,
     entry_kind: "Climbing",
-    name: data.type || "Climbing",
+    name: movement,
     order_index: 0,
     completed: data.completed,
     notes: data.notes || null,

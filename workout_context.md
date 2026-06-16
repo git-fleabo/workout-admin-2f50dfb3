@@ -64,16 +64,20 @@ The schema is designed to support Noam's current app plus future simplified apps
 
 The dashboard reads from Supabase and shows weekly training, climbing, strength, monthly summaries, recent PRs, and long-term trend data.
 
+Workout counts on the dashboard count distinct workout days rather than individual exercise rows, so logging multiple exercises on one day does not inflate the workout total.
+
 ### Log
 
 The log screen supports adding:
 
 - Workout entries
-- Climbing entries
+- Climbing entries from the main Log form by choosing type `Climbing`
 - 1RM tests
 - Bodyweight logs
 
 Successful logs show confirmation messages.
+
+Climbing is no longer a separate top-level Log tab. In the main Log form, choosing `Climbing` changes movement options to `Bouldering Session`, `Indoor Ropes`, `Kilter`, and `Mix`, and shows climbing-specific fields such as hours, boulders, max grade, and gradient.
 
 ### Library
 

@@ -355,6 +355,10 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
   let totalClimbHours = 0;
   let totalClimbSessions = 0;
   let latestClimb: { date: string; grade: string; name: string } | null = null;
+  const countedWorkoutDates = new Set<string>();
+  const countedThisWeekWorkoutDates = new Set<string>();
+  const countedWeekWorkoutDates = new Set<string>();
+  const countedMonthWorkoutDates = new Set<string>();
 
   const skillPRs = new Map<
     string,
@@ -437,23 +441,33 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
       const minutesSafe = Number.isFinite(minutes) ? minutes : 0;
 
       if (counts) {
-        totalWorkouts += 1;
+        if (!countedWorkoutDates.has(dateISO)) {
+          countedWorkoutDates.add(dateISO);
+          totalWorkouts += 1;
+        }
         totalMinutes += minutesSafe;
         if (!firstWorkoutDate || date < firstWorkoutDate) firstWorkoutDate = date;
 
         const week = weekBuckets.get(toISODateString(weekStart));
-        if (week) {
+        const weekCountKey = `${toISODateString(weekStart)}:${dateISO}`;
+        if (week && !countedWeekWorkoutDates.has(weekCountKey)) {
+          countedWeekWorkoutDates.add(weekCountKey);
           week.workouts += 1;
+        }
+        if (week) {
           week.minutes += minutesSafe;
         }
 
         if (weekStart.getTime() === thisWeekStart.getTime()) {
-          workoutsThisWeek += 1;
+          if (!countedThisWeekWorkoutDates.has(dateISO)) {
+            countedThisWeekWorkoutDates.add(dateISO);
+            workoutsThisWeek += 1;
+          }
           minutesThisWeek += minutesSafe;
           activeDaysThisWeek.add(dateISO);
           const day = weekDayByISO.get(dateISO);
           if (day) {
-            day.workouts += 1;
+            day.workouts = 1;
             day.minutes += minutesSafe;
             if (!day.exercises.includes(entry.name)) day.exercises.push(entry.name);
             const firstSet = entry.entry_sets?.[0];
@@ -472,8 +486,12 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
         }
 
         const monthRow = monthRows.get(monthISO);
-        if (monthRow) {
+        const monthCountKey = `${monthISO}:${dateISO}`;
+        if (monthRow && !countedMonthWorkoutDates.has(monthCountKey)) {
+          countedMonthWorkoutDates.add(monthCountKey);
           monthRow.workouts += 1;
+        }
+        if (monthRow) {
           monthRow.minutes += minutesSafe;
         }
       }
