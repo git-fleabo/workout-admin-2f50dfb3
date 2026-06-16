@@ -90,6 +90,7 @@ Lovable/GitHub behavior:
 - The app displays a build/commit label so the Lovable preview can be checked against the expected commit.
 - Lovable may require cache clearing to show the newest preview, but clearing cache uses Lovable tokens, so only do it when needed.
 - Lovable does not allow setting arbitrary environment variables for this app, so the app must not depend on server-only env vars.
+- Lovable may auto-commit repair changes when its build fails. Pull/merge those commits, inspect the diff, and preserve intentional app behavior such as the shared toast provider in `src/routes/__root.tsx`.
 
 Known Lovable preview reference found in metadata:
 
@@ -820,6 +821,7 @@ Earlier important commits:
 
 - Lovable preview can lag behind GitHub. Use the build label to confirm the preview commit.
 - Lovable cache clearing can use tokens.
+- Lovable auto-fixes can remove intentional wiring. In particular, keep `Toaster` mounted in `src/routes/__root.tsx` so success/error messages render.
 - Do not add service-role keys to Lovable/browser code.
 - `docs/supabase-import-status.md` has old migration notes and says some screens were still spreadsheet-backed; current app state is more advanced.
 - `Stretching`, `Sport`, and `Bouldering` activity type rows still exist in the database for legacy/history reasons, but app options filter out empty/retired categories.
