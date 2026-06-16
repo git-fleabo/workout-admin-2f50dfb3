@@ -134,12 +134,12 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <PasswordGate>
+      <SupabaseAuthGate>
         <AdminShell>
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           <Outlet />
         </AdminShell>
-      </PasswordGate>
+      </SupabaseAuthGate>
     </QueryClientProvider>
   );
 }
