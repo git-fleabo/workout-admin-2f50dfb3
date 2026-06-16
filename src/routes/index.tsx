@@ -150,8 +150,6 @@ function DashboardPage() {
         />
       </section>
 
-      {data.goals.active.length > 0 && <ActiveGoals data={data} />}
-
       {/* Weekly snapshot + Calendar */}
       <section className="grid gap-4 lg:grid-cols-3">
         <WeeklySnapshot data={data} />
@@ -338,36 +336,6 @@ function WeeklySnapshot({ data }: { data: Data }) {
             style={{ width: `${pct}%` }}
           />
         </div>
-      </div>
-    </Panel>
-  );
-}
-
-function ActiveGoals({ data }: { data: Data }) {
-  return (
-    <Panel title="Active Goals" icon={<Target className="h-4 w-4" />} accent="lime">
-      <div className="grid gap-2 sm:grid-cols-2">
-        {data.goals.active.map((goal) => (
-          <div
-            key={goal.id}
-            className="rounded-md border border-border/60 bg-background/35 px-3 py-2"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{goal.goal}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {[goal.period, goal.metric].filter(Boolean).join(" · ") || "Goal"}
-                </p>
-              </div>
-              {goal.target && (
-                <p className="shrink-0 text-sm font-semibold text-lime-200">{goal.target}</p>
-              )}
-            </div>
-            {goal.notes && (
-              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{goal.notes}</p>
-            )}
-          </div>
-        ))}
       </div>
     </Panel>
   );

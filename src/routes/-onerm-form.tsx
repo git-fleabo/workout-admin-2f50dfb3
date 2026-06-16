@@ -254,7 +254,7 @@ export function OneRMForm() {
             </Badge>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Date">
             <DateInput value={bw.date} onChange={(v) => updateBw("date", v)} />
           </Field>

@@ -68,12 +68,10 @@ type BodyweightRecord = {
 };
 
 type GoalRecord = {
-  id: string;
   goal: string;
   metric: string | null;
   target: string | null;
   period: string | null;
-  notes: string | null;
 };
 
 export type DashboardData = {
@@ -118,14 +116,6 @@ export type DashboardData = {
   goals: {
     weeklyWorkouts: number | null;
     weeklyMinutes: number | null;
-    active: {
-      id: string;
-      goal: string;
-      metric: string;
-      target: string;
-      period: string;
-      notes: string;
-    }[];
   };
 };
 
@@ -227,7 +217,7 @@ function isBetterSkillPR(
   return false;
 }
 
-function parseDashboardGoals(goals: GoalRecord[]) {
+function parseWeeklyGoals(goals: GoalRecord[]) {
   let weeklyWorkouts: number | null = null;
   let weeklyMinutes: number | null = null;
 
@@ -255,18 +245,7 @@ function parseDashboardGoals(goals: GoalRecord[]) {
     }
   }
 
-  return {
-    weeklyWorkouts,
-    weeklyMinutes,
-    active: goals.map((row) => ({
-      id: row.id,
-      goal: row.goal,
-      metric: row.metric ?? "",
-      target: row.target ?? "",
-      period: row.period ?? "",
-      notes: row.notes ?? "",
-    })),
-  };
+  return { weeklyWorkouts, weeklyMinutes };
 }
 
 export async function getDashboardDataClient(): Promise<DashboardData> {
@@ -292,7 +271,7 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
       limit: 1000,
     }),
     supabasePublicSelect<GoalRecord>("goals", {
-      select: "id,goal,metric,target,period,notes",
+      select: "goal,metric,target,period",
       status: "eq.active",
       order: "source_row.asc",
       limit: 200,
@@ -598,7 +577,7 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
   const weeksTraining = firstWorkoutDate
     ? Math.max(1, Math.round((now.getTime() - firstWorkoutDate.getTime()) / (7 * 86400000)))
     : 0;
-  const goals = parseDashboardGoals(goalRows);
+  const goals = parseWeeklyGoals(goalRows);
 
   return {
     kpis: {
