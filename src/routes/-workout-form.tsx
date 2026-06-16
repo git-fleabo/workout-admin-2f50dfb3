@@ -42,7 +42,9 @@ const SKILL_WORKOUT_TYPE = "Skills/Calisthenics";
 const GRIP_WORKOUT_TYPE = "Grip";
 const YOGA_WORKOUT_TYPE = "Yoga";
 const CLIMBING_WORKOUT_TYPE = "Climbing";
-const CLIMBING_MOVEMENTS = ["Bouldering Session", "Indoor Ropes", "Kilter", "Mix"];
+const CLASS_WORKOUT_TYPE = "Class";
+const MOBILITY_WORKOUT_TYPE = "Mobility/Flexibility";
+const CLIMBING_MOVEMENTS = ["Bouldering Session", "Ropes/Belay", "Kilter", "Mix"];
 const GRIP_STYLES = [
   "Open hand",
   "Half crimp",
@@ -63,8 +65,7 @@ const FALLBACK_WORKOUT_TYPES = [
   "Cardio",
   CLIMBING_WORKOUT_TYPE,
   YOGA_WORKOUT_TYPE,
-  "Stretching",
-  "Mobility",
+  MOBILITY_WORKOUT_TYPE,
   SKILL_WORKOUT_TYPE,
   GRIP_WORKOUT_TYPE,
   "Other",
@@ -74,7 +75,7 @@ const FALLBACK_MOVEMENTS = [
   { workoutType: "Strength", focusArea: "", name: "High Bar Squat" },
   { workoutType: "Strength", focusArea: "", name: "Kettlebell Clean" },
   { workoutType: YOGA_WORKOUT_TYPE, focusArea: "", name: "Yoga Flow" },
-  { workoutType: "Stretching", focusArea: "", name: "Stretch Session" },
+  { workoutType: MOBILITY_WORKOUT_TYPE, focusArea: "", name: "Stretch Session" },
   { workoutType: SKILL_WORKOUT_TYPE, focusArea: "", name: "Front Lever" },
   { workoutType: SKILL_WORKOUT_TYPE, focusArea: "", name: "Ring Muscle-Up" },
   { workoutType: GRIP_WORKOUT_TYPE, focusArea: "", name: "Hangboard" },
@@ -226,6 +227,10 @@ export function WorkoutForm({
     form.workoutType === YOGA_WORKOUT_TYPE ||
     selectedExercise?.workoutType === YOGA_WORKOUT_TYPE;
   const isClimbing = form.workoutType === CLIMBING_WORKOUT_TYPE;
+  const isClass =
+    form.workoutType === CLASS_WORKOUT_TYPE ||
+    selectedExercise?.workoutType === CLASS_WORKOUT_TYPE;
+  const isKilter = form.exercise === "Kilter";
   const usesStandardSets = profileUsesStandardSets(metricProfile);
   const usesLoad = profileUsesLoad(metricProfile);
 
@@ -236,11 +241,11 @@ export function WorkoutForm({
           date: form.date,
           type: CLIMBING_WORKOUT_TYPE,
           movement: form.exercise,
-          trackingMode: form.climbingBoulders ? "Boulders" : "Hours",
+          trackingMode: form.climbingBoulders ? "Boulders/Routes" : "Hours",
           hours: form.climbingHours,
           boulders: form.climbingBoulders,
           grade: form.climbingMaxGrade,
-          gradient: form.climbingGradient,
+          gradient: isKilter ? form.climbingGradient : "",
           intensity: form.intensity,
           rpe: form.rpe,
           completed: form.completed,
@@ -378,7 +383,7 @@ export function WorkoutForm({
                   placeholder="e.g. 1.5"
                 />
               </Field>
-              <Field label="Boulders">
+              <Field label="Boulders/Routes">
                 <Input
                   inputMode="numeric"
                   value={form.climbingBoulders}
@@ -386,7 +391,7 @@ export function WorkoutForm({
                 />
               </Field>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className={isKilter ? "grid grid-cols-2 gap-3" : "grid gap-3"}>
               <Field label="Max grade">
                 <Input
                   value={form.climbingMaxGrade}
@@ -394,14 +399,17 @@ export function WorkoutForm({
                   placeholder="V4, 6a..."
                 />
               </Field>
-              <Field label="Gradient">
-                <SimpleSelect
-                  value={form.climbingGradient}
-                  onChange={(v) => update("climbingGradient", v)}
-                  options={BOARD_GRADIENTS}
-                />
-              </Field>
+              {isKilter && (
+                <Field label="Gradient">
+                  <SimpleSelect
+                    value={form.climbingGradient}
+                    onChange={(v) => update("climbingGradient", v)}
+                    options={BOARD_GRADIENTS}
+                  />
+                </Field>
+              )}
             </div>
+            <IntensityRow form={form} update={update} intensities={lib.data?.intensities ?? []} />
           </div>
         )}
 
@@ -416,6 +424,7 @@ export function WorkoutForm({
             usesLoad={usesLoad}
             usesStandardSets={usesStandardSets}
             isGrip={isGrip}
+            showIntensity={isClass}
           />
         )}
 
@@ -513,6 +522,7 @@ function MetricFields({
   usesLoad,
   usesStandardSets,
   isGrip,
+  showIntensity,
 }: {
   profile: MetricProfile;
   form: FormState;
@@ -523,6 +533,7 @@ function MetricFields({
   usesLoad: boolean;
   usesStandardSets: boolean;
   isGrip: boolean;
+  showIntensity: boolean;
 }) {
   if (profile === "mobility_position") {
     return (
@@ -542,16 +553,19 @@ function MetricFields({
 
   if (profile === "time") {
     return (
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Minutes">
-          <Input inputMode="numeric" value={form.duration} onChange={(e) => update("duration", e.target.value)} />
-        </Field>
-        <Field label="Distance">
-          <Input inputMode="decimal" value={form.distance} onChange={(e) => update("distance", e.target.value)} />
-        </Field>
-        <Field label="Feel / RPE">
-          <Input inputMode="decimal" value={form.feel || form.rpe} onChange={(e) => update("feel", e.target.value)} />
-        </Field>
+      <div className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Minutes">
+            <Input inputMode="numeric" value={form.duration} onChange={(e) => update("duration", e.target.value)} />
+          </Field>
+          <Field label="Distance">
+            <Input inputMode="decimal" value={form.distance} onChange={(e) => update("distance", e.target.value)} />
+          </Field>
+          <Field label="Feel / RPE">
+            <Input inputMode="decimal" value={form.feel || form.rpe} onChange={(e) => update("feel", e.target.value)} />
+          </Field>
+        </div>
+        {showIntensity && <IntensityRow form={form} update={update} intensities={intensities} />}
       </div>
     );
   }

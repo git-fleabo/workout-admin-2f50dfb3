@@ -3,11 +3,29 @@ values
   ('Run', 'run', 120),
   ('Class', 'class', 130),
   ('Other', 'other', 999),
-  ('Mobility', 'mobility', 50),
+  ('Mobility/Flexibility', 'mobility-flexibility', 45),
   ('Climbing', 'climbing', 90)
 on conflict (slug) do update
 set name = excluded.name,
     sort_order = excluded.sort_order;
+
+with target as (
+  select id
+  from public.activity_types
+  where name = 'Mobility/Flexibility' or slug = 'mobility-flexibility'
+  limit 1
+),
+legacy_types as (
+  select id
+  from public.activity_types
+  where name in ('Mobility', 'Stretching')
+     or slug in ('mobility', 'stretching')
+)
+update public.exercises
+set activity_type_id = (select id from target),
+    updated_at = now()
+where activity_type_id in (select id from legacy_types)
+  and exists (select 1 from target);
 
 with desired(type_name, name, focus_area, equipment, default_metric, suggested_sets, suggested_reps, notes) as (
   values
@@ -19,13 +37,13 @@ with desired(type_name, name, focus_area, equipment, default_metric, suggested_s
     ('Class', 'Strength Class', 'Class', 'Any', 'Minutes', null, null, 'Use notes for venue, instructor, class style and difficulty.'),
     ('Class', 'Conditioning Class', 'Class', 'Any', 'Minutes', null, null, 'Use notes for venue, instructor, class style and difficulty.'),
     ('Other', 'Other Session', 'Other', 'Any', 'Minutes', null, null, 'Catch-all only when no other movement fits.'),
-    ('Mobility', 'Side Split', 'Flexibility', 'Mat', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
-    ('Mobility', 'Pancake', 'Flexibility', 'Mat', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
-    ('Mobility', 'Pike', 'Flexibility', 'Mat', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
-    ('Mobility', 'Bridge', 'Flexibility', 'Mat', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
-    ('Mobility', 'Shoulder Flexion', 'Flexibility', 'Wall / floor', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
+    ('Mobility/Flexibility', 'Side Split', 'Flexibility', 'Mat', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
+    ('Mobility/Flexibility', 'Pancake', 'Flexibility', 'Mat', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
+    ('Mobility/Flexibility', 'Pike', 'Flexibility', 'Mat', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
+    ('Mobility/Flexibility', 'Bridge', 'Flexibility', 'Mat', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
+    ('Mobility/Flexibility', 'Shoulder Flexion', 'Flexibility', 'Wall / floor', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
     ('Climbing', 'Bouldering Session', 'Climbing', 'Climbing gym', 'Hours / boulders / max grade', null, null, 'Track hours, boulders/problems, max grade, gradient where relevant, RPE and notes.'),
-    ('Climbing', 'Indoor Ropes', 'Climbing', 'Climbing gym', 'Hours / routes / max grade', null, null, 'Track hours, routes, max grade, RPE and notes.'),
+    ('Climbing', 'Ropes/Belay', 'Climbing', 'Climbing gym', 'Hours / routes / max grade', null, null, 'Track hours, routes, max grade, RPE and notes.'),
     ('Climbing', 'Kilter', 'Climbing', 'Kilter board', 'Hours / boulders / grade / gradient', null, null, 'Track hours, boulders/problems, max grade, gradient, RPE and notes.'),
     ('Climbing', 'Mix', 'Climbing', 'Climbing gym', 'Hours / routes / boulders / grade', null, null, 'Mixed climbing session; track the useful details in notes.')
 ),
@@ -57,13 +75,13 @@ with desired(type_name, name, focus_area, equipment, default_metric, suggested_s
     ('Class', 'Strength Class', 'Class', 'Any', 'Minutes', null, null, 'Use notes for venue, instructor, class style and difficulty.'),
     ('Class', 'Conditioning Class', 'Class', 'Any', 'Minutes', null, null, 'Use notes for venue, instructor, class style and difficulty.'),
     ('Other', 'Other Session', 'Other', 'Any', 'Minutes', null, null, 'Catch-all only when no other movement fits.'),
-    ('Mobility', 'Side Split', 'Flexibility', 'Mat', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
-    ('Mobility', 'Pancake', 'Flexibility', 'Mat', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
-    ('Mobility', 'Pike', 'Flexibility', 'Mat', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
-    ('Mobility', 'Bridge', 'Flexibility', 'Mat', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
-    ('Mobility', 'Shoulder Flexion', 'Flexibility', 'Wall / floor', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
+    ('Mobility/Flexibility', 'Side Split', 'Flexibility', 'Mat', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
+    ('Mobility/Flexibility', 'Pancake', 'Flexibility', 'Mat', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
+    ('Mobility/Flexibility', 'Pike', 'Flexibility', 'Mat', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
+    ('Mobility/Flexibility', 'Bridge', 'Flexibility', 'Mat', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
+    ('Mobility/Flexibility', 'Shoulder Flexion', 'Flexibility', 'Wall / floor', 'Distance / hold / feel', null, null, 'Track distance in cm, hold seconds and feel 1-5.'),
     ('Climbing', 'Bouldering Session', 'Climbing', 'Climbing gym', 'Hours / boulders / max grade', null, null, 'Track hours, boulders/problems, max grade, gradient where relevant, RPE and notes.'),
-    ('Climbing', 'Indoor Ropes', 'Climbing', 'Climbing gym', 'Hours / routes / max grade', null, null, 'Track hours, routes, max grade, RPE and notes.'),
+    ('Climbing', 'Ropes/Belay', 'Climbing', 'Climbing gym', 'Hours / routes / max grade', null, null, 'Track hours, routes, max grade, RPE and notes.'),
     ('Climbing', 'Kilter', 'Climbing', 'Kilter board', 'Hours / boulders / grade / gradient', null, null, 'Track hours, boulders/problems, max grade, gradient, RPE and notes.'),
     ('Climbing', 'Mix', 'Climbing', 'Climbing gym', 'Hours / routes / boulders / grade', null, null, 'Mixed climbing session; track the useful details in notes.')
 ),
@@ -128,6 +146,11 @@ update public.exercises
 set is_active = false,
     updated_at = now()
 where lower(name) = 'indoor climbing session';
+
+update public.exercises
+set is_active = false,
+    updated_at = now()
+where lower(name) = 'indoor ropes';
 
 update public.exercises e
 set is_active = false,
