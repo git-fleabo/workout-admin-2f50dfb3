@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Pencil, Plus, Target, Trash2, UserCheck, X } from "lucide-react";
+import { CheckCircle2, Loader2, Pencil, Plus, Target, Trash2, UserCheck, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,9 +35,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { GoalRow } from "@/lib/training-types";
+import { formatUKDateShort, todayISO } from "@/lib/date";
 import {
+  addGoalCheckinClient,
   addGoalClient,
   claimNoamProfile,
+  deleteGoalCheckinClient,
   deleteGoalClient,
   listGoalsClient,
   updateGoalClient,
@@ -57,13 +60,16 @@ export const Route = createFileRoute("/goals")({
 });
 
 const PERIODS = ["week", "month", "quarter", "year", "static"];
+const today = todayISO;
 
 type EditorState =
   | { mode: "closed" }
   | { mode: "create" }
   | { mode: "edit"; row: GoalRow };
 
-const BLANK: Omit<GoalRow, "row"> = {
+type GoalFormFields = Omit<GoalRow, "id" | "row" | "checkins">;
+
+const BLANK: GoalFormFields = {
   goal: "",
   metric: "",
   target: "",
@@ -109,6 +115,24 @@ function GoalsPage() {
     onSuccess: () => {
       toast.success("Goal deleted");
       setPendingDelete(null);
+      refreshGoalViews();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const checkinMutation = useMutation({
+    mutationFn: (goalId: string) => addGoalCheckinClient(goalId, today()),
+    onSuccess: () => {
+      toast.success("Goal marked off");
+      refreshGoalViews();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteCheckinMutation = useMutation({
+    mutationFn: (id: string) => deleteGoalCheckinClient(id),
+    onSuccess: () => {
+      toast.success("Check-in removed");
       refreshGoalViews();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -191,46 +215,101 @@ function GoalsPage() {
                 {period}
               </h3>
               <div className="grid gap-2 sm:grid-cols-2">
-                {items.map((g) => (
-                  <Card key={g.row} className="flex items-start gap-3 border-border bg-card p-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
-                      <Target className="h-4 w-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="truncate font-medium">{g.goal}</p>
-                        <span className="shrink-0 text-sm font-semibold text-primary">
-                          {g.target}
-                          {g.metric && <span className="ml-1 text-xs font-normal text-muted-foreground">{g.metric}</span>}
+                {items.map((g) => {
+                  const todayCheckin = g.checkins.find((c) => c.date === today());
+                  const marking = checkinMutation.variables === g.id && checkinMutation.isPending;
+                  return (
+                    <Card key={g.id} className="space-y-3 border-border bg-card p-3">
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
+                          <Target className="h-4 w-4" />
                         </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="truncate font-medium">{g.goal}</p>
+                            <span className="shrink-0 text-sm font-semibold text-primary">
+                              {g.target}
+                              {g.metric && <span className="ml-1 text-xs font-normal text-muted-foreground">{g.metric}</span>}
+                            </span>
+                          </div>
+                          {g.notes && (
+                            <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                              {g.notes}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 flex-col gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setEditor({ mode: "edit", row: g })}
+                            aria-label="Edit"
+                            title="Edit"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setPendingDelete(g)}
+                            aria-label="Delete"
+                            title="Delete"
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                      {g.notes && (
-                        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                          {g.notes}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex shrink-0 flex-col gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setEditor({ mode: "edit", row: g })}
-                        aria-label="Edit"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setPendingDelete(g)}
-                        aria-label="Delete"
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
+
+                      <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={todayCheckin ? "secondary" : "outline"}
+                          disabled={Boolean(todayCheckin) || marking}
+                          onClick={() => checkinMutation.mutate(g.id)}
+                          className="h-8"
+                        >
+                          {marking ? (
+                            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                          )}
+                          {todayCheckin ? "Done today" : "Mark today"}
+                        </Button>
+                        <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+                          {g.checkins.slice(0, 5).map((checkin) => {
+                            const removing =
+                              deleteCheckinMutation.variables === checkin.id &&
+                              deleteCheckinMutation.isPending;
+                            return (
+                              <span
+                                key={checkin.id}
+                                className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-secondary/45 px-2 text-xs text-muted-foreground"
+                              >
+                                {formatUKDateShort(checkin.date)}
+                                <button
+                                  type="button"
+                                  onClick={() => deleteCheckinMutation.mutate(checkin.id)}
+                                  disabled={removing}
+                                  className="text-muted-foreground hover:text-destructive"
+                                  aria-label={`Remove ${formatUKDateShort(checkin.date)} check-in`}
+                                  title="Remove check-in"
+                                >
+                                  {removing ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <X className="h-3 w-3" />
+                                  )}
+                                </button>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
               </div>
             </section>
           ))}

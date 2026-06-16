@@ -87,6 +87,8 @@ When goals are added, updated, deleted, or the profile is connected from the Goa
 
 The dashboard should stay focused and avoid a large custom goals section. Weekly workout and weekly active-minute goals should remain visible on the dashboard. A future custom-goals workflow should allow goals to be added and marked off without disrupting the dashboard layout.
 
+The Goals tab now has a lightweight checklist workflow. Goals can be marked off for today, recent check-ins are shown on each goal card, and a mistaken check-in can be removed. Check-ins are stored in `goal_checkins` and cascade-delete with their parent goal.
+
 ### History
 
 A new top-level History tab was added.

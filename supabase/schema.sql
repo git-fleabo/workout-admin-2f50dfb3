@@ -322,6 +322,16 @@ create table if not exists public.goals (
   unique (source_sheet, source_row)
 );
 
+create table if not exists public.goal_checkins (
+  id uuid primary key default gen_random_uuid(),
+  goal_id uuid not null references public.goals(id) on delete cascade,
+  person_id uuid not null references public.people(id) on delete cascade,
+  checked_date date not null default current_date,
+  note text,
+  created_at timestamptz not null default now(),
+  unique (goal_id, checked_date)
+);
+
 create trigger goals_set_updated_at
 before update on public.goals
 for each row execute function public.set_updated_at();
@@ -520,6 +530,12 @@ create index if not exists bodyweight_logs_person_date_idx
 create index if not exists goals_person_status_idx
   on public.goals (person_id, status);
 
+create index if not exists goal_checkins_person_date_idx
+  on public.goal_checkins (person_id, checked_date desc);
+
+create index if not exists goal_checkins_goal_date_idx
+  on public.goal_checkins (goal_id, checked_date desc);
+
 create index if not exists programs_created_by_person_idx
   on public.programs (created_by_person_id);
 
@@ -563,6 +579,7 @@ alter table public.entry_metrics enable row level security;
 alter table public.one_rm_tests enable row level security;
 alter table public.bodyweight_logs enable row level security;
 alter table public.goals enable row level security;
+alter table public.goal_checkins enable row level security;
 alter table public.programs enable row level security;
 alter table public.program_workouts enable row level security;
 alter table public.program_workout_entries enable row level security;
@@ -588,6 +605,7 @@ grant select on
   public.one_rm_tests,
   public.bodyweight_logs,
   public.goals,
+  public.goal_checkins,
   public.programs,
   public.program_workouts,
   public.program_workout_entries,
@@ -596,6 +614,7 @@ grant select on
 to authenticated;
 
 grant insert, update, delete on public.goals to authenticated;
+grant insert, delete on public.goal_checkins to authenticated;
 grant insert, update on public.activity_types to authenticated;
 grant insert, update on public.exercises to authenticated;
 grant insert, update, delete on public.person_exercises to authenticated;
@@ -876,6 +895,33 @@ create policy goals_update_managed
 
 create policy goals_delete_managed
   on public.goals
+  for delete
+  to authenticated
+  using (app_private.person_is_accessible(person_id));
+
+create policy goal_checkins_select_managed
+  on public.goal_checkins
+  for select
+  to authenticated
+  using (app_private.person_is_accessible(person_id));
+
+create policy goal_checkins_insert_managed
+  on public.goal_checkins
+  for insert
+  to authenticated
+  with check (
+    app_private.person_is_accessible(person_id)
+    and exists (
+      select 1
+      from public.goals g
+      where g.id = goal_id
+        and g.person_id = goal_checkins.person_id
+        and app_private.person_is_accessible(g.person_id)
+    )
+  );
+
+create policy goal_checkins_delete_managed
+  on public.goal_checkins
   for delete
   to authenticated
   using (app_private.person_is_accessible(person_id));

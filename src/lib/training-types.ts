@@ -11,12 +11,21 @@ export type LibraryRow = {
 };
 
 export type GoalRow = {
+  id: string;
   row: number;
   goal: string;
   metric: string;
   target: string;
   period: string;
   notes: string;
+  checkins: GoalCheckin[];
+};
+
+export type GoalCheckin = {
+  id: string;
+  date: string;
+  note: string;
+  createdAt: string;
 };
 
 export type WeekStat = {
