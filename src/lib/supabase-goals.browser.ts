@@ -61,6 +61,7 @@ export async function addGoalClient(fields: GoalFields) {
     target: fields.target,
     period: fields.period,
     notes: fields.notes,
+    status: "active",
     source_sheet: "Goals",
     source_row: row,
   });

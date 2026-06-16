@@ -85,6 +85,8 @@ Goals are stored and read from Supabase.
 
 When goals are added, updated, deleted, or the profile is connected from the Goals tab, the app invalidates both the goals and dashboard data. This means the dashboard picks up changed goal targets when returning to it without needing a hard refresh.
 
+The dashboard has two goal behaviours: weekly workout/minute goals are parsed into the top goal tiles, and all active goals are also shown in an Active Goals panel so goals with other wording or periods are still visible.
+
 ### History
 
 A new top-level History tab was added.
