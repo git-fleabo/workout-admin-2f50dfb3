@@ -35,9 +35,10 @@ Git remote:
 
 - `origin`: `https://github.com/git-fleabo/workout-admin-2f50dfb3.git`
 
-Current latest known commit at this handoff:
+Source of truth for the latest commit:
 
-- `64f7368 Split pull movements in library`
+- Run `git log -1 --oneline` in the main repo.
+- This file should be updated with each meaningful iteration, but the exact latest hash may move whenever this file itself is committed.
 
 Other local folders that may exist but are not the current app:
 
@@ -121,6 +122,7 @@ Auth model:
 - Keep Supabase public signups disabled in Supabase settings.
 - Browser code uses the publishable key plus the signed-in user's access token.
 - Never put a service role key in browser code or Lovable runtime.
+- The auth gate verifies that the signed-in Supabase user is linked to a `people` row and has an `admin_people` row before rendering this admin app. If not approved, the session is cleared and the app stays locked.
 
 RLS/settings summary:
 
@@ -668,6 +670,8 @@ Workout counts should count distinct workout days, not individual exercise rows.
 
 The dashboard should remain focused. Weekly workout and weekly active-minute goals should stay visible. Do not reintroduce a bulky active-goals panel without a fresh decision.
 
+The dashboard has a manual refresh button. Use this to force a fresh Supabase read without needing a browser hard refresh.
+
 ### Log
 
 The log screen supports:
@@ -678,6 +682,10 @@ The log screen supports:
 - bodyweight logs
 
 Successful logs should show confirmation messages. Delete confirmations should use app dialogs, not browser-native popups.
+
+After a workout/climb is saved, the Log form clears all fields back to a fresh blank state.
+
+Before saving a workout or climb, the app checks for an existing same-date, same-movement entry in Supabase. If one exists, it shows an app dialog asking whether to save another anyway.
 
 Climbing:
 
@@ -704,6 +712,7 @@ The library reads from Supabase. It supports:
 - add/edit/hide movements
 - per-person enable/disable selections
 - exercise history/details
+- a `Show inactive` toggle for admin review of hidden/retired movements
 
 History tiles in the library were made visually distinct from exercise tiles.
 
@@ -782,7 +791,7 @@ If visual verification is needed:
 
 ## Recent Commits
 
-Most recent known commits:
+Recent commits before/around this checkpoint:
 
 - `64f7368` Split pull movements in library
 - `bd958ea` Refine climbing and mobility logging
@@ -822,10 +831,12 @@ Recommended next work, in order:
 1. Push any local commits via GitHub Desktop if the branch is ahead of remote.
 2. In Lovable preview, confirm the commit label matches the latest pushed commit.
 3. Test Log flows for Strength, Run, Class, Mobility/Flexibility, Grip, Climbing, 1RM, and Bodyweight.
-4. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
-5. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
-6. Build a simple admin-only user management flow before inviting friends: create person, link auth user, select app profile, select/deselect exercises.
-7. Tighten the profile-claim bootstrap now that Noam's account is linked.
-8. Start implementing suggested workouts/programs using the existing empty program tables.
-9. Consider generating and saving TypeScript types from Supabase once schema/data shape stabilizes.
-10. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
+4. Test the duplicate-log warning by trying to save the same movement twice on the same date.
+5. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
+6. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
+7. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
+8. Build a simple admin-only user management flow before inviting friends: create person, link auth user, select app profile, select/deselect exercises.
+9. Tighten the profile-claim bootstrap now that Noam's account is linked.
+10. Start implementing suggested workouts/programs using the existing empty program tables.
+11. Consider generating and saving TypeScript types from Supabase once schema/data shape stabilizes.
+12. Keep simplifying future custom app ideas around app profiles rather than duplicating data.

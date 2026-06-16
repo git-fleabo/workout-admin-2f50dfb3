@@ -10,6 +10,11 @@ export type PersonRecord = {
   display_name: string;
 };
 
+type AdminPersonRecord = {
+  id: string;
+  admin_person_id: string;
+};
+
 export async function getCurrentPerson() {
   const session = getSupabaseSession();
   const userId = session?.user?.id;
@@ -20,6 +25,18 @@ export async function getCurrentPerson() {
     limit: 1,
   });
   return people[0] ?? null;
+}
+
+export async function verifyApprovedAccount() {
+  const person = await getCurrentPerson();
+  if (!person) throw new Error("This account is not approved for this app.");
+  const adminRows = await supabasePublicSelect<AdminPersonRecord>("admin_people", {
+    select: "id,admin_person_id",
+    admin_person_id: `eq.${person.id}`,
+    limit: 1,
+  });
+  if (!adminRows[0]) throw new Error("This account is not approved for this app.");
+  return person;
 }
 
 export async function claimNoamProfile() {

@@ -9,6 +9,7 @@ import {
   Dumbbell,
   Loader2,
   Mountain,
+  RefreshCw,
   Scale,
   Sparkles,
   Target,
@@ -27,6 +28,7 @@ import {
 } from "recharts";
 
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -71,7 +73,7 @@ const fmt = (v: number | null | undefined, suffix = "") =>
   v == null || (typeof v === "number" && !Number.isFinite(v)) ? "—" : `${v}${suffix}`;
 
 function DashboardPage() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => getDashboardDataClient(),
     staleTime: 60_000,
@@ -110,8 +112,22 @@ function DashboardPage() {
             {data.kpis.activeDaysThisWeek} active days this week
           </p>
         </div>
-        <div className="text-right text-xs text-muted-foreground">
-          Week starting <span className="text-foreground">{weekStartLabel}</span>
+        <div className="flex items-center gap-2 text-right text-xs text-muted-foreground">
+          <span>
+            Week starting <span className="text-foreground">{weekStartLabel}</span>
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            aria-label="Refresh dashboard"
+            title="Refresh dashboard"
+            className="h-8 px-2"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
         </div>
       </header>
 

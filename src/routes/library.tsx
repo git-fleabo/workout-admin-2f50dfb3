@@ -80,9 +80,10 @@ function LibraryPage() {
   const qc = useQueryClient();
 
   const [selectedPersonId, setSelectedPersonId] = useState<string>("");
+  const [showInactive, setShowInactive] = useState(false);
   const list = useQuery({
-    queryKey: ["library", selectedPersonId],
-    queryFn: () => listLibraryClient(selectedPersonId || undefined),
+    queryKey: ["library", selectedPersonId, showInactive],
+    queryFn: () => listLibraryClient(selectedPersonId || undefined, showInactive),
   });
 
   const [search, setSearch] = useState("");
@@ -207,6 +208,17 @@ function LibraryPage() {
             </Select>
           </div>
         )}
+        <div className="flex h-10 items-center gap-2 rounded-md border border-border px-3">
+          <Switch
+            checked={showInactive}
+            onCheckedChange={(checked) => {
+              setSelected(null);
+              setShowInactive(checked);
+            }}
+            aria-label="Show inactive movements"
+          />
+          <span className="text-xs text-muted-foreground">Show inactive</span>
+        </div>
         <Button
           onClick={() => setEditor({ mode: "create" })}
           className="ml-auto h-10 font-medium"
@@ -272,6 +284,11 @@ function LibraryPage() {
                             Disabled
                           </span>
                         )}
+                        {!ex.active && (
+                          <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-amber-300">
+                            Inactive
+                          </span>
+                        )}
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {[
@@ -290,17 +307,19 @@ function LibraryPage() {
                       )}
                     </div>
                     <div className="flex shrink-0 gap-1" onClick={(e) => e.stopPropagation()}>
-                      <div className="mr-1 flex items-center gap-2 rounded-md border border-border px-2 py-1">
-                        <span className="text-xs text-muted-foreground">Use</span>
-                        <Switch
-                          checked={ex.enabled}
-                          onCheckedChange={(enabled) =>
-                            enableMutation.mutate({ id: ex.id, enabled })
-                          }
-                          disabled={enableMutation.isPending}
-                          aria-label={`${ex.enabled ? "Disable" : "Enable"} ${ex.name}`}
-                        />
-                      </div>
+                      {ex.active && (
+                        <div className="mr-1 flex items-center gap-2 rounded-md border border-border px-2 py-1">
+                          <span className="text-xs text-muted-foreground">Use</span>
+                          <Switch
+                            checked={ex.enabled}
+                            onCheckedChange={(enabled) =>
+                              enableMutation.mutate({ id: ex.id, enabled })
+                            }
+                            disabled={enableMutation.isPending}
+                            aria-label={`${ex.enabled ? "Disable" : "Enable"} ${ex.name}`}
+                          />
+                        </div>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -319,15 +338,17 @@ function LibraryPage() {
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setPendingDelete(ex)}
-                        aria-label="Delete"
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {ex.active && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setPendingDelete(ex)}
+                          aria-label="Delete"
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </Card>
                   {isSelected && (

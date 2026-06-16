@@ -10,12 +10,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import {
   addClimbClient,
   addWorkoutClient,
   BOARD_GRADIENTS,
   deleteSessionClient,
+  findDuplicateLogClient,
   getLibraryClient,
   getRecentLogsClient,
   REST_OPTIONS,
@@ -169,6 +180,8 @@ export function WorkoutForm({
 
   const [form, setForm] = useState<FormState>(() => blank(defaultWorkoutType));
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
   const libraryExercises =
@@ -272,13 +285,8 @@ export function WorkoutForm({
       toast.success(isClimbing ? "Climb saved" : "Workout saved", {
         description: `${form.exercise} was added to your log.`,
       });
-        setForm((f) => ({
-          ...blank(defaultWorkoutType),
-          date: f.date,
-          workoutType: defaultWorkoutType || f.workoutType,
-          focusArea: "",
-          entryKind: defaultWorkoutType === SKILL_WORKOUT_TYPE ? "Skill" : f.entryKind,
-        }));
+      setForm(blank(defaultWorkoutType));
+      setDuplicateOpen(false);
       qc.invalidateQueries({ queryKey: ["recent-workouts"] });
       qc.invalidateQueries({ queryKey: ["recent-climbs"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
@@ -303,6 +311,30 @@ export function WorkoutForm({
     form.exercise &&
     (!isClimbing || Boolean(form.climbingHours || form.climbingBoulders)) &&
     !mutate.isPending;
+
+  const submit = async (skipDuplicateCheck = false) => {
+    if (!canSubmit || checkingDuplicate) return;
+    if (!skipDuplicateCheck) {
+      setCheckingDuplicate(true);
+      try {
+        const duplicate = await findDuplicateLogClient({
+          date: form.date,
+          title: form.exercise,
+          sourceSheet: isClimbing ? "Climbing Log" : "Workout Log",
+        });
+        if (duplicate) {
+          setDuplicateOpen(true);
+          return;
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not check for duplicates.");
+        return;
+      } finally {
+        setCheckingDuplicate(false);
+      }
+    }
+    mutate.mutate();
+  };
 
   const recentEntries: RecentEntry[] =
     recent.data?.recent.map((r) => ({
@@ -443,12 +475,12 @@ export function WorkoutForm({
         </div>
 
         <Button
-          onClick={() => mutate.mutate()}
-          disabled={!canSubmit}
+          onClick={() => submit()}
+          disabled={!canSubmit || checkingDuplicate}
           className="h-12 w-full text-base font-semibold"
           style={{ backgroundImage: "var(--gradient-primary)", color: "var(--primary-foreground)" }}
         >
-          {mutate.isPending ? (
+          {mutate.isPending || checkingDuplicate ? (
             <Loader2 className="h-5 w-5 animate-spin" />
           ) : (
             <>
@@ -508,6 +540,22 @@ export function WorkoutForm({
         onCancel={() => setDeleteTarget(null)}
         onConfirm={(id) => deleteMutation.mutate(id)}
       />
+      <AlertDialog open={duplicateOpen} onOpenChange={setDuplicateOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Already logged today</AlertDialogTitle>
+            <AlertDialogDescription>
+              {form.exercise} already has an entry on {formatUKDate(form.date)}. Save another one anyway?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => submit(true)}>
+              Save anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

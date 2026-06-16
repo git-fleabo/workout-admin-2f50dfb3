@@ -43,6 +43,7 @@ type PersonExerciseRecord = {
 export type LibraryClientRow = LibraryRow & {
   id: string;
   enabled: boolean;
+  active: boolean;
   personExerciseId: string | null;
 };
 
@@ -71,6 +72,7 @@ function mapExercise(row: ExerciseRecord, personExercise?: PersonExerciseRecord)
     suggestedSets: row.suggested_sets ?? "",
     suggestedReps: row.suggested_reps ?? "",
     notes: row.notes ?? "",
+    active: row.is_active,
     enabled: personExercise?.is_enabled ?? false,
     personExerciseId: personExercise?.id ?? null,
   };
@@ -135,7 +137,7 @@ async function getTargetPerson(personId?: string) {
   return people.find((p) => p.id === personId) ?? current;
 }
 
-export async function listLibraryClient(personId?: string) {
+export async function listLibraryClient(personId?: string, includeInactive = false) {
   const current = await getCurrentPerson();
   if (!current) {
     return {
@@ -156,7 +158,7 @@ export async function listLibraryClient(personId?: string) {
     supabasePublicSelect<ExerciseRecord>("exercises", {
       select:
         "id,source_row,focus_area,name,equipment,default_metric,suggested_sets,suggested_reps,notes,is_active,activity_type_id,activity_types(name)",
-      is_active: "eq.true",
+      ...(includeInactive ? {} : { is_active: "eq.true" }),
       order: "source_row.asc",
     }),
     listPersonExercises(selectedPersonId),
@@ -164,7 +166,7 @@ export async function listLibraryClient(personId?: string) {
 
   const byExercise = new Map(personExercises.map((pe) => [pe.exercise_id, pe]));
   const activeExerciseTypes = new Set(
-    exercises.map((row) => row.activity_types?.name).filter(Boolean),
+    exercises.filter((row) => row.is_active).map((row) => row.activity_types?.name).filter(Boolean),
   );
   const workoutTypes = activityTypes
     .map((t) => t.name)

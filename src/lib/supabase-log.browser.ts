@@ -211,6 +211,12 @@ export type BodyweightInput = {
   notes: string;
 };
 
+export type DuplicateLogInput = {
+  date: string;
+  title: string;
+  sourceSheet: "Workout Log" | "Climbing Log";
+};
+
 const toNum = (value: unknown): number | null => {
   if (value == null) return null;
   const text = value.toString().trim();
@@ -368,6 +374,18 @@ export async function getRecentLogsClient() {
       };
     }),
   };
+}
+
+export async function findDuplicateLogClient(data: DuplicateLogInput) {
+  await requirePerson();
+  const rows = await supabasePublicSelect<{ id: string }>("sessions", {
+    select: "id",
+    session_date: `eq.${data.date}`,
+    title: `eq.${data.title}`,
+    source_sheet: `eq.${data.sourceSheet}`,
+    limit: 1,
+  });
+  return rows[0] ?? null;
 }
 
 export async function addWorkoutClient(data: WorkoutLogInput) {

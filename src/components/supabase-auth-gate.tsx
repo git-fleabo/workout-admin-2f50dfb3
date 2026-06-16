@@ -6,9 +6,11 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { APP_BUILD_LABEL } from "@/lib/build-info";
 import {
+  clearSupabaseSession,
   getSupabaseSession,
   signInWithPassword,
 } from "@/lib/supabase-public";
+import { verifyApprovedAccount } from "@/lib/supabase-people.browser";
 
 export function SupabaseAuthGate({ children }: { children: ReactNode }) {
   const [signedIn, setSignedIn] = useState(false);
@@ -19,8 +21,33 @@ export function SupabaseAuthGate({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setSignedIn(Boolean(getSupabaseSession()?.access_token));
-    setHydrated(true);
+    let alive = true;
+    async function verify() {
+      const session = getSupabaseSession();
+      if (!session?.access_token) {
+        if (alive) {
+          setSignedIn(false);
+          setHydrated(true);
+        }
+        return;
+      }
+      try {
+        await verifyApprovedAccount();
+        if (alive) setSignedIn(true);
+      } catch {
+        clearSupabaseSession();
+        if (alive) {
+          setSignedIn(false);
+          setError("This account is not approved for this app.");
+        }
+      } finally {
+        if (alive) setHydrated(true);
+      }
+    }
+    verify();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   if (hydrated && signedIn) return <>{children}</>;
@@ -32,10 +59,12 @@ export function SupabaseAuthGate({ children }: { children: ReactNode }) {
     setError(null);
     try {
       await signInWithPassword(email.trim(), password);
+      await verifyApprovedAccount();
       setSignedIn(true);
       setPassword("");
-    } catch {
-      setError("Could not sign in.");
+    } catch (err) {
+      clearSupabaseSession();
+      setError(err instanceof Error ? err.message : "Could not sign in.");
     } finally {
       setBusy(false);
     }
