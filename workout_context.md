@@ -90,6 +90,8 @@ The logging library now supports approved flexible metric profiles rather than f
 
 Retired or hidden from the active library: separate `Sport` and `Bouldering` types, `Rice Bucket`, old `Indoor Climbing Session`, and duplicate Strength `Farmer Carry`. The changes are intentionally profile-based so a future customised app for another person can reuse the same master library while showing simpler or different logging fields.
 
+Strength/Pull library note: `Pull-Up / Lat Pulldown` was split into separate `Pull-Up` and `Lat Pulldown` movements, with `Chin-Up` added as another separate movement.
+
 ### Library
 
 The library reads from Supabase. It supports managing movements and showing exercise history/details. History tiles were made visually distinct from exercise tiles.

@@ -158,3 +158,63 @@ set is_active = false,
 from public.activity_types at
 where e.activity_type_id = at.id
   and at.name = 'Bouldering';
+
+with strength as (
+  select id from public.activity_types where name = 'Strength' limit 1
+),
+renamed as (
+  update public.exercises
+  set name = 'Pull-Up',
+      equipment = 'Bodyweight / Assistance / Added weight',
+      default_metric = 'Reps',
+      suggested_sets = '3',
+      suggested_reps = '6-10',
+      notes = 'Track bodyweight reps, assistance or added load as needed.',
+      updated_at = now()
+  where lower(name) = 'pull-up / lat pulldown'
+  returning id
+),
+desired(name, focus_area, equipment, default_metric, suggested_sets, suggested_reps, notes) as (
+  values
+    ('Lat Pulldown', 'Pull', 'Cable machine', 'Weight x reps', '3', '8-12', 'Track machine weight, reps and RPE.'),
+    ('Chin-Up', 'Pull', 'Bodyweight / Assistance / Added weight', 'Reps', '3', '6-10', 'Track bodyweight reps, assistance or added load as needed.')
+),
+numbered as (
+  select
+    desired.*,
+    (select id from strength) as activity_type_id,
+    (select coalesce(max(source_row), 4) from public.exercises where source_sheet = 'Exercise Library')
+      + row_number() over (order by desired.name) as next_source_row
+  from desired
+  where not exists (
+    select 1
+    from public.exercises e
+    where lower(e.name) = lower(desired.name)
+  )
+)
+insert into public.exercises (
+  activity_type_id,
+  name,
+  focus_area,
+  equipment,
+  default_metric,
+  suggested_sets,
+  suggested_reps,
+  notes,
+  is_active,
+  source_sheet,
+  source_row
+)
+select
+  activity_type_id,
+  name,
+  focus_area,
+  equipment,
+  default_metric,
+  suggested_sets,
+  suggested_reps,
+  notes,
+  true,
+  'Exercise Library',
+  next_source_row
+from numbered;
