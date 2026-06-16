@@ -78,13 +78,17 @@ function GoalsPage() {
 
   const [editor, setEditor] = useState<EditorState>({ mode: "closed" });
   const [pendingDelete, setPendingDelete] = useState<GoalRow | null>(null);
+  const refreshGoalViews = () => {
+    qc.invalidateQueries({ queryKey: ["goals"] });
+    qc.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   const addMutation = useMutation({
     mutationFn: (fields: typeof BLANK) => addGoalClient(fields),
     onSuccess: () => {
       toast.success("Goal added");
       setEditor({ mode: "closed" });
-      qc.invalidateQueries({ queryKey: ["goals"] }); qc.invalidateQueries({ queryKey: ["dashboard"] });
+      refreshGoalViews();
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -95,7 +99,7 @@ function GoalsPage() {
     onSuccess: () => {
       toast.success("Goal updated");
       setEditor({ mode: "closed" });
-      qc.invalidateQueries({ queryKey: ["goals"] }); qc.invalidateQueries({ queryKey: ["dashboard"] });
+      refreshGoalViews();
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -105,7 +109,7 @@ function GoalsPage() {
     onSuccess: () => {
       toast.success("Goal deleted");
       setPendingDelete(null);
-      qc.invalidateQueries({ queryKey: ["goals"] }); qc.invalidateQueries({ queryKey: ["dashboard"] });
+      refreshGoalViews();
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -114,7 +118,7 @@ function GoalsPage() {
     mutationFn: () => claimNoamProfile(),
     onSuccess: () => {
       toast.success("Profile connected");
-      qc.invalidateQueries({ queryKey: ["goals"] });
+      refreshGoalViews();
     },
     onError: (e: Error) => toast.error(e.message),
   });

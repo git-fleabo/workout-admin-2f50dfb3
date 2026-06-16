@@ -1,6 +1,6 @@
 # Workout App Context
 
-Last updated: 2026-06-15
+Last updated: 2026-06-16
 
 ## Current Direction
 
@@ -82,6 +82,8 @@ The library reads from Supabase. It supports managing movements and showing exer
 ### Goals
 
 Goals are stored and read from Supabase.
+
+When goals are added, updated, deleted, or the profile is connected from the Goals tab, the app invalidates both the goals and dashboard data. This means the dashboard picks up changed goal targets when returning to it without needing a hard refresh.
 
 ### History
 
