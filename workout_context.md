@@ -123,6 +123,8 @@ Auth model:
 - Browser code uses the publishable key plus the signed-in user's access token.
 - Never put a service role key in browser code or Lovable runtime.
 - The auth gate verifies that the signed-in Supabase user is linked to a `people` row and has an `admin_people` row before rendering this admin app. If not approved, the session is cleared and the app stays locked.
+- Password recovery links are handled by the app: if Supabase opens the app with `#access_token=...&type=recovery`, `SupabaseAuthGate` shows a new-password form, updates the password through Supabase Auth, clears the recovery URL, and returns to normal sign-in.
+- Supabase Auth URL Configuration controls whether recovery links go to Lovable preview or the real/published app URL. Keep the correct real app URL as Site URL and include any preview URLs as allowed Redirect URLs while testing.
 
 RLS/settings summary:
 

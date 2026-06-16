@@ -56,6 +56,21 @@ export function clearSupabaseSession() {
   window.localStorage.removeItem(SESSION_KEY);
 }
 
+export function getSupabaseRecoveryTokenFromUrl() {
+  if (typeof window === "undefined") return null;
+  const hash = window.location.hash.startsWith("#")
+    ? window.location.hash.slice(1)
+    : window.location.hash;
+  const params = new URLSearchParams(hash);
+  if (params.get("type") !== "recovery") return null;
+  return params.get("access_token");
+}
+
+export function clearSupabaseRecoveryUrl() {
+  if (typeof window === "undefined") return;
+  window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
+}
+
 async function authRequest<T>(path: string, body: Record<string, unknown>) {
   const res = await fetch(`${SUPABASE_URL}/auth/v1/${path}`, {
     method: "POST",
@@ -77,6 +92,20 @@ export async function signInWithPassword(email: string, password: string) {
   });
   setSupabaseSession(data);
   return data;
+}
+
+export async function updatePasswordWithRecoveryToken(accessToken: string, password: string) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    method: "PUT",
+    headers: headers(accessToken),
+    body: JSON.stringify({ password }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    console.error("Supabase password reset error", res.status, text);
+    throw new Error("Could not update password.");
+  }
+  return res.json() as Promise<unknown>;
 }
 
 export async function signOutOfSupabase() {
