@@ -768,7 +768,7 @@ History workout counts should also count same-day workout exercises as one worko
 - `src/routes/history.tsx`: history route.
 - `src/routes/__root.tsx`: root route and app metadata.
 - `src/routeTree.gen.ts`: generated TanStack route tree; builds update it automatically.
-- `public/favicon.ico`, `public/apple-touch-icon.png`, `public/app-icon-192.png`, `public/app-icon-512.png`, `public/manifest.webmanifest`: browser and mobile home-screen icon files. Keep these local rather than relying on Lovable-hosted `__l5e` asset URLs.
+- `public/favicon.ico`, `public/apple-touch-icon.png`, `public/app-icon-192.png`, `public/app-icon-512.png`, `public/manifest.webmanifest`: browser and mobile home-screen icon files. Current icon is the dark rounded-square flame inside a colourful ring. Keep these local rather than relying on Lovable-hosted `__l5e` asset URLs.
 - `vite.config.ts`: Lovable/TanStack Vite config.
 - `package.json`: scripts and dependencies.
 - `supabase/schema.sql`: schema/policy snapshot.
