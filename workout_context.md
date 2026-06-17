@@ -684,6 +684,8 @@ The log screen supports:
 - 1RM tests
 - bodyweight logs
 
+1RM logging uses Epley as the fixed/default estimate formula. The formula selector is intentionally hidden from the UI, but new rows still save `formula = 'Epley'` in `one_rm_tests`.
+
 Successful logs should show confirmation messages. Delete confirmations should use app dialogs, not browser-native popups.
 
 After a workout/climb is saved, the Log form clears all fields back to a fresh blank state.

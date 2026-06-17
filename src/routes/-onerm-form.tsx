@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 
 import {
   ONE_RM_EXERCISES,
-  ONE_RM_FORMULAS,
+  ONE_RM_DEFAULT_FORMULA,
   ONE_RM_SOURCES,
   ONE_RM_TYPES,
   add1RMTestClient,
@@ -55,7 +55,7 @@ const blankTest = (): TestState => ({
   externalWeight: "",
   reps: "",
   rpe: "",
-  formula: "Brzycki",
+  formula: ONE_RM_DEFAULT_FORMULA,
 });
 
 type BwState = { date: string; bodyweight: string; notes: string };
@@ -89,7 +89,6 @@ export function OneRMForm() {
         type: f.type,
         bodyweightUsed: f.bodyweightUsed,
         bwContribution: f.bwContribution,
-        formula: f.formula,
       }));
       qc.invalidateQueries({ queryKey: ["recent-1rm"] });
     },
@@ -131,8 +130,7 @@ export function OneRMForm() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const canSubmit =
-    form.date && form.exercise && form.reps && form.formula && !mutate.isPending;
+  const canSubmit = form.date && form.exercise && form.reps && !mutate.isPending;
   const canSubmitBw = bw.date && bw.bodyweight && !bwMutate.isPending;
 
   return (
@@ -166,22 +164,13 @@ export function OneRMForm() {
           </Field>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Type">
-            <SimpleSelect
-              value={form.type}
-              onChange={(v) => update("type", v)}
-              options={ONE_RM_TYPES}
-            />
-          </Field>
-          <Field label="Formula">
-            <SimpleSelect
-              value={form.formula}
-              onChange={(v) => update("formula", v)}
-              options={ONE_RM_FORMULAS}
-            />
-          </Field>
-        </div>
+        <Field label="Type">
+          <SimpleSelect
+            value={form.type}
+            onChange={(v) => update("type", v)}
+            options={ONE_RM_TYPES}
+          />
+        </Field>
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="External weight">

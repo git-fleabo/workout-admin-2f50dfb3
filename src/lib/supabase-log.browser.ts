@@ -37,7 +37,7 @@ export const ONE_RM_EXERCISES = [
 
 export const ONE_RM_TYPES = ["External Load", "Weighted Bodyweight"];
 export const ONE_RM_SOURCES = ["Test", "Workout", "Estimate"];
-export const ONE_RM_FORMULAS = ["Brzycki", "Epley"];
+export const ONE_RM_DEFAULT_FORMULA = "Epley";
 
 const SKILL_WORKOUT_TYPE = "Skills/Calisthenics";
 const GRIP_WORKOUT_TYPE = "Grip";
@@ -552,7 +552,7 @@ export async function addClimbClient(data: ClimbLogInput) {
   return { ok: true, row: session.source_row ?? "Supabase" };
 }
 
-function estimateOneRM(weight: number | null, reps: number | null, formula: string) {
+function estimateOneRM(weight: number | null, reps: number | null, formula = ONE_RM_DEFAULT_FORMULA) {
   if (weight == null || reps == null || reps <= 0) return null;
   if (reps === 1) return Math.round(weight * 10) / 10;
   const estimated =
@@ -618,7 +618,8 @@ export async function add1RMTestClient(data: OneRMInput) {
   const person = await requirePerson();
   const externalWeight = toNum(data.externalWeight);
   const reps = toNum(data.reps);
-  const estimatedExternal = estimateOneRM(externalWeight, reps, data.formula);
+  const formula = data.formula || ONE_RM_DEFAULT_FORMULA;
+  const estimatedExternal = estimateOneRM(externalWeight, reps, formula);
   const estimatedTotal = estimatedExternal;
 
   const prior = await supabasePublicSelect<Pick<OneRMRecord, "estimated_total" | "estimated_external" | "external_weight">>(
@@ -645,7 +646,7 @@ export async function add1RMTestClient(data: OneRMInput) {
     external_weight: externalWeight,
     reps,
     rpe: toNum(data.rpe),
-    formula: data.formula || null,
+    formula,
     estimated_total: estimatedTotal,
     estimated_external: estimatedExternal,
     is_pr: isPr,
