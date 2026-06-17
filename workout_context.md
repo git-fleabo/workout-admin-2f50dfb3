@@ -903,3 +903,15 @@ Recommended next work, in order:
 10. Start implementing suggested workouts/programs using the existing empty program tables.
 11. Consider generating and saving TypeScript types from Supabase once schema/data shape stabilizes.
 12. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
+
+## Future Stage: iPhone App
+
+The current mobile home-screen version is a web app/PWA-like experience. The `Build: local` label seen on mobile bookmarks means the deployed runtime is not receiving build metadata; it does not mean the phone is running local code.
+
+Possible iPhone directions:
+
+- Polish the current web/home-screen app first: icon, manifest, mobile layout, loading/error states, and cache behaviour.
+- If Noam wants a real installable iPhone app without rebuilding the UI, use Capacitor to wrap the existing web app and distribute privately through TestFlight. This should preserve the Supabase backend and most app code.
+- A full native rebuild in SwiftUI or React Native is possible later, but is much more work and should wait until the product shape is stable.
+
+Best future option if needed: Capacitor wrapper after the web app is stable.
