@@ -247,6 +247,22 @@ function hasMetricValue(metric: {
   );
 }
 
+function metricRow(metric: {
+  session_entry_id: string;
+  metric_key: string;
+  metric_value?: number | null;
+  metric_text?: string | null;
+  metric_unit?: string | null;
+}) {
+  return {
+    session_entry_id: metric.session_entry_id,
+    metric_key: metric.metric_key,
+    metric_value: metric.metric_value ?? null,
+    metric_text: metric.metric_text ?? null,
+    metric_unit: metric.metric_unit ?? null,
+  };
+}
+
 function slugify(value: string) {
   return value
     .trim()
@@ -478,7 +494,7 @@ export async function addWorkoutClient(data: WorkoutLogInput) {
     { metric_key: "detail", metric_text: data.detail || null },
   ].filter((metric) => metric.metric_value != null || metric.metric_text);
   if (metrics.length) {
-    await supabasePublicInsert("entry_metrics", metrics.map((metric) => ({
+    await supabasePublicInsert("entry_metrics", metrics.map((metric) => metricRow({
       session_entry_id: entry.id,
       ...metric,
     })));
@@ -566,7 +582,7 @@ export async function addClimbClient(data: ClimbLogInput) {
       { session_entry_id: entry.id, metric_key: "boulders", metric_value: toNum(data.boulders) },
       { session_entry_id: entry.id, metric_key: "grade", metric_text: data.grade || null },
       { session_entry_id: entry.id, metric_key: "gradient", metric_text: data.gradient || null },
-    ].filter(hasMetricValue);
+    ].map(metricRow).filter(hasMetricValue);
     if (metrics.length) await supabasePublicInsert("entry_metrics", metrics);
   } catch (error) {
     await supabasePublicDelete("sessions", { id: `eq.${session.id}` }).catch(() => undefined);

@@ -146,6 +146,22 @@ async function getActiveSession() {
   return refreshSupabaseSession();
 }
 
+function supabaseErrorMessage(status: number, text: string) {
+  try {
+    const parsed = JSON.parse(text) as {
+      message?: string;
+      details?: string;
+      hint?: string;
+      code?: string;
+    };
+    return [parsed.message, parsed.details, parsed.hint, parsed.code ? `Code: ${parsed.code}` : ""]
+      .filter(Boolean)
+      .join(" ");
+  } catch {
+    return text.trim() || `HTTP ${status}`;
+  }
+}
+
 async function restRequest<T>(
   path: string,
   init?: RequestInit,
@@ -173,7 +189,7 @@ async function restRequest<T>(
     if (!retry.ok) {
       const text = await retry.text();
       console.error("Supabase REST error", retry.status, text);
-      throw new Error("Supabase request failed.");
+      throw new Error(`Supabase request failed: ${supabaseErrorMessage(retry.status, text)}`);
     }
     if (retry.status === 204) return undefined as T;
     return retry.json() as Promise<T>;
@@ -181,7 +197,7 @@ async function restRequest<T>(
   if (!res.ok) {
     const text = await res.text();
     console.error("Supabase REST error", res.status, text);
-    throw new Error("Supabase request failed.");
+    throw new Error(`Supabase request failed: ${supabaseErrorMessage(res.status, text)}`);
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;

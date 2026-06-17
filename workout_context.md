@@ -701,7 +701,7 @@ Climbing:
 - Field label: `Boulders/Routes`
 - Intensity is included
 - Gradient appears and saves only for `Kilter`
-- Climbing saves filter out blank optional metrics before inserting `entry_metrics`. If a detail insert fails after the session is created, the app deletes the partially created session so future duplicate checks are not blocked by half-saved data.
+- Climbing saves normalise metric rows before inserting `entry_metrics` because Supabase/PostgREST batch inserts require consistent object keys. Blank optional metrics are filtered out. If a detail insert fails after the session is created, the app deletes the partially created session so future duplicate checks are not blocked by half-saved data.
 
 Flexible metric profiles:
 
