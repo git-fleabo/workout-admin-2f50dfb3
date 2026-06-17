@@ -229,6 +229,24 @@ const toNum = (value: unknown): number | null => {
 
 const asText = (value: unknown) => (value == null ? "" : value.toString());
 
+function repsPerSet(totalReps: number | null, sets: number | null) {
+  if (totalReps == null || totalReps <= 0) return null;
+  if (sets == null || sets <= 0) return Math.ceil(totalReps);
+  return Math.ceil(totalReps / sets);
+}
+
+function hasMetricValue(metric: {
+  metric_value?: number | null;
+  metric_text?: string | null;
+  metric_unit?: string | null;
+}) {
+  return (
+    metric.metric_value != null ||
+    Boolean(metric.metric_text?.trim()) ||
+    Boolean(metric.metric_unit?.trim())
+  );
+}
+
 function slugify(value: string) {
   return value
     .trim()
@@ -528,26 +546,32 @@ export async function addClimbClient(data: ClimbLogInput) {
   const session = insertedSession[0];
   if (!session) throw new Error("Climb was not saved.");
 
-  const insertedEntry = await supabasePublicInsert<{ id: string }>("session_entries", {
-    session_id: session.id,
-    activity_type_id: activityType?.id ?? null,
-    entry_kind: "Climbing",
-    name: movement,
-    order_index: 0,
-    completed: data.completed,
-    notes: data.notes || null,
-    source_sheet: "Climbing Log",
-  });
-  const entry = insertedEntry[0];
-  if (!entry) throw new Error("Climb entry was not saved.");
+  try {
+    const insertedEntry = await supabasePublicInsert<{ id: string }>("session_entries", {
+      session_id: session.id,
+      activity_type_id: activityType?.id ?? null,
+      entry_kind: "Climbing",
+      name: movement,
+      order_index: 0,
+      completed: data.completed,
+      notes: data.notes || null,
+      source_sheet: "Climbing Log",
+    });
+    const entry = insertedEntry[0];
+    if (!entry) throw new Error("Climb entry was not saved.");
 
-  await supabasePublicInsert("entry_metrics", [
-    { session_entry_id: entry.id, metric_key: "tracking_mode", metric_text: data.trackingMode || null },
-    { session_entry_id: entry.id, metric_key: "hours", metric_value: hours, metric_unit: "h" },
-    { session_entry_id: entry.id, metric_key: "boulders", metric_value: toNum(data.boulders) },
-    { session_entry_id: entry.id, metric_key: "grade", metric_text: data.grade || null },
-    { session_entry_id: entry.id, metric_key: "gradient", metric_text: data.gradient || null },
-  ]);
+    const metrics = [
+      { session_entry_id: entry.id, metric_key: "tracking_mode", metric_text: data.trackingMode || null },
+      { session_entry_id: entry.id, metric_key: "hours", metric_value: hours, metric_unit: hours == null ? null : "h" },
+      { session_entry_id: entry.id, metric_key: "boulders", metric_value: toNum(data.boulders) },
+      { session_entry_id: entry.id, metric_key: "grade", metric_text: data.grade || null },
+      { session_entry_id: entry.id, metric_key: "gradient", metric_text: data.gradient || null },
+    ].filter(hasMetricValue);
+    if (metrics.length) await supabasePublicInsert("entry_metrics", metrics);
+  } catch (error) {
+    await supabasePublicDelete("sessions", { id: `eq.${session.id}` }).catch(() => undefined);
+    throw error;
+  }
 
   return { ok: true, row: session.source_row ?? "Supabase" };
 }
@@ -679,7 +703,7 @@ export async function getPRsClient() {
     }),
     supabasePublicSelect<SessionEntryRecord>("session_entries", {
       select:
-        "id,entry_kind,name,progression_level,completed,notes,entry_sets(reps,duration_seconds,assistance_type,assistance_detail),sessions!inner(id,session_date,completed,source_sheet,activity_types(name))",
+        "id,entry_kind,name,progression_level,completed,notes,entry_sets(set_number,reps,duration_seconds,assistance_type,assistance_detail),sessions!inner(id,session_date,completed,source_sheet,activity_types(name))",
       completed: "eq.true",
       "sessions.completed": "eq.true",
       limit: 1000,
@@ -736,7 +760,7 @@ export async function getPRsClient() {
       skillBest.set(key, { ...base, metric, value, unit });
     };
     const hold = toNum(set?.duration_seconds);
-    const reps = toNum(set?.reps);
+    const reps = repsPerSet(toNum(set?.reps), toNum(set?.set_number));
     if (hold != null && hold > 0) consider("hold", hold, "s");
     if (reps != null && reps > 0) consider("reps", reps, "reps");
   }

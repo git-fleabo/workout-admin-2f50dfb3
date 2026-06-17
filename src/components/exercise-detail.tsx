@@ -290,7 +290,7 @@ function HistoryList({
             {p.est1RM != null && (
               <span
                 className="shrink-0 font-semibold text-primary"
-                title="Estimated 1RM (reps per set inferred from Reps / Sets)"
+                title="Estimated 1RM (average reps per set inferred from total Reps / Sets, rounded up)"
               >
                 ~{p.est1RM}kg
               </span>

@@ -12,6 +12,7 @@ import type {
 type ActivityTypeRef = { name: string | null } | null;
 
 type EntrySetRecord = {
+  set_number: number | string | null;
   reps: number | string | null;
   weight: number | string | null;
   duration_seconds: number | string | null;
@@ -162,6 +163,12 @@ function metricText(metrics: EntryMetricRecord[] | null | undefined, key: string
   return (row?.metric_text ?? row?.metric_value ?? "").toString().trim();
 }
 
+function repsPerSet(totalReps: number, sets: number) {
+  if (!Number.isFinite(totalReps) || totalReps <= 0) return null;
+  if (!Number.isFinite(sets) || sets <= 0) return Math.ceil(totalReps);
+  return Math.ceil(totalReps / sets);
+}
+
 function entryMinutes(entry: SessionEntryRecord, session: SessionRecord) {
   const sessionMinutes = toNum(session.duration_minutes);
   if (Number.isFinite(sessionMinutes) && sessionMinutes > 0) return sessionMinutes;
@@ -255,7 +262,7 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
   const [sessions, oneRM, bodyweightRows, goalRows] = await Promise.all([
     supabasePublicSelect<SessionRecord>("sessions", {
       select:
-        "id,session_date,title,completed,duration_minutes,source_sheet,activity_types(name),session_entries(id,entry_kind,name,progression_level,completed,notes,source_sheet,activity_types(name),entry_sets(reps,weight,duration_seconds,assistance_type,assistance_detail,quality),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
+        "id,session_date,title,completed,duration_minutes,source_sheet,activity_types(name),session_entries(id,entry_kind,name,progression_level,completed,notes,source_sheet,activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,assistance_type,assistance_detail,quality),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
       order: "session_date.asc",
       limit: 1000,
     }),
@@ -501,7 +508,7 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
       if (entryKind === "Skill" || entryKind === "Legacy Skill" || workoutType === SKILL_WORKOUT_TYPE) {
         const firstSet = entry.entry_sets?.[0];
         const holdSeconds = toNum(firstSet?.duration_seconds);
-        const reps = toNum(firstSet?.reps);
+        const reps = repsPerSet(toNum(firstSet?.reps), toNum(firstSet?.set_number));
         const assistance = assistanceInfo(firstSet);
         const base = {
           title: entry.name,

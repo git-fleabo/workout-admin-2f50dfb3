@@ -30,6 +30,12 @@ const toNumber = (value: unknown): number => {
   return Number.isFinite(n) ? n : NaN;
 };
 
+function repsPerSet(totalReps: number, sets: number) {
+  if (!Number.isFinite(totalReps) || totalReps <= 0) return null;
+  if (!Number.isFinite(sets) || sets <= 0) return Math.ceil(totalReps);
+  return Math.ceil(totalReps / sets);
+}
+
 function blankPoint(date: string): ExerciseSessionPoint {
   return {
     date,
@@ -96,12 +102,10 @@ export async function getExerciseHistoryClient(
         if (point.maxWeight == null || weightN > point.maxWeight) point.maxWeight = weightN;
         if (repsN != null) {
           point.totalVolume += repsN * weightN;
-          if (setsKnown) {
-            const perSetReps = repsN / toNumber(set.set_number);
-            if (perSetReps > 0) {
-              const est = weightN * (1 + perSetReps / 30);
-              if (point.est1RM == null || est > point.est1RM) point.est1RM = est;
-            }
+          const perSetReps = repsPerSet(repsN, setsKnown ? toNumber(set.set_number) : NaN);
+          if (perSetReps != null) {
+            const est = weightN * (1 + perSetReps / 30);
+            if (point.est1RM == null || est > point.est1RM) point.est1RM = est;
           }
         }
       }

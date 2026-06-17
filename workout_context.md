@@ -686,6 +686,8 @@ The log screen supports:
 
 1RM logging uses Epley as the fixed/default estimate formula. The formula selector is intentionally hidden from the UI, but new rows still save `formula = 'Epley'` in `one_rm_tests`.
 
+Workout `Reps` means total reps across all sets. Calculations that need reps per set, such as skill max-rep PRs and workout-history estimated 1RM, use `ceil(total reps / sets)`. Total reps and volume still use the entered total.
+
 Successful logs should show confirmation messages. Delete confirmations should use app dialogs, not browser-native popups.
 
 After a workout/climb is saved, the Log form clears all fields back to a fresh blank state.
@@ -699,6 +701,7 @@ Climbing:
 - Field label: `Boulders/Routes`
 - Intensity is included
 - Gradient appears and saves only for `Kilter`
+- Climbing saves filter out blank optional metrics before inserting `entry_metrics`. If a detail insert fails after the session is created, the app deletes the partially created session so future duplicate checks are not blocked by half-saved data.
 
 Flexible metric profiles:
 
