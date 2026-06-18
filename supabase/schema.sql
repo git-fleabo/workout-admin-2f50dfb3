@@ -390,6 +390,7 @@ create table if not exists public.program_workout_entries (
   intensity_percent numeric,
   percent_base text,
   rounding_increment numeric,
+  is_optional boolean default false,
   weight text,
   duration text,
   rpe text,

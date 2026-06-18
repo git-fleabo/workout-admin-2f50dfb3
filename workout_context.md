@@ -21,7 +21,9 @@ Product direction:
 - Future custom apps may be separate simplified Lovable apps on top of the same Supabase database.
 - Future custom apps could show simplified libraries, suggested workouts/programs, class/run logging, and simpler tracking.
 - Programme-template support is being added inside this existing workout admin app and Supabase database; do not create a new app or database for it.
-- The first percentage-based strength methodology is called `Operator Style Strength Block`.
+- The umbrella model for percentage-based strength methodologies is `Percentage Strength Blocks`.
+- Seeded percentage strength templates are `Operator Style Strength Block` and `Fighter Style Strength Block`.
+- Operator runs 3 sessions/week. Fighter runs 2 sessions/week and is better for clients who need more room for conditioning, sport, running, climbing, or other training.
 - Programme UI is intentionally deferred until the schema and seed data are stable.
 
 ## Local Repos And Folders
@@ -143,7 +145,7 @@ Important data files:
 
 - `supabase/schema.sql`: local schema snapshot, may not always reflect every live data tweak.
 - `supabase/approved_logging_library_updates.sql`: idempotent data update script for approved library/logging changes.
-- `supabase/operator_style_strength_block.sql`: idempotent seed script for the reusable Operator Style Strength Block programme template.
+- `supabase/percentage_strength_blocks.sql`: idempotent seed script for reusable Percentage Strength Blocks, currently Operator Style Strength Block and Fighter Style Strength Block.
 - `docs/supabase-schema-design.md`: original design direction.
 - `docs/supabase-import-status.md`: import history, but some notes are stale because the app is now more migrated than this doc says.
 
@@ -164,9 +166,9 @@ Live row counts checked on 2026-06-18:
 - `person_exercises`: 47
 - `program_assignment_exercises`: 0
 - `program_assignments`: 0
-- `program_workout_entries`: 54
-- `program_workouts`: 18
-- `programs`: 1
+- `program_workout_entries`: 102
+- `program_workouts`: 30
+- `programs`: 2
 - `session_entries`: 48
 - `sessions`: 48
 - `suggested_workouts`: 0
@@ -590,9 +592,9 @@ RLS:
 
 ### `programs`
 
-Purpose: program templates or custom programs. Extended to support percentage-based programme templates such as the Operator Style Strength Block.
+Purpose: program templates or custom programs. Extended to support Percentage Strength Blocks such as Operator Style Strength Block and Fighter Style Strength Block.
 
-Rows: 1
+Rows: 2
 
 Key columns:
 
@@ -611,9 +613,9 @@ Key columns:
 
 ### `program_workouts`
 
-Purpose: workouts within a program template. Operator-style templates use week/session/day numbering on top of sequence order.
+Purpose: workouts within a program template. Percentage Strength Blocks use week/session/day numbering on top of sequence order.
 
-Rows: 18
+Rows: 30
 
 Key columns:
 
@@ -631,7 +633,7 @@ Key columns:
 
 Purpose: prescribed exercises/steps within a program workout.
 
-Rows: 54
+Rows: 102
 
 Key columns:
 
@@ -648,6 +650,7 @@ Key columns:
 - `intensity_percent numeric nullable`
 - `percent_base text nullable`
 - `rounding_increment numeric nullable`
+- `is_optional boolean`, default `false`
 - `sets`, `reps`, `weight`, `duration`, `rpe`, `rest` as text nullable
 - `progression_level`, `assistance_type`, `assistance_detail`, `notes` nullable
 - timestamps
@@ -713,7 +716,10 @@ Key columns:
 
 Programme-template decision:
 
-- The methodology name is `Operator Style Strength Block`.
+- The umbrella model is `Percentage Strength Blocks`.
+- Seeded templates are `Operator Style Strength Block` and `Fighter Style Strength Block`.
+- Operator is 3 sessions/week.
+- Fighter is 2 sessions/week and better for clients who need more room for conditioning, sport, running, climbing, or other training.
 - This extends the existing `programs`, `program_workouts`, `program_workout_entries`, and `program_assignments` model, with a new `program_assignment_exercises` table for slot-to-exercise mappings.
 - No new app or database is being created.
 - UI and workout logging behaviour changes are intentionally deferred; the current app should behave exactly as before until a future UI iteration uses these tables.
