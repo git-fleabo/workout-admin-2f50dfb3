@@ -928,7 +928,7 @@ Tables involved:
 - `person_app_profiles`: app profile assignments per person.
 - `exercises`: master library.
 - `person_exercises`: per-person library visibility/selection.
-- Future: `programs`, `program_workouts`, `program_workout_entries`, `program_assignments`, `suggested_workouts`.
+- Programme templates now exist in `programs`, `program_workouts`, and `program_workout_entries`; future People & Access work can add `program_assignments`, `program_assignment_exercises`, and `suggested_workouts`.
 
 Permission and safety notes:
 
@@ -961,7 +961,7 @@ Recommended next work, in order:
 7. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
 8. Build a simple admin-only user management flow before inviting friends: create person, link auth user, select app profile, select/deselect exercises.
 9. Tighten the profile-claim bootstrap now that Noam's account is linked.
-10. Start implementing suggested workouts/programs using the existing empty program tables.
+10. Start implementing programme assignment and suggested workout UI on top of the seeded Percentage Strength Blocks.
 11. Consider generating and saving TypeScript types from Supabase once schema/data shape stabilizes.
 12. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
 
