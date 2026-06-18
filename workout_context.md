@@ -20,6 +20,9 @@ Product direction:
 - Per-person exercise selection should be supported.
 - Future custom apps may be separate simplified Lovable apps on top of the same Supabase database.
 - Future custom apps could show simplified libraries, suggested workouts/programs, class/run logging, and simpler tracking.
+- Programme-template support is being added inside this existing workout admin app and Supabase database; do not create a new app or database for it.
+- The first percentage-based strength methodology is called `Operator Style Strength Block`.
+- Programme UI is intentionally deferred until the schema and seed data are stable.
 
 ## Local Repos And Folders
 
@@ -140,12 +143,13 @@ Important data files:
 
 - `supabase/schema.sql`: local schema snapshot, may not always reflect every live data tweak.
 - `supabase/approved_logging_library_updates.sql`: idempotent data update script for approved library/logging changes.
+- `supabase/operator_style_strength_block.sql`: idempotent seed script for the reusable Operator Style Strength Block programme template.
 - `docs/supabase-schema-design.md`: original design direction.
 - `docs/supabase-import-status.md`: import history, but some notes are stale because the app is now more migrated than this doc says.
 
 ## Current Supabase Row Counts
 
-Live row counts checked on 2026-06-16:
+Live row counts checked on 2026-06-18:
 
 - `activity_types`: 15
 - `app_profiles`: 3
@@ -158,7 +162,11 @@ Live row counts checked on 2026-06-16:
 - `one_rm_tests`: 1
 - `people`: 1
 - `person_exercises`: 47
-- `programs`: 0
+- `program_assignment_exercises`: 0
+- `program_assignments`: 0
+- `program_workout_entries`: 54
+- `program_workouts`: 18
+- `programs`: 1
 - `session_entries`: 48
 - `sessions`: 48
 - `suggested_workouts`: 0
@@ -329,7 +337,7 @@ RLS:
 
 Purpose: future tagging system for master exercises.
 
-Rows: 0
+Rows: 1
 
 Key columns:
 
@@ -345,7 +353,7 @@ RLS:
 
 Purpose: many-to-many join between exercises and tags.
 
-Rows: 0
+Rows: 18
 
 Key columns:
 
@@ -565,7 +573,7 @@ RLS:
 
 Purpose: lightweight check-off history for goals.
 
-Rows: 0
+Rows: 54
 
 Key columns:
 
@@ -582,9 +590,9 @@ RLS:
 
 ### `programs`
 
-Purpose: future program templates or custom programs.
+Purpose: program templates or custom programs. Extended to support percentage-based programme templates such as the Operator Style Strength Block.
 
-Rows: 0
+Rows: 1
 
 Key columns:
 
@@ -593,13 +601,19 @@ Key columns:
 - `description text nullable`
 - `created_by_person_id uuid -> people.id nullable`
 - `is_template boolean`
+- `method_type text nullable`
+- `duration_weeks integer nullable`
+- `sessions_per_week integer nullable`
+- `default_set_choice text nullable`
+- `percent_base text nullable`
+- `rounding_increment numeric nullable`
 - timestamps
 
 ### `program_workouts`
 
-Purpose: workouts within a program template.
+Purpose: workouts within a program template. Operator-style templates use week/session/day numbering on top of sequence order.
 
-Rows: 0
+Rows: 18
 
 Key columns:
 
@@ -607,6 +621,9 @@ Key columns:
 - `program_id uuid -> programs.id`
 - `name text`
 - `sequence_index integer`
+- `week_number integer nullable`
+- `day_number integer nullable`
+- `session_number integer nullable`
 - `description text nullable`
 - timestamps
 
@@ -614,7 +631,7 @@ Key columns:
 
 Purpose: prescribed exercises/steps within a program workout.
 
-Rows: 0
+Rows: 54
 
 Key columns:
 
@@ -622,7 +639,15 @@ Key columns:
 - `program_workout_id uuid -> program_workouts.id`
 - `exercise_id uuid -> exercises.id nullable`
 - `name text`
+- `slot_key text nullable`
 - `order_index integer`
+- `min_sets integer nullable`
+- `max_sets integer nullable`
+- `min_reps integer nullable`
+- `max_reps integer nullable`
+- `intensity_percent numeric nullable`
+- `percent_base text nullable`
+- `rounding_increment numeric nullable`
 - `sets`, `reps`, `weight`, `duration`, `rpe`, `rest` as text nullable
 - `progression_level`, `assistance_type`, `assistance_detail`, `notes` nullable
 - timestamps
@@ -646,6 +671,28 @@ Key columns:
 - `notes text nullable`
 - timestamps
 
+### `program_assignment_exercises`
+
+Purpose: per-assignment mapping from programme template slots to the actual selected exercises and training maxes for a managed person.
+
+Rows: 0
+
+Key columns:
+
+- `id uuid primary key`
+- `program_assignment_id uuid -> program_assignments.id`
+- `slot_key text`
+- `exercise_id uuid -> exercises.id nullable`
+- `exercise_name text`
+- `training_max numeric nullable`
+- `one_rm_test_id uuid -> one_rm_tests.id nullable`
+- `notes text nullable`
+- timestamps
+
+RLS:
+
+- Managed-person SELECT/INSERT/UPDATE/DELETE policies via the parent `program_assignments.person_id`.
+
 ### `suggested_workouts`
 
 Purpose: future suggested workout instances for a person.
@@ -663,6 +710,13 @@ Key columns:
 - `title text`
 - `notes text nullable`
 - timestamps
+
+Programme-template decision:
+
+- The methodology name is `Operator Style Strength Block`.
+- This extends the existing `programs`, `program_workouts`, `program_workout_entries`, and `program_assignments` model, with a new `program_assignment_exercises` table for slot-to-exercise mappings.
+- No new app or database is being created.
+- UI and workout logging behaviour changes are intentionally deferred; the current app should behave exactly as before until a future UI iteration uses these tables.
 
 ## App Behavior And Screens
 

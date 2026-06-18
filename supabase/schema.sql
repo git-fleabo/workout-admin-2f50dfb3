@@ -342,6 +342,12 @@ create table if not exists public.programs (
   description text,
   created_by_person_id uuid references public.people(id) on delete set null,
   is_template boolean not null default true,
+  method_type text,
+  duration_weeks integer,
+  sessions_per_week integer,
+  default_set_choice text,
+  percent_base text,
+  rounding_increment numeric,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -355,6 +361,9 @@ create table if not exists public.program_workouts (
   program_id uuid not null references public.programs(id) on delete cascade,
   name text not null,
   sequence_index integer not null default 0,
+  week_number integer,
+  day_number integer,
+  session_number integer,
   description text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -370,9 +379,17 @@ create table if not exists public.program_workout_entries (
   program_workout_id uuid not null references public.program_workouts(id) on delete cascade,
   exercise_id uuid references public.exercises(id) on delete set null,
   name text not null,
+  slot_key text,
   order_index integer not null default 0,
   sets text,
   reps text,
+  min_sets integer,
+  max_sets integer,
+  min_reps integer,
+  max_reps integer,
+  intensity_percent numeric,
+  percent_base text,
+  rounding_increment numeric,
   weight text,
   duration text,
   rpe text,
@@ -406,6 +423,24 @@ create table if not exists public.program_assignments (
 
 create trigger program_assignments_set_updated_at
 before update on public.program_assignments
+for each row execute function public.set_updated_at();
+
+create table if not exists public.program_assignment_exercises (
+  id uuid primary key default gen_random_uuid(),
+  program_assignment_id uuid not null references public.program_assignments(id) on delete cascade,
+  slot_key text not null,
+  exercise_id uuid references public.exercises(id),
+  exercise_name text not null,
+  training_max numeric,
+  one_rm_test_id uuid references public.one_rm_tests(id),
+  notes text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (program_assignment_id, slot_key)
+);
+
+create trigger program_assignment_exercises_set_updated_at
+before update on public.program_assignment_exercises
 for each row execute function public.set_updated_at();
 
 create table if not exists public.suggested_workouts (
@@ -548,6 +583,15 @@ create index if not exists program_assignments_assigned_by_person_idx
 create index if not exists program_assignments_person_status_idx
   on public.program_assignments (person_id, status);
 
+create index if not exists program_assignment_exercises_assignment_idx
+  on public.program_assignment_exercises (program_assignment_id);
+
+create index if not exists program_assignment_exercises_exercise_idx
+  on public.program_assignment_exercises (exercise_id);
+
+create index if not exists program_assignment_exercises_one_rm_test_idx
+  on public.program_assignment_exercises (one_rm_test_id);
+
 create index if not exists program_workout_entries_program_workout_idx
   on public.program_workout_entries (program_workout_id);
 
@@ -584,6 +628,7 @@ alter table public.programs enable row level security;
 alter table public.program_workouts enable row level security;
 alter table public.program_workout_entries enable row level security;
 alter table public.program_assignments enable row level security;
+alter table public.program_assignment_exercises enable row level security;
 alter table public.suggested_workouts enable row level security;
 
 grant usage on schema public to authenticated;
@@ -610,6 +655,7 @@ grant select on
   public.program_workouts,
   public.program_workout_entries,
   public.program_assignments,
+  public.program_assignment_exercises,
   public.suggested_workouts
 to authenticated;
 
@@ -623,6 +669,7 @@ grant insert on public.session_entries to authenticated;
 grant insert on public.entry_sets to authenticated;
 grant insert on public.entry_metrics to authenticated;
 grant insert on public.one_rm_tests to authenticated;
+grant insert, update, delete on public.program_assignment_exercises to authenticated;
 grant insert on public.bodyweight_logs to authenticated;
 grant delete on public.sessions to authenticated;
 grant delete on public.one_rm_tests to authenticated;
@@ -925,3 +972,63 @@ create policy goal_checkins_delete_managed
   for delete
   to authenticated
   using (app_private.person_is_accessible(person_id));
+
+create policy program_assignment_exercises_select_managed
+  on public.program_assignment_exercises
+  for select
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.program_assignments pa
+      where pa.id = program_assignment_id
+        and app_private.person_is_accessible(pa.person_id)
+    )
+  );
+
+create policy program_assignment_exercises_insert_managed
+  on public.program_assignment_exercises
+  for insert
+  to authenticated
+  with check (
+    exists (
+      select 1
+      from public.program_assignments pa
+      where pa.id = program_assignment_id
+        and app_private.person_is_accessible(pa.person_id)
+    )
+  );
+
+create policy program_assignment_exercises_update_managed
+  on public.program_assignment_exercises
+  for update
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.program_assignments pa
+      where pa.id = program_assignment_id
+        and app_private.person_is_accessible(pa.person_id)
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from public.program_assignments pa
+      where pa.id = program_assignment_id
+        and app_private.person_is_accessible(pa.person_id)
+    )
+  );
+
+create policy program_assignment_exercises_delete_managed
+  on public.program_assignment_exercises
+  for delete
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.program_assignments pa
+      where pa.id = program_assignment_id
+        and app_private.person_is_accessible(pa.person_id)
+    )
+  );
