@@ -1,6 +1,6 @@
 # Workout App Context
 
-Last updated: 2026-06-16
+Last updated: 2026-06-18
 
 This file is the handoff document for the Training Admin workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
 
@@ -268,8 +268,8 @@ Current activity types:
 - `Climbing` / `climbing` / sort `90`
 - `Bouldering` / `bouldering` / sort `95` (legacy/hidden)
 - `Conditioning` / `conditioning` / sort `100`
-- `Power` / `power` / sort `110`
-- `Run` / `run` / sort `120`
+- `Power` / `power` / sort `110` (legacy/hidden from logging options when empty; active power movements live under `Conditioning`)
+- `Run` / `run` / sort `120` (legacy/hidden from logging options when empty; active run movements live under `Cardio`)
 - `Class` / `class` / sort `130`
 - `Other` / `other` / sort `999`
 
@@ -314,7 +314,8 @@ Important active library decisions:
 - `Ropes/Belay` replaced `Indoor Ropes`.
 - Climbing active movements: `Bouldering Session`, `Ropes/Belay`, `Kilter`, `Mix`.
 - Mobility/Flexibility active positions include `Side Split`, `Pancake`, `Pike`, `Bridge`, `Shoulder Flexion`, plus existing mobility/stretch items moved from `Stretching`.
-- Run movements: `Jog`, `Run`, `Sprint`.
+- Cardio run movements: `Jog`, `Run`, `Sprint`.
+- Conditioning includes power-style movements such as `Box Jumps`.
 - Class movements: `Yoga Class`, `Pilates Class`, `Strength Class`, `Conditioning Class`.
 - `Other Session` exists as a catch-all.
 - Retired/hidden active library items include `Rice Bucket`, old `Indoor Climbing Session`, duplicate Strength `Farmer Carry`, and old Bouldering type movements.
@@ -710,7 +711,7 @@ Flexible metric profiles:
 - Static holds and grip hangs use attempts/hold/feel/progression or grip style.
 - Mobility/Flexibility positions use Distance (cm), Hold (sec), Feel (1-5).
 - Time-based Run/Class/Other movements use minutes/distance/feel, with Class also showing Intensity.
-- Conditioning and power movements use their movement-appropriate fields.
+- Conditioning includes former power movements and uses movement-appropriate fields.
 
 ### Library
 

@@ -1,6 +1,7 @@
 insert into public.activity_types (name, slug, sort_order)
 values
-  ('Run', 'run', 120),
+  ('Cardio', 'cardio', 20),
+  ('Conditioning', 'conditioning', 100),
   ('Class', 'class', 130),
   ('Other', 'other', 999),
   ('Mobility/Flexibility', 'mobility-flexibility', 45),
@@ -27,11 +28,63 @@ set activity_type_id = (select id from target),
 where activity_type_id in (select id from legacy_types)
   and exists (select 1 from target);
 
+with type_ids as (
+  select
+    (select id from public.activity_types where name = 'Cardio' limit 1) as cardio_id,
+    (select id from public.activity_types where name = 'Run' limit 1) as run_id,
+    (select id from public.activity_types where name = 'Conditioning' limit 1) as conditioning_id,
+    (select id from public.activity_types where name = 'Power' limit 1) as power_id
+),
+moved as (
+  update public.exercises e
+  set activity_type_id = case
+        when e.activity_type_id = type_ids.run_id then type_ids.cardio_id
+        when e.activity_type_id = type_ids.power_id then type_ids.conditioning_id
+        else e.activity_type_id
+      end,
+      updated_at = now()
+  from type_ids
+  where e.activity_type_id in (type_ids.run_id, type_ids.power_id)
+    and e.is_active = true
+    and not exists (
+      select 1
+      from public.exercises duplicate
+      where duplicate.id <> e.id
+        and duplicate.is_active = true
+        and lower(duplicate.name) = lower(e.name)
+        and duplicate.activity_type_id = case
+          when e.activity_type_id = type_ids.run_id then type_ids.cardio_id
+          when e.activity_type_id = type_ids.power_id then type_ids.conditioning_id
+          else e.activity_type_id
+        end
+    )
+  returning e.id
+)
+update public.exercises e
+set is_active = false,
+    updated_at = now(),
+    notes = concat_ws(' ', nullif(e.notes, ''), 'Retired duplicate after Run/Cardio and Power/Conditioning category consolidation.')
+from type_ids
+where e.activity_type_id in (type_ids.run_id, type_ids.power_id)
+  and e.is_active = true
+  and exists (
+    select 1
+    from public.exercises duplicate
+    where duplicate.id <> e.id
+      and duplicate.is_active = true
+      and lower(duplicate.name) = lower(e.name)
+      and duplicate.activity_type_id = case
+        when e.activity_type_id = type_ids.run_id then type_ids.cardio_id
+        when e.activity_type_id = type_ids.power_id then type_ids.conditioning_id
+        else e.activity_type_id
+      end
+  );
+
 with desired(type_name, name, focus_area, equipment, default_metric, suggested_sets, suggested_reps, notes) as (
   values
-    ('Run', 'Jog', 'Easy', null, 'Distance / time', null, null, 'Easy pace; track distance, time, RPE/feel and notes.'),
-    ('Run', 'Run', 'Run', null, 'Distance / time', null, null, 'Track distance, time, RPE/feel and notes.'),
-    ('Run', 'Sprint', 'Speed', null, 'Efforts / distance / time', null, null, 'Track efforts, distance or time per effort, RPE/feel and notes.'),
+    ('Cardio', 'Jog', 'Easy', null, 'Distance / time', null, null, 'Easy pace; track distance, time, RPE/feel and notes.'),
+    ('Cardio', 'Run', 'Run', null, 'Distance / time', null, null, 'Track distance, time, RPE/feel and notes.'),
+    ('Cardio', 'Sprint', 'Speed', null, 'Efforts / distance / time', null, null, 'Track efforts, distance or time per effort, RPE/feel and notes.'),
     ('Class', 'Yoga Class', 'Class', 'Mat', 'Minutes', null, null, 'Use notes for venue, instructor, class style and difficulty.'),
     ('Class', 'Pilates Class', 'Class', 'Mat', 'Minutes', null, null, 'Use notes for venue, instructor, class style and difficulty.'),
     ('Class', 'Strength Class', 'Class', 'Any', 'Minutes', null, null, 'Use notes for venue, instructor, class style and difficulty.'),
@@ -67,9 +120,9 @@ where lower(e.name) = lower(typed.name);
 
 with desired(type_name, name, focus_area, equipment, default_metric, suggested_sets, suggested_reps, notes) as (
   values
-    ('Run', 'Jog', 'Easy', null, 'Distance / time', null, null, 'Easy pace; track distance, time, RPE/feel and notes.'),
-    ('Run', 'Run', 'Run', null, 'Distance / time', null, null, 'Track distance, time, RPE/feel and notes.'),
-    ('Run', 'Sprint', 'Speed', null, 'Efforts / distance / time', null, null, 'Track efforts, distance or time per effort, RPE/feel and notes.'),
+    ('Cardio', 'Jog', 'Easy', null, 'Distance / time', null, null, 'Easy pace; track distance, time, RPE/feel and notes.'),
+    ('Cardio', 'Run', 'Run', null, 'Distance / time', null, null, 'Track distance, time, RPE/feel and notes.'),
+    ('Cardio', 'Sprint', 'Speed', null, 'Efforts / distance / time', null, null, 'Track efforts, distance or time per effort, RPE/feel and notes.'),
     ('Class', 'Yoga Class', 'Class', 'Mat', 'Minutes', null, null, 'Use notes for venue, instructor, class style and difficulty.'),
     ('Class', 'Pilates Class', 'Class', 'Mat', 'Minutes', null, null, 'Use notes for venue, instructor, class style and difficulty.'),
     ('Class', 'Strength Class', 'Class', 'Any', 'Minutes', null, null, 'Use notes for venue, instructor, class style and difficulty.'),
