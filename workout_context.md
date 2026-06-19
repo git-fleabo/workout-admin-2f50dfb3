@@ -1,6 +1,6 @@
 # Workout App Context
 
-Last updated: 2026-06-18
+Last updated: 2026-06-19
 
 This file is the handoff document for the Training Admin workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
 
@@ -748,6 +748,8 @@ The log screen supports:
 1RM logging uses Epley as the fixed/default estimate formula. The formula selector is intentionally hidden from the UI, but new rows still save `formula = 'Epley'` in `one_rm_tests`.
 
 Workout `Reps` means total reps across all sets. Calculations that need reps per set, such as skill max-rep PRs and workout-history estimated 1RM, use `ceil(total reps / sets)`. Total reps and volume still use the entered total.
+
+Recent workout summaries on the log screen should display sets and reps as separate labels, for example `3 sets · 12 total reps`, because reps are total reps across all sets rather than reps per set.
 
 Successful logs should show confirmation messages. Delete confirmations should use app dialogs, not browser-native popups.
 

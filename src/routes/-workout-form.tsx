@@ -167,6 +167,13 @@ const blank = (defaultWorkoutType = ""): FormState => ({
   detail: "",
 });
 
+function recentSetRepSummary(sets: string, reps: string) {
+  return [
+    sets ? `${sets} ${sets === "1" ? "set" : "sets"}` : "",
+    reps ? `${reps} total ${reps === "1" ? "rep" : "reps"}` : "",
+  ];
+}
+
 export function WorkoutForm({
   defaultWorkoutType = "",
   title = "New workout",
@@ -347,7 +354,7 @@ export function WorkoutForm({
           r.entryKind === GRIP_WORKOUT_TYPE && GRIP_WORKOUT_TYPE,
           r.progressionLevel,
           r.holdSeconds && `${r.holdSeconds}s`,
-          r.sets && r.reps ? `${r.sets}×${r.reps}` : r.sets || r.reps,
+          ...recentSetRepSummary(r.sets, r.reps),
           r.weight,
           r.duration && `${r.duration}m`,
           r.rpe && `RPE ${r.rpe}`,
