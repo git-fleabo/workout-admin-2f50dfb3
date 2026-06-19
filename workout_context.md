@@ -137,6 +137,7 @@ RLS/settings summary:
 - All public tables listed below have RLS enabled.
 - Most app data policies are for role `authenticated`.
 - Master lookup/library tables generally allow authenticated SELECT.
+- Reusable programme templates allow authenticated SELECT through template-only policies on `programs`, `program_workouts`, and `program_workout_entries`.
 - Admin-style inserts/updates exist for `activity_types` and `exercises`.
 - Managed-person policies exist for goals, sessions, logs, bodyweight, 1RM, and person exercise selections.
 - `people_claim_unclaimed_noam` exists as a bootstrap policy for claiming the original Noam person row.
@@ -146,6 +147,7 @@ Important data files:
 - `supabase/schema.sql`: local schema snapshot, may not always reflect every live data tweak.
 - `supabase/approved_logging_library_updates.sql`: idempotent data update script for approved library/logging changes.
 - `supabase/percentage_strength_blocks.sql`: idempotent seed script for reusable Percentage Strength Blocks, currently Operator Style Strength Block and Fighter Style Strength Block.
+- `supabase/program_template_read_policies.sql`: idempotent RLS policy script allowing authenticated users to read reusable template rows from `programs`, `program_workouts`, and `program_workout_entries`.
 - `docs/supabase-schema-design.md`: original design direction.
 - `docs/supabase-import-status.md`: import history, but some notes are stale because the app is now more migrated than this doc says.
 

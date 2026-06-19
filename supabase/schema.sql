@@ -974,6 +974,39 @@ create policy goal_checkins_delete_managed
   to authenticated
   using (app_private.person_is_accessible(person_id));
 
+create policy programs_select_templates_authenticated
+  on public.programs
+  for select
+  to authenticated
+  using (is_template = true);
+
+create policy program_workouts_select_template_authenticated
+  on public.program_workouts
+  for select
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.programs p
+      where p.id = public.program_workouts.program_id
+        and p.is_template = true
+    )
+  );
+
+create policy program_workout_entries_select_template_authenticated
+  on public.program_workout_entries
+  for select
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.program_workouts pw
+      join public.programs p on p.id = pw.program_id
+      where pw.id = public.program_workout_entries.program_workout_id
+        and p.is_template = true
+    )
+  );
+
 create policy program_assignment_exercises_select_managed
   on public.program_assignment_exercises
   for select
