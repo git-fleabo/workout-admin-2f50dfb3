@@ -769,6 +769,8 @@ Climbing:
 - Intensity is included
 - Gradient appears and saves only for `Kilter`
 - Climbing saves normalise metric rows before inserting `entry_metrics` because Supabase/PostgREST batch inserts require consistent object keys. Blank optional metrics are filtered out. If a detail insert fails after the session is created, the app deletes the partially created session so future duplicate checks are not blocked by half-saved data.
+- Normal workout saves should use the same cleanup behavior after creating the session: if entry, set, or metric inserts fail, delete the partially created session.
+- The Log screen movement picker should respect `person_exercises.is_enabled` for the current person. The Library remains the place to review the master movement list and toggle which movements are available for logging.
 
 Flexible metric profiles:
 
@@ -780,6 +782,8 @@ Flexible metric profiles:
 - Conditioning includes former power movements and uses movement-appropriate fields.
 
 Recent workout summaries should show logged weight with `kg` so a bare number is not ambiguous.
+
+Dashboard same-week workout detail should display entered set count from `entry_sets.set_number`, not the number of aggregate `entry_sets` rows.
 
 ### Library
 

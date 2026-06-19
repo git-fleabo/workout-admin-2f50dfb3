@@ -70,6 +70,11 @@ type ExerciseRecord = {
   activity_types: { name: string | null } | null;
 };
 
+type PersonExerciseRecord = {
+  exercise_id: string;
+  is_enabled: boolean;
+};
+
 type EntrySetRecord = {
   set_number: number | string | null;
   reps: number | string | null;
@@ -97,7 +102,11 @@ type SessionEntryRecord = {
   completed: boolean;
   notes: string | null;
   source_sheet: string | null;
-  exercises: { name: string | null; focus_area: string | null; activity_types: { name: string | null } | null } | null;
+  exercises: {
+    name: string | null;
+    focus_area: string | null;
+    activity_types: { name: string | null } | null;
+  } | null;
   activity_types: { name: string | null } | null;
   entry_sets: EntrySetRecord[] | null;
   entry_metrics: EntryMetricRecord[] | null;
@@ -313,7 +322,8 @@ async function getOrCreateActivityType(name: string) {
 
 async function findExercise(name: string) {
   const rows = await supabasePublicSelect<ExerciseRecord>("exercises", {
-    select: "id,focus_area,name,equipment,default_metric,suggested_sets,suggested_reps,notes,activity_type_id,activity_types(name)",
+    select:
+      "id,focus_area,name,equipment,default_metric,suggested_sets,suggested_reps,notes,activity_type_id,activity_types(name)",
     name: `eq.${name.trim()}`,
     is_active: "eq.true",
     limit: 1,
@@ -322,26 +332,36 @@ async function findExercise(name: string) {
 }
 
 export async function getLibraryClient() {
-  const [activityTypes, exercises] = await Promise.all([
+  const person = await requirePerson();
+  const [activityTypes, exercises, personExercises] = await Promise.all([
     listActivityTypes(),
     supabasePublicSelect<ExerciseRecord>("exercises", {
-      select: "id,focus_area,name,equipment,default_metric,suggested_sets,suggested_reps,notes,activity_type_id,activity_types(name)",
+      select:
+        "id,focus_area,name,equipment,default_metric,suggested_sets,suggested_reps,notes,activity_type_id,activity_types(name)",
       is_active: "eq.true",
       order: "source_row.asc,name.asc",
       limit: 1000,
     }),
+    supabasePublicSelect<PersonExerciseRecord>("person_exercises", {
+      select: "exercise_id,is_enabled",
+      person_id: `eq.${person.id}`,
+    }),
   ]);
+  const enabledExercises = new Set(
+    personExercises.filter((row) => row.is_enabled).map((row) => row.exercise_id),
+  );
+  const availableExercises = exercises.filter((row) => enabledExercises.has(row.id));
 
   const workoutTypes = activityTypes
     .map((type) => type.name)
     .filter((name, index, all) => {
       if (!name || all.indexOf(name) !== index) return false;
       if (name === "Bouldering" || name === "Sport") return false;
-      return exercises.some((row) => row.activity_types?.name === name);
+      return availableExercises.some((row) => row.activity_types?.name === name);
     });
 
   return {
-    exercises: exercises.map((row) => ({
+    exercises: availableExercises.map((row) => ({
       id: row.id,
       workoutType: row.activity_types?.name ?? "",
       focusArea: row.focus_area ?? "",
@@ -353,7 +373,9 @@ export async function getLibraryClient() {
       notes: row.notes ?? "",
     })),
     workoutTypes,
-    focusAreas: Array.from(new Set(exercises.map((row) => row.focus_area ?? "").filter(Boolean))),
+    focusAreas: Array.from(
+      new Set(availableExercises.map((row) => row.focus_area ?? "").filter(Boolean)),
+    ),
     ...FALLBACK_SETTINGS,
   };
 }
@@ -430,74 +452,87 @@ export async function addWorkoutClient(data: WorkoutLogInput) {
   ]);
   const durationMinutes = toNum(data.duration);
   const rpe = toNum(data.rpe);
-  const insertedSession = await supabasePublicInsert<{ id: string; source_row: number | null }>("sessions", {
-    person_id: person.id,
-    activity_type_id: activityType?.id ?? exercise?.activity_type_id ?? null,
-    session_date: data.date,
-    title: data.exercise,
-    source: "manual",
-    completed: data.completed,
-    duration_minutes: durationMinutes,
-    intensity: data.intensity || null,
-    rpe,
-    notes: data.notes || null,
-    source_sheet: "Workout Log",
-  });
+  const insertedSession = await supabasePublicInsert<{ id: string; source_row: number | null }>(
+    "sessions",
+    {
+      person_id: person.id,
+      activity_type_id: activityType?.id ?? exercise?.activity_type_id ?? null,
+      session_date: data.date,
+      title: data.exercise,
+      source: "manual",
+      completed: data.completed,
+      duration_minutes: durationMinutes,
+      intensity: data.intensity || null,
+      rpe,
+      notes: data.notes || null,
+      source_sheet: "Workout Log",
+    },
+  );
   const session = insertedSession[0];
   if (!session) throw new Error("Workout was not saved.");
 
-  const entryKind =
-    data.entryKind ||
-    (data.workoutType === SKILL_WORKOUT_TYPE
-      ? "Skill"
-      : data.workoutType === GRIP_WORKOUT_TYPE
-        ? GRIP_WORKOUT_TYPE
-        : "Workout");
-  const insertedEntry = await supabasePublicInsert<{ id: string }>("session_entries", {
-    session_id: session.id,
-    exercise_id: exercise?.id ?? null,
-    activity_type_id: activityType?.id ?? exercise?.activity_type_id ?? null,
-    entry_kind: entryKind,
-    name: data.exercise,
-    progression_level: data.progressionLevel || null,
-    order_index: 0,
-    completed: data.completed,
-    notes: data.notes || null,
-    source_sheet: "Workout Log",
-  });
-  const entry = insertedEntry[0];
-  if (!entry) throw new Error("Workout entry was not saved.");
+  try {
+    const entryKind =
+      data.entryKind ||
+      (data.workoutType === SKILL_WORKOUT_TYPE
+        ? "Skill"
+        : data.workoutType === GRIP_WORKOUT_TYPE
+          ? GRIP_WORKOUT_TYPE
+          : "Workout");
+    const insertedEntry = await supabasePublicInsert<{ id: string }>("session_entries", {
+      session_id: session.id,
+      exercise_id: exercise?.id ?? null,
+      activity_type_id: activityType?.id ?? exercise?.activity_type_id ?? null,
+      entry_kind: entryKind,
+      name: data.exercise,
+      progression_level: data.progressionLevel || null,
+      order_index: 0,
+      completed: data.completed,
+      notes: data.notes || null,
+      source_sheet: "Workout Log",
+    });
+    const entry = insertedEntry[0];
+    if (!entry) throw new Error("Workout entry was not saved.");
 
-  const holdSeconds = toNum(data.holdSeconds);
-  const distance = toNum(data.distance);
-  await supabasePublicInsert("entry_sets", {
-    session_entry_id: entry.id,
-    set_number: toNum(data.sets),
-    reps: toNum(data.reps),
-    weight: toNum(data.weight),
-    duration_seconds: holdSeconds,
-    distance,
-    distance_unit: data.distanceUnit || null,
-    rpe,
-    rest_time: data.restTime || null,
-    assistance_type: data.assistanceType || null,
-    assistance_detail: data.assistanceDetail || null,
-    quality: data.quality || null,
-    completed: data.completed,
-    notes: data.notes || null,
-  });
-
-  const metrics = [
-    { metric_key: "rounds", metric_value: toNum(data.rounds) },
-    { metric_key: "feel", metric_value: toNum(data.feel) },
-    { metric_key: "height", metric_value: toNum(data.height), metric_unit: "cm" },
-    { metric_key: "detail", metric_text: data.detail || null },
-  ].filter((metric) => metric.metric_value != null || metric.metric_text);
-  if (metrics.length) {
-    await supabasePublicInsert("entry_metrics", metrics.map((metric) => metricRow({
+    const holdSeconds = toNum(data.holdSeconds);
+    const distance = toNum(data.distance);
+    await supabasePublicInsert("entry_sets", {
       session_entry_id: entry.id,
-      ...metric,
-    })));
+      set_number: toNum(data.sets),
+      reps: toNum(data.reps),
+      weight: toNum(data.weight),
+      duration_seconds: holdSeconds,
+      distance,
+      distance_unit: data.distanceUnit || null,
+      rpe,
+      rest_time: data.restTime || null,
+      assistance_type: data.assistanceType || null,
+      assistance_detail: data.assistanceDetail || null,
+      quality: data.quality || null,
+      completed: data.completed,
+      notes: data.notes || null,
+    });
+
+    const metrics = [
+      { metric_key: "rounds", metric_value: toNum(data.rounds) },
+      { metric_key: "feel", metric_value: toNum(data.feel) },
+      { metric_key: "height", metric_value: toNum(data.height), metric_unit: "cm" },
+      { metric_key: "detail", metric_text: data.detail || null },
+    ].filter((metric) => metric.metric_value != null || metric.metric_text);
+    if (metrics.length) {
+      await supabasePublicInsert(
+        "entry_metrics",
+        metrics.map((metric) =>
+          metricRow({
+            session_entry_id: entry.id,
+            ...metric,
+          }),
+        ),
+      );
+    }
+  } catch (error) {
+    await supabasePublicDelete("sessions", { id: `eq.${session.id}` }).catch(() => undefined);
+    throw error;
   }
 
   return { ok: true, row: session.source_row ?? "Supabase" };
@@ -546,19 +581,22 @@ export async function addClimbClient(data: ClimbLogInput) {
   const movement = data.movement || data.type || "Climbing";
   const hours = toNum(data.hours);
   const rpe = toNum(data.rpe);
-  const insertedSession = await supabasePublicInsert<{ id: string; source_row: number | null }>("sessions", {
-    person_id: person.id,
-    activity_type_id: activityType?.id ?? null,
-    session_date: data.date,
-    title: movement,
-    source: "manual",
-    completed: data.completed,
-    duration_minutes: hours == null ? null : hours * 60,
-    intensity: data.intensity || null,
-    rpe,
-    notes: data.notes || null,
-    source_sheet: "Climbing Log",
-  });
+  const insertedSession = await supabasePublicInsert<{ id: string; source_row: number | null }>(
+    "sessions",
+    {
+      person_id: person.id,
+      activity_type_id: activityType?.id ?? null,
+      session_date: data.date,
+      title: movement,
+      source: "manual",
+      completed: data.completed,
+      duration_minutes: hours == null ? null : hours * 60,
+      intensity: data.intensity || null,
+      rpe,
+      notes: data.notes || null,
+      source_sheet: "Climbing Log",
+    },
+  );
   const session = insertedSession[0];
   if (!session) throw new Error("Climb was not saved.");
 
@@ -577,12 +615,23 @@ export async function addClimbClient(data: ClimbLogInput) {
     if (!entry) throw new Error("Climb entry was not saved.");
 
     const metrics = [
-      { session_entry_id: entry.id, metric_key: "tracking_mode", metric_text: data.trackingMode || null },
-      { session_entry_id: entry.id, metric_key: "hours", metric_value: hours, metric_unit: hours == null ? null : "h" },
+      {
+        session_entry_id: entry.id,
+        metric_key: "tracking_mode",
+        metric_text: data.trackingMode || null,
+      },
+      {
+        session_entry_id: entry.id,
+        metric_key: "hours",
+        metric_value: hours,
+        metric_unit: hours == null ? null : "h",
+      },
       { session_entry_id: entry.id, metric_key: "boulders", metric_value: toNum(data.boulders) },
       { session_entry_id: entry.id, metric_key: "grade", metric_text: data.grade || null },
       { session_entry_id: entry.id, metric_key: "gradient", metric_text: data.gradient || null },
-    ].map(metricRow).filter(hasMetricValue);
+    ]
+      .map(metricRow)
+      .filter(hasMetricValue);
     if (metrics.length) await supabasePublicInsert("entry_metrics", metrics);
   } catch (error) {
     await supabasePublicDelete("sessions", { id: `eq.${session.id}` }).catch(() => undefined);
@@ -592,7 +641,11 @@ export async function addClimbClient(data: ClimbLogInput) {
   return { ok: true, row: session.source_row ?? "Supabase" };
 }
 
-function estimateOneRM(weight: number | null, reps: number | null, formula = ONE_RM_DEFAULT_FORMULA) {
+function estimateOneRM(
+  weight: number | null,
+  reps: number | null,
+  formula = ONE_RM_DEFAULT_FORMULA,
+) {
   if (weight == null || reps == null || reps <= 0) return null;
   if (reps === 1) return Math.round(weight * 10) / 10;
   const estimated =
@@ -662,16 +715,17 @@ export async function add1RMTestClient(data: OneRMInput) {
   const estimatedExternal = estimateOneRM(externalWeight, reps, formula);
   const estimatedTotal = estimatedExternal;
 
-  const prior = await supabasePublicSelect<Pick<OneRMRecord, "estimated_total" | "estimated_external" | "external_weight">>(
-    "one_rm_tests",
-    {
-      select: "estimated_total,estimated_external,external_weight",
-      exercise_name: `eq.${data.exercise}`,
-      order: "estimated_total.desc",
-      limit: 1,
-    },
+  const prior = await supabasePublicSelect<
+    Pick<OneRMRecord, "estimated_total" | "estimated_external" | "external_weight">
+  >("one_rm_tests", {
+    select: "estimated_total,estimated_external,external_weight",
+    exercise_name: `eq.${data.exercise}`,
+    order: "estimated_total.desc",
+    limit: 1,
+  });
+  const priorBest = toNum(
+    prior[0]?.estimated_total ?? prior[0]?.estimated_external ?? prior[0]?.external_weight,
   );
-  const priorBest = toNum(prior[0]?.estimated_total ?? prior[0]?.estimated_external ?? prior[0]?.external_weight);
   const nextBest = estimatedTotal ?? estimatedExternal ?? externalWeight;
   const isPr = nextBest != null && (priorBest == null || nextBest > priorBest);
 
@@ -729,7 +783,9 @@ export async function getPRsClient() {
   const oneRmByExercise = new Map<string, OneRMRecord>();
   for (const row of tests) {
     const current = oneRmByExercise.get(row.exercise_name);
-    const currentValue = toNum(current?.estimated_total ?? current?.estimated_external ?? current?.external_weight);
+    const currentValue = toNum(
+      current?.estimated_total ?? current?.estimated_external ?? current?.external_weight,
+    );
     const nextValue = toNum(row.estimated_total ?? row.estimated_external ?? row.external_weight);
     if (nextValue != null && (currentValue == null || nextValue > currentValue)) {
       oneRmByExercise.set(row.exercise_name, row);
@@ -754,8 +810,12 @@ export async function getPRsClient() {
     const set = firstSet(row);
     const assistanceType = (set?.assistance_type ?? "").trim();
     const assistanceDetail = (set?.assistance_detail ?? "").trim();
-    const assisted = Boolean(assistanceType && assistanceType.toLowerCase() !== "none") || Boolean(assistanceDetail);
-    const assistanceLabel = [assisted ? assistanceType : "", assistanceDetail].filter(Boolean).join(" · ");
+    const assisted =
+      Boolean(assistanceType && assistanceType.toLowerCase() !== "none") ||
+      Boolean(assistanceDetail);
+    const assistanceLabel = [assisted ? assistanceType : "", assistanceDetail]
+      .filter(Boolean)
+      .join(" · ");
     const assistanceAmount = toNum(assistanceDetail || assistanceType);
     const base = {
       skill: row.name,
@@ -770,7 +830,12 @@ export async function getPRsClient() {
       const current = skillBest.get(key);
       const currentValue = current?.value ?? null;
       if (currentValue != null && value < currentValue) return;
-      if (currentValue === value && assistanceAmount != null && current?.assistanceAmount != null && assistanceAmount >= current.assistanceAmount) {
+      if (
+        currentValue === value &&
+        assistanceAmount != null &&
+        current?.assistanceAmount != null &&
+        assistanceAmount >= current.assistanceAmount
+      ) {
         return;
       }
       skillBest.set(key, { ...base, metric, value, unit });

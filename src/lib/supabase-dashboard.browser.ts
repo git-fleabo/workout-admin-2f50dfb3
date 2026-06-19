@@ -425,9 +425,7 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
             minutes: minutes || null,
             completed: true,
             counts: false,
-            notes: metricText(metrics, "grade")
-              ? `Grade ${metricText(metrics, "grade")}`
-              : "",
+            notes: metricText(metrics, "grade") ? `Grade ${metricText(metrics, "grade")}` : "",
           });
         }
       }
@@ -478,10 +476,14 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
             day.minutes += minutesSafe;
             if (!day.exercises.includes(entry.name)) day.exercises.push(entry.name);
             const firstSet = entry.entry_sets?.[0];
+            const setCount = toNum(firstSet?.set_number);
             day.entries.push({
               kind: "workout",
               exercise: entry.name,
-              sets: entry.entry_sets?.length || null,
+              sets:
+                Number.isFinite(setCount) && setCount > 0
+                  ? setCount
+                  : entry.entry_sets?.length || null,
               reps: Number.isFinite(toNum(firstSet?.reps)) ? toNum(firstSet?.reps) : null,
               weight: Number.isFinite(toNum(firstSet?.weight)) ? toNum(firstSet?.weight) : null,
               minutes: minutesSafe || null,
@@ -505,7 +507,11 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
 
       const entryKind = (entry.entry_kind ?? "").trim();
       const workoutType = entry.activity_types?.name ?? session.activity_types?.name ?? "";
-      if (entryKind === "Skill" || entryKind === "Legacy Skill" || workoutType === SKILL_WORKOUT_TYPE) {
+      if (
+        entryKind === "Skill" ||
+        entryKind === "Legacy Skill" ||
+        workoutType === SKILL_WORKOUT_TYPE
+      ) {
         const firstSet = entry.entry_sets?.[0];
         const holdSeconds = toNum(firstSet?.duration_seconds);
         const reps = repsPerSet(toNum(firstSet?.reps), toNum(firstSet?.set_number));
@@ -521,7 +527,12 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
         const consider = (metric: "hold" | "reps", valueNumber: number, value: string) => {
           const key = `${base.title}::${base.progression}::${metric}::${base.assisted ? "assisted" : "unassisted"}`;
           const current = skillPRs.get(key);
-          if (!isBetterSkillPR({ value: valueNumber, assistanceAmount: base.assistanceAmount }, current)) {
+          if (
+            !isBetterSkillPR(
+              { value: valueNumber, assistanceAmount: base.assistanceAmount },
+              current,
+            )
+          ) {
             return;
           }
           skillPRs.set(key, {
@@ -531,7 +542,9 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
             detail: [
               base.progression,
               metric === "hold" ? "Best hold" : "Best reps",
-              base.assisted ? `Assisted${base.assistanceLabel ? `: ${base.assistanceLabel}` : ""}` : "",
+              base.assisted
+                ? `Assisted${base.assistanceLabel ? `: ${base.assistanceLabel}` : ""}`
+                : "",
             ]
               .filter(Boolean)
               .join(" · "),
@@ -646,9 +659,7 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
       totalMinutes: Math.round(totalMinutes),
       totalClimbHours: Math.round(totalClimbHours * 10) / 10,
       totalClimbSessions,
-      avgWorkoutsPerWeek: weeksTraining
-        ? Math.round((totalWorkouts / weeksTraining) * 10) / 10
-        : 0,
+      avgWorkoutsPerWeek: weeksTraining ? Math.round((totalWorkouts / weeksTraining) * 10) / 10 : 0,
       bodyweightDelta,
       startingBodyweight,
     },

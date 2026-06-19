@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CheckCircle2, Loader2, Pencil, Plus, Target, Trash2, UserCheck, X } from "lucide-react";
@@ -62,10 +62,7 @@ export const Route = createFileRoute("/goals")({
 const PERIODS = ["week", "month", "quarter", "year", "static"];
 const today = todayISO;
 
-type EditorState =
-  | { mode: "closed" }
-  | { mode: "create" }
-  | { mode: "edit"; row: GoalRow };
+type EditorState = { mode: "closed" } | { mode: "create" } | { mode: "edit"; row: GoalRow };
 
 type GoalFormFields = Omit<GoalRow, "id" | "row" | "checkins">;
 
@@ -164,9 +161,7 @@ function GoalsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">Goals</h2>
-          <p className="text-xs text-muted-foreground">
-            Saved to Supabase
-          </p>
+          <p className="text-xs text-muted-foreground">Saved to Supabase</p>
         </div>
         <Button
           onClick={() => setEditor({ mode: "create" })}
@@ -193,7 +188,10 @@ function GoalsPage() {
             onClick={() => claimMutation.mutate()}
             disabled={claimMutation.isPending}
             className="h-10 font-medium"
-            style={{ backgroundImage: "var(--gradient-primary)", color: "var(--primary-foreground)" }}
+            style={{
+              backgroundImage: "var(--gradient-primary)",
+              color: "var(--primary-foreground)",
+            }}
           >
             {claimMutation.isPending ? (
               <Loader2 className="mr-1 h-4 w-4 animate-spin" />
@@ -229,7 +227,11 @@ function GoalsPage() {
                             <p className="truncate font-medium">{g.goal}</p>
                             <span className="shrink-0 text-sm font-semibold text-primary">
                               {g.target}
-                              {g.metric && <span className="ml-1 text-xs font-normal text-muted-foreground">{g.metric}</span>}
+                              {g.metric && (
+                                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                                  {g.metric}
+                                </span>
+                              )}
                             </span>
                           </div>
                           {g.notes && (
@@ -329,10 +331,7 @@ function GoalsPage() {
         isPending={addMutation.isPending || updateMutation.isPending}
       />
 
-      <AlertDialog
-        open={!!pendingDelete}
-        onOpenChange={(open) => !open && setPendingDelete(null)}
-      >
+      <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this goal?</AlertDialogTitle>
@@ -346,11 +345,7 @@ function GoalsPage() {
               onClick={() => pendingDelete && deleteMutation.mutate(pendingDelete.row)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleteMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Delete"
-              )}
+              {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -382,7 +377,7 @@ function GoalEditorDialog({
       : BLANK;
 
   const [form, setForm] = useState<typeof BLANK>(initial);
-  useMemoReset(state, () => setForm(initial));
+  useResetOnChange(state, () => setForm(initial));
 
   const update = <K extends keyof typeof BLANK>(k: K, v: (typeof BLANK)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -393,9 +388,7 @@ function GoalEditorDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>
-            {state.mode === "edit" ? "Edit goal" : "New goal"}
-          </DialogTitle>
+          <DialogTitle>{state.mode === "edit" ? "Edit goal" : "New goal"}</DialogTitle>
           <DialogDescription>
             {state.mode === "edit"
               ? "Update this goal in Supabase."
@@ -501,8 +494,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function useMemoReset<T>(dep: T, fn: () => void) {
-  useMemo(() => {
+function useResetOnChange<T>(dep: T, fn: () => void) {
+  useEffect(() => {
     fn();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dep]);

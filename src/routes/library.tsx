@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Activity, Loader2, Pencil, Plus, Search, Trash2, UserCheck, X } from "lucide-react";
@@ -154,7 +154,8 @@ function libraryConfigFor(type: string, profile: MetricProfile): LibraryFieldCon
       focusLabel: profile === "grip" ? "Grip style" : "Progression",
       focusPlaceholder: profile === "grip" ? "Open hand, pinch..." : "Tuck, straddle...",
       equipmentLabel: profile === "grip" ? "Load / implement" : "Assistance",
-      equipmentPlaceholder: profile === "grip" ? "Hangboard, pinch block..." : "Wall, band, rings...",
+      equipmentPlaceholder:
+        profile === "grip" ? "Hangboard, pinch block..." : "Wall, band, rings...",
       metricLabel: "Tracking",
       metricPlaceholder: "Attempts / hold / feel",
       setsLabel: "Suggested attempts",
@@ -178,7 +179,12 @@ function libraryConfigFor(type: string, profile: MetricProfile): LibraryFieldCon
       setsPlaceholder: "60 sec",
       repsLabel: "Target / detail",
       repsPlaceholder: "Distance, depth, feel...",
-      defaults: { equipment: "Mat", metric: "Distance / hold / feel", suggestedSets: "", suggestedReps: "" },
+      defaults: {
+        equipment: "Mat",
+        metric: "Distance / hold / feel",
+        suggestedSets: "",
+        suggestedReps: "",
+      },
     };
   }
 
@@ -195,7 +201,12 @@ function libraryConfigFor(type: string, profile: MetricProfile): LibraryFieldCon
       setsPlaceholder: "2",
       repsLabel: "Problems / routes",
       repsPlaceholder: "10-20",
-      defaults: { equipment: "Climbing gym", metric: "Hours / boulders / grade", suggestedSets: "", suggestedReps: "" },
+      defaults: {
+        equipment: "Climbing gym",
+        metric: "Hours / boulders / grade",
+        suggestedSets: "",
+        suggestedReps: "",
+      },
     };
   }
 
@@ -207,12 +218,15 @@ function libraryConfigFor(type: string, profile: MetricProfile): LibraryFieldCon
       equipmentLabel: "Load / equipment",
       equipmentPlaceholder: "Kettlebell, dumbbell, sled...",
       metricLabel: "Tracking",
-      metricPlaceholder: profile === "carry" ? "Rounds / distance / load" : "Minutes / rounds / load",
+      metricPlaceholder:
+        profile === "carry" ? "Rounds / distance / load" : "Minutes / rounds / load",
       setsLabel: profile === "carry" ? "Suggested rounds" : "Suggested minutes",
       setsPlaceholder: profile === "carry" ? "4" : "10",
       repsLabel: "Detail",
       repsPlaceholder: profile === "carry" ? "20 m" : "Rounds, reps per minute...",
-      defaults: { metric: profile === "carry" ? "Rounds / distance / load" : "Minutes / rounds / load" },
+      defaults: {
+        metric: profile === "carry" ? "Rounds / distance / load" : "Minutes / rounds / load",
+      },
     };
   }
 
@@ -265,8 +279,7 @@ function LibraryPage() {
   }, [list.data, search, typeFilter]);
 
   const addMutation = useMutation({
-    mutationFn: (fields: typeof BLANK) =>
-      addExerciseClient(fields, effectivePersonId || undefined),
+    mutationFn: (fields: typeof BLANK) => addExerciseClient(fields, effectivePersonId || undefined),
     onSuccess: () => {
       toast.success("Movement added");
       setEditor({ mode: "closed" });
@@ -401,7 +414,10 @@ function LibraryPage() {
               onClick={() => claimMutation.mutate()}
               disabled={claimMutation.isPending}
               className="h-10 font-medium"
-              style={{ backgroundImage: "var(--gradient-primary)", color: "var(--primary-foreground)" }}
+              style={{
+                backgroundImage: "var(--gradient-primary)",
+                color: "var(--primary-foreground)",
+              }}
             >
               {claimMutation.isPending ? (
                 <Loader2 className="mr-1 h-4 w-4 animate-spin" />
@@ -523,25 +539,23 @@ function LibraryPage() {
         state={editor}
         onClose={() => setEditor({ mode: "closed" })}
         workoutTypes={list.data?.workoutTypes ?? []}
-          onSubmit={(fields) => {
-            if (editor.mode === "create") {
-              addMutation.mutate(fields);
-            } else if (editor.mode === "edit") {
-              updateMutation.mutate({ id: editor.row.id, fields });
-            }
-          }}
-          isPending={addMutation.isPending || updateMutation.isPending}
+        onSubmit={(fields) => {
+          if (editor.mode === "create") {
+            addMutation.mutate(fields);
+          } else if (editor.mode === "edit") {
+            updateMutation.mutate({ id: editor.row.id, fields });
+          }
+        }}
+        isPending={addMutation.isPending || updateMutation.isPending}
       />
 
-      <AlertDialog
-        open={!!pendingDelete}
-        onOpenChange={(open) => !open && setPendingDelete(null)}
-      >
+      <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this movement?</AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingDelete?.name} will be removed from the active library. Training history stays preserved.
+              {pendingDelete?.name} will be removed from the active library. Training history stays
+              preserved.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -550,11 +564,7 @@ function LibraryPage() {
               onClick={() => pendingDelete && deleteMutation.mutate(pendingDelete.id)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleteMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Delete"
-              )}
+              {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -574,10 +584,7 @@ function FilterSelect({
 }) {
   const ALL = "__all";
   return (
-    <Select
-      value={value || ALL}
-      onValueChange={(v) => onChange(v === ALL ? "" : v)}
-    >
+    <Select value={value || ALL} onValueChange={(v) => onChange(v === ALL ? "" : v)}>
       <SelectTrigger className="h-10 w-[150px]">
         <SelectValue placeholder="All" />
       </SelectTrigger>
@@ -623,7 +630,7 @@ function ExerciseEditorDialog({
   const [form, setForm] = useState<typeof BLANK>(initial);
 
   // reset when state changes
-  useMemoReset(state, () => setForm(initial));
+  useResetOnChange(state, () => setForm(initial));
 
   const update = <K extends keyof typeof BLANK>(k: K, v: (typeof BLANK)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -649,9 +656,7 @@ function ExerciseEditorDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>
-            {state.mode === "edit" ? "Edit movement" : "New movement"}
-          </DialogTitle>
+          <DialogTitle>{state.mode === "edit" ? "Edit movement" : "New movement"}</DialogTitle>
           <DialogDescription>
             {state.mode === "edit"
               ? `Update ${state.row.name} in Supabase.`
@@ -807,10 +812,8 @@ function DatalistInput({
   );
 }
 
-// Reset helper — runs a side-effect when the identity of `dep` changes.
-function useMemoReset<T>(dep: T, fn: () => void) {
-  // useMemo with no deps would be cached forever; we want fn() per dep change.
-  useMemo(() => {
+function useResetOnChange<T>(dep: T, fn: () => void) {
+  useEffect(() => {
     fn();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dep]);
