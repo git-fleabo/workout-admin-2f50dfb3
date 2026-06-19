@@ -27,7 +27,15 @@ const MOBILITY_POSITIONS = new Set([
 
 const CARRIES = new Set(["farmer carry", "suitcase carry"]);
 const WEIGHTED_EXCEPTIONS = new Set(["atg squats"]);
-const BODYWEIGHT_REPS = new Set(["muscle-up", "ring muscle-up"]);
+const BODYWEIGHT_REPS = new Set([
+  "muscle-up",
+  "bar muscle-up",
+  "ring muscle-up",
+  "handstand pushups",
+  "pistol squats",
+  "pushups",
+  "1-arm pushups",
+]);
 const HOLDS = new Set([
   "plank",
   "front lever",
@@ -49,6 +57,8 @@ const GRIP_HOLDS = new Set([
 const TIME_MOVEMENTS = new Set([
   "jog",
   "run",
+  "bike",
+  "row",
   "sprint",
   "run / bike / row",
   "intervals",

@@ -153,14 +153,14 @@ Important data files:
 
 ## Current Supabase Row Counts
 
-Live row counts checked on 2026-06-18:
+Live row counts checked on 2026-06-19:
 
 - `activity_types`: 15
 - `app_profiles`: 3
 - `bodyweight_logs`: 3
-- `entry_metrics`: 35
-- `entry_sets`: 40
-- `exercises`: 65
+- `entry_metrics`: 39
+- `entry_sets`: 47
+- `exercises`: 72
 - `goal_checkins`: 0
 - `goals`: 5
 - `one_rm_tests`: 1
@@ -171,8 +171,8 @@ Live row counts checked on 2026-06-18:
 - `program_workout_entries`: 102
 - `program_workouts`: 30
 - `programs`: 2
-- `session_entries`: 48
-- `sessions`: 48
+- `session_entries`: 56
+- `sessions`: 56
 - `suggested_workouts`: 0
 
 ## Database Schema
@@ -302,7 +302,7 @@ RLS:
 
 Purpose: master exercise/movement library. One library supports Noam now and future custom apps later.
 
-Rows: 65
+Rows: 72
 
 Key columns:
 
@@ -326,7 +326,9 @@ Important active library decisions:
 - `Ropes/Belay` replaced `Indoor Ropes`.
 - Climbing active movements: `Bouldering Session`, `Ropes/Belay`, `Kilter`, `Mix`.
 - Mobility/Flexibility active positions include `Side Split`, `Pancake`, `Pike`, `Bridge`, `Shoulder Flexion`, plus existing mobility/stretch items moved from `Stretching`.
-- Cardio run movements: `Jog`, `Run`, `Sprint`.
+- Cardio movements: `Jog`, `Run`, `Bike`, `Row`, `Sprint`; old combined `Run / Bike / Row` is inactive.
+- Calisthenics muscle-up tracking is split into `Bar Muscle-Up` and `Ring Muscle-Up`; previous `Muscle-Up` logs/tests were renamed to `Ring Muscle-Up`.
+- Skills/Calisthenics active movements include `Handstand Pushups`, `Pistol Squats`, `Pushups`, and `1-Arm Pushups`.
 - Conditioning includes power-style movements such as `Box Jumps`.
 - Class movements: `Yoga Class`, `Pilates Class`, `Strength Class`, `Conditioning Class`.
 - `Other Session` exists as a catch-all.
@@ -777,12 +779,15 @@ Flexible metric profiles:
 - Time-based Run/Class/Other movements use minutes/distance/feel, with Class also showing Intensity.
 - Conditioning includes former power movements and uses movement-appropriate fields.
 
+Recent workout summaries should show logged weight with `kg` so a bare number is not ambiguous.
+
 ### Library
 
 The library reads from Supabase. It supports:
 
 - master movement list
 - add/edit/hide movements
+- a type-first new movement dialog with fields/defaults that adapt to the selected type and mirror the logging screen profiles
 - per-person enable/disable selections
 - exercise history/details
 - a `Show inactive` toggle for admin review of hidden/retired movements

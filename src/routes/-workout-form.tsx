@@ -355,7 +355,7 @@ export function WorkoutForm({
           r.progressionLevel,
           r.holdSeconds && `${r.holdSeconds}s`,
           ...recentSetRepSummary(r.sets, r.reps),
-          r.weight,
+          r.weight && `${r.weight} kg`,
           r.duration && `${r.duration}m`,
           r.rpe && `RPE ${r.rpe}`,
           r.quality,

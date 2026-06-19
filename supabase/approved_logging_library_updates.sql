@@ -80,11 +80,59 @@ where e.activity_type_id in (type_ids.run_id, type_ids.power_id)
       end
   );
 
+update public.exercises
+set is_active = false,
+    updated_at = now(),
+    notes = concat_ws(' ', nullif(notes, ''), 'Retired after Bike and Row were split into separate Cardio movements.')
+where lower(name) = 'run / bike / row';
+
+update public.exercises
+set name = 'Ring Muscle-Up',
+    focus_area = coalesce(focus_area, 'Pull'),
+    equipment = 'Rings / Bodyweight / Assistance / Added weight',
+    default_metric = 'Reps',
+    suggested_sets = coalesce(suggested_sets, '3'),
+    suggested_reps = coalesce(suggested_reps, '6-10'),
+    notes = coalesce(notes, 'Track total reps across all sets, assistance or added load as needed.'),
+    updated_at = now()
+where lower(name) = 'muscle-up'
+  and not exists (
+    select 1
+    from public.exercises existing
+    where existing.id <> public.exercises.id
+      and existing.is_active = true
+      and lower(existing.name) = 'ring muscle-up'
+  );
+
+update public.exercises
+set is_active = false,
+    updated_at = now(),
+    notes = concat_ws(' ', nullif(notes, ''), 'Retired duplicate after Muscle-Up was split into Bar Muscle-Up and Ring Muscle-Up.')
+where lower(name) = 'muscle-up';
+
+update public.session_entries
+set name = 'Ring Muscle-Up',
+    updated_at = now()
+where lower(name) = 'muscle-up';
+
+update public.one_rm_tests
+set exercise_name = 'Ring Muscle-Up',
+    updated_at = now()
+where lower(exercise_name) = 'muscle-up';
+
 with desired(type_name, name, focus_area, equipment, default_metric, suggested_sets, suggested_reps, notes) as (
   values
     ('Cardio', 'Jog', 'Easy', null, 'Distance / time', null, null, 'Easy pace; track distance, time, RPE/feel and notes.'),
     ('Cardio', 'Run', 'Run', null, 'Distance / time', null, null, 'Track distance, time, RPE/feel and notes.'),
+    ('Cardio', 'Bike', 'Bike', 'Bike / stationary bike', 'Distance / time', null, null, 'Track distance or minutes, RPE/feel and notes.'),
+    ('Cardio', 'Row', 'Row', 'Rower', 'Distance / time', null, null, 'Track distance or minutes, RPE/feel and notes.'),
     ('Cardio', 'Sprint', 'Speed', null, 'Efforts / distance / time', null, null, 'Track efforts, distance or time per effort, RPE/feel and notes.'),
+    ('Skills/Calisthenics', 'Bar Muscle-Up', 'Pull', 'Bar / Bodyweight / Assistance / Added weight', 'Reps', '3', '6-10', 'Track total reps across all sets, assistance or added load as needed.'),
+    ('Skills/Calisthenics', 'Ring Muscle-Up', 'Pull', 'Rings / Bodyweight / Assistance / Added weight', 'Reps', '3', '6-10', 'Track total reps across all sets, assistance or added load as needed.'),
+    ('Skills/Calisthenics', 'Handstand Pushups', 'Push', 'Wall / parallettes / bodyweight', 'Reps', '3', '6-10', 'Track total reps across all sets and assistance or deficit as needed.'),
+    ('Skills/Calisthenics', 'Pistol Squats', 'Legs', 'Bodyweight / assistance / added load', 'Reps', '3', '6-10', 'Track total reps across all sets and assistance or added load as needed.'),
+    ('Skills/Calisthenics', 'Pushups', 'Push', 'Bodyweight / added load', 'Reps', '3', '10-20', 'Track total reps across all sets and variation details in notes.'),
+    ('Skills/Calisthenics', '1-Arm Pushups', 'Push', 'Bodyweight / assistance', 'Reps', '3', '3-8', 'Track total reps across all sets and assistance or progression details in notes.'),
     ('Class', 'Yoga Class', 'Class', 'Mat', 'Minutes', null, null, 'Use notes for venue, instructor, class style and difficulty.'),
     ('Class', 'Pilates Class', 'Class', 'Mat', 'Minutes', null, null, 'Use notes for venue, instructor, class style and difficulty.'),
     ('Class', 'Strength Class', 'Class', 'Any', 'Minutes', null, null, 'Use notes for venue, instructor, class style and difficulty.'),
@@ -122,7 +170,15 @@ with desired(type_name, name, focus_area, equipment, default_metric, suggested_s
   values
     ('Cardio', 'Jog', 'Easy', null, 'Distance / time', null, null, 'Easy pace; track distance, time, RPE/feel and notes.'),
     ('Cardio', 'Run', 'Run', null, 'Distance / time', null, null, 'Track distance, time, RPE/feel and notes.'),
+    ('Cardio', 'Bike', 'Bike', 'Bike / stationary bike', 'Distance / time', null, null, 'Track distance or minutes, RPE/feel and notes.'),
+    ('Cardio', 'Row', 'Row', 'Rower', 'Distance / time', null, null, 'Track distance or minutes, RPE/feel and notes.'),
     ('Cardio', 'Sprint', 'Speed', null, 'Efforts / distance / time', null, null, 'Track efforts, distance or time per effort, RPE/feel and notes.'),
+    ('Skills/Calisthenics', 'Bar Muscle-Up', 'Pull', 'Bar / Bodyweight / Assistance / Added weight', 'Reps', '3', '6-10', 'Track total reps across all sets, assistance or added load as needed.'),
+    ('Skills/Calisthenics', 'Ring Muscle-Up', 'Pull', 'Rings / Bodyweight / Assistance / Added weight', 'Reps', '3', '6-10', 'Track total reps across all sets, assistance or added load as needed.'),
+    ('Skills/Calisthenics', 'Handstand Pushups', 'Push', 'Wall / parallettes / bodyweight', 'Reps', '3', '6-10', 'Track total reps across all sets and assistance or deficit as needed.'),
+    ('Skills/Calisthenics', 'Pistol Squats', 'Legs', 'Bodyweight / assistance / added load', 'Reps', '3', '6-10', 'Track total reps across all sets and assistance or added load as needed.'),
+    ('Skills/Calisthenics', 'Pushups', 'Push', 'Bodyweight / added load', 'Reps', '3', '10-20', 'Track total reps across all sets and variation details in notes.'),
+    ('Skills/Calisthenics', '1-Arm Pushups', 'Push', 'Bodyweight / assistance', 'Reps', '3', '3-8', 'Track total reps across all sets and assistance or progression details in notes.'),
     ('Class', 'Yoga Class', 'Class', 'Mat', 'Minutes', null, null, 'Use notes for venue, instructor, class style and difficulty.'),
     ('Class', 'Pilates Class', 'Class', 'Mat', 'Minutes', null, null, 'Use notes for venue, instructor, class style and difficulty.'),
     ('Class', 'Strength Class', 'Class', 'Any', 'Minutes', null, null, 'Use notes for venue, instructor, class style and difficulty.'),

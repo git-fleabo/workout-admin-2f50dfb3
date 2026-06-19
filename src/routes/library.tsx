@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { LibraryRow } from "@/lib/training-types";
+import { getMovementMetricProfile, type MetricProfile } from "@/lib/movement-metrics";
 import {
   addExerciseClient,
   claimNoamProfile,
@@ -75,6 +76,161 @@ const BLANK: Omit<LibraryRow, "row"> = {
   suggestedReps: "",
   notes: "",
 };
+
+type LibraryFieldConfig = {
+  focusLabel: string;
+  focusPlaceholder: string;
+  equipmentLabel: string;
+  equipmentPlaceholder: string;
+  metricLabel: string;
+  metricPlaceholder: string;
+  setsLabel: string;
+  setsPlaceholder: string;
+  repsLabel: string;
+  repsPlaceholder: string;
+  defaults: Partial<typeof BLANK>;
+};
+
+function libraryConfigFor(type: string, profile: MetricProfile): LibraryFieldConfig {
+  const normalizedType = type.trim().toLowerCase();
+  const base: LibraryFieldConfig = {
+    focusLabel: "Focus",
+    focusPlaceholder: "Push, pull, legs...",
+    equipmentLabel: "Equipment",
+    equipmentPlaceholder: "Barbell",
+    metricLabel: "Metric",
+    metricPlaceholder: "Weight x reps",
+    setsLabel: "Suggested sets",
+    setsPlaceholder: "3",
+    repsLabel: "Suggested reps / time",
+    repsPlaceholder: "5-8",
+    defaults: {
+      metric: "Weight x reps",
+      suggestedSets: "3",
+      suggestedReps: "5-8",
+    },
+  };
+
+  if (["cardio", "run", "class", "other"].includes(normalizedType) || profile === "time") {
+    return {
+      ...base,
+      focusLabel: "Style",
+      focusPlaceholder: "Easy, intervals, recovery...",
+      equipmentLabel: "Equipment",
+      equipmentPlaceholder: "Road, treadmill, bike, rower...",
+      metricLabel: "Tracking",
+      metricPlaceholder: "Distance / time",
+      setsLabel: "Suggested minutes",
+      setsPlaceholder: "30",
+      repsLabel: "Distance / detail",
+      repsPlaceholder: "5 km, zone 2...",
+      defaults: { metric: "Distance / time", suggestedSets: "", suggestedReps: "" },
+    };
+  }
+
+  if (normalizedType === "skills/calisthenics" || profile === "reps") {
+    return {
+      ...base,
+      focusLabel: "Skill area",
+      focusPlaceholder: "Push, pull, legs, skill...",
+      equipmentLabel: "Assistance / load",
+      equipmentPlaceholder: "Bodyweight / rings / bar / assistance",
+      metricLabel: "Tracking",
+      metricPlaceholder: "Reps",
+      repsLabel: "Suggested total reps",
+      repsPlaceholder: "6-10",
+      defaults: {
+        equipment: "Bodyweight / Assistance / Added weight",
+        metric: "Reps",
+        suggestedSets: "3",
+        suggestedReps: "6-10",
+      },
+    };
+  }
+
+  if (normalizedType === "grip" || profile === "hold" || profile === "grip") {
+    return {
+      ...base,
+      focusLabel: profile === "grip" ? "Grip style" : "Progression",
+      focusPlaceholder: profile === "grip" ? "Open hand, pinch..." : "Tuck, straddle...",
+      equipmentLabel: profile === "grip" ? "Load / implement" : "Assistance",
+      equipmentPlaceholder: profile === "grip" ? "Hangboard, pinch block..." : "Wall, band, rings...",
+      metricLabel: "Tracking",
+      metricPlaceholder: "Attempts / hold / feel",
+      setsLabel: "Suggested attempts",
+      setsPlaceholder: "3",
+      repsLabel: "Suggested hold",
+      repsPlaceholder: "10-20 sec",
+      defaults: { metric: "Attempts / hold / feel", suggestedSets: "3", suggestedReps: "" },
+    };
+  }
+
+  if (normalizedType === "mobility/flexibility" || profile === "mobility_position") {
+    return {
+      ...base,
+      focusLabel: "Position group",
+      focusPlaceholder: "Flexibility",
+      equipmentLabel: "Equipment",
+      equipmentPlaceholder: "Mat, wall, floor...",
+      metricLabel: "Tracking",
+      metricPlaceholder: "Distance / hold / feel",
+      setsLabel: "Suggested hold",
+      setsPlaceholder: "60 sec",
+      repsLabel: "Target / detail",
+      repsPlaceholder: "Distance, depth, feel...",
+      defaults: { equipment: "Mat", metric: "Distance / hold / feel", suggestedSets: "", suggestedReps: "" },
+    };
+  }
+
+  if (profile === "climbing") {
+    return {
+      ...base,
+      focusLabel: "Climbing style",
+      focusPlaceholder: "Bouldering, ropes, board...",
+      equipmentLabel: "Venue / board",
+      equipmentPlaceholder: "Climbing gym, Kilter board...",
+      metricLabel: "Tracking",
+      metricPlaceholder: "Hours / boulders / grade",
+      setsLabel: "Suggested hours",
+      setsPlaceholder: "2",
+      repsLabel: "Problems / routes",
+      repsPlaceholder: "10-20",
+      defaults: { equipment: "Climbing gym", metric: "Hours / boulders / grade", suggestedSets: "", suggestedReps: "" },
+    };
+  }
+
+  if (normalizedType === "conditioning" || profile === "carry" || profile === "conditioning") {
+    return {
+      ...base,
+      focusLabel: "Style",
+      focusPlaceholder: "Carry, circuit, conditioning...",
+      equipmentLabel: "Load / equipment",
+      equipmentPlaceholder: "Kettlebell, dumbbell, sled...",
+      metricLabel: "Tracking",
+      metricPlaceholder: profile === "carry" ? "Rounds / distance / load" : "Minutes / rounds / load",
+      setsLabel: profile === "carry" ? "Suggested rounds" : "Suggested minutes",
+      setsPlaceholder: profile === "carry" ? "4" : "10",
+      repsLabel: "Detail",
+      repsPlaceholder: profile === "carry" ? "20 m" : "Rounds, reps per minute...",
+      defaults: { metric: profile === "carry" ? "Rounds / distance / load" : "Minutes / rounds / load" },
+    };
+  }
+
+  return base;
+}
+
+function withTypeDefaults(form: typeof BLANK, workoutType: string, config: LibraryFieldConfig) {
+  return {
+    ...form,
+    workoutType,
+    focusArea: form.focusArea || config.defaults.focusArea || "",
+    equipment: form.equipment || config.defaults.equipment || "",
+    metric: form.metric || config.defaults.metric || "",
+    suggestedSets: form.suggestedSets || config.defaults.suggestedSets || "",
+    suggestedReps: form.suggestedReps || config.defaults.suggestedReps || "",
+    notes: form.notes || config.defaults.notes || "",
+  };
+}
 
 function LibraryPage() {
   const qc = useQueryClient();
@@ -471,6 +627,21 @@ function ExerciseEditorDialog({
 
   const update = <K extends keyof typeof BLANK>(k: K, v: (typeof BLANK)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
+  const profile = getMovementMetricProfile({
+    workoutType: form.workoutType,
+    movement: form.name,
+    defaultMetric: form.metric,
+  });
+  const fieldConfig = libraryConfigFor(form.workoutType, profile);
+  const updateType = (workoutType: string) => {
+    const nextProfile = getMovementMetricProfile({
+      workoutType,
+      movement: form.name,
+      defaultMetric: form.metric,
+    });
+    const nextConfig = libraryConfigFor(workoutType, nextProfile);
+    setForm((f) => withTypeDefaults(f, workoutType, nextConfig));
+  };
 
   const open = state.mode !== "closed";
 
@@ -499,53 +670,60 @@ function ExerciseEditorDialog({
           }}
           className="space-y-3"
         >
+          <Field label="Type">
+            <DatalistInput
+              value={form.workoutType}
+              onChange={updateType}
+              options={workoutTypes}
+              placeholder="Choose type first"
+              listId="lib-types"
+              autoFocus
+            />
+          </Field>
           <Field label="Name">
             <Input
-              autoFocus
               value={form.name}
               onChange={(e) => update("name", e.target.value)}
               placeholder="e.g. Bench Press"
               autoCapitalize="words"
             />
           </Field>
-          <Field label="Type">
-            <DatalistInput
-              value={form.workoutType}
-              onChange={(v) => update("workoutType", v)}
-              options={workoutTypes}
-              placeholder="Strength"
-              listId="lib-types"
-            />
-          </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Equipment">
+            <Field label={fieldConfig.focusLabel}>
+              <Input
+                value={form.focusArea}
+                onChange={(e) => update("focusArea", e.target.value)}
+                placeholder={fieldConfig.focusPlaceholder}
+              />
+            </Field>
+            <Field label={fieldConfig.equipmentLabel}>
               <Input
                 value={form.equipment}
                 onChange={(e) => update("equipment", e.target.value)}
-                placeholder="Barbell"
-              />
-            </Field>
-            <Field label="Metric">
-              <Input
-                value={form.metric}
-                onChange={(e) => update("metric", e.target.value)}
-                placeholder="Weight x reps"
+                placeholder={fieldConfig.equipmentPlaceholder}
               />
             </Field>
           </div>
+          <Field label={fieldConfig.metricLabel}>
+            <Input
+              value={form.metric}
+              onChange={(e) => update("metric", e.target.value)}
+              placeholder={fieldConfig.metricPlaceholder}
+            />
+          </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Suggested sets">
+            <Field label={fieldConfig.setsLabel}>
               <Input
                 value={form.suggestedSets}
                 onChange={(e) => update("suggestedSets", e.target.value)}
-                placeholder="3"
+                placeholder={fieldConfig.setsPlaceholder}
               />
             </Field>
-            <Field label="Suggested reps / time">
+            <Field label={fieldConfig.repsLabel}>
               <Input
                 value={form.suggestedReps}
                 onChange={(e) => update("suggestedReps", e.target.value)}
-                placeholder="5-8"
+                placeholder={fieldConfig.repsPlaceholder}
               />
             </Field>
           </div>
@@ -602,16 +780,19 @@ function DatalistInput({
   options,
   placeholder,
   listId,
+  autoFocus = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   options: string[];
   placeholder?: string;
   listId: string;
+  autoFocus?: boolean;
 }) {
   return (
     <>
       <Input
+        autoFocus={autoFocus}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
