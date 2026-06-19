@@ -761,6 +761,8 @@ After a workout/climb is saved, the Log form clears all fields back to a fresh b
 
 Before saving a workout or climb, the app checks for an existing same-date, same-movement entry in Supabase. If one exists, it shows an app dialog asking whether to save another anyway.
 
+The Log tab has a trial `Full workout` mode alongside the existing single-movement logger. It creates one `sessions` row with multiple `session_entries`, uses one shared date/session name/duration/intensity/RPE/notes section, and lets each movement keep the same adaptive fields as the single logger. The existing single-movement logger should remain available. This feature was added as a reversible trial; if Noam dislikes it, revert the single commit that introduced it.
+
 Climbing:
 
 - Type: `Climbing`

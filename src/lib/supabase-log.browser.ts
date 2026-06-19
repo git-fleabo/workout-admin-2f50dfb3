@@ -186,6 +186,17 @@ export type WorkoutLogInput = {
   detail: string;
 };
 
+export type WorkoutSessionInput = {
+  date: string;
+  title: string;
+  duration: string;
+  intensity: string;
+  rpe: string;
+  completed: boolean;
+  notes: string;
+  entries: WorkoutLogInput[];
+};
+
 export type ClimbLogInput = {
   date: string;
   type: string;
@@ -529,6 +540,104 @@ export async function addWorkoutClient(data: WorkoutLogInput) {
           }),
         ),
       );
+    }
+  } catch (error) {
+    await supabasePublicDelete("sessions", { id: `eq.${session.id}` }).catch(() => undefined);
+    throw error;
+  }
+
+  return { ok: true, row: session.source_row ?? "Supabase" };
+}
+
+export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
+  const person = await requirePerson();
+  const rpe = toNum(data.rpe);
+  const durationMinutes = toNum(data.duration);
+  const entries = data.entries.filter((entry) => entry.exercise.trim());
+  if (!entries.length) throw new Error("Add at least one movement.");
+
+  const insertedSession = await supabasePublicInsert<{ id: string; source_row: number | null }>(
+    "sessions",
+    {
+      person_id: person.id,
+      activity_type_id: null,
+      session_date: data.date,
+      title: data.title.trim() || "Workout",
+      source: "manual",
+      completed: data.completed,
+      duration_minutes: durationMinutes,
+      intensity: data.intensity || null,
+      rpe,
+      notes: data.notes || null,
+      source_sheet: "Workout Log",
+    },
+  );
+  const session = insertedSession[0];
+  if (!session) throw new Error("Workout was not saved.");
+
+  try {
+    for (const [index, entryData] of entries.entries()) {
+      const [activityType, exercise] = await Promise.all([
+        getOrCreateActivityType(entryData.workoutType || "Other"),
+        findExercise(entryData.exercise),
+      ]);
+      const entryKind =
+        entryData.entryKind ||
+        (entryData.workoutType === SKILL_WORKOUT_TYPE
+          ? "Skill"
+          : entryData.workoutType === GRIP_WORKOUT_TYPE
+            ? GRIP_WORKOUT_TYPE
+            : "Workout");
+
+      const insertedEntry = await supabasePublicInsert<{ id: string }>("session_entries", {
+        session_id: session.id,
+        exercise_id: exercise?.id ?? null,
+        activity_type_id: activityType?.id ?? exercise?.activity_type_id ?? null,
+        entry_kind: entryKind,
+        name: entryData.exercise,
+        progression_level: entryData.progressionLevel || null,
+        order_index: index,
+        completed: entryData.completed,
+        notes: entryData.notes || null,
+        source_sheet: "Workout Log",
+      });
+      const entry = insertedEntry[0];
+      if (!entry) throw new Error(`${entryData.exercise} was not saved.`);
+
+      await supabasePublicInsert("entry_sets", {
+        session_entry_id: entry.id,
+        set_number: toNum(entryData.sets),
+        reps: toNum(entryData.reps),
+        weight: toNum(entryData.weight),
+        duration_seconds: toNum(entryData.holdSeconds),
+        distance: toNum(entryData.distance),
+        distance_unit: entryData.distanceUnit || null,
+        rpe: toNum(entryData.rpe) ?? rpe,
+        rest_time: entryData.restTime || null,
+        assistance_type: entryData.assistanceType || null,
+        assistance_detail: entryData.assistanceDetail || null,
+        quality: entryData.quality || null,
+        completed: entryData.completed,
+        notes: entryData.notes || null,
+      });
+
+      const metrics = [
+        { metric_key: "rounds", metric_value: toNum(entryData.rounds) },
+        { metric_key: "feel", metric_value: toNum(entryData.feel) },
+        { metric_key: "height", metric_value: toNum(entryData.height), metric_unit: "cm" },
+        { metric_key: "detail", metric_text: entryData.detail || null },
+      ].filter((metric) => metric.metric_value != null || metric.metric_text);
+      if (metrics.length) {
+        await supabasePublicInsert(
+          "entry_metrics",
+          metrics.map((metric) =>
+            metricRow({
+              session_entry_id: entry.id,
+              ...metric,
+            }),
+          ),
+        );
+      }
     }
   } catch (error) {
     await supabasePublicDelete("sessions", { id: `eq.${session.id}` }).catch(() => undefined);

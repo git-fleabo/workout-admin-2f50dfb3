@@ -23,6 +23,7 @@ import {
 
 import {
   addClimbClient,
+  addWorkoutSessionClient,
   addWorkoutClient,
   BOARD_GRADIENTS,
   deleteSessionClient,
@@ -133,6 +134,17 @@ type FormState = {
   detail: string;
 };
 
+type SessionFormState = {
+  date: string;
+  title: string;
+  duration: string;
+  intensity: string;
+  rpe: string;
+  completed: boolean;
+  notes: string;
+  entries: FormState[];
+};
+
 const blank = (defaultWorkoutType = ""): FormState => ({
   date: today(),
   entryKind: defaultWorkoutType === SKILL_WORKOUT_TYPE ? "Skill" : "",
@@ -167,6 +179,17 @@ const blank = (defaultWorkoutType = ""): FormState => ({
   detail: "",
 });
 
+const blankSession = (): SessionFormState => ({
+  date: today(),
+  title: "Workout",
+  duration: "",
+  intensity: "",
+  rpe: "",
+  completed: true,
+  notes: "",
+  entries: [blank()],
+});
+
 function recentSetRepSummary(sets: string, reps: string) {
   return [
     sets ? `${sets} ${sets === "1" ? "set" : "sets"}` : "",
@@ -192,9 +215,7 @@ export function WorkoutForm({
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
   const libraryExercises =
-    lib.data?.exercises && lib.data.exercises.length > 0
-      ? lib.data.exercises
-      : FALLBACK_MOVEMENTS;
+    lib.data?.exercises && lib.data.exercises.length > 0 ? lib.data.exercises : FALLBACK_MOVEMENTS;
   const workoutTypeOptions =
     lib.data?.workoutTypes && lib.data.workoutTypes.length > 0
       ? Array.from(
@@ -215,16 +236,11 @@ export function WorkoutForm({
     }
     const ex = libraryExercises;
     if (!form.workoutType) return ex;
-    return ex.filter(
-      (e) => !form.workoutType || e.workoutType === form.workoutType,
-    );
+    return ex.filter((e) => !form.workoutType || e.workoutType === form.workoutType);
   }, [libraryExercises, form.workoutType]);
 
   const selectedExercise = useMemo(
-    () =>
-      libraryExercises.find(
-        (e) => e.name.toLowerCase() === form.exercise.trim().toLowerCase(),
-      ),
+    () => libraryExercises.find((e) => e.name.toLowerCase() === form.exercise.trim().toLowerCase()),
     [libraryExercises, form.exercise],
   );
   const selectedExerciseMeta =
@@ -244,12 +260,10 @@ export function WorkoutForm({
     form.workoutType === GRIP_WORKOUT_TYPE ||
     selectedExercise?.workoutType === GRIP_WORKOUT_TYPE;
   const isYoga =
-    form.workoutType === YOGA_WORKOUT_TYPE ||
-    selectedExercise?.workoutType === YOGA_WORKOUT_TYPE;
+    form.workoutType === YOGA_WORKOUT_TYPE || selectedExercise?.workoutType === YOGA_WORKOUT_TYPE;
   const isClimbing = form.workoutType === CLIMBING_WORKOUT_TYPE;
   const isClass =
-    form.workoutType === CLASS_WORKOUT_TYPE ||
-    selectedExercise?.workoutType === CLASS_WORKOUT_TYPE;
+    form.workoutType === CLASS_WORKOUT_TYPE || selectedExercise?.workoutType === CLASS_WORKOUT_TYPE;
   const isKilter = form.exercise === "Kilter";
   const usesStandardSets = profileUsesStandardSets(metricProfile);
   const usesLoad = profileUsesLoad(metricProfile);
@@ -531,10 +545,14 @@ export function WorkoutForm({
             duration: r.duration ?? f.duration,
             rpe: r.rpe ?? f.rpe,
             progressionLevel: r.progressionLevel ?? f.progressionLevel,
-            gripStyle: r.entryKind === GRIP_WORKOUT_TYPE ? r.progressionLevel ?? f.gripStyle : f.gripStyle,
+            gripStyle:
+              r.entryKind === GRIP_WORKOUT_TYPE ? (r.progressionLevel ?? f.gripStyle) : f.gripStyle,
             holdSeconds: r.holdSeconds ?? f.holdSeconds,
             assistanceType: r.assistanceType ?? f.assistanceType,
-            gripLoadType: r.entryKind === GRIP_WORKOUT_TYPE ? r.assistanceType ?? f.gripLoadType : f.gripLoadType,
+            gripLoadType:
+              r.entryKind === GRIP_WORKOUT_TYPE
+                ? (r.assistanceType ?? f.gripLoadType)
+                : f.gripLoadType,
             assistanceDetail: r.assistanceDetail ?? f.assistanceDetail,
             quality: r.quality ?? f.quality,
           }));
@@ -552,17 +570,279 @@ export function WorkoutForm({
           <AlertDialogHeader>
             <AlertDialogTitle>Already logged today</AlertDialogTitle>
             <AlertDialogDescription>
-              {form.exercise} already has an entry on {formatUKDate(form.date)}. Save another one anyway?
+              {form.exercise} already has an entry on {formatUKDate(form.date)}. Save another one
+              anyway?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => submit(true)}>
-              Save anyway
-            </AlertDialogAction>
+            <AlertDialogAction onClick={() => submit(true)}>Save anyway</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+export function FullWorkoutForm() {
+  const qc = useQueryClient();
+  const lib = useQuery({ queryKey: ["library"], queryFn: getLibraryClient });
+  const [form, setForm] = useState<SessionFormState>(() => blankSession());
+  const libraryExercises =
+    lib.data?.exercises && lib.data.exercises.length > 0 ? lib.data.exercises : FALLBACK_MOVEMENTS;
+  const workoutTypeOptions =
+    lib.data?.workoutTypes && lib.data.workoutTypes.length > 0
+      ? lib.data.workoutTypes.filter(
+          (type) => type !== "Bouldering" && type !== "Sport" && type !== CLIMBING_WORKOUT_TYPE,
+        )
+      : FALLBACK_WORKOUT_TYPES.filter((type) => type !== CLIMBING_WORKOUT_TYPE);
+
+  const update = <K extends keyof SessionFormState>(k: K, v: SessionFormState[K]) =>
+    setForm((current) => ({ ...current, [k]: v }));
+  const updateEntry = <K extends keyof FormState>(index: number, key: K, value: FormState[K]) =>
+    setForm((current) => ({
+      ...current,
+      entries: current.entries.map((entry, i) =>
+        i === index ? { ...entry, [key]: value } : entry,
+      ),
+    }));
+  const addEntry = () =>
+    setForm((current) => ({
+      ...current,
+      entries: [...current.entries, blank()],
+    }));
+  const removeEntry = (index: number) =>
+    setForm((current) => ({
+      ...current,
+      entries:
+        current.entries.length === 1
+          ? current.entries
+          : current.entries.filter((_, i) => i !== index),
+    }));
+
+  const mutate = useMutation({
+    mutationFn: () =>
+      addWorkoutSessionClient({
+        date: form.date,
+        title: form.title,
+        duration: form.duration,
+        intensity: form.intensity,
+        rpe: form.rpe,
+        completed: form.completed,
+        notes: form.notes,
+        entries: form.entries.map((entry) => {
+          const selected = libraryExercises.find(
+            (exercise) => exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
+          );
+          const profile = getMovementMetricProfile({
+            workoutType: selected?.workoutType ?? entry.workoutType,
+            movement: entry.exercise,
+            defaultMetric: selected?.metric,
+          });
+          const isSkill =
+            entry.workoutType === SKILL_WORKOUT_TYPE ||
+            selected?.workoutType === SKILL_WORKOUT_TYPE;
+          const isGrip =
+            entry.workoutType === GRIP_WORKOUT_TYPE || selected?.workoutType === GRIP_WORKOUT_TYPE;
+          const isYoga =
+            entry.workoutType === YOGA_WORKOUT_TYPE || selected?.workoutType === YOGA_WORKOUT_TYPE;
+
+          return {
+            ...entry,
+            date: form.date,
+            workoutType: selected?.workoutType ?? entry.workoutType,
+            focusArea: "",
+            completed: form.completed,
+            progressionLevel: isGrip ? entry.gripStyle : entry.progressionLevel,
+            assistanceType: isGrip ? entry.gripLoadType : entry.assistanceType,
+            entryKind:
+              isYoga || profile === "time" || profile === "conditioning"
+                ? "Workout"
+                : isGrip
+                  ? GRIP_WORKOUT_TYPE
+                  : isSkill
+                    ? "Skill"
+                    : entry.entryKind || "Workout",
+          };
+        }),
+      }),
+    onSuccess: () => {
+      toast.success("Workout session saved", {
+        description: `${form.entries.filter((entry) => entry.exercise).length} movements were added.`,
+      });
+      setForm(blankSession());
+      qc.invalidateQueries({ queryKey: ["recent-workouts"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["prs"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const canSubmit =
+    form.date && form.entries.some((entry) => entry.exercise.trim()) && !mutate.isPending;
+
+  return (
+    <div className="space-y-6">
+      <Card className="space-y-5 border-border bg-card p-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold">Full workout</h2>
+          <Badge variant="outline" className="gap-1 border-border text-muted-foreground">
+            <Calendar className="h-3 w-3" /> {formatUKDate(form.date)}
+          </Badge>
+        </div>
+
+        <Field label="Date">
+          <DateInput value={form.date} onChange={(v) => update("date", v)} />
+        </Field>
+        <Field label="Session name">
+          <Input value={form.title} onChange={(e) => update("title", e.target.value)} />
+        </Field>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Minutes">
+            <Input
+              inputMode="numeric"
+              value={form.duration}
+              onChange={(e) => update("duration", e.target.value)}
+            />
+          </Field>
+          <Field label="Intensity">
+            <SimpleSelect
+              value={form.intensity}
+              onChange={(v) => update("intensity", v)}
+              options={lib.data?.intensities ?? []}
+            />
+          </Field>
+          <Field label="RPE">
+            <Input
+              inputMode="decimal"
+              value={form.rpe}
+              onChange={(e) => update("rpe", e.target.value)}
+            />
+          </Field>
+        </div>
+        <Field label="Session notes">
+          <Textarea
+            rows={2}
+            value={form.notes}
+            onChange={(e) => update("notes", e.target.value)}
+            placeholder="Overall workout notes..."
+          />
+        </Field>
+      </Card>
+
+      <div className="space-y-3">
+        {form.entries.map((entry, index) => {
+          const exerciseOptions =
+            entry.workoutType === CLIMBING_WORKOUT_TYPE
+              ? []
+              : libraryExercises.filter(
+                  (exercise) => !entry.workoutType || exercise.workoutType === entry.workoutType,
+                );
+          const selectedExercise = libraryExercises.find(
+            (exercise) => exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
+          );
+          const profile = getMovementMetricProfile({
+            workoutType: selectedExercise?.workoutType ?? entry.workoutType,
+            movement: entry.exercise,
+            defaultMetric: selectedExercise?.metric,
+          });
+          const isGrip =
+            entry.entryKind === GRIP_WORKOUT_TYPE ||
+            entry.workoutType === GRIP_WORKOUT_TYPE ||
+            selectedExercise?.workoutType === GRIP_WORKOUT_TYPE;
+
+          return (
+            <Card key={index} className="space-y-4 border-border bg-card p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold">Movement {index + 1}</h3>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeEntry(index)}
+                  disabled={form.entries.length === 1}
+                >
+                  Remove
+                </Button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Type">
+                  <SimpleSelect
+                    value={entry.workoutType}
+                    onChange={(v) => {
+                      updateEntry(index, "workoutType", v);
+                      updateEntry(
+                        index,
+                        "entryKind",
+                        v === SKILL_WORKOUT_TYPE
+                          ? "Skill"
+                          : v === GRIP_WORKOUT_TYPE
+                            ? GRIP_WORKOUT_TYPE
+                            : "Workout",
+                      );
+                      updateEntry(index, "exercise", "");
+                    }}
+                    options={workoutTypeOptions}
+                  />
+                </Field>
+                <Field label="Movement">
+                  <SimpleSelect
+                    value={entry.exercise}
+                    onChange={(v) => updateEntry(index, "exercise", v)}
+                    options={exerciseOptions.map((exercise) => exercise.name)}
+                    placeholder="Select movement"
+                    noneLabel="Select"
+                  />
+                </Field>
+              </div>
+              <MetricFields
+                profile={profile}
+                form={entry}
+                update={(key, value) => updateEntry(index, key, value)}
+                intensities={lib.data?.intensities ?? []}
+                qualities={lib.data?.qualities ?? []}
+                assistanceTypes={lib.data?.assistanceTypes ?? []}
+                usesLoad={profileUsesLoad(profile)}
+                usesStandardSets={profileUsesStandardSets(profile)}
+                isGrip={isGrip}
+                showIntensity={entry.workoutType === CLASS_WORKOUT_TYPE}
+              />
+              <Field label="Movement notes">
+                <Textarea
+                  rows={2}
+                  value={entry.notes}
+                  onChange={(e) => updateEntry(index, "notes", e.target.value)}
+                  placeholder="Movement-specific notes..."
+                />
+              </Field>
+            </Card>
+          );
+        })}
+      </div>
+
+      <Button type="button" variant="outline" className="w-full" onClick={addEntry}>
+        <Plus className="mr-1 h-4 w-4" /> Add movement
+      </Button>
+
+      <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/50 px-3 py-2">
+        <Label className="text-sm">Completed</Label>
+        <Switch checked={form.completed} onCheckedChange={(v) => update("completed", v)} />
+      </div>
+
+      <Button
+        onClick={() => mutate.mutate()}
+        disabled={!canSubmit}
+        className="h-12 w-full text-base font-semibold"
+        style={{ backgroundImage: "var(--gradient-primary)", color: "var(--primary-foreground)" }}
+      >
+        {mutate.isPending ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : (
+          <>
+            <Plus className="mr-1 h-5 w-5" /> Save full workout
+          </>
+        )}
+      </Button>
     </div>
   );
 }
@@ -594,13 +874,25 @@ function MetricFields({
     return (
       <div className="grid gap-3 sm:grid-cols-3">
         <Field label="Distance (cm)">
-          <Input inputMode="decimal" value={form.distance} onChange={(e) => update("distance", e.target.value)} />
+          <Input
+            inputMode="decimal"
+            value={form.distance}
+            onChange={(e) => update("distance", e.target.value)}
+          />
         </Field>
         <Field label="Hold (sec)">
-          <Input inputMode="decimal" value={form.holdSeconds} onChange={(e) => update("holdSeconds", e.target.value)} />
+          <Input
+            inputMode="decimal"
+            value={form.holdSeconds}
+            onChange={(e) => update("holdSeconds", e.target.value)}
+          />
         </Field>
         <Field label="Feel (1-5)">
-          <Input inputMode="decimal" value={form.feel} onChange={(e) => update("feel", e.target.value)} />
+          <Input
+            inputMode="decimal"
+            value={form.feel}
+            onChange={(e) => update("feel", e.target.value)}
+          />
         </Field>
       </div>
     );
@@ -611,13 +903,25 @@ function MetricFields({
       <div className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Minutes">
-            <Input inputMode="numeric" value={form.duration} onChange={(e) => update("duration", e.target.value)} />
+            <Input
+              inputMode="numeric"
+              value={form.duration}
+              onChange={(e) => update("duration", e.target.value)}
+            />
           </Field>
           <Field label="Distance">
-            <Input inputMode="decimal" value={form.distance} onChange={(e) => update("distance", e.target.value)} />
+            <Input
+              inputMode="decimal"
+              value={form.distance}
+              onChange={(e) => update("distance", e.target.value)}
+            />
           </Field>
           <Field label="Feel / RPE">
-            <Input inputMode="decimal" value={form.feel || form.rpe} onChange={(e) => update("feel", e.target.value)} />
+            <Input
+              inputMode="decimal"
+              value={form.feel || form.rpe}
+              onChange={(e) => update("feel", e.target.value)}
+            />
           </Field>
         </div>
         {showIntensity && <IntensityRow form={form} update={update} intensities={intensities} />}
@@ -630,16 +934,32 @@ function MetricFields({
       <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
         <div className="grid gap-3 sm:grid-cols-4">
           <Field label="Rounds">
-            <Input inputMode="numeric" value={form.sets} onChange={(e) => update("sets", e.target.value)} />
+            <Input
+              inputMode="numeric"
+              value={form.sets}
+              onChange={(e) => update("sets", e.target.value)}
+            />
           </Field>
           <Field label="Distance">
-            <Input inputMode="decimal" value={form.distance} onChange={(e) => update("distance", e.target.value)} />
+            <Input
+              inputMode="decimal"
+              value={form.distance}
+              onChange={(e) => update("distance", e.target.value)}
+            />
           </Field>
           <Field label="Time">
-            <Input inputMode="numeric" value={form.duration} onChange={(e) => update("duration", e.target.value)} />
+            <Input
+              inputMode="numeric"
+              value={form.duration}
+              onChange={(e) => update("duration", e.target.value)}
+            />
           </Field>
           <Field label="Load">
-            <Input inputMode="decimal" value={form.weight} onChange={(e) => update("weight", e.target.value)} />
+            <Input
+              inputMode="decimal"
+              value={form.weight}
+              onChange={(e) => update("weight", e.target.value)}
+            />
           </Field>
         </div>
         <IntensityRow form={form} update={update} intensities={intensities} />
@@ -652,21 +972,40 @@ function MetricFields({
       <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Attempts">
-            <Input inputMode="numeric" value={form.sets} onChange={(e) => update("sets", e.target.value)} />
+            <Input
+              inputMode="numeric"
+              value={form.sets}
+              onChange={(e) => update("sets", e.target.value)}
+            />
           </Field>
           <Field label="Hold (sec)">
-            <Input inputMode="decimal" value={form.holdSeconds} onChange={(e) => update("holdSeconds", e.target.value)} />
+            <Input
+              inputMode="decimal"
+              value={form.holdSeconds}
+              onChange={(e) => update("holdSeconds", e.target.value)}
+            />
           </Field>
           <Field label="Feel / RPE">
-            <Input inputMode="decimal" value={form.feel || form.rpe} onChange={(e) => update("feel", e.target.value)} />
+            <Input
+              inputMode="decimal"
+              value={form.feel || form.rpe}
+              onChange={(e) => update("feel", e.target.value)}
+            />
           </Field>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={isGrip ? "Grip style" : "Progression"}>
             {isGrip ? (
-              <SimpleSelect value={form.gripStyle} onChange={(v) => update("gripStyle", v)} options={GRIP_STYLES} />
+              <SimpleSelect
+                value={form.gripStyle}
+                onChange={(v) => update("gripStyle", v)}
+                options={GRIP_STYLES}
+              />
             ) : (
-              <Input value={form.progressionLevel} onChange={(e) => update("progressionLevel", e.target.value)} />
+              <Input
+                value={form.progressionLevel}
+                onChange={(e) => update("progressionLevel", e.target.value)}
+              />
             )}
           </Field>
           <Field label={isGrip ? "Load type" : "Assistance"}>
@@ -696,18 +1035,34 @@ function MetricFields({
       <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Minutes">
-            <Input inputMode="numeric" value={form.duration} onChange={(e) => update("duration", e.target.value)} />
+            <Input
+              inputMode="numeric"
+              value={form.duration}
+              onChange={(e) => update("duration", e.target.value)}
+            />
           </Field>
           <Field label="Rounds">
-            <Input inputMode="numeric" value={form.rounds || form.sets} onChange={(e) => update("rounds", e.target.value)} />
+            <Input
+              inputMode="numeric"
+              value={form.rounds || form.sets}
+              onChange={(e) => update("rounds", e.target.value)}
+            />
           </Field>
           <Field label="Load">
-            <Input inputMode="decimal" value={form.weight} onChange={(e) => update("weight", e.target.value)} />
+            <Input
+              inputMode="decimal"
+              value={form.weight}
+              onChange={(e) => update("weight", e.target.value)}
+            />
           </Field>
         </div>
         <IntensityRow form={form} update={update} intensities={intensities} />
         <Field label="Detail">
-          <Input value={form.detail} onChange={(e) => update("detail", e.target.value)} placeholder="e.g. reps per minute" />
+          <Input
+            value={form.detail}
+            onChange={(e) => update("detail", e.target.value)}
+            placeholder="e.g. reps per minute"
+          />
         </Field>
       </div>
     );
@@ -718,21 +1073,41 @@ function MetricFields({
       <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Sets">
-            <Input inputMode="numeric" value={form.sets} onChange={(e) => update("sets", e.target.value)} />
+            <Input
+              inputMode="numeric"
+              value={form.sets}
+              onChange={(e) => update("sets", e.target.value)}
+            />
           </Field>
           <Field label="Jumps">
-            <Input inputMode="numeric" value={form.reps} onChange={(e) => update("reps", e.target.value)} />
+            <Input
+              inputMode="numeric"
+              value={form.reps}
+              onChange={(e) => update("reps", e.target.value)}
+            />
           </Field>
           <Field label="Height (cm)">
-            <Input inputMode="decimal" value={form.height} onChange={(e) => update("height", e.target.value)} />
+            <Input
+              inputMode="decimal"
+              value={form.height}
+              onChange={(e) => update("height", e.target.value)}
+            />
           </Field>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Quality">
-            <SimpleSelect value={form.quality} onChange={(v) => update("quality", v)} options={qualities} />
+            <SimpleSelect
+              value={form.quality}
+              onChange={(v) => update("quality", v)}
+              options={qualities}
+            />
           </Field>
           <Field label="RPE">
-            <Input inputMode="decimal" value={form.rpe} onChange={(e) => update("rpe", e.target.value)} />
+            <Input
+              inputMode="decimal"
+              value={form.rpe}
+              onChange={(e) => update("rpe", e.target.value)}
+            />
           </Field>
         </div>
       </div>
@@ -743,31 +1118,60 @@ function MetricFields({
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-3">
         <Field label="Sets">
-          <Input inputMode="numeric" value={form.sets} onChange={(e) => update("sets", e.target.value)} />
+          <Input
+            inputMode="numeric"
+            value={form.sets}
+            onChange={(e) => update("sets", e.target.value)}
+          />
         </Field>
         <Field label="Reps">
-          <Input inputMode="numeric" pattern="[0-9]*" value={form.reps} onChange={(e) => update("reps", e.target.value)} />
+          <Input
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={form.reps}
+            onChange={(e) => update("reps", e.target.value)}
+          />
         </Field>
         {usesLoad && (
           <Field label="Weight">
-            <Input inputMode="decimal" value={form.weight} onChange={(e) => update("weight", e.target.value)} />
+            <Input
+              inputMode="decimal"
+              value={form.weight}
+              onChange={(e) => update("weight", e.target.value)}
+            />
           </Field>
         )}
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <Field label="Min">
-          <Input inputMode="numeric" value={form.duration} onChange={(e) => update("duration", e.target.value)} />
+          <Input
+            inputMode="numeric"
+            value={form.duration}
+            onChange={(e) => update("duration", e.target.value)}
+          />
         </Field>
         <Field label="Intensity">
-          <SimpleSelect value={form.intensity} onChange={(v) => update("intensity", v)} options={intensities} />
+          <SimpleSelect
+            value={form.intensity}
+            onChange={(v) => update("intensity", v)}
+            options={intensities}
+          />
         </Field>
         <Field label="RPE">
-          <Input inputMode="decimal" value={form.rpe} onChange={(e) => update("rpe", e.target.value)} />
+          <Input
+            inputMode="decimal"
+            value={form.rpe}
+            onChange={(e) => update("rpe", e.target.value)}
+          />
         </Field>
       </div>
       {usesStandardSets && (
         <Field label="Rest between sets">
-          <SimpleSelect value={form.restTime} onChange={(v) => update("restTime", v)} options={REST_OPTIONS} />
+          <SimpleSelect
+            value={form.restTime}
+            onChange={(v) => update("restTime", v)}
+            options={REST_OPTIONS}
+          />
         </Field>
       )}
     </div>
@@ -786,10 +1190,18 @@ function IntensityRow({
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <Field label="Intensity">
-        <SimpleSelect value={form.intensity} onChange={(v) => update("intensity", v)} options={intensities} />
+        <SimpleSelect
+          value={form.intensity}
+          onChange={(v) => update("intensity", v)}
+          options={intensities}
+        />
       </Field>
       <Field label="RPE">
-        <Input inputMode="decimal" value={form.rpe} onChange={(e) => update("rpe", e.target.value)} />
+        <Input
+          inputMode="decimal"
+          value={form.rpe}
+          onChange={(e) => update("rpe", e.target.value)}
+        />
       </Field>
     </div>
   );
