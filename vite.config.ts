@@ -7,18 +7,30 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { execSync } from "node:child_process";
 
-function buildCommit() {
+function buildId() {
+  const envCommit = [
+    process.env.GITHUB_SHA,
+    process.env.VERCEL_GIT_COMMIT_SHA,
+    process.env.CF_PAGES_COMMIT_SHA,
+    process.env.NETLIFY_COMMIT_REF,
+    process.env.COMMIT_SHA,
+    process.env.SOURCE_VERSION,
+    process.env.RENDER_GIT_COMMIT,
+    process.env.LOVABLE_GIT_COMMIT_SHA,
+  ].find(Boolean);
+  if (envCommit) return envCommit.slice(0, 7);
+
   try {
     return execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
   } catch {
-    return process.env.GITHUB_SHA?.slice(0, 7) || "local";
+    return new Date().toISOString().replace(/[-:]/g, "").slice(0, 13);
   }
 }
 
 export default defineConfig({
   vite: {
     define: {
-      __APP_COMMIT__: JSON.stringify(buildCommit()),
+      __APP_BUILD_ID__: JSON.stringify(buildId()),
     },
   },
   tanstackStart: {

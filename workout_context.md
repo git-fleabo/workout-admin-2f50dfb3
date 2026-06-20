@@ -904,7 +904,7 @@ Earlier important commits:
 
 ## Known Gotchas
 
-- Lovable preview can lag behind GitHub. Use the build label to confirm the preview commit.
+- Lovable preview can lag behind GitHub. Use the build label to confirm the preview build. The label prefers commit metadata when the build environment exposes it, then falls back to a build timestamp rather than `local`.
 - Lovable cache clearing can use tokens.
 - Lovable auto-fixes can remove intentional wiring. In particular, keep `Toaster` mounted in `src/routes/__root.tsx` so success/error messages render.
 - Do not add service-role keys to Lovable/browser code.
