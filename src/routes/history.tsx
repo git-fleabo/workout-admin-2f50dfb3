@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   Award,
   CalendarDays,
@@ -11,6 +12,7 @@ import {
   Mountain,
   Scale,
   Search,
+  Trash2,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -20,16 +22,19 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatUKDate, formatUKDateShort } from "@/lib/date";
+import { deleteSessionClient } from "@/lib/supabase-log.browser";
 import {
   getTimelineDataClient,
   type TimelineEntry,
   type TimelineKind,
 } from "@/lib/supabase-timeline.browser";
 import { cn } from "@/lib/utils";
+import { DeleteConfirmDialog, type DeleteTarget } from "./-form-bits";
 
 export const Route = createFileRoute("/history")({
   head: () => ({
@@ -37,7 +42,8 @@ export const Route = createFileRoute("/history")({
       { title: "History · Training Admin" },
       {
         name: "description",
-        content: "Browse workout, climbing, strength and bodyweight history by week, month or quarter.",
+        content:
+          "Browse workout, climbing, strength and bodyweight history by week, month or quarter.",
       },
     ],
   }),
@@ -140,15 +146,32 @@ function kindMeta(kind: TimelineKind) {
 }
 
 function HistoryPage() {
+  const qc = useQueryClient();
   const [mode, setMode] = useState<PeriodMode>("month");
   const [anchor, setAnchor] = useState(() => startOfPeriod(new Date(), "month"));
   const [filter, setFilter] = useState<KindFilter>("all");
   const [selected, setSelected] = useState<TimelineEntry | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
 
   const timeline = useQuery({
     queryKey: ["timeline"],
     queryFn: () => getTimelineDataClient(),
     staleTime: 60_000,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteSessionClient(id),
+    onSuccess: () => {
+      toast.success("Session deleted");
+      setDeleteTarget(null);
+      setSelected(null);
+      qc.invalidateQueries({ queryKey: ["timeline"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["recent-workouts"] });
+      qc.invalidateQueries({ queryKey: ["recent-climbs"] });
+      qc.invalidateQueries({ queryKey: ["exercise-history"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const start = startOfPeriod(anchor, mode);
@@ -207,7 +230,9 @@ function HistoryPage() {
 
   if (timeline.error || !timeline.data) {
     const message =
-      timeline.error instanceof Error ? timeline.error.message : "Check the Supabase connection and try again.";
+      timeline.error instanceof Error
+        ? timeline.error.message
+        : "Check the Supabase connection and try again.";
     return <Card className="p-6 text-sm text-destructive">Couldn’t load history. {message}</Card>;
   }
 
@@ -217,7 +242,8 @@ function HistoryPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">History</h1>
           <p className="text-sm text-muted-foreground">
-            {periodLabel(start, mode)} · {summary.entries} entries · {summary.activeDays} active days
+            {periodLabel(start, mode)} · {summary.entries} entries · {summary.activeDays} active
+            days
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -230,7 +256,9 @@ function HistoryPage() {
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <div className="min-w-[150px] text-center text-sm font-medium">{periodLabel(start, mode)}</div>
+          <div className="min-w-[150px] text-center text-sm font-medium">
+            {periodLabel(start, mode)}
+          </div>
           <Button
             variant="outline"
             size="icon"
@@ -317,7 +345,9 @@ function HistoryPage() {
                             <h2 className="truncate text-sm font-semibold text-foreground">
                               {entry.title}
                             </h2>
-                            {entry.isPr && <Badge className="h-5 bg-amber-500 text-black">PR</Badge>}
+                            {entry.isPr && (
+                              <Badge className="h-5 bg-amber-500 text-black">PR</Badge>
+                            )}
                           </div>
                           <p className="mt-0.5 text-xs text-muted-foreground">{entry.subtitle}</p>
                           {entry.details.length > 0 && (
@@ -362,11 +392,43 @@ function HistoryPage() {
                     {selected.notes}
                   </div>
                 )}
+                {selected.sessionId && (
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={deleteMutation.isPending}
+                      onClick={() =>
+                        setDeleteTarget({
+                          id: selected.sessionId ?? "",
+                          title: selected.title,
+                          description: `${selected.title} from ${formatUKDate(
+                            selected.date,
+                          )} will be permanently removed from your log. If this was a multi-exercise session, the whole session will be removed.`,
+                        })
+                      }
+                      className="border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    >
+                      {deleteMutation.isPending ? (
+                        <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="mr-1 h-4 w-4" />
+                      )}
+                      Delete session
+                    </Button>
+                  </DialogFooter>
+                )}
               </div>
             </>
           )}
         </DialogContent>
       </Dialog>
+      <DeleteConfirmDialog
+        target={deleteTarget}
+        busy={deleteMutation.isPending}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={(id) => deleteMutation.mutate(id)}
+      />
     </div>
   );
 }

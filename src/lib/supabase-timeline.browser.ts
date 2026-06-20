@@ -74,6 +74,7 @@ export type TimelineKind = "workout" | "climb" | "one_rm" | "bodyweight";
 
 export type TimelineEntry = {
   id: string;
+  sessionId: string | null;
   kind: TimelineKind;
   date: string;
   title: string;
@@ -171,6 +172,7 @@ function workoutEntry(session: SessionRecord, entry: SessionEntryRecord): Timeli
 
   return {
     id: `workout-${entry.id}`,
+    sessionId: session.id,
     kind: "workout",
     date: session.session_date,
     title: entry.name,
@@ -203,6 +205,7 @@ function climbEntry(session: SessionRecord, entry?: SessionEntryRecord): Timelin
 
   return {
     id: `climb-${session.id}`,
+    sessionId: session.id,
     kind: "climb",
     date: session.session_date,
     title: session.title ?? entry?.name ?? "Climbing",
@@ -230,6 +233,7 @@ function oneRmEntry(row: OneRMRecord): TimelineEntry {
 
   return {
     id: `one-rm-${row.id}`,
+    sessionId: null,
     kind: "one_rm",
     date: row.test_date,
     title: row.exercise_name,
@@ -246,6 +250,7 @@ function bodyweightEntry(row: BodyweightRecord): TimelineEntry {
   const bodyweight = toNum(row.bodyweight);
   return {
     id: `bodyweight-${row.id}`,
+    sessionId: null,
     kind: "bodyweight",
     date: row.logged_date,
     title: bodyweight != null ? `${compactNumber(bodyweight)}kg` : "Bodyweight",

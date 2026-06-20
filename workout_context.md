@@ -822,6 +822,7 @@ Top-level History tab includes:
 - summary tiles
 - entries grouped by date
 - click/tap detail dialog
+- delete from the detail dialog for session-backed workout/climb entries, including Strength Block Builder sessions
 
 History workout counts should also count same-day workout exercises as one workout in the summary.
 
