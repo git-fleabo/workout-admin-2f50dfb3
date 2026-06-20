@@ -1,6 +1,6 @@
 # Workout App Context
 
-Last updated: 2026-06-19
+Last updated: 2026-06-20
 
 This file is the handoff document for the Training Admin workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
 
@@ -735,6 +735,8 @@ Programme-template decision:
 The dashboard reads from Supabase and shows weekly training, climbing, strength, monthly summaries, recent PRs, and long-term trend data.
 
 Workout counts should count distinct workout days, not individual exercise rows. Logging multiple exercises on the same day should still count as one workout in summary stats.
+
+Dashboard workout counts/details should include any completed non-climbing session with completed entries, regardless of `source_sheet`. This keeps manually sent Strength Block Builder sessions visible in the dashboard when they already appear in History.
 
 The dashboard should remain focused. Weekly workout and weekly active-minute goals should stay visible. Do not reintroduce a bulky active-goals panel without a fresh decision.
 

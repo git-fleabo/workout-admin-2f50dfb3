@@ -194,8 +194,8 @@ function isClimbing(session: SessionRecord, entry?: SessionEntryRecord) {
   return labels.includes("climb") || labels.includes("boulder");
 }
 
-function isWorkoutLog(session: SessionRecord) {
-  return session.source_sheet === "Workout Log";
+function countsAsWorkout(entries: SessionEntryRecord[]) {
+  return entries.length > 0;
 }
 
 function assistanceInfo(set: EntrySetRecord | undefined) {
@@ -441,7 +441,7 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
     }
 
     for (const entry of entries) {
-      const counts = isWorkoutLog(session);
+      const counts = countsAsWorkout(entries);
       const minutes = entryMinutes(entry, session);
       const minutesSafe = Number.isFinite(minutes) ? minutes : 0;
 
