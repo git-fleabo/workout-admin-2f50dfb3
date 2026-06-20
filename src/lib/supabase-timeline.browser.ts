@@ -102,6 +102,15 @@ const toNum = (value: unknown): number | null => {
 
 const clean = (value: unknown) => (value == null ? "" : value.toString().trim());
 
+function combineNotes(...values: unknown[]) {
+  const notes: string[] = [];
+  for (const value of values) {
+    const note = clean(value);
+    if (note && !notes.includes(note)) notes.push(note);
+  }
+  return notes.join("\n");
+}
+
 function metricNumber(metrics: EntryMetricRecord[] | null | undefined, key: string) {
   const row = metrics?.find((m) => m.metric_key === key);
   return toNum(row?.metric_value ?? row?.metric_text);
@@ -178,7 +187,7 @@ function workoutEntry(session: SessionRecord, entry: SessionEntryRecord): Timeli
     title: entry.name,
     subtitle: session.title ?? "Workout",
     details,
-    notes: [entry.notes, session.notes].map(clean).filter(Boolean).join("\n"),
+    notes: combineNotes(entry.notes, session.notes),
     minutes: minutes || null,
     value: null,
     isPr: false,
@@ -211,7 +220,7 @@ function climbEntry(session: SessionRecord, entry?: SessionEntryRecord): Timelin
     title: session.title ?? entry?.name ?? "Climbing",
     subtitle: entry?.name ?? session.activity_types?.name ?? "Climb",
     details,
-    notes: [entry?.notes, session.notes].map(clean).filter(Boolean).join("\n"),
+    notes: combineNotes(entry?.notes, session.notes),
     minutes: minutes || null,
     value: hours ?? boulders ?? null,
     isPr: false,

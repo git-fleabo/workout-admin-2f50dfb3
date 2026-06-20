@@ -826,6 +826,8 @@ Top-level History tab includes:
 
 History workout counts should also count same-day workout exercises as one workout in the summary.
 
+History detail notes combine movement-level and session-level notes, but exact duplicate note text should be shown once. Single-exercise logs currently save the same note to both places, so the timeline mapper dedupes before rendering the detail dialog.
+
 ## Key Files
 
 - `src/components/admin-shell.tsx`: main shell, navigation, build label, sign out.
