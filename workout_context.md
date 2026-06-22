@@ -103,6 +103,14 @@ Known Lovable preview reference found in metadata:
 
 ## Supabase
 
+### Shared Training Database
+
+This app uses the shared Training Admin Supabase database. Before database, auth, RLS, schema, migration, or cross-app data work, read:
+
+- /Users/noam/Documents/Codex/SHARED_TRAINING_DATABASE_CONTEXT.md
+
+Shared project ref/id: dvcdghmcqqfvlbzufpyy.
+
 Supabase project:
 
 - Name: `Training Admin`
