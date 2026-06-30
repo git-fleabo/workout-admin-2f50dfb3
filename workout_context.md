@@ -336,7 +336,7 @@ Important active library decisions:
 - Mobility/Flexibility active positions include `Side Split`, `Pancake`, `Pike`, `Bridge`, `Shoulder Flexion`, plus existing mobility/stretch items moved from `Stretching`.
 - Cardio movements: `Jog`, `Run`, `Bike`, `Row`, `Sprint`; old combined `Run / Bike / Row` is inactive.
 - Calisthenics muscle-up tracking is split into `Bar Muscle-Up` and `Ring Muscle-Up`; previous `Muscle-Up` logs/tests were renamed to `Ring Muscle-Up`.
-- Skills/Calisthenics active movements include `Handstand Pushups`, `Pistol Squats`, `Pushups`, and `1-Arm Pushups`.
+- Skills/Calisthenics active movements include `Handstand Pushups`, `Pistol Squat`, `Pushups`, and `1-Arm Pushups`.
 - Conditioning includes power-style movements such as `Box Jumps`.
 - Class movements: `Yoga Class`, `Pilates Class`, `Strength Class`, `Conditioning Class`.
 - `Other Session` exists as a catch-all.
@@ -766,6 +766,8 @@ Workout `Reps` means total reps across all sets. Calculations that need reps per
 Recent workout summaries on the log screen should display sets and reps as separate labels, for example `3 sets · 12 total reps`, because reps are total reps across all sets rather than reps per set.
 
 The PR tab groups calisthenics/skill PRs by normalized skill name. For each skill, it should show at most one best hold and one best reps item, with progression and assistance details inside the same skill card rather than repeated cards such as multiple `Front Lever` or `Pistol Squat` rows caused by progression, assistance, casing, spacing, or punctuation differences.
+
+Live Supabase library and logs were standardized on `Pistol Squat` instead of `Pistol Squats`.
 
 Successful logs should show confirmation messages. Delete confirmations should use app dialogs, not browser-native popups.
 

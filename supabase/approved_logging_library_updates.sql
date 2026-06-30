@@ -120,6 +120,21 @@ set exercise_name = 'Ring Muscle-Up',
     updated_at = now()
 where lower(exercise_name) = 'muscle-up';
 
+update public.exercises
+set name = 'Pistol Squat',
+    updated_at = now()
+where name = 'Pistol Squats';
+
+update public.session_entries
+set name = 'Pistol Squat',
+    updated_at = now()
+where name = 'Pistol Squats';
+
+update public.one_rm_tests
+set exercise_name = 'Pistol Squat',
+    updated_at = now()
+where exercise_name = 'Pistol Squats';
+
 with desired(type_name, name, focus_area, equipment, default_metric, suggested_sets, suggested_reps, notes) as (
   values
     ('Cardio', 'Jog', 'Easy', null, 'Distance / time', null, null, 'Easy pace; track distance, time, RPE/feel and notes.'),
@@ -130,7 +145,7 @@ with desired(type_name, name, focus_area, equipment, default_metric, suggested_s
     ('Skills/Calisthenics', 'Bar Muscle-Up', 'Pull', 'Bar / Bodyweight / Assistance / Added weight', 'Reps', '3', '6-10', 'Track total reps across all sets, assistance or added load as needed.'),
     ('Skills/Calisthenics', 'Ring Muscle-Up', 'Pull', 'Rings / Bodyweight / Assistance / Added weight', 'Reps', '3', '6-10', 'Track total reps across all sets, assistance or added load as needed.'),
     ('Skills/Calisthenics', 'Handstand Pushups', 'Push', 'Wall / parallettes / bodyweight', 'Reps', '3', '6-10', 'Track total reps across all sets and assistance or deficit as needed.'),
-    ('Skills/Calisthenics', 'Pistol Squats', 'Legs', 'Bodyweight / assistance / added load', 'Reps', '3', '6-10', 'Track total reps across all sets and assistance or added load as needed.'),
+    ('Skills/Calisthenics', 'Pistol Squat', 'Legs', 'Bodyweight / assistance / added load', 'Reps', '3', '6-10', 'Track total reps across all sets and assistance or added load as needed.'),
     ('Skills/Calisthenics', 'Pushups', 'Push', 'Bodyweight / added load', 'Reps', '3', '10-20', 'Track total reps across all sets and variation details in notes.'),
     ('Skills/Calisthenics', '1-Arm Pushups', 'Push', 'Bodyweight / assistance', 'Reps', '3', '3-8', 'Track total reps across all sets and assistance or progression details in notes.'),
     ('Class', 'Yoga Class', 'Class', 'Mat', 'Minutes', null, null, 'Use notes for venue, instructor, class style and difficulty.'),
@@ -176,7 +191,7 @@ with desired(type_name, name, focus_area, equipment, default_metric, suggested_s
     ('Skills/Calisthenics', 'Bar Muscle-Up', 'Pull', 'Bar / Bodyweight / Assistance / Added weight', 'Reps', '3', '6-10', 'Track total reps across all sets, assistance or added load as needed.'),
     ('Skills/Calisthenics', 'Ring Muscle-Up', 'Pull', 'Rings / Bodyweight / Assistance / Added weight', 'Reps', '3', '6-10', 'Track total reps across all sets, assistance or added load as needed.'),
     ('Skills/Calisthenics', 'Handstand Pushups', 'Push', 'Wall / parallettes / bodyweight', 'Reps', '3', '6-10', 'Track total reps across all sets and assistance or deficit as needed.'),
-    ('Skills/Calisthenics', 'Pistol Squats', 'Legs', 'Bodyweight / assistance / added load', 'Reps', '3', '6-10', 'Track total reps across all sets and assistance or added load as needed.'),
+    ('Skills/Calisthenics', 'Pistol Squat', 'Legs', 'Bodyweight / assistance / added load', 'Reps', '3', '6-10', 'Track total reps across all sets and assistance or added load as needed.'),
     ('Skills/Calisthenics', 'Pushups', 'Push', 'Bodyweight / added load', 'Reps', '3', '10-20', 'Track total reps across all sets and variation details in notes.'),
     ('Skills/Calisthenics', '1-Arm Pushups', 'Push', 'Bodyweight / assistance', 'Reps', '3', '3-8', 'Track total reps across all sets and assistance or progression details in notes.'),
     ('Class', 'Yoga Class', 'Class', 'Mat', 'Minutes', null, null, 'Use notes for venue, instructor, class style and difficulty.'),
