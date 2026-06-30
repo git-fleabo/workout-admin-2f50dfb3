@@ -10,6 +10,7 @@ export function PRsView() {
     queryKey: ["prs"],
     queryFn: getPRsClient,
   });
+  const skillGroups = groupSkillPRs(data?.skills ?? []);
 
   return (
     <div className="space-y-6">
@@ -28,9 +29,7 @@ export function PRsView() {
               key={pr.exercise}
               className="flex items-start gap-3 border-border bg-card p-3"
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs font-mono text-muted-foreground">
-                {formatUKDateShort(pr.date)}
-              </div>
+              <DateBadge date={pr.date} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                   <p className="truncate font-medium">{pr.exercise}</p>
@@ -56,34 +55,66 @@ export function PRsView() {
           <Card className="p-4 text-sm text-muted-foreground">No skill PRs yet.</Card>
         )}
         <div className="space-y-2">
-          {data?.skills.map((pr, i) => (
+          {skillGroups.map((group) => (
             <Card
-              key={`${pr.skill}-${pr.progression}-${pr.metric}-${i}`}
+              key={group.skill}
               className="flex items-start gap-3 border-border bg-card p-3"
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs font-mono text-muted-foreground">
-                {formatUKDateShort(pr.date)}
-              </div>
+              <DateBadge date={group.latestDate} />
               <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate font-medium">{pr.skill}</p>
-                  <span className="shrink-0 text-sm font-semibold text-primary">
-                    {pr.value}
-                    {pr.unit === "s" ? "s" : ` ${pr.unit}`}
-                  </span>
+                <p className="truncate font-medium">{group.skill}</p>
+                <div className="mt-1 space-y-1">
+                  {group.items.map((pr) => (
+                    <div
+                      key={`${pr.skill}-${pr.metric}`}
+                      className="flex items-start justify-between gap-2"
+                    >
+                      <p className="min-w-0 truncate text-xs text-muted-foreground">
+                        {[pr.progression, pr.metric === "hold" ? "Best hold" : "Best reps"]
+                          .filter(Boolean)
+                          .join(" · ")}
+                        {pr.assistance === "assisted" &&
+                          ` · Assisted${pr.assistanceLabel ? `: ${pr.assistanceLabel}` : ""}`}
+                      </p>
+                      <span className="shrink-0 text-sm font-semibold text-primary">
+                        {pr.value}
+                        {pr.unit === "s" ? "s" : ` ${pr.unit}`}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-                <p className="truncate text-xs text-muted-foreground">
-                  {[pr.progression, pr.metric === "hold" ? "Best hold" : "Best reps"]
-                    .filter(Boolean)
-                    .join(" · ")}
-                  {pr.assistance === "assisted" &&
-                    ` · Assisted${pr.assistanceLabel ? `: ${pr.assistanceLabel}` : ""}`}
-                </p>
               </div>
             </Card>
           ))}
         </div>
       </section>
+    </div>
+  );
+}
+
+type SkillPR = Awaited<ReturnType<typeof getPRsClient>>["skills"][number];
+
+function groupSkillPRs(skills: SkillPR[]) {
+  const groups = new Map<string, { skill: string; latestDate: string; items: SkillPR[] }>();
+  for (const pr of skills) {
+    const group = groups.get(pr.skill) ?? { skill: pr.skill, latestDate: pr.date, items: [] };
+    group.items.push(pr);
+    if (pr.date > group.latestDate) group.latestDate = pr.date;
+    groups.set(pr.skill, group);
+  }
+
+  return Array.from(groups.values())
+    .map((group) => ({
+      ...group,
+      items: group.items.sort((a, b) => a.metric.localeCompare(b.metric)),
+    }))
+    .sort((a, b) => a.skill.localeCompare(b.skill));
+}
+
+function DateBadge({ date }: { date: string }) {
+  return (
+    <div className="flex h-10 w-12 shrink-0 items-center justify-center rounded-lg bg-secondary px-1 text-center font-mono text-xs leading-none text-muted-foreground tabular-nums">
+      {formatUKDateShort(date)}
     </div>
   );
 }

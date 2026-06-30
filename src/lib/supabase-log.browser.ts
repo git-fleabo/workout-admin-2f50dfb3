@@ -913,6 +913,21 @@ export async function getPRsClient() {
     assistanceAmount?: number | null;
   };
   const skillBest = new Map<string, SkillPR>();
+  const isBetterSkillPR = (
+    value: number,
+    assistanceAmount: number | null,
+    assisted: boolean,
+    current: SkillPR | undefined,
+  ) => {
+    if (!current) return true;
+    if (value !== current.value) return value > current.value;
+    if (assisted !== (current.assistance === "assisted")) return !assisted;
+    if (assistanceAmount != null && current.assistanceAmount != null) {
+      return assistanceAmount < current.assistanceAmount;
+    }
+    return false;
+  };
+
   for (const row of skills) {
     const workoutType = row.activity_types?.name ?? row.sessions?.activity_types?.name ?? "";
     if (row.entry_kind !== "Skill" && workoutType !== SKILL_WORKOUT_TYPE) continue;
@@ -935,18 +950,9 @@ export async function getPRsClient() {
       assistanceAmount,
     };
     const consider = (metric: "hold" | "reps", value: number, unit: string) => {
-      const key = `${base.skill}::${base.progression}::${metric}::${base.assistance}`;
+      const key = `${base.skill}::${metric}`;
       const current = skillBest.get(key);
-      const currentValue = current?.value ?? null;
-      if (currentValue != null && value < currentValue) return;
-      if (
-        currentValue === value &&
-        assistanceAmount != null &&
-        current?.assistanceAmount != null &&
-        assistanceAmount >= current.assistanceAmount
-      ) {
-        return;
-      }
+      if (!isBetterSkillPR(value, assistanceAmount ?? null, assisted, current)) return;
       skillBest.set(key, { ...base, metric, value, unit });
     };
     const hold = toNum(set?.duration_seconds);
