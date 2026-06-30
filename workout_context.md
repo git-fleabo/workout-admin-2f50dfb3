@@ -765,7 +765,7 @@ Workout `Reps` means total reps across all sets. Calculations that need reps per
 
 Recent workout summaries on the log screen should display sets and reps as separate labels, for example `3 sets · 12 total reps`, because reps are total reps across all sets rather than reps per set.
 
-The PR tab groups calisthenics/skill PRs by skill name. For each skill, it should show at most one best hold and one best reps item, with progression and assistance details inside the same skill card rather than repeated cards such as multiple `Front Lever` rows.
+The PR tab groups calisthenics/skill PRs by normalized skill name. For each skill, it should show at most one best hold and one best reps item, with progression and assistance details inside the same skill card rather than repeated cards such as multiple `Front Lever` or `Pistol Squat` rows caused by progression, assistance, casing, spacing, or punctuation differences.
 
 Successful logs should show confirmation messages. Delete confirmations should use app dialogs, not browser-native popups.
 

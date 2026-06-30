@@ -249,6 +249,15 @@ const toNum = (value: unknown): number | null => {
 
 const asText = (value: unknown) => (value == null ? "" : value.toString());
 
+function movementKey(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 function repsPerSet(totalReps: number | null, sets: number | null) {
   if (totalReps == null || totalReps <= 0) return null;
   if (sets == null || sets <= 0) return Math.ceil(totalReps);
@@ -950,7 +959,7 @@ export async function getPRsClient() {
       assistanceAmount,
     };
     const consider = (metric: "hold" | "reps", value: number, unit: string) => {
-      const key = `${base.skill}::${metric}`;
+      const key = `${movementKey(base.skill)}::${metric}`;
       const current = skillBest.get(key);
       if (!isBetterSkillPR(value, assistanceAmount ?? null, assisted, current)) return;
       skillBest.set(key, { ...base, metric, value, unit });

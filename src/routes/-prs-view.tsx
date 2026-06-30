@@ -94,13 +94,23 @@ export function PRsView() {
 
 type SkillPR = Awaited<ReturnType<typeof getPRsClient>>["skills"][number];
 
+function movementKey(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 function groupSkillPRs(skills: SkillPR[]) {
   const groups = new Map<string, { skill: string; latestDate: string; items: SkillPR[] }>();
   for (const pr of skills) {
-    const group = groups.get(pr.skill) ?? { skill: pr.skill, latestDate: pr.date, items: [] };
+    const key = movementKey(pr.skill);
+    const group = groups.get(key) ?? { skill: pr.skill.trim(), latestDate: pr.date, items: [] };
     group.items.push(pr);
     if (pr.date > group.latestDate) group.latestDate = pr.date;
-    groups.set(pr.skill, group);
+    groups.set(key, group);
   }
 
   return Array.from(groups.values())
