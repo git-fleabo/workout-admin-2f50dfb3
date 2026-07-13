@@ -976,8 +976,12 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - A loaded set now offers `Add drop / strip set`. The first segment is the normal set row; each subsequent drop gets a thumb-friendly card with load, reps, RPE, rest, and full/partial range controls. The next weight is suggested from the method's configured percentage drop, but every value remains editable. Removing the final drop returns the set to a normal straight set.
 - Draft normalization, repeat-last-set, same-day correction, and recent-workout copies preserve segment configuration. The finish summary includes drop-segment reps and volume, session detail shows the complete ordered sequence, and the History/Progress mapper replaces the parent with its segments for reps, maximum load, estimated 1RM, and volume so work is not double counted.
 - A live authenticated-role test inserted an 80 kg x 8 segment and a 68 kg x 10 drop, then read 2 segments, 18 reps, and 1,320 kg volume through RLS. Deleting the temporary session cascaded to all segments and left no verification rows. The local preview remains signed out, so mobile browser interaction is still awaiting the next sign-in.
+- The same editor now supports enabled Cluster set and Rest-pause definitions. The picker chooses the method per ordinary set: clusters keep the main load and prefill `reps_per_segment`, while rest-pause efforts keep the load and configured short rest but leave reps editable. Labels change to Cluster or Effort, rather than presenting every segment as a drop.
+- Custom set methods remain selectable and Methods settings now expose `reps_per_segment` alongside segment count, percentage drop, target reps, and short rest. The saved config snapshots `system_key` when available, so drafts and recent-workout copies preserve method-specific behaviour without another schema change.
+- Finishing is blocked only when an attached set method has missing load or reps on its main/extra segments, with a visible explanation. Review counts exercise-group blocks and set-level methods together. This also corrects the drop editor's numbering: the main set is segment 1 and the first added drop/cluster/effort is segment 2.
+- A live authenticated-role test saved three Cluster segments and three Rest-pause segments through the existing RLS policy. Each method returned 6 reps and 480 kg volume, and deleting the temporary session left no verification rows. The reloaded local preview is still signed out, so UI interaction remains pending.
 
-The next Phase 5 slice should reuse the segment model for cluster and rest-pause sets, where short rests and rep clusters need different labels and defaults from load reductions.
+The next Phase 5 slice should add rep-targeting and deliberate partial-rep behaviour, including target progress and clear full-versus-partial analytics treatment.
 
 ## Key Files
 
@@ -1161,7 +1165,7 @@ Recommended next work, in order:
 8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-11. Continue Phase 5 by extending preserved set segments to cluster and rest-pause work, with method-specific labels, validation, and defaults.
+11. Continue Phase 5 with rep-targeting and deliberate partial reps, including target progress, validation, and analytics treatment.
 12. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
 13. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 14. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.

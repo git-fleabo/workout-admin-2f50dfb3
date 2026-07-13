@@ -112,7 +112,12 @@ const defaultsFor = (family: TrainingMethodFamily): TrainingMethodConfig => {
     };
   }
   if (family === "set_method") {
-    return { segments: 3, percentage_drop: 15, rest_between_segments_seconds: 15 };
+    return {
+      segments: 3,
+      reps_per_segment: 2,
+      percentage_drop: 15,
+      rest_between_segments_seconds: 15,
+    };
   }
   return { rounds: 8, block_minutes: 4, work_seconds: 20, rest_seconds: 10 };
 };
@@ -152,6 +157,7 @@ function configSummary(method: TrainingMethod) {
   if (method.family === "set_method") {
     return [
       config.segments && `${config.segments} segments`,
+      config.reps_per_segment && `${config.reps_per_segment} reps/segment`,
       config.percentage_drop && `${config.percentage_drop}% drop`,
       config.target_reps && `${config.target_reps} target reps`,
       config.rest_between_segments_seconds != null &&
@@ -451,6 +457,7 @@ function MethodEditor({
       : form.family === "set_method"
         ? [
             ["segments", "Segments / clusters"],
+            ["reps_per_segment", "Reps per cluster"],
             ["percentage_drop", "Load drop (%)"],
             ["target_reps", "Target total reps"],
             ["rest_between_segments_seconds", "Short rest (sec)"],

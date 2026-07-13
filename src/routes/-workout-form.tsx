@@ -244,6 +244,7 @@ type WorkoutSetSegmentState = {
 type WorkoutSetMethodState = {
   trainingMethodId: string;
   methodName: string;
+  systemKey?: string | null;
   segments: WorkoutSetSegmentState[];
   config: Record<string, number | string | boolean>;
 };
@@ -376,6 +377,12 @@ function normalizeSessionForm(form: SessionFormState): SessionFormState {
         Array.isArray(set.method.segments)
           ? {
               ...set.method,
+              systemKey:
+                typeof set.method.systemKey === "string"
+                  ? set.method.systemKey
+                  : typeof set.method.config?.system_key === "string"
+                    ? String(set.method.config.system_key)
+                    : null,
               segments: set.method.segments.map((segment) => ({
                 reps: String(segment.reps ?? ""),
                 weight: String(segment.weight ?? ""),
@@ -558,10 +565,15 @@ function workoutEntrySummary(entry: FormState) {
         ),
       0,
     );
-    const dropSegments = sets.reduce((total, set) => total + (set.method?.segments.length ?? 0), 0);
+    const methodSegments = sets.reduce(
+      (total, set) => total + (set.method?.segments.length ?? 0),
+      0,
+    );
     return [
       `${sets.length} ${sets.length === 1 ? "set" : "sets"}`,
-      dropSegments ? `${dropSegments} drop ${dropSegments === 1 ? "segment" : "segments"}` : "",
+      methodSegments
+        ? `${methodSegments} extra ${methodSegments === 1 ? "segment" : "segments"}`
+        : "",
       reps > 0 ? `${reps} reps` : "",
       volume > 0 ? `${Math.round(volume).toLocaleString()} kg volume` : "",
     ]
@@ -1121,7 +1133,7 @@ export function FullWorkoutForm() {
       ),
     [methods.data?.items],
   );
-  const dropSetMethods = useMemo(
+  const setMethods = useMemo(
     () =>
       (methods.data?.items ?? [])
         .filter(
@@ -1129,11 +1141,13 @@ export function FullWorkoutForm() {
             method.family === "set_method" &&
             method.isActive &&
             method.isEnabled &&
-            (method.systemKey === "drop_set" || method.systemKey == null),
+            (["drop_set", "cluster_set", "rest_pause"].includes(method.systemKey ?? "") ||
+              method.systemKey == null),
         )
         .sort(
           (left, right) =>
-            Number(right.systemKey === "drop_set") - Number(left.systemKey === "drop_set"),
+            ["drop_set", "cluster_set", "rest_pause", null].indexOf(left.systemKey) -
+            ["drop_set", "cluster_set", "rest_pause", null].indexOf(right.systemKey),
         ),
     [methods.data?.items],
   );
@@ -1437,42 +1451,57 @@ export function FullWorkoutForm() {
     if (!set) return;
     const dropPercentage = Number(method.defaultConfig.percentage_drop) || 15;
     const startingWeight = Number(set.weight);
+    const isDropSet = method.systemKey === "drop_set";
+    const isClusterSet = method.systemKey === "cluster_set";
     const suggestedWeight =
       Number.isFinite(startingWeight) && startingWeight > 0
-        ? String(Math.round(startingWeight * (1 - dropPercentage / 100) * 2) / 2)
+        ? isDropSet
+          ? String(Math.round(startingWeight * (1 - dropPercentage / 100) * 2) / 2)
+          : String(startingWeight)
         : "";
     updateSet(entryIndex, setIndex, "method", {
       trainingMethodId: method.id,
       methodName: method.name,
+      systemKey: method.systemKey,
       segments: [
         {
-          reps: "",
+          reps: isClusterSet ? String(method.defaultConfig.reps_per_segment ?? 2) : "",
           weight: suggestedWeight,
           rpe: "",
           restAfterSeconds: String(method.defaultConfig.rest_between_segments_seconds ?? 10),
           rangeOfMotion: "full",
         },
       ],
-      config: method.defaultConfig,
+      config: { ...method.defaultConfig, system_key: method.systemKey ?? "custom" },
     });
+    if (isClusterSet && !set.reps) {
+      updateSet(entryIndex, setIndex, "reps", String(method.defaultConfig.reps_per_segment ?? 2));
+    }
   };
 
   const addSetSegment = (entryIndex: number, setIndex: number) => {
     const method = form.entries[entryIndex]?.setRows[setIndex]?.method;
     if (!method) return;
     const previous = method.segments[method.segments.length - 1];
+    const set = form.entries[entryIndex]?.setRows[setIndex];
+    const systemKey = method.systemKey ?? String(method.config.system_key ?? "");
+    const isDropSet = systemKey === "drop_set" || method.methodName.toLowerCase().includes("drop");
+    const isClusterSet =
+      systemKey === "cluster_set" || method.methodName.toLowerCase().includes("cluster");
     const dropPercentage = Number(method.config.percentage_drop) || 15;
-    const previousWeight = Number(previous?.weight);
+    const previousWeight = Number(previous?.weight || set?.weight);
     const suggestedWeight =
       Number.isFinite(previousWeight) && previousWeight > 0
-        ? String(Math.round(previousWeight * (1 - dropPercentage / 100) * 2) / 2)
+        ? isDropSet
+          ? String(Math.round(previousWeight * (1 - dropPercentage / 100) * 2) / 2)
+          : String(previousWeight)
         : "";
     updateSet(entryIndex, setIndex, "method", {
       ...method,
       segments: [
         ...method.segments,
         {
-          reps: "",
+          reps: isClusterSet ? String(method.config.reps_per_segment ?? 2) : "",
           weight: suggestedWeight,
           rpe: "",
           restAfterSeconds: String(method.config.rest_between_segments_seconds ?? 10),
@@ -1678,10 +1707,20 @@ export function FullWorkoutForm() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const incompleteSetMethod = form.entries.some((entry) =>
+    entry.setRows.some(
+      (set) =>
+        set.method &&
+        (!set.reps ||
+          !set.weight ||
+          set.method.segments.some((segment) => !segment.reps || !segment.weight)),
+    ),
+  );
   const canSubmit =
     form.date &&
     form.trainingLocationId &&
     form.entries.some((entry) => entry.exercise.trim()) &&
+    !incompleteSetMethod &&
     !mutate.isPending;
   const hasDraftContent = sessionHasDraftContent(form);
   const draftTime = draftSavedAt
@@ -1693,9 +1732,15 @@ export function FullWorkoutForm() {
   );
   const totalRecordedSets = workoutEntries.reduce(
     (total, entry) =>
-      total + entry.setRows.filter((set) => set.reps || set.weight || set.rpe).length,
+      total + entry.setRows.filter((set) => set.reps || set.weight || set.rpe || set.method).length,
     0,
   );
+  const totalMethods =
+    form.methodBlocks.length +
+    workoutEntries.reduce(
+      (total, entry) => total + entry.setRows.filter((set) => Boolean(set.method)).length,
+      0,
+    );
 
   const editLastCompletedWorkout = () => {
     if (!lastCompletedWorkout) return;
@@ -2153,7 +2198,7 @@ export function FullWorkoutForm() {
                 <SetRowsEditor
                   rows={entry.setRows}
                   usesLoad={profileUsesLoad(profile)}
-                  setMethods={dropSetMethods}
+                  setMethods={setMethods}
                   previousWorkout={
                     previousWorkout
                       ? {
@@ -2231,6 +2276,11 @@ export function FullWorkoutForm() {
         <CircleCheck className="mr-1.5 h-5 w-5" />
         {editingSessionId ? "Review correction" : "Review and finish"}
       </Button>
+      {incompleteSetMethod ? (
+        <p className="text-center text-xs text-amber-300">
+          Add load and reps to every segment before finishing.
+        </p>
+      ) : null}
 
       <Dialog
         open={finishSummaryOpen}
@@ -2263,7 +2313,7 @@ export function FullWorkoutForm() {
             </div>
             <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Methods</p>
-              <p className="mt-1 text-sm font-semibold">{form.methodBlocks.length || "—"}</p>
+              <p className="mt-1 text-sm font-semibold">{totalMethods || "—"}</p>
             </div>
           </div>
 
@@ -2665,6 +2715,35 @@ function MovementPicker({
   );
 }
 
+function setMethodKind(method: WorkoutSetMethodState) {
+  const key = method.systemKey ?? String(method.config.system_key ?? "");
+  const name = method.methodName.toLowerCase();
+  if (key === "cluster_set" || name.includes("cluster")) return "cluster";
+  if (key === "rest_pause" || name.includes("rest-pause") || name.includes("rest pause")) {
+    return "rest-pause";
+  }
+  if (key === "drop_set" || name.includes("drop") || name.includes("strip")) return "drop";
+  return "segment";
+}
+
+function setMethodCopy(method: WorkoutSetMethodState) {
+  const kind = setMethodKind(method);
+  if (kind === "cluster") {
+    return { noun: "Cluster", add: "Add another cluster", intro: "Cluster 1 uses the main set." };
+  }
+  if (kind === "rest-pause") {
+    return {
+      noun: "Effort",
+      add: "Add another effort",
+      intro: "Effort 1 uses the main set before the first short pause.",
+    };
+  }
+  if (kind === "drop") {
+    return { noun: "Drop", add: "Add another drop", intro: "Segment 1 uses the main set." };
+  }
+  return { noun: "Segment", add: "Add another segment", intro: "Segment 1 uses the main set." };
+}
+
 function SetRowsEditor({
   rows,
   usesLoad,
@@ -2842,7 +2921,7 @@ function SetRowsEditor({
                 <div>
                   <p className="text-xs font-semibold text-fuchsia-200">{set.method.methodName}</p>
                   <p className="text-[10px] text-muted-foreground">
-                    Segment 1 uses the main set values above.
+                    {setMethodCopy(set.method).intro}
                   </p>
                 </div>
                 <Button
@@ -2861,14 +2940,16 @@ function SetRowsEditor({
                     className="rounded-md border border-border/70 bg-background/60 p-2"
                   >
                     <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs font-medium">Drop {segmentIndex + 1}</span>
+                      <span className="text-xs font-medium">
+                        {setMethodCopy(set.method!).noun} {segmentIndex + 2}
+                      </span>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 text-muted-foreground"
                         onClick={() => onRemoveSegment(setIndex, segmentIndex)}
-                        aria-label={`Remove drop ${segmentIndex + 1} from set ${setIndex + 1}`}
+                        aria-label={`Remove ${setMethodCopy(set.method!).noun.toLowerCase()} ${segmentIndex + 2} from set ${setIndex + 1}`}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -2944,19 +3025,30 @@ function SetRowsEditor({
                 className="mt-2 w-full"
                 onClick={() => onAddSegment(setIndex)}
               >
-                <Plus className="mr-1 h-3.5 w-3.5" /> Add another drop
+                <Plus className="mr-1 h-3.5 w-3.5" /> {setMethodCopy(set.method).add}
               </Button>
             </div>
           ) : usesLoad && setMethods.length ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="ml-0 w-full border border-dashed border-fuchsia-400/25 text-fuchsia-200 sm:ml-10 sm:w-auto"
-              onClick={() => onAddMethod(setIndex, setMethods[0])}
-            >
-              <Layers3 className="mr-1 h-3.5 w-3.5" /> Add drop / strip set
-            </Button>
+            <div className="ml-0 sm:ml-10 sm:max-w-xs">
+              <Select
+                onValueChange={(methodId) => {
+                  const method = setMethods.find((item) => item.id === methodId);
+                  if (method) onAddMethod(setIndex, method);
+                }}
+              >
+                <SelectTrigger className="border-dashed border-fuchsia-400/25 text-fuchsia-200">
+                  <Layers3 className="mr-2 h-3.5 w-3.5" />
+                  <SelectValue placeholder="Add set method" />
+                </SelectTrigger>
+                <SelectContent>
+                  {setMethods.map((method) => (
+                    <SelectItem key={method.id} value={method.id}>
+                      {method.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           ) : null}
         </div>
       ))}

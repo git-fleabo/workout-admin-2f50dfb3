@@ -223,6 +223,7 @@ export type WorkoutSetSegmentInput = {
 export type WorkoutSetMethodInput = {
   trainingMethodId: string;
   methodName: string;
+  systemKey?: string | null;
   segments: WorkoutSetSegmentInput[];
   config: Record<string, number | string | boolean>;
 };
@@ -560,6 +561,10 @@ export async function getRecentLogsClient(limit = 15) {
                 ? {
                     trainingMethodId: firstSegment.training_method_id,
                     methodName: firstSegment.method_name,
+                    systemKey:
+                      typeof firstSegment.config?.system_key === "string"
+                        ? firstSegment.config.system_key
+                        : null,
                     segments: segments.slice(1).map((segment) => ({
                       reps: asText(segment.reps),
                       weight: asText(segment.weight),

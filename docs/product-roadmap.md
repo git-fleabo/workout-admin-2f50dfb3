@@ -129,7 +129,7 @@ Goal: extend the current next-workout planner into a practical view of the comin
 - A lighter workout or full deload-week option. — implemented with an explainable recovery decision and editable mode
 - Editable recommendations with visible source sessions and reasons. — next-workout targets are editable; weekly day load is now adjustable and saved locally per account/week
 
-## Phase 5: Advanced Training Methods — groups and drop sets implemented
+## Phase 5: Advanced Training Methods — groups and segmented sets implemented
 
 Goal: plan, log, and review non-straight-set methods without hiding their actual exercise, set, rep, load, rest, and sequence data.
 
@@ -166,6 +166,12 @@ recent-workout copies retain the method; completed-session review shows the full
 timeline summaries use segment work for reps, maximum load, and volume without counting the parent set
 twice.
 
+Cluster and rest-pause sets now reuse the segment model with method-specific behaviour instead of
+appearing as renamed drop sets. Cluster work keeps the load stable and prefills the configured reps
+per cluster; rest-pause work keeps the load stable while each post-pause effort records its own reps.
+The set-method picker exposes enabled drop, cluster, rest-pause, and compatible custom definitions,
+and incomplete segment load/reps are called out before the workout can be finished.
+
 Implementation should begin with supersets/tri-sets/giant sets and drop/strip sets, then add the remaining OriGym methods. Progress and planning must continue to count the underlying exercise volume while also showing the method used.
 
 ## Phase 6: Data and Administration Refinement
@@ -196,5 +202,5 @@ exercise-level high-effort decline, and the adjusted coming week. It can keep th
 next workout lighter, or apply a week-local deload mode while retaining editable days and targets.
 
 Phase 5 is now active. The Training Methods library, ordered exercise-group logging, and preserved
-drop/strip-set segments are live. The next implementation should extend segment logging to cluster and
-rest-pause work, followed by rep-targeting, partial-rep, and timed/density logging.
+drop/strip, cluster, and rest-pause segments are live. The next implementation should add rep-targeting
+and deliberate partial-rep behaviour, followed by timed/density logging.
