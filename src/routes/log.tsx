@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Award, Dumbbell, Trophy } from "lucide-react";
 
-import { FullWorkoutForm, WorkoutForm } from "./-workout-form";
+import { FullWorkoutForm } from "./-workout-form";
 import { OneRMForm } from "./-onerm-form";
 import { PRsView } from "./-prs-view";
 
@@ -20,11 +20,8 @@ export const Route = createFileRoute("/log")({
 });
 
 type Mode = "log" | "onerm" | "prs";
-type WorkoutMode = "single" | "session";
-
 function LogPage() {
   const [mode, setMode] = useState<Mode>("log");
-  const [workoutMode, setWorkoutMode] = useState<WorkoutMode>("session");
 
   return (
     <div className="space-y-5">
@@ -32,7 +29,7 @@ function LogPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Log Training</h1>
           <p className="text-sm text-muted-foreground">
-            Add sessions directly to your training database.
+            Log one movement or a whole session in the same workout.
           </p>
         </div>
       </header>
@@ -40,51 +37,10 @@ function LogPage() {
       <ModeSwitch mode={mode} onChange={setMode} />
 
       <div className="mx-auto max-w-xl space-y-4">
-        {mode === "log" && (
-          <>
-            <WorkoutModeSwitch mode={workoutMode} onChange={setWorkoutMode} />
-            {workoutMode === "single" ? (
-              <WorkoutForm key="log-single" title="New workout, climb, or skill" />
-            ) : (
-              <FullWorkoutForm key="log-session" />
-            )}
-          </>
-        )}
+        {mode === "log" && <FullWorkoutForm key="log-session" />}
         {mode === "onerm" && <OneRMForm />}
         {mode === "prs" && <PRsView />}
       </div>
-    </div>
-  );
-}
-
-function WorkoutModeSwitch({
-  mode,
-  onChange,
-}: {
-  mode: WorkoutMode;
-  onChange: (m: WorkoutMode) => void;
-}) {
-  const tabs: { id: WorkoutMode; label: string }[] = [
-    { id: "session", label: "Full workout" },
-    { id: "single", label: "Quick log" },
-  ];
-
-  return (
-    <div className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-secondary/40 p-1">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onChange(tab.id)}
-          className={`rounded-lg px-2 py-2 text-xs font-medium transition sm:text-sm ${
-            mode === tab.id
-              ? "bg-card text-foreground shadow"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {tab.label}
-        </button>
-      ))}
     </div>
   );
 }

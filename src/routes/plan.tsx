@@ -198,7 +198,7 @@ function PlanPage() {
         return;
       }
       toast.success("Next workout saved", {
-        description: `${draft.title} will be waiting on the Full Workout logger.`,
+        description: `${draft.title} will be waiting on the workout logger.`,
       });
     },
     onError: (error: Error) => toast.error(error.message),

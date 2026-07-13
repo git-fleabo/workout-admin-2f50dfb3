@@ -152,6 +152,7 @@ RLS/settings summary:
 
 Important data files:
 
+- `docs/product-roadmap.md`: product redesign roadmap organised around Plan, Train, Review, and Adjust; Phase 1 is the unified logger.
 - `supabase/schema.sql`: local schema snapshot, may not always reflect every live data tweak.
 - `supabase/migrations/20260713100036_add_training_locations.sql`: tracked Home/Gym training-location schema, session foreign key, RLS, grants, and initial location seed.
 - `supabase/approved_logging_library_updates.sql`: idempotent data update script for approved library/logging changes.
@@ -800,7 +801,7 @@ The log screen supports:
 
 1RM logging uses Epley as the fixed/default estimate formula. The formula selector is intentionally hidden from the UI, but new rows still save `formula = 'Epley'` in `one_rm_tests`.
 
-Quick-log and legacy aggregate `Reps` mean total reps across all sets. Calculations that need reps per set use `ceil(total reps / sets)` for those single-row entries. New standard Full workout entries store each set separately, so estimated 1RM, total reps, and mixed-load volume use the exact set rows.
+Legacy quick-log aggregate `Reps` mean total reps across all sets. Calculations that need reps per set use `ceil(total reps / sets)` for those historical single-row entries. New unified-logger entries store each set separately, so estimated 1RM, total reps, and mixed-load volume use the exact set rows.
 
 Recent workout summaries on the log screen should display sets and reps as separate labels, for example `3 sets · 12 total reps`, because reps are total reps across all sets rather than reps per set.
 
@@ -814,11 +815,11 @@ After a workout/climb is saved, the Log form clears all fields back to a fresh b
 
 Before saving a workout or climb, the app checks for an existing same-date, same-movement entry in Supabase. If one exists, it shows an app dialog asking whether to save another anyway.
 
-The Log tab defaults to the movement-first `Full workout` mode. It starts with Home/Gym context, keeps session date/name/duration/intensity/RPE/notes inside an optional collapsed section, and uses a searchable movement picker without a separate type selection. The existing single-movement logger remains available as the `Quick log` path.
+The Log tab now has one workout-session composer rather than separate `Quick log` and `Full workout` modes. It starts with one blank movement, so a one-movement entry is simply a workout with one movement. It begins with Home/Gym context, keeps session date/name/duration/intensity/RPE/notes inside an optional collapsed section, and uses a searchable movement picker without a separate type selection.
 
-For standard set/reps movements, Full workout records one `entry_sets` row per real set with its own weight, reps, and RPE. Selecting a movement prefills the most recent matching set pattern; adding a set copies the previous load/reps and leaves RPE blank. Legacy single-row aggregate entries remain readable and analytics distinguish them from newer multi-row set data.
+For standard set/reps movements, the unified logger records one `entry_sets` row per real set with its own weight, reps, and RPE. Selecting a movement prefills the most recent matching set pattern; adding a set copies the previous load/reps and leaves RPE blank. Legacy single-row aggregate entries remain readable and analytics distinguish them from newer multi-row set data.
 
-Home/Gym selection is saved on `sessions.training_location_id` and remembered locally for the next full-workout entry. History details show the saved location. The Full Workout movement picker filters enabled exercises using the selected person's `person_exercises.location_scope`: Home, Gym, or Both.
+Home/Gym selection is saved on `sessions.training_location_id` and remembered locally for the next workout entry. History details show the saved location. The workout movement picker filters enabled exercises using the selected person's `person_exercises.location_scope`: Home, Gym, or Both.
 
 Climbing:
 
@@ -829,7 +830,7 @@ Climbing:
 - Gradient appears and saves only for `Kilter`
 - Climbing saves normalise metric rows before inserting `entry_metrics` because Supabase/PostgREST batch inserts require consistent object keys. Blank optional metrics are filtered out. If a detail insert fails after the session is created, the app deletes the partially created session so future duplicate checks are not blocked by half-saved data.
 - Normal workout saves should use the same cleanup behavior after creating the session: if entry, set, or metric inserts fail, delete the partially created session.
-- The Log screen movement picker respects both `person_exercises.is_enabled` and `person_exercises.location_scope` for the current person. Quick Log has no session-location selector and continues to show the full enabled list; Full Workout filters immediately after Home or Gym is selected.
+- The Log screen movement picker respects both `person_exercises.is_enabled` and `person_exercises.location_scope` for the current person and filters immediately after Home or Gym is selected.
 
 Flexible metric profiles:
 
@@ -901,9 +902,9 @@ The top-level Plan workspace builds an editable next-workout draft from recent c
 - Comfortable 5+ rep sets require a logged RPE of 8 or below before `Normal` moves load up 2.5 kg and resets the target to 3 reps. `Fresh` allows that small move without the RPE confirmation; `Tired` removes one set and reduces load by about 10%.
 - Every movement shows the source date and a plain-language reason. Suggested sets remain editable and movements can be removed.
 - `Save for later` persists the editable plan to Supabase. One current Home plan and one current Gym plan can coexist; saving a newer plan archives the older current plan for that location.
-- `Start this workout` persists the plan as accepted, then opens Full Workout with location, movements, and sets prefilled through a short-lived browser handoff.
-- Full Workout shows saved plans in a `Next workout` area with Load and Skip actions. Loading keeps every target editable.
-- Saving a Full Workout that came from a plan marks the plan completed and links it to the newly created session through `completed_session_id`.
+- `Start this workout` persists the plan as accepted, then opens the workout logger with location, movements, and sets prefilled through a short-lived browser handoff.
+- The workout logger shows saved plans in a `Next workout` area with Load and Skip actions. Loading keeps every target editable.
+- Saving a workout that came from a plan marks the plan completed and links it to the newly created session through `completed_session_id`.
 
 ### History
 
@@ -957,6 +958,7 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `supabase/migrations/20260713100036_add_training_locations.sql`: applied and tracked training-location migration.
 - `supabase/migrations/20260713105054_add_exercise_location_scope.sql`: applied and tracked per-person Home/Gym/Both exercise availability.
 - `supabase/migrations/20260713110640_add_persistent_workout_suggestions.sql`: applied and tracked persistent workout plan entries/sets, session link, indexes, grants, and RLS.
+- `docs/product-roadmap.md`: staged product redesign roadmap; the active phase is the unified workout logger.
 - `supabase/approved_logging_library_updates.sql`: reusable SQL for approved data-library changes.
 - `workout_context.md`: this handoff file; keep it current.
 
@@ -1081,15 +1083,15 @@ Recommended next work, in order:
 
 1. Push any local commits via GitHub Desktop if the branch is ahead of remote.
 2. In Lovable preview, confirm the commit label matches the latest pushed commit.
-3. Confirm app startup opens Full Workout on Log and the Dashboard nav still opens `/dashboard`.
-4. Set a few Library movements to Home-only and Gym-only, then confirm each Full Workout movement list filters correctly while Both appears in both lists.
+3. Confirm app startup opens the unified workout logger and the Dashboard nav still opens `/dashboard`.
+4. Set a few Library movements to Home-only and Gym-only, then confirm the workout movement list filters correctly while Both appears in both lists.
 5. Test Log flows for Strength, Run, Class, Mobility/Flexibility, Grip, Climbing, 1RM, and Bodyweight.
 6. Test the duplicate-log warning by trying to save the same movement twice on the same date.
-7. Test a Home and Gym full-workout save from the deployed authenticated app, including mixed-weight sets, and confirm the location appears in History.
+7. Test a one-movement save plus Home and Gym multi-movement saves from the deployed authenticated app, including mixed-weight sets, and confirm the location appears in History.
 8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-11. Decide whether the next planner iteration should support creating a plan from scratch, or move back to faster mobile movement/session logging first.
+11. Implement recoverable autosaved workout drafts from Phase 1.2 of `docs/product-roadmap.md`.
 12. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
 13. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 14. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.

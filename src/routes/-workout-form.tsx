@@ -963,8 +963,10 @@ export function FullWorkoutForm() {
       <Card className="space-y-4 border-border bg-card p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold">Build your workout</h2>
-            <p className="text-xs text-muted-foreground">Choose where, then add your movements.</p>
+            <h2 className="text-base font-semibold">Your workout</h2>
+            <p className="text-xs text-muted-foreground">
+              Choose where, then log one movement or add the whole session.
+            </p>
           </div>
           <Badge variant="outline" className="gap-1 border-border text-muted-foreground">
             <Calendar className="h-3 w-3" /> {formatUKDate(form.date)}
@@ -1152,7 +1154,7 @@ export function FullWorkoutForm() {
           <Loader2 className="h-5 w-5 animate-spin" />
         ) : (
           <>
-            <Plus className="mr-1 h-5 w-5" /> Save full workout
+            <Plus className="mr-1 h-5 w-5" /> Save workout
           </>
         )}
       </Button>
