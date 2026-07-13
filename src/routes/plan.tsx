@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { WeeklyPlanOverview } from "@/components/weekly-plan-overview";
+import { WeeklyRecoveryCard } from "@/components/weekly-recovery-card";
 import { formatUKDate, todayISO } from "@/lib/date";
 import { getLibraryClient, getRecentLogsClient } from "@/lib/supabase-log.browser";
 import { saveWorkoutPlanClient } from "@/lib/supabase-plans.browser";
@@ -33,6 +34,11 @@ import {
   type WeeklyPlanAdjustments,
   type WeeklyPlanItemKind,
 } from "@/lib/weekly-plan";
+import {
+  buildWeeklyRecoveryRecommendation,
+  readWeeklyRecoveryMode,
+  type WeeklyRecoveryMode,
+} from "@/lib/weekly-recovery";
 import {
   buildWorkoutSuggestion,
   getWorkoutBasisOptions,
@@ -89,6 +95,11 @@ function weeklyAdjustmentsStorageKey(startDate: string) {
   return `weekly-plan-adjustments:${userId}:${startDate}`;
 }
 
+function weeklyRecoveryModeStorageKey(startDate: string) {
+  const userId = getSupabaseSession()?.user.id ?? "signed-out";
+  return `weekly-recovery-mode:${userId}:${startDate}`;
+}
+
 function PlanPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -111,6 +122,7 @@ function PlanPage() {
   const [readiness, setReadiness] = useState<PlannerReadiness>("normal");
   const [basisDate, setBasisDate] = useState<string | null>(null);
   const [weeklyAdjustments, setWeeklyAdjustments] = useState<WeeklyPlanAdjustments>({});
+  const [weeklyRecoveryMode, setWeeklyRecoveryMode] = useState<WeeklyRecoveryMode>("normal");
 
   useEffect(() => {
     const storedLocation = window.localStorage.getItem(WORKOUT_PLAN_LOCATION_KEY);
@@ -150,6 +162,17 @@ function PlanPage() {
     () => buildWeeklyPlan(weeklyLogs, todayISO(), weeklyLoad.data ?? []),
     [weeklyLoad.data, weeklyLogs],
   );
+  const weeklyRecovery = useMemo(
+    () =>
+      buildWeeklyRecoveryRecommendation({
+        logs: history.data?.recent ?? [],
+        loadHistory: weeklyLoad.data ?? [],
+        plan: weeklyPlan,
+        adjustments: weeklyAdjustments,
+        today: weeklyPlan.startDate,
+      }),
+    [history.data?.recent, weeklyAdjustments, weeklyLoad.data, weeklyPlan],
+  );
   const basisOptions = useMemo(
     () => getWorkoutBasisOptions(matchingLogs, location),
     [location, matchingLogs],
@@ -177,6 +200,14 @@ function PlanPage() {
   }, [weeklyPlan.startDate]);
 
   useEffect(() => {
+    const stored = readWeeklyRecoveryMode(
+      window.localStorage.getItem(weeklyRecoveryModeStorageKey(weeklyPlan.startDate)),
+    );
+    setWeeklyRecoveryMode(stored);
+    if (stored === "deload") setReadiness("tired");
+  }, [weeklyPlan.startDate]);
+
+  useEffect(() => {
     setMovements(suggestion?.movements ?? []);
   }, [suggestion]);
 
@@ -191,6 +222,28 @@ function PlanPage() {
       );
       return next;
     });
+  };
+
+  const scrollToWorkoutBuilder = () =>
+    window.requestAnimationFrame(() =>
+      document.getElementById("next-workout-builder")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      }),
+    );
+
+  const setRecoveryMode = (mode: WeeklyRecoveryMode) => {
+    setWeeklyRecoveryMode(mode);
+    window.localStorage.setItem(weeklyRecoveryModeStorageKey(weeklyPlan.startDate), mode);
+    setReadiness(mode === "deload" ? "tired" : "normal");
+  };
+
+  const setWorkoutReadiness = (nextReadiness: PlannerReadiness) => {
+    if (weeklyRecoveryMode === "deload" && nextReadiness !== "tired") {
+      setWeeklyRecoveryMode("normal");
+      window.localStorage.setItem(weeklyRecoveryModeStorageKey(weeklyPlan.startDate), "normal");
+    }
+    setReadiness(nextReadiness);
   };
 
   const updateSet = <K extends keyof WorkoutPlanSet>(
@@ -290,14 +343,25 @@ function PlanPage() {
           adjustments={weeklyAdjustments}
           onChooseLocation={(nextLocation) => {
             setLocation(nextLocation);
-            window.requestAnimationFrame(() =>
-              document.getElementById("next-workout-builder")?.scrollIntoView({
-                behavior: "smooth",
-                block: "start",
-              }),
-            );
+            scrollToWorkoutBuilder();
           }}
           onAdjustDay={adjustWeeklyDay}
+        />
+      ) : null}
+
+      {!history.isLoading && !library.isLoading && !history.error && !library.error ? (
+        <WeeklyRecoveryCard
+          recommendation={weeklyRecovery}
+          mode={weeklyRecoveryMode}
+          onUseLighterWorkout={() => {
+            setReadiness("tired");
+            scrollToWorkoutBuilder();
+          }}
+          onApplyDeload={() => {
+            setRecoveryMode("deload");
+            scrollToWorkoutBuilder();
+          }}
+          onReturnToNormal={() => setRecoveryMode("normal")}
         />
       ) : null}
 
@@ -338,7 +402,8 @@ function PlanPage() {
               <button
                 key={option.value}
                 type="button"
-                onClick={() => setReadiness(option.value)}
+                aria-pressed={readiness === option.value}
+                onClick={() => setWorkoutReadiness(option.value)}
                 className={cn(
                   "rounded-lg border p-3 text-left transition",
                   readiness === option.value

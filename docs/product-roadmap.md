@@ -117,7 +117,7 @@ each saved recommendation's set targets with the linked completed session and la
 exceeded, partial, or not completed. Chart points, exact-history rows, and linked plan comparisons now
 open a shared full-session view with every movement and recorded set.
 
-## Phase 4: Weekly Planning and Deloads — weekly overview started
+## Phase 4: Weekly Planning and Deloads — implemented
 
 Goal: extend the current next-workout planner into a practical view of the coming week.
 
@@ -126,7 +126,7 @@ Goal: extend the current next-workout planner into a practical view of the comin
 - Exercises due for progression. — implemented for the next inferred pattern
 - Exercises showing possible fatigue. — implemented cautiously from repeated recent RPE 9+ entries
 - Other load such as climbing, running, sport, or classes. — implemented with cautious history-derived patterns and manual day choices
-- A lighter workout or full deload-week option.
+- A lighter workout or full deload-week option. — implemented with an explainable recovery decision and editable mode
 - Editable recommendations with visible source sessions and reasons. — next-workout targets are editable; weekly day load is now adjustable and saved locally per account/week
 
 ## Phase 5: Advanced Training Methods
@@ -170,8 +170,11 @@ Implementation should begin with supersets/tri-sets/giant sets and drop/strip se
 
 ## Current Focus
 
-Phase 4 is active. Plan now combines Home/Gym workouts with history-derived climbing, running, class,
+Phase 4 is complete. Plan now combines Home/Gym workouts with history-derived climbing, running, class,
 sport/conditioning, and recovery load. Every day can be adjusted, with account/week-local persistence,
-while completed history stays separate. Repeated activities can be scheduled automatically; one-offs
-are shown without being promoted into a routine. The next implementation should use the combined week,
-exercise effort, and recent performance to offer a transparent lighter-workout or deload-week option.
+while completed history stays separate. A Recovery decision combines recent and prior load, RPE 9+ days,
+exercise-level high-effort decline, and the adjusted coming week. It can keep the normal plan, make the
+next workout lighter, or apply a week-local deload mode while retaining editable days and targets.
+
+The next implementation should start Phase 5 with the Training Methods data model and library, followed
+by the first logging flows for exercise groups and within-exercise drop segments.

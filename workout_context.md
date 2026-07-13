@@ -921,6 +921,9 @@ The top-level Plan workspace builds an editable next-workout draft from recent c
 - Other-load patterns use distinct dates from the previous eight weeks. At least two source days are required before an activity is automatically placed into the coming week; a one-off remains visible as `not scheduled`.
 - Each day has an `Adjust` dialog for Home, Gym, climbing, running, class, sport/conditioning, and recovery. Adjustments are saved in local storage using the signed-in auth user ID plus seven-day start date, and `Use inferred day` removes the override. Completed items remain separate and cannot be rewritten by planning.
 - Authenticated verification found Climbing and Recovery at two inferred days per week with high confidence, while the single Class and Sport/conditioning records stayed unscheduled. A Friday Run + Class adjustment survived reload and was then reset to the inferred open day.
+- A `Recovery decision` card combines the last 14 days of strength and other training load with the preceding 14 days, counts distinct RPE 9+ days, detects a latest high-effort estimated-performance drop of at least 5% against the prior two comparable exercise dates, and checks the editable coming week for a load spike. It always shows the exact evidence rather than hiding the rules behind a score.
+- A single warning can set only the next workout to `Tired`. Stronger repeated-hard-week evidence can apply a full account/week-local deload mode, which keeps the planned training days but gives every strength suggestion one fewer set and about 10% less load until the user returns to normal.
+- The authenticated local preview showed `No deload signal yet`: 15.3 recent load points versus 14 previously, no RPE 9+ days, no exercise-level decline, and only 8% RPE coverage. Its `Use lighter next workout` action correctly selected the Tired targets without changing workout history.
 - Home and Gym are analysed separately when explicit location history exists.
 - Movements excluded from the selected location in the Library are also excluded from suggestions.
 - If the selected location has no labelled history yet, the app clearly falls back to older locationless logs instead of pretending those sessions are known to be Home or Gym.
@@ -959,6 +962,7 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `src/components/exercise-detail.tsx`: exercise history/detail visualization.
 - `src/components/session-detail-dialog.tsx`: shared responsive full-session drill-down used by Progress.
 - `src/components/weekly-plan-overview.tsx`: responsive next-seven-days strip, editable daily load, and Home/Gym pattern/signal cards.
+- `src/components/weekly-recovery-card.tsx`: explainable continue/lighter/deload status and week-mode controls.
 - `src/components/supabase-auth-gate.tsx`: email/password auth gate.
 - `src/lib/build-info.ts`: build/commit label support.
 - `src/lib/date.ts`: date helpers.
@@ -973,6 +977,7 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `src/lib/supabase-weekly-load.browser.ts`: profile-scoped non-strength session classification for weekly load inference.
 - `src/lib/workout-plan.ts`: transparent history grouping, pattern detection, progression rules, plan-draft validation, and Today-to-Plan location handoff.
 - `src/lib/weekly-plan.ts`: pure expected-day, confidence, rotation, progression, repeated-high-effort, other-load, and adjustment-validation logic for the weekly Plan overview.
+- `src/lib/weekly-recovery.ts`: pure combined-load, effort, performance-decline, and deload-decision rules.
 - `src/lib/supabase-library.browser.ts`: library and person exercise selection data functions.
 - `src/lib/supabase-goals.browser.ts`: goals and check-ins data functions.
 - `src/lib/supabase-history.browser.ts`: exercise history, completed-log exercise keys, and linked planned-versus-actual reads used by Progress.
@@ -997,7 +1002,7 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `supabase/migrations/20260713100036_add_training_locations.sql`: applied and tracked training-location migration.
 - `supabase/migrations/20260713105054_add_exercise_location_scope.sql`: applied and tracked per-person Home/Gym/Both exercise availability.
 - `supabase/migrations/20260713110640_add_persistent_workout_suggestions.sql`: applied and tracked persistent workout plan entries/sets, session link, indexes, grants, and RLS.
-- `docs/product-roadmap.md`: staged product redesign roadmap; Phase 3 Progress is complete and Phase 4 planning is next.
+- `docs/product-roadmap.md`: staged product redesign roadmap; Phase 4 planning/deloads are complete and Phase 5 advanced methods are next.
 - `supabase/approved_logging_library_updates.sql`: reusable SQL for approved data-library changes.
 - `workout_context.md`: this handoff file; keep it current.
 
@@ -1130,7 +1135,7 @@ Recommended next work, in order:
 8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-11. Continue Phase 4 with a transparent lighter-workout or deload-week option based on combined weekly load, exercise effort, and recent performance.
+11. Start Phase 5 with a stable Training Methods data model and authorised methods library, then add supersets/tri-sets/giant sets and drop/strip sets to planning and logging.
 12. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
 13. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 14. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
