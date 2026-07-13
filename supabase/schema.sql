@@ -189,6 +189,22 @@ create trigger person_exercises_set_updated_at
 before update on public.person_exercises
 for each row execute function public.set_updated_at();
 
+create table if not exists public.training_locations (
+  id uuid primary key default gen_random_uuid(),
+  person_id uuid not null references public.people(id) on delete cascade,
+  name text not null,
+  kind text not null default 'other'
+    check (kind in ('home', 'gym', 'other')),
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (person_id, name)
+);
+
+create trigger training_locations_set_updated_at
+before update on public.training_locations
+for each row execute function public.set_updated_at();
+
 create table if not exists public.sessions (
   id uuid primary key default gen_random_uuid(),
   person_id uuid not null references public.people(id) on delete cascade,
@@ -201,6 +217,7 @@ create table if not exists public.sessions (
   intensity text,
   rpe numeric,
   notes text,
+  training_location_id uuid references public.training_locations(id) on delete set null,
   source_sheet text,
   source_row integer,
   created_at timestamptz not null default now(),
@@ -211,6 +228,9 @@ create table if not exists public.sessions (
 create trigger sessions_set_updated_at
 before update on public.sessions
 for each row execute function public.set_updated_at();
+
+create index if not exists sessions_training_location_idx
+  on public.sessions (training_location_id);
 
 create table if not exists public.session_entries (
   id uuid primary key default gen_random_uuid(),
@@ -617,6 +637,7 @@ alter table public.exercises enable row level security;
 alter table public.exercise_tags enable row level security;
 alter table public.exercise_tag_links enable row level security;
 alter table public.person_exercises enable row level security;
+alter table public.training_locations enable row level security;
 alter table public.sessions enable row level security;
 alter table public.session_entries enable row level security;
 alter table public.entry_sets enable row level security;
@@ -644,6 +665,7 @@ grant select on
   public.exercise_tags,
   public.exercise_tag_links,
   public.person_exercises,
+  public.training_locations,
   public.sessions,
   public.session_entries,
   public.entry_sets,
@@ -665,6 +687,7 @@ grant insert, delete on public.goal_checkins to authenticated;
 grant insert, update on public.activity_types to authenticated;
 grant insert, update on public.exercises to authenticated;
 grant insert, update, delete on public.person_exercises to authenticated;
+grant insert, update, delete on public.training_locations to authenticated;
 grant insert on public.sessions to authenticated;
 grant insert on public.session_entries to authenticated;
 grant insert on public.entry_sets to authenticated;
@@ -782,6 +805,31 @@ create policy person_exercises_update_managed
 
 create policy person_exercises_delete_managed
   on public.person_exercises
+  for delete
+  to authenticated
+  using (app_private.person_is_accessible(person_id));
+
+create policy training_locations_select_managed
+  on public.training_locations
+  for select
+  to authenticated
+  using (app_private.person_is_accessible(person_id));
+
+create policy training_locations_insert_managed
+  on public.training_locations
+  for insert
+  to authenticated
+  with check (app_private.person_is_accessible(person_id));
+
+create policy training_locations_update_managed
+  on public.training_locations
+  for update
+  to authenticated
+  using (app_private.person_is_accessible(person_id))
+  with check (app_private.person_is_accessible(person_id));
+
+create policy training_locations_delete_managed
+  on public.training_locations
   for delete
   to authenticated
   using (app_private.person_is_accessible(person_id));

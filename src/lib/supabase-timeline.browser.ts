@@ -46,6 +46,7 @@ type SessionRecord = {
   notes: string | null;
   source_sheet: string | null;
   activity_types: ActivityTypeRef;
+  training_locations: { name: string | null; kind: string | null } | null;
   session_entries: SessionEntryRecord[] | null;
 };
 
@@ -149,16 +150,23 @@ function compactNumber(value: number) {
   return Number.isInteger(value) ? `${value}` : `${Math.round(value * 10) / 10}`;
 }
 
-function describeSet(set: EntrySetRecord | undefined) {
-  if (!set) return "";
+function describeSets(sets: EntrySetRecord[] | null | undefined) {
+  if (!sets?.length) return "";
+  const set = sets[0];
   const parts: string[] = [];
-  const setCount = toNum(set.set_number);
-  const reps = toNum(set.reps);
-  const weight = toNum(set.weight);
+  const individualSets = sets.length > 1;
+  const setCount = individualSets ? sets.length : toNum(set.set_number);
+  const reps = individualSets
+    ? sets.reduce((total, item) => total + (toNum(item.reps) ?? 0), 0)
+    : toNum(set.reps);
+  const weight = sets.reduce<number | null>((max, item) => {
+    const value = toNum(item.weight);
+    return value == null || (max != null && max >= value) ? max : value;
+  }, null);
   const duration = toNum(set.duration_seconds);
   if (setCount != null && setCount > 0) parts.push(`${compactNumber(setCount)} sets`);
   if (reps != null && reps > 0) parts.push(`${compactNumber(reps)} reps`);
-  if (weight != null && weight > 0) parts.push(`${compactNumber(weight)}kg`);
+  if (weight != null && weight > 0) parts.push(`${compactNumber(weight)}kg max`);
   if (duration != null && duration > 0) parts.push(`${compactNumber(duration)}s`);
   return parts.join(" · ");
 }
@@ -167,10 +175,11 @@ function workoutEntry(session: SessionRecord, entry: SessionEntryRecord): Timeli
   const firstSet = entry.entry_sets?.[0];
   const minutes = sessionMinutes(session, entry);
   const details = [
+    session.training_locations?.name ? `Location: ${session.training_locations.name}` : "",
     session.activity_types?.name ?? entry.activity_types?.name,
     entry.entry_kind,
     entry.progression_level,
-    describeSet(firstSet),
+    describeSets(entry.entry_sets),
     clean(firstSet?.quality) ? `Quality: ${clean(firstSet?.quality)}` : "",
     clean(firstSet?.rest_time) ? `Rest: ${clean(firstSet?.rest_time)}` : "",
     clean(firstSet?.assistance_type) && clean(firstSet?.assistance_type).toLowerCase() !== "none"
@@ -279,7 +288,7 @@ export async function getTimelineDataClient(): Promise<TimelineData> {
   const [sessions, oneRmRows, bodyweightRows] = await Promise.all([
     supabasePublicSelect<SessionRecord>("sessions", {
       select:
-        "id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name),session_entries(id,entry_kind,name,progression_level,completed,notes,source_sheet,activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
+        "id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name),training_locations(name,kind),session_entries(id,entry_kind,name,progression_level,completed,notes,source_sheet,activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
       order: "session_date.desc",
       limit: 1000,
     }),

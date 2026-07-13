@@ -77,6 +77,7 @@ export async function getExerciseHistoryClient(
     const date = row.sessions?.session_date;
     if (!date) continue;
     const sets = row.entry_sets?.length ? row.entry_sets : [{} as EntrySetRecord];
+    const individualSets = sets.length > 1;
     const point = byDate.get(date) ?? blankPoint(date);
     point.sessions += 1;
     totalRows += 1;
@@ -102,7 +103,9 @@ export async function getExerciseHistoryClient(
         if (point.maxWeight == null || weightN > point.maxWeight) point.maxWeight = weightN;
         if (repsN != null) {
           point.totalVolume += repsN * weightN;
-          const perSetReps = repsPerSet(repsN, setsKnown ? toNumber(set.set_number) : NaN);
+          const perSetReps = individualSets
+            ? repsN
+            : repsPerSet(repsN, setsKnown ? toNumber(set.set_number) : NaN);
           if (perSetReps != null) {
             const est = weightN * (1 + perSetReps / 30);
             if (point.est1RM == null || est > point.est1RM) point.est1RM = est;

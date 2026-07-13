@@ -85,6 +85,7 @@ type EntrySetRecord = {
   assistance_type: string | null;
   assistance_detail: string | null;
   quality: string | null;
+  completed: boolean | null;
 };
 
 type EntryMetricRecord = {
@@ -121,6 +122,7 @@ type SessionEntryRecord = {
     notes: string | null;
     source_sheet: string | null;
     activity_types: { name: string | null } | null;
+    training_locations: TrainingLocation | null;
   } | null;
 };
 
@@ -184,11 +186,26 @@ export type WorkoutLogInput = {
   feel: string;
   height: string;
   detail: string;
+  setRows?: WorkoutSetInput[];
+};
+
+export type WorkoutSetInput = {
+  reps: string;
+  weight: string;
+  rpe: string;
+  completed: boolean;
+};
+
+export type TrainingLocation = {
+  id: string;
+  name: string;
+  kind: "home" | "gym" | "other";
 };
 
 export type WorkoutSessionInput = {
   date: string;
   title: string;
+  trainingLocationId: string;
   duration: string;
   intensity: string;
   rpe: string;
@@ -400,6 +417,21 @@ export async function getLibraryClient() {
   };
 }
 
+export async function getTrainingLocationsClient(): Promise<TrainingLocation[]> {
+  const person = await requirePerson();
+  const rows = await supabasePublicSelect<{
+    id: string;
+    name: string;
+    kind: "home" | "gym" | "other";
+  }>("training_locations", {
+    select: "id,name,kind",
+    person_id: `eq.${person.id}`,
+    is_active: "eq.true",
+    order: "kind.asc,name.asc",
+  });
+  return rows;
+}
+
 function firstSet(entry: SessionEntryRecord) {
   return entry.entry_sets?.[0];
 }
@@ -413,7 +445,7 @@ export async function getRecentLogsClient() {
   await requirePerson();
   const rows = await supabasePublicSelect<SessionEntryRecord>("session_entries", {
     select:
-      "id,entry_kind,name,progression_level,completed,notes,source_sheet,exercises(name,focus_area,activity_types(name)),activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality),sessions!inner(id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name))",
+      "id,entry_kind,name,progression_level,completed,notes,source_sheet,exercises(name,focus_area,activity_types(name)),activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,completed),sessions!inner(id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name),training_locations(id,name,kind))",
     "sessions.source_sheet": "eq.Workout Log",
     order: "created_at.desc",
     limit: 15,
@@ -421,7 +453,18 @@ export async function getRecentLogsClient() {
 
   return {
     recent: rows.map((row) => {
-      const set = firstSet(row);
+      const sets = [...(row.entry_sets ?? [])].sort(
+        (a, b) => Number(a.set_number ?? 0) - Number(b.set_number ?? 0),
+      );
+      const set = sets[0];
+      const individualSets = sets.length > 1;
+      const totalReps = individualSets
+        ? sets.reduce((total, item) => total + (toNum(item.reps) ?? 0), 0)
+        : toNum(set?.reps);
+      const maxWeight = sets.reduce<number | null>((max, item) => {
+        const weight = toNum(item.weight);
+        return weight == null || (max != null && max >= weight) ? max : weight;
+      }, null);
       return {
         date: row.sessions?.session_date ?? "",
         id: row.sessions?.id ?? "",
@@ -432,9 +475,9 @@ export async function getRecentLogsClient() {
           "",
         focusArea: row.exercises?.focus_area ?? "",
         exercise: row.name,
-        sets: asText(set?.set_number),
-        reps: asText(set?.reps),
-        weight: asText(set?.weight),
+        sets: asText(individualSets ? sets.length : set?.set_number),
+        reps: asText(totalReps),
+        weight: asText(maxWeight ?? set?.weight),
         duration: asText(row.sessions?.duration_minutes),
         intensity: row.sessions?.intensity ?? "",
         rpe: asText(set?.rpe ?? row.sessions?.rpe),
@@ -447,6 +490,13 @@ export async function getRecentLogsClient() {
         assistanceType: set?.assistance_type ?? "",
         assistanceDetail: set?.assistance_detail ?? "",
         quality: set?.quality ?? "",
+        trainingLocation: row.sessions?.training_locations ?? null,
+        setRows: sets.map((item) => ({
+          reps: asText(item.reps),
+          weight: asText(item.weight),
+          rpe: asText(item.rpe),
+          completed: item.completed !== false,
+        })),
       };
     }),
   };
@@ -578,6 +628,7 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
       intensity: data.intensity || null,
       rpe,
       notes: data.notes || null,
+      training_location_id: data.trainingLocationId || null,
       source_sheet: "Workout Log",
     },
   );
@@ -613,22 +664,39 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
       const entry = insertedEntry[0];
       if (!entry) throw new Error(`${entryData.exercise} was not saved.`);
 
-      await supabasePublicInsert("entry_sets", {
-        session_entry_id: entry.id,
-        set_number: toNum(entryData.sets),
-        reps: toNum(entryData.reps),
-        weight: toNum(entryData.weight),
-        duration_seconds: toNum(entryData.holdSeconds),
-        distance: toNum(entryData.distance),
-        distance_unit: entryData.distanceUnit || null,
-        rpe: toNum(entryData.rpe) ?? rpe,
-        rest_time: entryData.restTime || null,
-        assistance_type: entryData.assistanceType || null,
-        assistance_detail: entryData.assistanceDetail || null,
-        quality: entryData.quality || null,
-        completed: entryData.completed,
-        notes: entryData.notes || null,
-      });
+      const setRows = (entryData.setRows ?? []).filter((set) => set.reps || set.weight || set.rpe);
+      if (setRows.length) {
+        await supabasePublicInsert(
+          "entry_sets",
+          setRows.map((set, setIndex) => ({
+            session_entry_id: entry.id,
+            set_number: setIndex + 1,
+            reps: toNum(set.reps),
+            weight: toNum(set.weight),
+            rpe: toNum(set.rpe) ?? rpe,
+            rest_time: entryData.restTime || null,
+            completed: set.completed,
+            notes: entryData.notes || null,
+          })),
+        );
+      } else {
+        await supabasePublicInsert("entry_sets", {
+          session_entry_id: entry.id,
+          set_number: toNum(entryData.sets),
+          reps: toNum(entryData.reps),
+          weight: toNum(entryData.weight),
+          duration_seconds: toNum(entryData.holdSeconds),
+          distance: toNum(entryData.distance),
+          distance_unit: entryData.distanceUnit || null,
+          rpe: toNum(entryData.rpe) ?? rpe,
+          rest_time: entryData.restTime || null,
+          assistance_type: entryData.assistanceType || null,
+          assistance_detail: entryData.assistanceDetail || null,
+          quality: entryData.quality || null,
+          completed: entryData.completed,
+          notes: entryData.notes || null,
+        });
+      }
 
       const metrics = [
         { metric_key: "rounds", metric_value: toNum(entryData.rounds) },
@@ -940,7 +1008,8 @@ export async function getPRsClient() {
   for (const row of skills) {
     const workoutType = row.activity_types?.name ?? row.sessions?.activity_types?.name ?? "";
     if (row.entry_kind !== "Skill" && workoutType !== SKILL_WORKOUT_TYPE) continue;
-    const set = firstSet(row);
+    const setRows = row.entry_sets ?? [];
+    const set = setRows[0];
     const assistanceType = (set?.assistance_type ?? "").trim();
     const assistanceDetail = (set?.assistance_detail ?? "").trim();
     const assisted =
@@ -964,8 +1033,17 @@ export async function getPRsClient() {
       if (!isBetterSkillPR(value, assistanceAmount ?? null, assisted, current)) return;
       skillBest.set(key, { ...base, metric, value, unit });
     };
-    const hold = toNum(set?.duration_seconds);
-    const reps = repsPerSet(toNum(set?.reps), toNum(set?.set_number));
+    const hold = setRows.reduce<number | null>((max, item) => {
+      const value = toNum(item.duration_seconds);
+      return value == null || (max != null && max >= value) ? max : value;
+    }, null);
+    const reps =
+      setRows.length > 1
+        ? setRows.reduce<number | null>((max, item) => {
+            const value = toNum(item.reps);
+            return value == null || (max != null && max >= value) ? max : value;
+          }, null)
+        : repsPerSet(toNum(set?.reps), toNum(set?.set_number));
     if (hold != null && hold > 0) consider("hold", hold, "s");
     if (reps != null && reps > 0) consider("reps", reps, "reps");
   }

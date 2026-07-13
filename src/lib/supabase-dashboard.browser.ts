@@ -476,7 +476,21 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
             day.minutes += minutesSafe;
             if (!day.exercises.includes(entry.name)) day.exercises.push(entry.name);
             const firstSet = entry.entry_sets?.[0];
-            const setCount = toNum(firstSet?.set_number);
+            const setRows = entry.entry_sets ?? [];
+            const individualSets = setRows.length > 1;
+            const setCount = individualSets ? setRows.length : toNum(firstSet?.set_number);
+            const totalReps = individualSets
+              ? setRows.reduce((total, set) => total + (toNum(set.reps) ?? 0), 0)
+              : toNum(firstSet?.reps);
+            const maxWeight = setRows.reduce<number | null>((max, set) => {
+              const value = toNum(set.weight);
+              return value == null || (max != null && max >= value) ? max : value;
+            }, null);
+            const volume = setRows.reduce((total, set) => {
+              const reps = toNum(set.reps);
+              const weight = toNum(set.weight);
+              return total + (reps != null && weight != null ? reps * weight : 0);
+            }, 0);
             day.entries.push({
               kind: "workout",
               exercise: entry.name,
@@ -484,8 +498,9 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
                 Number.isFinite(setCount) && setCount > 0
                   ? setCount
                   : entry.entry_sets?.length || null,
-              reps: Number.isFinite(toNum(firstSet?.reps)) ? toNum(firstSet?.reps) : null,
-              weight: Number.isFinite(toNum(firstSet?.weight)) ? toNum(firstSet?.weight) : null,
+              reps: Number.isFinite(totalReps) ? totalReps : null,
+              weight: maxWeight,
+              volume: volume > 0 ? volume : null,
               minutes: minutesSafe || null,
               completed: true,
               counts,
@@ -512,9 +527,19 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
         entryKind === "Legacy Skill" ||
         workoutType === SKILL_WORKOUT_TYPE
       ) {
-        const firstSet = entry.entry_sets?.[0];
-        const holdSeconds = toNum(firstSet?.duration_seconds);
-        const reps = repsPerSet(toNum(firstSet?.reps), toNum(firstSet?.set_number));
+        const setRows = entry.entry_sets ?? [];
+        const firstSet = setRows[0];
+        const individualSets = setRows.length > 1;
+        const holdSeconds = setRows.reduce<number | null>((max, set) => {
+          const value = toNum(set.duration_seconds);
+          return value == null || (max != null && max >= value) ? max : value;
+        }, null);
+        const reps = individualSets
+          ? setRows.reduce<number | null>((max, set) => {
+              const value = toNum(set.reps);
+              return value == null || (max != null && max >= value) ? max : value;
+            }, null)
+          : repsPerSet(toNum(firstSet?.reps), toNum(firstSet?.set_number));
         const assistance = assistanceInfo(firstSet);
         const base = {
           title: entry.name,

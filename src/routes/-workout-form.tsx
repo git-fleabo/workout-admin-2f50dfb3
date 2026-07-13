@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Calendar, Loader2, Plus } from "lucide-react";
+import { Calendar, Check, ChevronsUpDown, Loader2, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +39,7 @@ import {
   findDuplicateLogClient,
   getLibraryClient,
   getRecentLogsClient,
+  getTrainingLocationsClient,
   REST_OPTIONS,
 } from "@/lib/supabase-log.browser";
 import { formatUKDate, todayISO } from "@/lib/date";
@@ -132,11 +142,20 @@ type FormState = {
   feel: string;
   height: string;
   detail: string;
+  setRows: WorkoutSetState[];
+};
+
+type WorkoutSetState = {
+  reps: string;
+  weight: string;
+  rpe: string;
+  completed: boolean;
 };
 
 type SessionFormState = {
   date: string;
   title: string;
+  trainingLocationId: string;
   duration: string;
   intensity: string;
   rpe: string;
@@ -177,17 +196,23 @@ const blank = (defaultWorkoutType = ""): FormState => ({
   feel: "",
   height: "",
   detail: "",
+  setRows: [],
 });
+
+const blankSet = (): WorkoutSetState => ({ reps: "", weight: "", rpe: "", completed: true });
+
+const blankSessionEntry = () => ({ ...blank(), setRows: [blankSet()] });
 
 const blankSession = (): SessionFormState => ({
   date: today(),
   title: "Workout",
+  trainingLocationId: "",
   duration: "",
   intensity: "",
   rpe: "",
   completed: true,
   notes: "",
-  entries: [blank()],
+  entries: [blankSessionEntry()],
 });
 
 function recentSetRepSummary(sets: string, reps: string) {
@@ -587,15 +612,24 @@ export function WorkoutForm({
 export function FullWorkoutForm() {
   const qc = useQueryClient();
   const lib = useQuery({ queryKey: ["library"], queryFn: getLibraryClient });
+  const recent = useQuery({ queryKey: ["recent-workouts"], queryFn: getRecentLogsClient });
+  const locations = useQuery({
+    queryKey: ["training-locations"],
+    queryFn: getTrainingLocationsClient,
+  });
   const [form, setForm] = useState<SessionFormState>(() => blankSession());
   const libraryExercises =
     lib.data?.exercises && lib.data.exercises.length > 0 ? lib.data.exercises : FALLBACK_MOVEMENTS;
-  const workoutTypeOptions =
-    lib.data?.workoutTypes && lib.data.workoutTypes.length > 0
-      ? lib.data.workoutTypes.filter(
-          (type) => type !== "Bouldering" && type !== "Sport" && type !== CLIMBING_WORKOUT_TYPE,
-        )
-      : FALLBACK_WORKOUT_TYPES.filter((type) => type !== CLIMBING_WORKOUT_TYPE);
+
+  useEffect(() => {
+    if (form.trainingLocationId || !locations.data?.length) return;
+    const remembered = window.localStorage.getItem("training-location-id");
+    const selected =
+      locations.data.find((location) => location.id === remembered) ?? locations.data[0];
+    if (selected) {
+      setForm((current) => ({ ...current, trainingLocationId: selected.id }));
+    }
+  }, [form.trainingLocationId, locations.data]);
 
   const update = <K extends keyof SessionFormState>(k: K, v: SessionFormState[K]) =>
     setForm((current) => ({ ...current, [k]: v }));
@@ -609,7 +643,7 @@ export function FullWorkoutForm() {
   const addEntry = () =>
     setForm((current) => ({
       ...current,
-      entries: [...current.entries, blank()],
+      entries: [...current.entries, blankSessionEntry()],
     }));
   const removeEntry = (index: number) =>
     setForm((current) => ({
@@ -619,12 +653,75 @@ export function FullWorkoutForm() {
           ? current.entries
           : current.entries.filter((_, i) => i !== index),
     }));
+  const updateSet = <K extends keyof WorkoutSetState>(
+    entryIndex: number,
+    setIndex: number,
+    key: K,
+    value: WorkoutSetState[K],
+  ) =>
+    setForm((current) => ({
+      ...current,
+      entries: current.entries.map((entry, i) =>
+        i === entryIndex
+          ? {
+              ...entry,
+              setRows: entry.setRows.map((set, j) =>
+                j === setIndex ? { ...set, [key]: value } : set,
+              ),
+            }
+          : entry,
+      ),
+    }));
+  const addSet = (entryIndex: number) =>
+    setForm((current) => ({
+      ...current,
+      entries: current.entries.map((entry, i) => {
+        if (i !== entryIndex) return entry;
+        const previous = entry.setRows[entry.setRows.length - 1] ?? blankSet();
+        return { ...entry, setRows: [...entry.setRows, { ...previous, rpe: "" }] };
+      }),
+    }));
+  const removeSet = (entryIndex: number, setIndex: number) =>
+    setForm((current) => ({
+      ...current,
+      entries: current.entries.map((entry, i) =>
+        i === entryIndex
+          ? {
+              ...entry,
+              setRows:
+                entry.setRows.length === 1
+                  ? entry.setRows
+                  : entry.setRows.filter((_, j) => j !== setIndex),
+            }
+          : entry,
+      ),
+    }));
+
+  const previousSetsFor = (exerciseName: string): WorkoutSetState[] => {
+    const match = recent.data?.recent.find(
+      (item) => item.exercise.toLowerCase() === exerciseName.toLowerCase(),
+    );
+    if (!match) return [blankSet()];
+    if (match.setRows.length > 1) return match.setRows.map((set) => ({ ...set }));
+    const count = Math.max(1, Number(match.sets) || 1);
+    const totalReps = Number(match.reps) || 0;
+    const reps = totalReps
+      ? Math.ceil(totalReps / count).toString()
+      : (match.setRows[0]?.reps ?? "");
+    return Array.from({ length: count }, () => ({
+      reps,
+      weight: match.weight,
+      rpe: "",
+      completed: true,
+    }));
+  };
 
   const mutate = useMutation({
     mutationFn: () =>
       addWorkoutSessionClient({
         date: form.date,
         title: form.title,
+        trainingLocationId: form.trainingLocationId,
         duration: form.duration,
         intensity: form.intensity,
         rpe: form.rpe,
@@ -679,65 +776,93 @@ export function FullWorkoutForm() {
   });
 
   const canSubmit =
-    form.date && form.entries.some((entry) => entry.exercise.trim()) && !mutate.isPending;
+    form.date &&
+    form.trainingLocationId &&
+    form.entries.some((entry) => entry.exercise.trim()) &&
+    !mutate.isPending;
 
   return (
     <div className="space-y-6">
-      <Card className="space-y-5 border-border bg-card p-5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Full workout</h2>
+      <Card className="space-y-4 border-border bg-card p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">Build your workout</h2>
+            <p className="text-xs text-muted-foreground">Choose where, then add your movements.</p>
+          </div>
           <Badge variant="outline" className="gap-1 border-border text-muted-foreground">
             <Calendar className="h-3 w-3" /> {formatUKDate(form.date)}
           </Badge>
         </div>
 
-        <Field label="Date">
-          <DateInput value={form.date} onChange={(v) => update("date", v)} />
+        <Field label="Where are you training?">
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            {(locations.data ?? []).map((location) => (
+              <Button
+                key={location.id}
+                type="button"
+                variant={form.trainingLocationId === location.id ? "secondary" : "outline"}
+                className="sm:min-w-28"
+                onClick={() => {
+                  update("trainingLocationId", location.id);
+                  window.localStorage.setItem("training-location-id", location.id);
+                }}
+              >
+                {location.name}
+              </Button>
+            ))}
+          </div>
         </Field>
-        <Field label="Session name">
-          <Input value={form.title} onChange={(e) => update("title", e.target.value)} />
-        </Field>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="Minutes">
-            <Input
-              inputMode="numeric"
-              value={form.duration}
-              onChange={(e) => update("duration", e.target.value)}
-            />
-          </Field>
-          <Field label="Intensity">
-            <SimpleSelect
-              value={form.intensity}
-              onChange={(v) => update("intensity", v)}
-              options={lib.data?.intensities ?? []}
-            />
-          </Field>
-          <Field label="RPE">
-            <Input
-              inputMode="decimal"
-              value={form.rpe}
-              onChange={(e) => update("rpe", e.target.value)}
-            />
-          </Field>
-        </div>
-        <Field label="Session notes">
-          <Textarea
-            rows={2}
-            value={form.notes}
-            onChange={(e) => update("notes", e.target.value)}
-            placeholder="Overall workout notes..."
-          />
-        </Field>
+
+        <details className="rounded-lg border border-border bg-secondary/20 px-3 py-2">
+          <summary className="cursor-pointer text-sm font-medium">
+            Session details (optional)
+          </summary>
+          <div className="mt-4 space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Date">
+                <DateInput value={form.date} onChange={(v) => update("date", v)} />
+              </Field>
+              <Field label="Session name">
+                <Input value={form.title} onChange={(e) => update("title", e.target.value)} />
+              </Field>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label="Minutes">
+                <Input
+                  inputMode="numeric"
+                  value={form.duration}
+                  onChange={(e) => update("duration", e.target.value)}
+                />
+              </Field>
+              <Field label="Intensity">
+                <SimpleSelect
+                  value={form.intensity}
+                  onChange={(v) => update("intensity", v)}
+                  options={lib.data?.intensities ?? []}
+                />
+              </Field>
+              <Field label="Overall RPE">
+                <Input
+                  inputMode="decimal"
+                  value={form.rpe}
+                  onChange={(e) => update("rpe", e.target.value)}
+                />
+              </Field>
+            </div>
+            <Field label="Session notes">
+              <Textarea
+                rows={2}
+                value={form.notes}
+                onChange={(e) => update("notes", e.target.value)}
+                placeholder="Overall workout notes..."
+              />
+            </Field>
+          </div>
+        </details>
       </Card>
 
       <div className="space-y-3">
         {form.entries.map((entry, index) => {
-          const exerciseOptions =
-            entry.workoutType === CLIMBING_WORKOUT_TYPE
-              ? []
-              : libraryExercises.filter(
-                  (exercise) => !entry.workoutType || exercise.workoutType === entry.workoutType,
-                );
           const selectedExercise = libraryExercises.find(
             (exercise) => exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
           );
@@ -765,48 +890,59 @@ export function FullWorkoutForm() {
                   Remove
                 </Button>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Type">
-                  <SimpleSelect
-                    value={entry.workoutType}
-                    onChange={(v) => {
-                      updateEntry(index, "workoutType", v);
-                      updateEntry(
-                        index,
-                        "entryKind",
-                        v === SKILL_WORKOUT_TYPE
-                          ? "Skill"
-                          : v === GRIP_WORKOUT_TYPE
-                            ? GRIP_WORKOUT_TYPE
-                            : "Workout",
-                      );
-                      updateEntry(index, "exercise", "");
-                    }}
-                    options={workoutTypeOptions}
+              <Field label="Movement">
+                <MovementPicker
+                  value={entry.exercise}
+                  exercises={libraryExercises}
+                  onChange={(name) => {
+                    const selected = libraryExercises.find((exercise) => exercise.name === name);
+                    updateEntry(index, "exercise", name);
+                    updateEntry(index, "workoutType", selected?.workoutType ?? "Other");
+                    updateEntry(
+                      index,
+                      "entryKind",
+                      selected?.workoutType === SKILL_WORKOUT_TYPE
+                        ? "Skill"
+                        : selected?.workoutType === GRIP_WORKOUT_TYPE
+                          ? GRIP_WORKOUT_TYPE
+                          : "Workout",
+                    );
+                    updateEntry(index, "setRows", previousSetsFor(name));
+                  }}
+                />
+              </Field>
+              {entry.workoutType && (
+                <Badge
+                  variant="outline"
+                  className="w-fit text-[10px] uppercase tracking-wider text-muted-foreground"
+                >
+                  {entry.workoutType}
+                </Badge>
+              )}
+              {entry.exercise && profileUsesStandardSets(profile) ? (
+                <SetRowsEditor
+                  rows={entry.setRows}
+                  usesLoad={profileUsesLoad(profile)}
+                  onChange={(setIndex, key, value) => updateSet(index, setIndex, key, value)}
+                  onAdd={() => addSet(index)}
+                  onRemove={(setIndex) => removeSet(index, setIndex)}
+                />
+              ) : (
+                entry.exercise && (
+                  <MetricFields
+                    profile={profile}
+                    form={entry}
+                    update={(key, value) => updateEntry(index, key, value)}
+                    intensities={lib.data?.intensities ?? []}
+                    qualities={lib.data?.qualities ?? []}
+                    assistanceTypes={lib.data?.assistanceTypes ?? []}
+                    usesLoad={profileUsesLoad(profile)}
+                    usesStandardSets={profileUsesStandardSets(profile)}
+                    isGrip={isGrip}
+                    showIntensity={entry.workoutType === CLASS_WORKOUT_TYPE}
                   />
-                </Field>
-                <Field label="Movement">
-                  <SimpleSelect
-                    value={entry.exercise}
-                    onChange={(v) => updateEntry(index, "exercise", v)}
-                    options={exerciseOptions.map((exercise) => exercise.name)}
-                    placeholder="Select movement"
-                    noneLabel="Select"
-                  />
-                </Field>
-              </div>
-              <MetricFields
-                profile={profile}
-                form={entry}
-                update={(key, value) => updateEntry(index, key, value)}
-                intensities={lib.data?.intensities ?? []}
-                qualities={lib.data?.qualities ?? []}
-                assistanceTypes={lib.data?.assistanceTypes ?? []}
-                usesLoad={profileUsesLoad(profile)}
-                usesStandardSets={profileUsesStandardSets(profile)}
-                isGrip={isGrip}
-                showIntensity={entry.workoutType === CLASS_WORKOUT_TYPE}
-              />
+                )
+              )}
               <Field label="Movement notes">
                 <Textarea
                   rows={2}
@@ -842,6 +978,143 @@ export function FullWorkoutForm() {
             <Plus className="mr-1 h-5 w-5" /> Save full workout
           </>
         )}
+      </Button>
+    </div>
+  );
+}
+
+function MovementPicker({
+  value,
+  exercises,
+  onChange,
+}: {
+  value: string;
+  exercises: { name: string; workoutType: string; equipment?: string }[];
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between font-normal"
+        >
+          <span className={value ? "truncate" : "truncate text-muted-foreground"}>
+            {value || "Search movements"}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[min(92vw,420px)] p-0">
+        <Command>
+          <CommandInput placeholder="Search by movement or type..." />
+          <CommandList>
+            <CommandEmpty>No movement found.</CommandEmpty>
+            <CommandGroup>
+              {exercises.map((exercise) => (
+                <CommandItem
+                  key={exercise.name}
+                  value={`${exercise.name} ${exercise.workoutType} ${exercise.equipment ?? ""}`}
+                  onSelect={() => {
+                    onChange(exercise.name);
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={value === exercise.name ? "opacity-100" : "opacity-0"} />
+                  <span className="min-w-0 flex-1 truncate">{exercise.name}</span>
+                  <span className="shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {exercise.workoutType}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function SetRowsEditor({
+  rows,
+  usesLoad,
+  onChange,
+  onAdd,
+  onRemove,
+}: {
+  rows: WorkoutSetState[];
+  usesLoad: boolean;
+  onChange: <K extends keyof WorkoutSetState>(
+    setIndex: number,
+    key: K,
+    value: WorkoutSetState[K],
+  ) => void;
+  onAdd: () => void;
+  onRemove: (setIndex: number) => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-secondary/20 p-3">
+      <div
+        className={`grid items-end gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground ${
+          usesLoad ? "grid-cols-[32px_1fr_1fr_1fr_32px]" : "grid-cols-[32px_1fr_1fr_32px]"
+        }`}
+      >
+        <span>Set</span>
+        {usesLoad && <span>kg</span>}
+        <span>Reps</span>
+        <span>RPE</span>
+        <span />
+      </div>
+      {rows.map((set, setIndex) => (
+        <div
+          key={setIndex}
+          className={`grid items-center gap-2 ${
+            usesLoad ? "grid-cols-[32px_1fr_1fr_1fr_32px]" : "grid-cols-[32px_1fr_1fr_32px]"
+          }`}
+        >
+          <span className="text-center text-sm font-semibold text-muted-foreground">
+            {setIndex + 1}
+          </span>
+          {usesLoad && (
+            <Input
+              inputMode="decimal"
+              aria-label={`Set ${setIndex + 1} weight`}
+              value={set.weight}
+              onChange={(event) => onChange(setIndex, "weight", event.target.value)}
+            />
+          )}
+          <Input
+            inputMode="numeric"
+            pattern="[0-9]*"
+            aria-label={`Set ${setIndex + 1} reps`}
+            value={set.reps}
+            onChange={(event) => onChange(setIndex, "reps", event.target.value)}
+          />
+          <Input
+            inputMode="decimal"
+            aria-label={`Set ${setIndex + 1} RPE`}
+            value={set.rpe}
+            onChange={(event) => onChange(setIndex, "rpe", event.target.value)}
+          />
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-muted-foreground"
+            disabled={rows.length === 1}
+            onClick={() => onRemove(setIndex)}
+            aria-label={`Remove set ${setIndex + 1}`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      ))}
+      <Button type="button" variant="ghost" size="sm" className="w-full" onClick={onAdd}>
+        <Plus className="mr-1 h-4 w-4" /> Add set
       </Button>
     </div>
   );

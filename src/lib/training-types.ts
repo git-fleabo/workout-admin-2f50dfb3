@@ -60,6 +60,7 @@ export type WeekDayEntry = {
   sets: number | null;
   reps: number | null;
   weight: number | null;
+  volume: number | null;
   minutes: number | null;
   completed: boolean;
   counts: boolean;

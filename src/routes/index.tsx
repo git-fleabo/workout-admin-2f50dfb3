@@ -45,10 +45,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatUKDate, formatUKDateShort } from "@/lib/date";
-import {
-  getDashboardDataClient,
-  type DashboardData,
-} from "@/lib/supabase-dashboard.browser";
+import { getDashboardDataClient, type DashboardData } from "@/lib/supabase-dashboard.browser";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -88,11 +85,10 @@ function DashboardPage() {
   }
 
   if (error || !data) {
-    const message = error instanceof Error ? error.message : "Check the Supabase connection and try again.";
+    const message =
+      error instanceof Error ? error.message : "Check the Supabase connection and try again.";
     return (
-      <Card className="p-6 text-sm text-destructive">
-        Couldn’t load the dashboard. {message}
-      </Card>
+      <Card className="p-6 text-sm text-destructive">Couldn’t load the dashboard. {message}</Card>
     );
   }
 
@@ -107,9 +103,8 @@ function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground">
-            {data.kpis.workoutsThisWeek} workouts ·{" "}
-            {Math.round(data.kpis.minutesThisWeek || 0)} min ·{" "}
-            {data.kpis.activeDaysThisWeek} active days this week
+            {data.kpis.workoutsThisWeek} workouts · {Math.round(data.kpis.minutesThisWeek || 0)} min
+            · {data.kpis.activeDaysThisWeek} active days this week
           </p>
         </div>
         <div className="flex items-center gap-2 text-right text-xs text-muted-foreground">
@@ -156,11 +151,7 @@ function DashboardPage() {
         <StatusTile
           icon={<TrendIcon className="h-3.5 w-3.5" />}
           label="Trend since start"
-          value={
-            bwDelta == null
-              ? "—"
-              : `${bwDelta > 0 ? "+" : ""}${bwDelta}kg`
-          }
+          value={bwDelta == null ? "—" : `${bwDelta > 0 ? "+" : ""}${bwDelta}kg`}
           hint={`${data.trend.weeksTraining || 0}w training`}
           accent="violet"
         />
@@ -282,9 +273,7 @@ function Panel({
 }) {
   const a = accent ? ACCENTS[accent] : null;
   return (
-    <Card
-      className={`p-4 ${a ? a.card : "border-border bg-card"} ${className}`}
-    >
+    <Card className={`p-4 ${a ? a.card : "border-border bg-card"} ${className}`}>
       <div className="mb-3 flex items-center gap-2">
         {icon && <span className={a ? a.icon : "text-muted-foreground"}>{icon}</span>}
         <h2 className={`text-sm font-semibold ${a ? a.title : ""}`}>{title}</h2>
@@ -329,10 +318,7 @@ function StatusTile({
 
 function WeeklySnapshot({ data }: { data: Data }) {
   const weeklyGoal = data.goals?.weeklyWorkouts ?? DEFAULT_WEEKLY_GOAL;
-  const pct = Math.min(
-    100,
-    Math.round(((data.kpis.workoutsThisWeek || 0) / weeklyGoal) * 100),
-  );
+  const pct = Math.min(100, Math.round(((data.kpis.workoutsThisWeek || 0) / weeklyGoal) * 100));
   return (
     <Panel title="Weekly Snapshot" icon={<Activity className="h-4 w-4" />} accent="sky">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
@@ -347,10 +333,7 @@ function WeeklySnapshot({ data }: { data: Data }) {
           <span>{pct}%</span>
         </div>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-          <div
-            className="h-full bg-primary transition-all"
-            style={{ width: `${pct}%` }}
-          />
+          <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
         </div>
       </div>
     </Panel>
@@ -368,9 +351,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function WeekCalendar({ data }: { data: Data }) {
   const [openDate, setOpenDate] = React.useState<string | null>(null);
-  const openDay = openDate
-    ? data.weekDays.find((d) => d.date === openDate) ?? null
-    : null;
+  const openDay = openDate ? (data.weekDays.find((d) => d.date === openDate) ?? null) : null;
 
   return (
     <Panel title="This Week" icon={<CalendarRange className="h-4 w-4" />} accent="cyan">
@@ -386,17 +367,13 @@ function WeekCalendar({ data }: { data: Data }) {
               onClick={() => interactive && setOpenDate(d.date)}
               disabled={!interactive}
               className={`flex min-h-[110px] flex-col rounded-md border p-2 text-center transition ${
-                d.isToday
-                  ? "border-primary/60 bg-primary/5"
-                  : "border-border bg-secondary/20"
+                d.isToday ? "border-primary/60 bg-primary/5" : "border-border bg-secondary/20"
               } ${interactive ? "cursor-pointer hover:border-primary/50 hover:bg-primary/5" : "cursor-default opacity-80"}`}
             >
               <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 {d.label}
               </div>
-              <div className="mt-0.5 text-sm font-semibold">
-                {Number(d.date.slice(8, 10))}
-              </div>
+              <div className="mt-0.5 text-sm font-semibold">{Number(d.date.slice(8, 10))}</div>
               <div
                 className={`mt-1 text-[11px] font-medium ${
                   credited ? "text-primary" : "text-muted-foreground"
@@ -416,9 +393,7 @@ function WeekCalendar({ data }: { data: Data }) {
                     </li>
                   ))}
                   {d.exercises.length > 4 && (
-                    <li className="text-muted-foreground/70">
-                      +{d.exercises.length - 4} more
-                    </li>
+                    <li className="text-muted-foreground/70">+{d.exercises.length - 4} more</li>
                   )}
                 </ul>
               )}
@@ -447,9 +422,7 @@ function WeekCalendar({ data }: { data: Data }) {
                 </DialogDescription>
               </DialogHeader>
               {openDay.entries.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Nothing logged for this day.
-                </p>
+                <p className="text-sm text-muted-foreground">Nothing logged for this day.</p>
               ) : (
                 <ul className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
                   {openDay.entries.map((e, i) => (
@@ -459,9 +432,7 @@ function WeekCalendar({ data }: { data: Data }) {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">
-                            {e.exercise}
-                          </p>
+                          <p className="truncate text-sm font-medium">{e.exercise}</p>
                           <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
                             {e.kind === "climb" ? "Climbing" : "Workout"}
                             {!e.counts && e.kind === "workout" ? " · no credit" : ""}
@@ -474,30 +445,19 @@ function WeekCalendar({ data }: { data: Data }) {
                         )}
                       </div>
                       <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
-                        {e.sets != null && (
-                          <Detail label="Sets" value={`${e.sets}`} />
-                        )}
+                        {e.sets != null && <Detail label="Sets" value={`${e.sets}`} />}
                         {e.reps != null && (
                           <Detail
                             label={e.kind === "climb" ? "Boulders" : "Total reps"}
                             value={`${e.reps}`}
                           />
                         )}
-                        {e.weight != null && (
-                          <Detail label="Weight" value={`${e.weight} kg`} />
-                        )}
-                        {e.weight != null && e.reps != null && (
-                          <Detail
-                            label="Volume"
-                            value={`${Math.round(e.weight * e.reps)} kg`}
-                          />
+                        {e.weight != null && <Detail label="Weight" value={`${e.weight} kg`} />}
+                        {e.volume != null && (
+                          <Detail label="Volume" value={`${Math.round(e.volume)} kg`} />
                         )}
                       </dl>
-                      {e.notes && (
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          {e.notes}
-                        </p>
-                      )}
+                      {e.notes && <p className="mt-2 text-xs text-muted-foreground">{e.notes}</p>}
                     </li>
                   ))}
                 </ul>
@@ -513,9 +473,7 @@ function WeekCalendar({ data }: { data: Data }) {
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded border border-border/40 bg-background/40 px-2 py-1">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className="text-sm font-medium">{value}</div>
     </div>
   );
@@ -553,14 +511,8 @@ function StrengthSnapshot({ data }: { data: Data }) {
   return (
     <Panel title="Strength Snapshot" icon={<Dumbbell className="h-4 w-4" />} accent="rose">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
-        <Stat
-          label="Best 1RM"
-          value={s.bestLift ? `${s.bestLift.value}kg` : "—"}
-        />
-        <Stat
-          label="Latest test"
-          value={s.latestTest ? `${s.latestTest.value}kg` : "—"}
-        />
+        <Stat label="Best 1RM" value={s.bestLift ? `${s.bestLift.value}kg` : "—"} />
+        <Stat label="Latest test" value={s.latestTest ? `${s.latestTest.value}kg` : "—"} />
         <Stat label="Exercises" value={s.exercisesTracked.toString()} />
       </dl>
       <div className="mt-3 space-y-1.5 text-xs">
@@ -570,9 +522,7 @@ function StrengthSnapshot({ data }: { data: Data }) {
               <span className="text-muted-foreground">Best:</span>{" "}
               <span className="text-foreground">{s.bestLift.name}</span>
             </span>
-            <span className="text-muted-foreground">
-              {formatUKDateShort(s.bestLift.date)}
-            </span>
+            <span className="text-muted-foreground">{formatUKDateShort(s.bestLift.date)}</span>
           </div>
         )}
         {s.latestTest && (
@@ -581,9 +531,7 @@ function StrengthSnapshot({ data }: { data: Data }) {
               <span className="text-muted-foreground">Latest:</span>{" "}
               <span className="text-foreground">{s.latestTest.name}</span>
             </span>
-            <span className="text-muted-foreground">
-              {formatUKDateShort(s.latestTest.date)}
-            </span>
+            <span className="text-muted-foreground">{formatUKDateShort(s.latestTest.date)}</span>
           </div>
         )}
         {!s.bestLift && !s.latestTest && (
@@ -615,9 +563,7 @@ function MonthlySummary({ data }: { data: Data }) {
               <TableCell className="py-1.5 text-right">
                 {m.minutes ? Math.round(m.minutes) : "—"}
               </TableCell>
-              <TableCell className="py-1.5 text-right">
-                {m.climbSessions || "—"}
-              </TableCell>
+              <TableCell className="py-1.5 text-right">{m.climbSessions || "—"}</TableCell>
               <TableCell className="py-1.5 text-right">
                 {m.climbHours ? m.climbHours.toFixed(1) : "—"}
               </TableCell>
@@ -636,11 +582,7 @@ function RecentPRs({ data }: { data: Data }) {
       title="Recent PRs"
       icon={<Award className="h-4 w-4" />}
       accent="amber"
-      action={
-        <span className="text-xs text-muted-foreground">
-          {data.kpis.totalPRs} tracked
-        </span>
-      }
+      action={<span className="text-xs text-muted-foreground">{data.kpis.totalPRs} tracked</span>}
     >
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">No PRs logged yet.</p>
@@ -659,9 +601,7 @@ function RecentPRs({ data }: { data: Data }) {
                 )}
               </span>
               <span className="min-w-0 flex-1 truncate text-sm">{pr.title}</span>
-              <span className="shrink-0 text-sm font-semibold text-primary">
-                {pr.value}
-              </span>
+              <span className="shrink-0 text-sm font-semibold text-primary">{pr.value}</span>
               <span className="shrink-0 text-[11px] text-muted-foreground">
                 {pr.date ? formatUKDateShort(pr.date) : ""}
               </span>
@@ -677,9 +617,7 @@ function TrendChart({ data }: { data: Data }) {
   return (
     <Panel title="Trend Since Start" icon={<TrendingUp className="h-4 w-4" />} accent="lime">
       {data.workoutsByWeek.length === 0 ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">
-          No workout data yet.
-        </p>
+        <p className="py-10 text-center text-sm text-muted-foreground">No workout data yet.</p>
       ) : (
         <ResponsiveContainer width="100%" height={180}>
           <AreaChart data={data.workoutsByWeek}>
@@ -689,11 +627,7 @@ function TrendChart({ data }: { data: Data }) {
                 <stop offset="100%" stopColor="var(--color-chart-1)" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid
-              stroke="var(--color-border)"
-              strokeDasharray="3 3"
-              vertical={false}
-            />
+            <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
             <XAxis
               dataKey="label"
               stroke="var(--color-muted-foreground)"

@@ -1,6 +1,6 @@
 # Workout App Context
 
-Last updated: 2026-06-20
+Last updated: 2026-07-13
 
 This file is the handoff document for the Training Admin workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
 
@@ -153,6 +153,7 @@ RLS/settings summary:
 Important data files:
 
 - `supabase/schema.sql`: local schema snapshot, may not always reflect every live data tweak.
+- `supabase/migrations/20260713100036_add_training_locations.sql`: tracked Home/Gym training-location schema, session foreign key, RLS, grants, and initial location seed.
 - `supabase/approved_logging_library_updates.sql`: idempotent data update script for approved library/logging changes.
 - `supabase/percentage_strength_blocks.sql`: idempotent seed script for reusable Percentage Strength Blocks, currently Operator Style Strength Block and Fighter Style Strength Block.
 - `supabase/program_template_read_policies.sql`: idempotent RLS policy script allowing authenticated users to read reusable template rows from `programs`, `program_workouts`, and `program_workout_entries`.
@@ -182,6 +183,13 @@ Live row counts checked on 2026-06-19:
 - `session_entries`: 56
 - `sessions`: 56
 - `suggested_workouts`: 0
+
+Selected live counts rechecked on 2026-07-13 after the workout-logging iteration:
+
+- `sessions`: 95
+- `session_entries`: 106
+- `entry_sets`: 90
+- `training_locations`: 2 (`Home`, `Gym`)
 
 ## Database Schema
 
@@ -403,7 +411,7 @@ RLS:
 
 Purpose: top-level training session/log row. Workout, climbing, class, run, body of activity data starts here.
 
-Rows: 48
+Rows: 95
 
 Key columns:
 
@@ -418,6 +426,7 @@ Key columns:
 - `intensity text nullable`
 - `rpe numeric nullable`
 - `notes text nullable`
+- `training_location_id uuid -> training_locations.id nullable`
 - `source_sheet text nullable`
 - `source_row integer nullable`
 - timestamps
@@ -426,11 +435,29 @@ RLS:
 
 - Managed-person SELECT/INSERT/DELETE policies.
 
+### `training_locations`
+
+Purpose: explicit training context for logging and future history-based workout suggestions.
+
+Rows: 2
+
+Key columns:
+
+- `id uuid primary key`
+- `person_id uuid -> people.id`
+- `name text`, currently `Home` or `Gym`
+- `kind text`, one of `home`, `gym`, `other`
+- `is_active boolean`
+
+RLS:
+
+- Managed-person SELECT/INSERT/UPDATE/DELETE policies use `app_private.person_is_accessible(person_id)`.
+
 ### `session_entries`
 
 Purpose: item/movement entries within a session. Most current logs use one entry per session, but schema supports multiple entries.
 
-Rows: 48
+Rows: 106
 
 Key columns:
 
@@ -456,7 +483,7 @@ RLS:
 
 Purpose: structured numeric set data for entries. Also stores one aggregate row for simple/manual logs where appropriate.
 
-Rows: 40
+Rows: 90
 
 Key columns:
 
@@ -761,7 +788,7 @@ The log screen supports:
 
 1RM logging uses Epley as the fixed/default estimate formula. The formula selector is intentionally hidden from the UI, but new rows still save `formula = 'Epley'` in `one_rm_tests`.
 
-Workout `Reps` means total reps across all sets. Calculations that need reps per set, such as skill max-rep PRs and workout-history estimated 1RM, use `ceil(total reps / sets)`. Total reps and volume still use the entered total.
+Quick-log and legacy aggregate `Reps` mean total reps across all sets. Calculations that need reps per set use `ceil(total reps / sets)` for those single-row entries. New standard Full workout entries store each set separately, so estimated 1RM, total reps, and mixed-load volume use the exact set rows.
 
 Recent workout summaries on the log screen should display sets and reps as separate labels, for example `3 sets · 12 total reps`, because reps are total reps across all sets rather than reps per set.
 
@@ -775,7 +802,11 @@ After a workout/climb is saved, the Log form clears all fields back to a fresh b
 
 Before saving a workout or climb, the app checks for an existing same-date, same-movement entry in Supabase. If one exists, it shows an app dialog asking whether to save another anyway.
 
-The Log tab has a trial `Full workout` mode alongside the existing single-movement logger. It creates one `sessions` row with multiple `session_entries`, uses one shared date/session name/duration/intensity/RPE/notes section, and lets each movement keep the same adaptive fields as the single logger. The existing single-movement logger should remain available. This feature was added as a reversible trial; if Noam dislikes it, revert the single commit that introduced it.
+The Log tab has a movement-first `Full workout` mode alongside the existing single-movement logger. It starts with Home/Gym context, keeps session date/name/duration/intensity/RPE/notes inside an optional collapsed section, and uses a searchable movement picker without a separate type selection. The existing single-movement logger remains available as the quick-log path.
+
+For standard set/reps movements, Full workout records one `entry_sets` row per real set with its own weight, reps, and RPE. Selecting a movement prefills the most recent matching set pattern; adding a set copies the previous load/reps and leaves RPE blank. Legacy single-row aggregate entries remain readable and analytics distinguish them from newer multi-row set data.
+
+Home/Gym selection is saved on `sessions.training_location_id` and remembered locally for the next full-workout entry. History details show the saved location. Future suggested-workout logic should filter by this explicit context before analysing exercise patterns.
 
 Climbing:
 
@@ -868,6 +899,7 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `vite.config.ts`: Lovable/TanStack Vite config.
 - `package.json`: scripts and dependencies.
 - `supabase/schema.sql`: schema/policy snapshot.
+- `supabase/migrations/20260713100036_add_training_locations.sql`: applied and tracked training-location migration.
 - `supabase/approved_logging_library_updates.sql`: reusable SQL for approved data-library changes.
 - `workout_context.md`: this handoff file; keep it current.
 
@@ -988,6 +1020,9 @@ Recommended next work, in order:
 2. In Lovable preview, confirm the commit label matches the latest pushed commit.
 3. Test Log flows for Strength, Run, Class, Mobility/Flexibility, Grip, Climbing, 1RM, and Bodyweight.
 4. Test the duplicate-log warning by trying to save the same movement twice on the same date.
+5. Test a Home and Gym full-workout save from the deployed authenticated app, including mixed-weight sets, and confirm the location appears in History.
+6. Build the exercise Progress workspace with selectable periods, aligned performance/volume charts, and exact set history.
+7. Add transparent next-workout suggestions that filter by Home/Gym before reviewing recent exercise patterns.
 5. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
 6. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 7. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
