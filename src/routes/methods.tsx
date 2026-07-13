@@ -53,6 +53,7 @@ import {
   setTrainingMethodEnabledClient,
   updateTrainingMethodClient,
   type TrainingMethod,
+  type TrainingMethodConfig,
   type TrainingMethodFamily,
   type TrainingMethodFields,
 } from "@/lib/supabase-training-methods.browser";
@@ -101,7 +102,7 @@ type EditorState =
   | { mode: "create" }
   | { mode: "edit"; method: TrainingMethod };
 
-const defaultsFor = (family: TrainingMethodFamily) => {
+const defaultsFor = (family: TrainingMethodFamily): TrainingMethodConfig => {
   if (family === "exercise_group") {
     return {
       movement_count: 2,
@@ -399,7 +400,8 @@ function MethodsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this custom method?</AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingDelete?.name} will be permanently removed. System methods cannot be deleted.
+              {pendingDelete?.name} will be permanently removed. Methods already used in workout
+              history are protected; deactivate them instead. System methods cannot be deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

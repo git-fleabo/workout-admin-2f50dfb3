@@ -967,8 +967,13 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - RLS reuses `app_private.person_is_accessible(person_id)`. System rows are readable by authenticated users; custom definitions and preferences are limited to accessible people. Both tables have explicit authenticated Data API grants and four CRUD policies.
 - Live verification found 7 exercise-group, 5 set-method, and 2 timed/density system rows, RLS enabled, explicit select grants, and four policies on each table. An authenticated-role test saw all 14 system rows and completed an insert/update/delete cycle with no residual row. The Supabase advisor identified one missing foreign-key index, which was added. Existing unrelated advisor notices remain unchanged.
 - The local preview reached the new route, but its prior auth session had expired before browser CRUD verification; the page is left ready for sign-in.
+- `session_method_blocks` stores the method snapshot, ordered block position, rounds, two rest values, and structured configuration for a completed session. `session_method_block_entries` links the block to its underlying `session_entries` in movement order. Both tables cascade with the session, retain the method definition by foreign key, use explicit authenticated grants, and enforce accessible-person/session consistency through RLS.
+- The unified full-workout composer can add, edit, and remove ordered exercise-group blocks from the enabled Methods library. Supersets and tri-sets require exactly two or three movements; other group methods use their configured minimum. A movement belongs to at most one block in this first pass, and moving or deleting exercises updates the block safely.
+- Stable client-side movement IDs keep group membership intact while drafting, reordering, and applying same-day corrections. The normal exercise set rows remain unchanged, so existing volume and progress analytics continue to count the underlying work. Saving adds the method block only after its movement entries exist, and rolls back the whole session on any partial failure.
+- The finish review labels grouped movements, and completed-session detail shows each method with its ordered exercises, rounds, and rest. Repeating a server-loaded recent session does not yet reconstruct its prior method blocks; draft and same-day correction flows do preserve them.
+- A live authenticated-role database test saved a temporary Superset with two ordered member entries, read both members through RLS, then deleted the session and confirmed cascade cleanup. The preview session expired again before the new composer could be exercised through the UI, so `/log` is left ready for sign-in.
 
-The next Phase 5 slice should add ordered method blocks to the unified workout composer. Exercise-group blocks must preserve movement order, rounds, rest between movements, and rest between rounds. Drop sets must preserve each load/reps segment rather than flattening the work into one ordinary set.
+The next Phase 5 slice should add within-set segments for drop/strip sets. Each segment must preserve load, reps, range of motion, and short rest rather than flattening the work into one ordinary set.
 
 ## Key Files
 
@@ -1152,7 +1157,7 @@ Recommended next work, in order:
 8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-11. Continue Phase 5 by adding ordered supersets/tri-sets/giant sets to the unified workout composer, then add preserved within-set segments for drop/strip sets.
+11. Continue Phase 5 by adding preserved within-set segments for drop/strip sets, then extend the same model to cluster and rest-pause work.
 12. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
 13. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 14. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.

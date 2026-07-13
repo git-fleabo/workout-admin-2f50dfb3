@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Clock, Loader2, MapPin } from "lucide-react";
+import { CheckCircle2, Clock, Layers3, Loader2, MapPin } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -177,6 +177,42 @@ export function SessionDetailDialog({
                 <Badge variant="outline">Session RPE {session.rpe}</Badge>
               ) : null}
             </div>
+
+            {session.methodBlocks.length ? (
+              <div className="space-y-2">
+                {session.methodBlocks.map((block) => {
+                  const movementNames = block.memberEntryIds
+                    .map((entryId) => session.entries.find((entry) => entry.id === entryId)?.name)
+                    .filter(Boolean);
+                  return (
+                    <div
+                      key={block.id}
+                      className="rounded-xl border border-indigo-400/30 bg-indigo-400/[0.06] p-4"
+                    >
+                      <p className="flex items-center gap-2 text-sm font-semibold">
+                        <Layers3 className="h-4 w-4 text-indigo-300" /> {block.methodName}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {movementNames.join(" → ")}
+                      </p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {[
+                          block.rounds ? `${block.rounds} rounds` : "",
+                          block.restBetweenMovementsSeconds != null
+                            ? `${block.restBetweenMovementsSeconds}s between movements`
+                            : "",
+                          block.restBetweenRoundsSeconds != null
+                            ? `${block.restBetweenRoundsSeconds}s between rounds`
+                            : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
 
             <div className="space-y-3">
               {session.entries.length ? (

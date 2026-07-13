@@ -34,6 +34,7 @@ type PersonTrainingMethodRecord = {
 
 export type TrainingMethod = {
   id: string;
+  systemKey: string | null;
   name: string;
   family: TrainingMethodFamily;
   description: string;
@@ -81,6 +82,7 @@ export async function listTrainingMethodsClient(personId?: string) {
       const setting = settingsByMethod.get(method.id);
       return {
         id: method.id,
+        systemKey: method.system_key,
         name: method.name,
         family: method.family,
         description: method.description ?? "",

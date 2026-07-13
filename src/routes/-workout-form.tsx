@@ -11,6 +11,7 @@ import {
   Copy,
   Dumbbell,
   History,
+  Layers3,
   Loader2,
   Plus,
   Pencil,
@@ -24,8 +25,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -92,6 +101,10 @@ import {
   type RecentWorkoutLog,
   type WorkoutPlanDraft,
 } from "@/lib/workout-plan";
+import {
+  listTrainingMethodsClient,
+  type TrainingMethod,
+} from "@/lib/supabase-training-methods.browser";
 import {
   DateInput,
   DeleteConfirmDialog,
@@ -160,6 +173,7 @@ const FALLBACK_MOVEMENTS: Array<{
 ];
 
 type FormState = {
+  clientId: string;
   date: string;
   entryKind: string;
   workoutType: string;
@@ -194,6 +208,23 @@ type FormState = {
   setRows: WorkoutSetState[];
 };
 
+type WorkoutMethodBlockState = {
+  id: string;
+  trainingMethodId: string;
+  methodName: string;
+  family: "exercise_group";
+  memberClientIds: string[];
+  rounds: string;
+  restBetweenMovementsSeconds: string;
+  restBetweenRoundsSeconds: string;
+  config: Record<string, number | string | boolean>;
+};
+
+type MethodBlockEditorState =
+  | { mode: "closed" }
+  | { mode: "create" }
+  | { mode: "edit"; blockId: string };
+
 type WorkoutSetState = {
   reps: string;
   weight: string;
@@ -211,6 +242,7 @@ type SessionFormState = {
   completed: boolean;
   notes: string;
   entries: FormState[];
+  methodBlocks: WorkoutMethodBlockState[];
 };
 
 type RecentSessionTemplate = {
@@ -221,7 +253,12 @@ type RecentSessionTemplate = {
   entries: FormState[];
 };
 
+let clientIdCounter = 0;
+const newClientId = (prefix: string) =>
+  globalThis.crypto?.randomUUID?.() ?? `${prefix}-${Date.now()}-${++clientIdCounter}`;
+
 const blank = (defaultWorkoutType = ""): FormState => ({
+  clientId: newClientId("movement"),
   date: today(),
   entryKind: defaultWorkoutType === SKILL_WORKOUT_TYPE ? "Skill" : "",
   workoutType: defaultWorkoutType,
@@ -270,6 +307,7 @@ const blankSession = (): SessionFormState => ({
   completed: true,
   notes: "",
   entries: [blankSessionEntry()],
+  methodBlocks: [],
 });
 
 type StoredWorkoutSessionDraft = {
@@ -302,8 +340,36 @@ function isSessionFormState(form: unknown): form is SessionFormState {
         typeof entry.exercise === "string" &&
         typeof entry.workoutType === "string" &&
         Array.isArray(entry.setRows),
-    ),
+    ) &&
+    (candidate.methodBlocks == null || Array.isArray(candidate.methodBlocks)),
   );
+}
+
+function normalizeSessionForm(form: SessionFormState): SessionFormState {
+  const entries = form.entries.map((entry) => ({
+    ...entry,
+    clientId:
+      typeof entry.clientId === "string" && entry.clientId
+        ? entry.clientId
+        : newClientId("movement"),
+  }));
+  const entryIds = new Set(entries.map((entry) => entry.clientId));
+  const storedBlocks = Array.isArray(form.methodBlocks) ? form.methodBlocks : [];
+  const methodBlocks = storedBlocks
+    .map((block) => ({
+      ...block,
+      id: typeof block.id === "string" && block.id ? block.id : newClientId("method"),
+      memberClientIds: Array.isArray(block.memberClientIds)
+        ? block.memberClientIds.filter((id) => entryIds.has(id))
+        : [],
+    }))
+    .filter(
+      (block) =>
+        block.family === "exercise_group" &&
+        typeof block.trainingMethodId === "string" &&
+        block.memberClientIds.length >= 2,
+    );
+  return { ...form, entries, methodBlocks };
 }
 
 function readWorkoutSessionDraft(value: string | null): StoredWorkoutSessionDraft | null {
@@ -320,7 +386,7 @@ function readWorkoutSessionDraft(value: string | null): StoredWorkoutSessionDraf
     ) {
       return null;
     }
-    return draft;
+    return { ...draft, form: normalizeSessionForm(draft.form) };
   } catch {
     return null;
   }
@@ -341,7 +407,7 @@ function readCompletedWorkout(value: string | null): StoredCompletedWorkout | nu
     ) {
       return null;
     }
-    return completed;
+    return { ...completed, form: normalizeSessionForm(completed.form) };
   } catch {
     return null;
   }
@@ -390,6 +456,7 @@ function sessionHasDraftContent(form: SessionFormState) {
     form.rpe ||
     form.notes ||
     !form.completed ||
+    form.methodBlocks.length > 0 ||
     form.entries.some(entryHasDraftContent),
   );
 }
@@ -937,6 +1004,10 @@ export function FullWorkoutForm() {
     queryKey: ["next-suggested-workouts"],
     queryFn: getNextSuggestedWorkoutsClient,
   });
+  const methods = useQuery({
+    queryKey: ["training-methods", "workout-composer"],
+    queryFn: () => listTrainingMethodsClient(),
+  });
   const [form, setForm] = useState<SessionFormState>(() => blankSession());
   const [initialFormLoaded, setInitialFormLoaded] = useState(false);
   const [loadedSuggestionId, setLoadedSuggestionId] = useState<string | null>(null);
@@ -952,6 +1023,9 @@ export function FullWorkoutForm() {
   const [pendingRecentSession, setPendingRecentSession] = useState<RecentSessionTemplate | null>(
     null,
   );
+  const [methodBlockEditor, setMethodBlockEditor] = useState<MethodBlockEditorState>({
+    mode: "closed",
+  });
   const allLibraryExercises =
     lib.data?.exercises && lib.data.exercises.length > 0 ? lib.data.exercises : FALLBACK_MOVEMENTS;
   const selectedLocationKind = locations.data?.find(
@@ -980,6 +1054,13 @@ export function FullWorkoutForm() {
   const recentSessionTemplates = useMemo(
     () => buildRecentSessionTemplates(recent.data?.recent ?? [], selectedLocationKind),
     [recent.data?.recent, selectedLocationKind],
+  );
+  const exerciseGroupMethods = useMemo(
+    () =>
+      (methods.data?.items ?? []).filter(
+        (method) => method.family === "exercise_group" && method.isActive && method.isEnabled,
+      ),
+    [methods.data?.items],
   );
 
   useEffect(() => {
@@ -1166,15 +1247,45 @@ export function FullWorkoutForm() {
       if (toIndex < 0 || toIndex >= current.entries.length) return current;
       const entries = [...current.entries];
       [entries[fromIndex], entries[toIndex]] = [entries[toIndex], entries[fromIndex]];
-      return { ...current, entries };
+      const order = new Map(entries.map((entry, index) => [entry.clientId, index]));
+      const methodBlocks = current.methodBlocks.map((block) => ({
+        ...block,
+        memberClientIds: [...block.memberClientIds].sort(
+          (left, right) => (order.get(left) ?? 0) - (order.get(right) ?? 0),
+        ),
+      }));
+      return { ...current, entries, methodBlocks };
     });
   const removeEntry = (index: number) =>
+    setForm((current) => {
+      if (current.entries.length === 1) return current;
+      const removedId = current.entries[index]?.clientId;
+      const methodBlocks = current.methodBlocks
+        .map((block) => ({
+          ...block,
+          memberClientIds: block.memberClientIds.filter((id) => id !== removedId),
+        }))
+        .filter((block) => block.memberClientIds.length >= 2);
+      return {
+        ...current,
+        entries: current.entries.filter((_, i) => i !== index),
+        methodBlocks,
+      };
+    });
+  const saveMethodBlock = (block: WorkoutMethodBlockState) => {
     setForm((current) => ({
       ...current,
-      entries:
-        current.entries.length === 1
-          ? current.entries
-          : current.entries.filter((_, i) => i !== index),
+      methodBlocks:
+        methodBlockEditor.mode === "edit"
+          ? current.methodBlocks.map((item) => (item.id === block.id ? block : item))
+          : [...current.methodBlocks, block],
+    }));
+    setMethodBlockEditor({ mode: "closed" });
+  };
+  const removeMethodBlock = (blockId: string) =>
+    setForm((current) => ({
+      ...current,
+      methodBlocks: current.methodBlocks.filter((block) => block.id !== blockId),
     }));
   const updateSet = <K extends keyof WorkoutSetState>(
     entryIndex: number,
@@ -1332,6 +1443,16 @@ export function FullWorkoutForm() {
                 : entry.entryKind || "Workout",
       };
     }),
+    methodBlocks: form.methodBlocks.map((block) => ({
+      trainingMethodId: block.trainingMethodId,
+      methodName: block.methodName,
+      family: block.family,
+      rounds: block.rounds,
+      restBetweenMovementsSeconds: block.restBetweenMovementsSeconds,
+      restBetweenRoundsSeconds: block.restBetweenRoundsSeconds,
+      memberClientIds: block.memberClientIds,
+      config: block.config,
+    })),
   });
 
   const mutate = useMutation({
@@ -1653,8 +1774,85 @@ export function FullWorkoutForm() {
         </details>
       </Card>
 
+      <Card className="space-y-3 border-border bg-card p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <Layers3 className="h-4 w-4 text-indigo-300" /> Training methods
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Group movements into ordered rounds while keeping every set separate.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setMethodBlockEditor({ mode: "create" })}
+            disabled={
+              form.entries.filter((entry) => entry.exercise.trim()).length < 2 ||
+              exerciseGroupMethods.length === 0
+            }
+          >
+            <Plus className="mr-1 h-3.5 w-3.5" /> Add method
+          </Button>
+        </div>
+        {methods.isLoading ? (
+          <p className="text-xs text-muted-foreground">Loading available methods…</p>
+        ) : form.methodBlocks.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+            Add at least two movements, then choose a superset, tri-set, giant set, or another
+            exercise-group method.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {form.methodBlocks.map((block) => {
+              const movementNames = block.memberClientIds
+                .map((id) => form.entries.find((entry) => entry.clientId === id)?.exercise)
+                .filter(Boolean);
+              return (
+                <div
+                  key={block.id}
+                  className="flex flex-col gap-3 rounded-lg border border-indigo-400/25 bg-indigo-400/[0.05] p-3 sm:flex-row sm:items-center"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">{block.methodName}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {movementNames.join(" → ")} · {block.rounds || "—"} rounds ·{" "}
+                      {block.restBetweenRoundsSeconds || "0"}s between rounds
+                    </p>
+                  </div>
+                  <div className="flex justify-end gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setMethodBlockEditor({ mode: "edit", blockId: block.id })}
+                    >
+                      <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeMethodBlock(block.id)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
       <div className="space-y-3">
         {form.entries.map((entry, index) => {
+          const methodBlock = form.methodBlocks.find((block) =>
+            block.memberClientIds.includes(entry.clientId),
+          );
+          const methodPosition = methodBlock?.memberClientIds.indexOf(entry.clientId) ?? -1;
           const selectedExercise = libraryExercises.find(
             (exercise) => exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
           );
@@ -1671,9 +1869,24 @@ export function FullWorkoutForm() {
           const previousSets = previousWorkout ? setRowsFromRecentLog(previousWorkout) : [];
 
           return (
-            <Card key={index} className="space-y-4 border-border bg-card p-4">
+            <Card
+              key={entry.clientId}
+              className={`space-y-4 bg-card p-4 ${
+                methodBlock ? "border-indigo-400/35" : "border-border"
+              }`}
+            >
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold">Movement {index + 1}</h3>
+                <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                  Movement {index + 1}
+                  {methodBlock ? (
+                    <Badge
+                      variant="outline"
+                      className="border-indigo-400/30 text-[10px] text-indigo-300"
+                    >
+                      {methodBlock.methodName} · {String.fromCharCode(65 + methodPosition)}
+                    </Badge>
+                  ) : null}
+                </h3>
                 <div className="flex items-center gap-1">
                   <Button
                     type="button"
@@ -1853,7 +2066,7 @@ export function FullWorkoutForm() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Location</p>
               <p className="mt-1 truncate text-sm font-semibold">{selectedLocation?.name ?? "—"}</p>
@@ -1868,20 +2081,32 @@ export function FullWorkoutForm() {
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Sets</p>
               <p className="mt-1 text-sm font-semibold">{totalRecordedSets || "—"}</p>
             </div>
+            <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Methods</p>
+              <p className="mt-1 text-sm font-semibold">{form.methodBlocks.length || "—"}</p>
+            </div>
           </div>
 
           <div className="space-y-2">
             {workoutEntries.map((entry, index) => (
-              <div
-                key={`${entry.exercise}-${index}`}
-                className="rounded-lg border border-border p-3"
-              >
+              <div key={entry.clientId} className="rounded-lg border border-border p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="truncate text-sm font-semibold">{entry.exercise}</p>
                   <Badge variant="outline" className="shrink-0 text-[10px]">
                     {index + 1}
                   </Badge>
                 </div>
+                {form.methodBlocks.find((block) =>
+                  block.memberClientIds.includes(entry.clientId),
+                ) ? (
+                  <p className="mt-1 text-[11px] font-medium text-indigo-300">
+                    {
+                      form.methodBlocks.find((block) =>
+                        block.memberClientIds.includes(entry.clientId),
+                      )?.methodName
+                    }
+                  </p>
+                ) : null}
                 <p className="mt-1 text-xs text-muted-foreground">{workoutEntrySummary(entry)}</p>
               </div>
             ))}
@@ -1907,6 +2132,15 @@ export function FullWorkoutForm() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <MethodBlockDialog
+        state={methodBlockEditor}
+        methods={exerciseGroupMethods}
+        entries={form.entries}
+        blocks={form.methodBlocks}
+        onClose={() => setMethodBlockEditor({ mode: "closed" })}
+        onSave={saveMethodBlock}
+      />
 
       <AlertDialog open={discardDraftOpen} onOpenChange={setDiscardDraftOpen}>
         <AlertDialogContent>
@@ -1946,6 +2180,227 @@ export function FullWorkoutForm() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+function numberConfig(method: TrainingMethod | undefined, key: string, fallback: number) {
+  const value = Number(method?.defaultConfig[key]);
+  return Number.isFinite(value) ? String(value) : String(fallback);
+}
+
+function MethodBlockDialog({
+  state,
+  methods,
+  entries,
+  blocks,
+  onClose,
+  onSave,
+}: {
+  state: MethodBlockEditorState;
+  methods: TrainingMethod[];
+  entries: FormState[];
+  blocks: WorkoutMethodBlockState[];
+  onClose: () => void;
+  onSave: (block: WorkoutMethodBlockState) => void;
+}) {
+  const existing =
+    state.mode === "edit" ? blocks.find((block) => block.id === state.blockId) : undefined;
+  const initialMethod =
+    methods.find((method) => method.id === existing?.trainingMethodId) ?? methods[0];
+  const [methodId, setMethodId] = useState(initialMethod?.id ?? "");
+  const [memberClientIds, setMemberClientIds] = useState<string[]>(existing?.memberClientIds ?? []);
+  const [rounds, setRounds] = useState(
+    existing?.rounds ?? numberConfig(initialMethod, "rounds", 3),
+  );
+  const [restBetweenMovementsSeconds, setRestBetweenMovementsSeconds] = useState(
+    existing?.restBetweenMovementsSeconds ??
+      numberConfig(initialMethod, "rest_between_movements_seconds", 0),
+  );
+  const [restBetweenRoundsSeconds, setRestBetweenRoundsSeconds] = useState(
+    existing?.restBetweenRoundsSeconds ??
+      numberConfig(initialMethod, "rest_between_rounds_seconds", 90),
+  );
+
+  useEffect(() => {
+    const block =
+      state.mode === "edit" ? blocks.find((item) => item.id === state.blockId) : undefined;
+    const method = methods.find((item) => item.id === block?.trainingMethodId) ?? methods[0];
+    setMethodId(method?.id ?? "");
+    setMemberClientIds(block?.memberClientIds ?? []);
+    setRounds(block?.rounds ?? numberConfig(method, "rounds", 3));
+    setRestBetweenMovementsSeconds(
+      block?.restBetweenMovementsSeconds ??
+        numberConfig(method, "rest_between_movements_seconds", 0),
+    );
+    setRestBetweenRoundsSeconds(
+      block?.restBetweenRoundsSeconds ?? numberConfig(method, "rest_between_rounds_seconds", 90),
+    );
+  }, [blocks, methods, state]);
+
+  const selectedMethod = methods.find((method) => method.id === methodId);
+  const requiredCount = Math.max(2, Number(selectedMethod?.defaultConfig.movement_count) || 2);
+  const exactCount =
+    selectedMethod?.systemKey === "superset" || selectedMethod?.systemKey === "tri_set";
+  const minimumCount = requiredCount;
+  const selectionValid = exactCount
+    ? memberClientIds.length === requiredCount
+    : memberClientIds.length >= minimumCount;
+  const usedElsewhere = new Set(
+    blocks.filter((block) => block.id !== existing?.id).flatMap((block) => block.memberClientIds),
+  );
+  const namedEntries = entries.filter((entry) => entry.exercise.trim());
+
+  const selectMethod = (nextMethodId: string) => {
+    const method = methods.find((item) => item.id === nextMethodId);
+    setMethodId(nextMethodId);
+    setMemberClientIds([]);
+    setRounds(numberConfig(method, "rounds", 3));
+    setRestBetweenMovementsSeconds(numberConfig(method, "rest_between_movements_seconds", 0));
+    setRestBetweenRoundsSeconds(numberConfig(method, "rest_between_rounds_seconds", 90));
+  };
+
+  return (
+    <Dialog open={state.mode !== "closed"} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>
+            {state.mode === "edit" ? "Edit training method" : "Add training method"}
+          </DialogTitle>
+          <DialogDescription>
+            Choose the ordered movements and round/rest defaults. Every movement keeps its own sets,
+            load, reps, and RPE.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <Field label="Method">
+            <Select value={methodId} onValueChange={selectMethod}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a method" />
+              </SelectTrigger>
+              <SelectContent>
+                {methods.map((method) => (
+                  <SelectItem key={method.id} value={method.id}>
+                    {method.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <div>
+            <Label>Movements in order</Label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {exactCount
+                ? `Choose exactly ${requiredCount}.`
+                : `Choose at least ${minimumCount}. Their workout order becomes A, B, C…`}
+            </p>
+            <div className="mt-2 space-y-2">
+              {namedEntries.map((entry, index) => {
+                const checked = memberClientIds.includes(entry.clientId);
+                const unavailable = usedElsewhere.has(entry.clientId);
+                const atCapacity =
+                  exactCount && memberClientIds.length >= requiredCount && !checked;
+                return (
+                  <label
+                    key={entry.clientId}
+                    className={`flex items-center gap-3 rounded-lg border p-3 ${
+                      checked ? "border-indigo-400/40 bg-indigo-400/[0.06]" : "border-border"
+                    } ${unavailable ? "opacity-50" : "cursor-pointer"}`}
+                  >
+                    <Checkbox
+                      checked={checked}
+                      disabled={unavailable || atCapacity}
+                      onCheckedChange={(nextChecked) =>
+                        setMemberClientIds((current) =>
+                          nextChecked
+                            ? [...current, entry.clientId]
+                            : current.filter((id) => id !== entry.clientId),
+                        )
+                      }
+                      aria-label={`Include ${entry.exercise}`}
+                    />
+                    <span className="min-w-0 flex-1 text-sm">
+                      {index + 1}. {entry.exercise}
+                    </span>
+                    {unavailable ? (
+                      <span className="text-[10px] uppercase text-muted-foreground">
+                        In another method
+                      </span>
+                    ) : null}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Rounds">
+              <Input
+                type="number"
+                min="1"
+                inputMode="numeric"
+                value={rounds}
+                onChange={(event) => setRounds(event.target.value)}
+              />
+            </Field>
+            <Field label="Between moves (sec)">
+              <Input
+                type="number"
+                min="0"
+                inputMode="numeric"
+                value={restBetweenMovementsSeconds}
+                onChange={(event) => setRestBetweenMovementsSeconds(event.target.value)}
+              />
+            </Field>
+            <Field label="Between rounds (sec)">
+              <Input
+                type="number"
+                min="0"
+                inputMode="numeric"
+                value={restBetweenRoundsSeconds}
+                onChange={(event) => setRestBetweenRoundsSeconds(event.target.value)}
+              />
+            </Field>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={!selectedMethod || !selectionValid || !rounds}
+            onClick={() => {
+              if (!selectedMethod) return;
+              const entryOrder = new Map(entries.map((entry, index) => [entry.clientId, index]));
+              onSave({
+                id: existing?.id ?? newClientId("method"),
+                trainingMethodId: selectedMethod.id,
+                methodName: selectedMethod.name,
+                family: "exercise_group",
+                memberClientIds: [...memberClientIds].sort(
+                  (left, right) => (entryOrder.get(left) ?? 0) - (entryOrder.get(right) ?? 0),
+                ),
+                rounds,
+                restBetweenMovementsSeconds,
+                restBetweenRoundsSeconds,
+                config: {
+                  ...selectedMethod.defaultConfig,
+                  movement_count: memberClientIds.length,
+                  rounds: Number(rounds),
+                  rest_between_movements_seconds: Number(restBetweenMovementsSeconds),
+                  rest_between_rounds_seconds: Number(restBetweenRoundsSeconds),
+                },
+              });
+            }}
+          >
+            Save method
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

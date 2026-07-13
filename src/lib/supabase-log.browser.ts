@@ -164,6 +164,7 @@ type BodyweightRecord = {
 };
 
 export type WorkoutLogInput = {
+  clientId?: string;
   date: string;
   entryKind: string;
   workoutType: string;
@@ -215,6 +216,18 @@ export type WorkoutSessionInput = {
   completed: boolean;
   notes: string;
   entries: WorkoutLogInput[];
+  methodBlocks?: WorkoutMethodBlockInput[];
+};
+
+export type WorkoutMethodBlockInput = {
+  trainingMethodId: string;
+  methodName: string;
+  family: "exercise_group";
+  rounds: string;
+  restBetweenMovementsSeconds: string;
+  restBetweenRoundsSeconds: string;
+  memberClientIds: string[];
+  config: Record<string, number | string | boolean>;
 };
 
 export type ClimbLogInput = {
@@ -643,6 +656,7 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
   const session = insertedSession[0];
   if (!session) throw new Error("Workout was not saved.");
 
+  const entryIdsByClientId = new Map<string, string>();
   try {
     for (const [index, entryData] of entries.entries()) {
       const [activityType, exercise] = await Promise.all([
@@ -671,6 +685,7 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
       });
       const entry = insertedEntry[0];
       if (!entry) throw new Error(`${entryData.exercise} was not saved.`);
+      if (entryData.clientId) entryIdsByClientId.set(entryData.clientId, entry.id);
 
       const setRows = (entryData.setRows ?? []).filter((set) => set.reps || set.weight || set.rpe);
       if (setRows.length) {
@@ -723,6 +738,34 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
           ),
         );
       }
+    }
+
+    for (const [blockIndex, methodBlock] of (data.methodBlocks ?? []).entries()) {
+      const memberEntryIds = methodBlock.memberClientIds
+        .map((clientId) => entryIdsByClientId.get(clientId))
+        .filter((id): id is string => Boolean(id));
+      if (memberEntryIds.length < 2) continue;
+      const insertedBlocks = await supabasePublicInsert<{ id: string }>("session_method_blocks", {
+        session_id: session.id,
+        training_method_id: methodBlock.trainingMethodId,
+        method_name: methodBlock.methodName,
+        family: methodBlock.family,
+        order_index: blockIndex,
+        rounds: toNum(methodBlock.rounds),
+        rest_between_movements_seconds: toNum(methodBlock.restBetweenMovementsSeconds),
+        rest_between_rounds_seconds: toNum(methodBlock.restBetweenRoundsSeconds),
+        config: methodBlock.config,
+      });
+      const insertedBlock = insertedBlocks[0];
+      if (!insertedBlock) throw new Error(`${methodBlock.methodName} was not saved.`);
+      await supabasePublicInsert(
+        "session_method_block_entries",
+        memberEntryIds.map((sessionEntryId, sequenceIndex) => ({
+          block_id: insertedBlock.id,
+          session_entry_id: sessionEntryId,
+          sequence_index: sequenceIndex,
+        })),
+      );
     }
   } catch (error) {
     await supabasePublicDelete("sessions", { id: `eq.${session.id}` }).catch(() => undefined);

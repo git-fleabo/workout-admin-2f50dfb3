@@ -33,6 +33,16 @@ export type SessionDetailEntry = {
   metrics: SessionDetailMetric[];
 };
 
+export type SessionDetailMethodBlock = {
+  id: string;
+  methodName: string;
+  family: string;
+  rounds: number | string | null;
+  restBetweenMovementsSeconds: number | string | null;
+  restBetweenRoundsSeconds: number | string | null;
+  memberEntryIds: string[];
+};
+
 export type SessionDetail = {
   id: string;
   date: string;
@@ -44,6 +54,7 @@ export type SessionDetail = {
   notes: string | null;
   location: { name: string | null; kind: string | null } | null;
   entries: SessionDetailEntry[];
+  methodBlocks: SessionDetailMethodBlock[];
 };
 
 type SessionDetailRecord = {
@@ -56,6 +67,19 @@ type SessionDetailRecord = {
   rpe: number | string | null;
   notes: string | null;
   training_locations: { name: string | null; kind: string | null } | null;
+  session_method_blocks: Array<{
+    id: string;
+    method_name: string;
+    family: string;
+    order_index: number | string | null;
+    rounds: number | string | null;
+    rest_between_movements_seconds: number | string | null;
+    rest_between_rounds_seconds: number | string | null;
+    session_method_block_entries: Array<{
+      session_entry_id: string;
+      sequence_index: number | string | null;
+    }> | null;
+  }> | null;
   session_entries: Array<{
     id: string;
     order_index: number | string | null;
@@ -96,7 +120,7 @@ export async function getSessionDetailClient(sessionId: string): Promise<Session
   if (!person) throw new Error("This account is not linked to a training profile.");
   const rows = await supabasePublicSelect<SessionDetailRecord>("sessions", {
     select:
-      "id,session_date,title,completed,duration_minutes,intensity,rpe,notes,training_locations(name,kind),session_entries(id,order_index,name,entry_kind,progression_level,notes,completed,activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,completed),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
+      "id,session_date,title,completed,duration_minutes,intensity,rpe,notes,training_locations(name,kind),session_method_blocks(id,method_name,family,order_index,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,session_method_block_entries(session_entry_id,sequence_index)),session_entries(id,order_index,name,entry_kind,progression_level,notes,completed,activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,completed),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
     id: `eq.${sessionId}`,
     person_id: `eq.${person.id}`,
     limit: 1,
@@ -114,6 +138,19 @@ export async function getSessionDetailClient(sessionId: string): Promise<Session
     rpe: session.rpe,
     notes: session.notes,
     location: session.training_locations,
+    methodBlocks: [...(session.session_method_blocks ?? [])]
+      .sort((a, b) => orderNumber(a.order_index) - orderNumber(b.order_index))
+      .map((block) => ({
+        id: block.id,
+        methodName: block.method_name,
+        family: block.family,
+        rounds: block.rounds,
+        restBetweenMovementsSeconds: block.rest_between_movements_seconds,
+        restBetweenRoundsSeconds: block.rest_between_rounds_seconds,
+        memberEntryIds: [...(block.session_method_block_entries ?? [])]
+          .sort((a, b) => orderNumber(a.sequence_index) - orderNumber(b.sequence_index))
+          .map((member) => member.session_entry_id),
+      })),
     entries: [...(session.session_entries ?? [])]
       .sort((a, b) => orderNumber(a.order_index) - orderNumber(b.order_index))
       .map((entry) => ({
