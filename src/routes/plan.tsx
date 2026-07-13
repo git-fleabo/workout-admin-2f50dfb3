@@ -26,6 +26,7 @@ import { getLibraryClient, getRecentLogsClient } from "@/lib/supabase-log.browse
 import { saveWorkoutPlanClient } from "@/lib/supabase-plans.browser";
 import {
   buildWorkoutSuggestion,
+  getWorkoutBasisOptions,
   WORKOUT_PLAN_DRAFT_KEY,
   type PlannerLocation,
   type PlannerReadiness,
@@ -88,7 +89,8 @@ function PlanPage() {
   });
   const [location, setLocation] = useState<PlannerLocation>("gym");
   const [readiness, setReadiness] = useState<PlannerReadiness>("normal");
-  const suggestion = useMemo(() => {
+  const [basisDate, setBasisDate] = useState<string | null>(null);
+  const matchingLogs = useMemo(() => {
     const allowed = new Set(
       (library.data?.exercises ?? [])
         .filter(
@@ -96,12 +98,25 @@ function PlanPage() {
         )
         .map((exercise) => exercise.name.toLowerCase()),
     );
-    const logs = (history.data?.recent ?? []).filter((log) =>
-      allowed.has(log.exercise.toLowerCase()),
-    );
-    return buildWorkoutSuggestion(logs, location, readiness);
-  }, [history.data?.recent, library.data?.exercises, location, readiness]);
+    return (history.data?.recent ?? []).filter((log) => allowed.has(log.exercise.toLowerCase()));
+  }, [history.data?.recent, library.data?.exercises, location]);
+  const basisOptions = useMemo(
+    () => getWorkoutBasisOptions(matchingLogs, location),
+    [location, matchingLogs],
+  );
+  const suggestion = useMemo(
+    () => buildWorkoutSuggestion(matchingLogs, location, readiness, basisDate),
+    [basisDate, location, matchingLogs, readiness],
+  );
   const [movements, setMovements] = useState<WorkoutPlanMovement[]>([]);
+
+  useEffect(() => setBasisDate(null), [location]);
+
+  useEffect(() => {
+    if (basisDate && !basisOptions.some((option) => option.date === basisDate)) {
+      setBasisDate(null);
+    }
+  }, [basisDate, basisOptions]);
 
   useEffect(() => {
     setMovements(suggestion?.movements ?? []);
@@ -248,6 +263,35 @@ function PlanPage() {
         </Card>
       </section>
 
+      {!history.isLoading && !library.isLoading && basisOptions.length > 0 ? (
+        <Card>
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-sm">Based on</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Let the app choose, or use a specific recent {location} training day.
+            </p>
+          </CardHeader>
+          <CardContent className="flex gap-2 overflow-x-auto p-4 pt-2 pb-3 sm:grid sm:grid-cols-2 sm:overflow-visible xl:grid-cols-3">
+            <BasisButton
+              active={basisDate == null}
+              title="Recommended"
+              detail="Use automatic repeat or rotation detection"
+              onClick={() => setBasisDate(null)}
+            />
+            {basisOptions.map((option) => (
+              <BasisButton
+                key={option.date}
+                active={basisDate === option.date}
+                title={formatUKDate(option.date)}
+                detail={option.exercises.join(" · ")}
+                fallback={option.fallbackUsed}
+                onClick={() => setBasisDate(option.date)}
+              />
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
+
       {history.isLoading || library.isLoading ? (
         <div className="flex items-center justify-center py-24 text-sm text-muted-foreground">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Reviewing recent training…
@@ -281,7 +325,11 @@ function PlanPage() {
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-sm font-semibold">{suggestion.title}</p>
               <Badge variant="outline" className="text-[10px] capitalize">
-                {suggestion.pattern === "rotation" ? "Pattern rotation" : "Repeat pattern"}
+                {suggestion.pattern === "manual"
+                  ? "Chosen session"
+                  : suggestion.pattern === "rotation"
+                    ? "Pattern rotation"
+                    : "Repeat pattern"}
               </Badge>
               {suggestion.fallbackUsed && (
                 <Badge variant="outline" className="border-amber-400/30 text-[10px] text-amber-300">
@@ -380,6 +428,7 @@ function LocationButton({
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={cn(
         "flex items-center justify-center gap-2 rounded-lg border px-3 py-3 text-sm font-medium transition",
@@ -389,6 +438,44 @@ function LocationButton({
       )}
     >
       {icon} {label}
+    </button>
+  );
+}
+
+function BasisButton({
+  active,
+  title,
+  detail,
+  fallback = false,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  detail: string;
+  fallback?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        "w-[78vw] max-w-[300px] shrink-0 rounded-lg border p-3 text-left transition sm:w-auto sm:max-w-none",
+        active
+          ? "border-primary/50 bg-primary/10"
+          : "border-border bg-secondary/20 hover:bg-secondary/40",
+      )}
+    >
+      <span className="flex items-center gap-2 text-sm font-medium">
+        {title}
+        {fallback ? (
+          <Badge variant="outline" className="text-[9px] font-normal">
+            Locationless
+          </Badge>
+        ) : null}
+      </span>
+      <span className="mt-1 line-clamp-2 block text-[11px] text-muted-foreground">{detail}</span>
     </button>
   );
 }

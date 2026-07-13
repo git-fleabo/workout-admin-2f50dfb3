@@ -894,6 +894,8 @@ The top-level Plan workspace builds an editable next-workout draft from recent c
 - If the selected location has no labelled history yet, the app clearly falls back to older locationless logs instead of pretending those sessions are known to be Home or Gym.
 - Legacy separate movement sessions are grouped back into training days so older history can still form a workout pattern.
 - If the last three matching training days clearly resemble an A/B/A rotation, the planner suggests the B pattern next; otherwise it repeats the most recent matching training day.
+- `Based on` keeps that automatic recommendation as the default but also lets the user choose one of the six most recent matching Home/Gym training days. The choices show their date and movements, scroll horizontally on mobile, and form a compact grid on larger screens.
+- Choosing a historical day rebuilds the suggestion from that day while retaining the same readiness and progression rules; switching Home/Gym resets the choice to Recommended.
 - `Normal`, `Fresh`, and `Tired` readiness options recalculate every movement.
 - Below 5 reps, weighted work keeps the load and adds one rep per set up to 5.
 - Comfortable 5+ rep sets require a logged RPE of 8 or below before `Normal` moves load up 2.5 kg and resets the target to 3 reps. `Fresh` allows that small move without the RPE confirmation; `Tired` removes one set and reduces load by about 10%.
@@ -1087,7 +1089,7 @@ Recommended next work, in order:
 8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-11. Decide whether the next planner iteration should support creating a plan from scratch, choosing a different historical session, or both.
+11. Decide whether the next planner iteration should support creating a plan from scratch, or move back to faster mobile movement/session logging first.
 12. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
 13. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 14. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.

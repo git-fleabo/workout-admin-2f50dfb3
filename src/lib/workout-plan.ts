@@ -32,13 +32,16 @@ export type WorkoutPlanDraft = {
 
 export type WorkoutPlanSuggestion = WorkoutPlanDraft & {
   fallbackUsed: boolean;
-  pattern: "repeat" | "rotation";
+  pattern: "repeat" | "rotation" | "manual";
 };
 
-type TrainingDay = {
+export type WorkoutBasisOption = {
   date: string;
-  movements: RecentWorkoutLog[];
+  exercises: string[];
+  fallbackUsed: boolean;
 };
+
+type TrainingDay = { date: string; movements: RecentWorkoutLog[] };
 
 const numberOrNull = (value: string | null | undefined) => {
   if (!value) return null;
@@ -105,6 +108,29 @@ function chooseBasis(days: TrainingDay[]) {
   return { day: latest, pattern: "repeat" as const };
 }
 
+function matchingTrainingDays(logs: RecentWorkoutLog[], location: PlannerLocation) {
+  const exact = logs.filter((log) => log.trainingLocation?.kind === location);
+  const fallback = logs.filter((log) => !log.trainingLocation?.kind);
+  const fallbackUsed = exact.length === 0;
+  return {
+    days: groupTrainingDays(fallbackUsed ? fallback : exact),
+    fallbackUsed,
+  };
+}
+
+export function getWorkoutBasisOptions(
+  logs: RecentWorkoutLog[],
+  location: PlannerLocation,
+  limit = 6,
+): WorkoutBasisOption[] {
+  const { days, fallbackUsed } = matchingTrainingDays(logs, location);
+  return days.slice(0, limit).map((day) => ({
+    date: day.date,
+    exercises: day.movements.map((movement) => movement.exercise),
+    fallbackUsed,
+  }));
+}
+
 function suggestMovement(log: RecentWorkoutLog, readiness: PlannerReadiness): WorkoutPlanMovement {
   let rows = setRowsFor(log);
   const weightedRows = rows.filter((set) => numberOrNull(set.weight) != null);
@@ -165,19 +191,22 @@ export function buildWorkoutSuggestion(
   logs: RecentWorkoutLog[],
   location: PlannerLocation,
   readiness: PlannerReadiness,
+  basisDate?: string | null,
 ): WorkoutPlanSuggestion | null {
-  const exact = logs.filter((log) => log.trainingLocation?.kind === location);
-  const fallback = logs.filter((log) => !log.trainingLocation?.kind);
-  const fallbackUsed = exact.length === 0;
-  const days = groupTrainingDays(fallbackUsed ? fallback : exact);
-  const chosen = chooseBasis(days);
+  const { days, fallbackUsed } = matchingTrainingDays(logs, location);
+  const manuallyChosen = basisDate ? days.find((day) => day.date === basisDate) : null;
+  const chosen = manuallyChosen
+    ? { day: manuallyChosen, pattern: "manual" as const }
+    : chooseBasis(days);
   if (!chosen.day) return null;
 
   const locationLabel = location === "home" ? "Home" : "Gym";
   const patternBasis =
-    chosen.pattern === "rotation"
-      ? `Detected an alternating pattern and rotated to the session from ${chosen.day.date}.`
-      : `Based on the most recent matching training day, ${chosen.day.date}.`;
+    chosen.pattern === "manual"
+      ? `You chose the training day from ${chosen.day.date} as the basis.`
+      : chosen.pattern === "rotation"
+        ? `Detected an alternating pattern and rotated to the session from ${chosen.day.date}.`
+        : `Based on the most recent matching training day, ${chosen.day.date}.`;
   const fallbackBasis = fallbackUsed
     ? ` No ${locationLabel}-labelled history was found, so this uses older locationless logs.`
     : "";
