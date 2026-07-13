@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Calendar, Check, ChevronsUpDown, Loader2, Plus, Trash2 } from "lucide-react";
+import { Calendar, Check, ChevronsUpDown, Dumbbell, Loader2, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,12 +44,22 @@ import {
 } from "@/lib/supabase-log.browser";
 import { formatUKDate, todayISO } from "@/lib/date";
 import {
+  completeSuggestedWorkoutClient,
+  getNextSuggestedWorkoutsClient,
+  updateSuggestedWorkoutStatusClient,
+  type SavedWorkoutPlan,
+} from "@/lib/supabase-plans.browser";
+import {
   getMovementMetricProfile,
   type MetricProfile,
   profileUsesLoad,
   profileUsesStandardSets,
 } from "@/lib/movement-metrics";
-import { readWorkoutPlanDraft, WORKOUT_PLAN_DRAFT_KEY } from "@/lib/workout-plan";
+import {
+  readWorkoutPlanDraft,
+  WORKOUT_PLAN_DRAFT_KEY,
+  type WorkoutPlanDraft,
+} from "@/lib/workout-plan";
 import {
   DateInput,
   DeleteConfirmDialog,
@@ -630,8 +640,13 @@ export function FullWorkoutForm() {
     queryKey: ["training-locations"],
     queryFn: getTrainingLocationsClient,
   });
+  const nextPlans = useQuery({
+    queryKey: ["next-suggested-workouts"],
+    queryFn: getNextSuggestedWorkoutsClient,
+  });
   const [form, setForm] = useState<SessionFormState>(() => blankSession());
   const [planDraftLoaded, setPlanDraftLoaded] = useState(false);
+  const [loadedSuggestionId, setLoadedSuggestionId] = useState<string | null>(null);
   const allLibraryExercises =
     lib.data?.exercises && lib.data.exercises.length > 0 ? lib.data.exercises : FALLBACK_MOVEMENTS;
   const selectedLocationKind = locations.data?.find(
@@ -650,6 +665,27 @@ export function FullWorkoutForm() {
     [allLibraryExercises, selectedLocationKind],
   );
 
+  const loadPlanIntoForm = useCallback(
+    (draft: WorkoutPlanDraft) => {
+      const trainingLocation = locations.data?.find(
+        (location) => location.kind === draft.locationKind,
+      );
+      setForm({
+        ...blankSession(),
+        title: draft.title,
+        trainingLocationId: trainingLocation?.id ?? "",
+        entries: draft.movements.map((movement) => ({
+          ...blankSessionEntry(),
+          exercise: movement.exercise,
+          workoutType: movement.workoutType,
+          setRows: movement.setRows.map((set) => ({ ...set, completed: true })),
+        })),
+      });
+      setLoadedSuggestionId(draft.suggestedWorkoutId ?? null);
+    },
+    [locations.data],
+  );
+
   useEffect(() => {
     if (planDraftLoaded) return;
     const stored = window.localStorage.getItem(WORKOUT_PLAN_DRAFT_KEY);
@@ -659,26 +695,37 @@ export function FullWorkoutForm() {
       return;
     }
     if (!locations.data?.length) return;
-    const trainingLocation = locations.data.find(
-      (location) => location.kind === draft.locationKind,
-    );
-    setForm({
-      ...blankSession(),
-      title: draft.title,
-      trainingLocationId: trainingLocation?.id ?? "",
-      entries: draft.movements.map((movement) => ({
-        ...blankSessionEntry(),
-        exercise: movement.exercise,
-        workoutType: movement.workoutType,
-        setRows: movement.setRows.map((set) => ({ ...set, completed: true })),
-      })),
-    });
+    loadPlanIntoForm(draft);
     window.localStorage.removeItem(WORKOUT_PLAN_DRAFT_KEY);
     setPlanDraftLoaded(true);
     toast.message("Workout plan loaded", {
       description: "Review the suggestion, adjust anything you like, then save as normal.",
     });
-  }, [locations.data, planDraftLoaded]);
+  }, [loadPlanIntoForm, locations.data, planDraftLoaded]);
+
+  const useSavedPlan = useMutation({
+    mutationFn: async (plan: SavedWorkoutPlan) => {
+      await updateSuggestedWorkoutStatusClient(plan.suggestedWorkoutId, "accepted");
+      return plan;
+    },
+    onSuccess: (plan) => {
+      loadPlanIntoForm(plan);
+      qc.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
+      toast.message("Workout plan loaded", {
+        description: "Review the targets, adjust anything you like, then save as normal.",
+      });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const skipSavedPlan = useMutation({
+    mutationFn: (id: string) => updateSuggestedWorkoutStatusClient(id, "skipped"),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
+      toast.message("Workout plan skipped");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   useEffect(() => {
     if (!planDraftLoaded) return;
@@ -823,11 +870,20 @@ export function FullWorkoutForm() {
           };
         }),
       }),
-    onSuccess: () => {
+    onSuccess: async (result) => {
+      if (loadedSuggestionId) {
+        try {
+          await completeSuggestedWorkoutClient(loadedSuggestionId, result.sessionId);
+          qc.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
+        } catch {
+          toast.warning("Workout saved, but the plan could not be marked complete.");
+        }
+      }
       toast.success("Workout session saved", {
         description: `${form.entries.filter((entry) => entry.exercise).length} movements were added.`,
       });
       setForm(blankSession());
+      setLoadedSuggestionId(null);
       qc.invalidateQueries({ queryKey: ["recent-workouts"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["prs"] });
@@ -843,6 +899,67 @@ export function FullWorkoutForm() {
 
   return (
     <div className="space-y-6">
+      {!loadedSuggestionId && (nextPlans.data?.length ?? 0) > 0 ? (
+        <section className="space-y-2">
+          <div>
+            <h2 className="text-base font-semibold">Next workout</h2>
+            <p className="text-xs text-muted-foreground">
+              Saved plans stay here until you use or skip them.
+            </p>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {nextPlans.data?.map((plan) => (
+              <Card
+                key={plan.suggestedWorkoutId}
+                className="border-cyan-400/25 bg-cyan-400/[0.05] p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold">{plan.title}</p>
+                      <Badge variant="outline" className="text-[10px] capitalize">
+                        {plan.locationKind}
+                      </Badge>
+                      {plan.readiness ? (
+                        <Badge variant="outline" className="text-[10px] capitalize">
+                          {plan.readiness}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {plan.movements.length} movements ·{" "}
+                      {plan.movements.map((item) => item.exercise).join(", ")}
+                    </p>
+                  </div>
+                  <Dumbbell className="h-5 w-5 shrink-0 text-cyan-300" />
+                </div>
+                <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => useSavedPlan.mutate(plan)}
+                    disabled={useSavedPlan.isPending || skipSavedPlan.isPending}
+                  >
+                    {useSavedPlan.isPending &&
+                    useSavedPlan.variables?.suggestedWorkoutId === plan.suggestedWorkoutId ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    Load workout
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => skipSavedPlan.mutate(plan.suggestedWorkoutId)}
+                    disabled={useSavedPlan.isPending || skipSavedPlan.isPending}
+                  >
+                    Skip
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <Card className="space-y-4 border-border bg-card p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <div>

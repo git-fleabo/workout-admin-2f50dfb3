@@ -471,10 +471,14 @@ create table if not exists public.suggested_workouts (
   person_id uuid not null references public.people(id) on delete cascade,
   program_assignment_id uuid references public.program_assignments(id) on delete set null,
   program_workout_id uuid references public.program_workouts(id) on delete set null,
+  training_location_id uuid references public.training_locations(id) on delete set null,
   suggested_for date,
   status text not null default 'pending'
     check (status in ('pending', 'accepted', 'completed', 'skipped', 'archived')),
   title text not null,
+  readiness text check (readiness in ('normal', 'fresh', 'tired')),
+  basis text,
+  completed_session_id uuid references public.sessions(id) on delete set null,
   notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -482,6 +486,41 @@ create table if not exists public.suggested_workouts (
 
 create trigger suggested_workouts_set_updated_at
 before update on public.suggested_workouts
+for each row execute function public.set_updated_at();
+
+create table if not exists public.suggested_workout_entries (
+  id uuid primary key default gen_random_uuid(),
+  suggested_workout_id uuid not null references public.suggested_workouts(id) on delete cascade,
+  exercise_id uuid references public.exercises(id) on delete set null,
+  name text not null,
+  workout_type text,
+  order_index integer not null default 0,
+  source_date date,
+  reason text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (suggested_workout_id, order_index)
+);
+
+create trigger suggested_workout_entries_set_updated_at
+before update on public.suggested_workout_entries
+for each row execute function public.set_updated_at();
+
+create table if not exists public.suggested_workout_sets (
+  id uuid primary key default gen_random_uuid(),
+  suggested_workout_entry_id uuid not null references public.suggested_workout_entries(id) on delete cascade,
+  set_number integer not null,
+  reps numeric,
+  weight numeric,
+  rpe numeric,
+  completed boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (suggested_workout_entry_id, set_number)
+);
+
+create trigger suggested_workout_sets_set_updated_at
+before update on public.suggested_workout_sets
 for each row execute function public.set_updated_at();
 
 insert into public.activity_types (name, slug, sort_order)
@@ -630,6 +669,24 @@ create index if not exists suggested_workouts_program_assignment_idx
 create index if not exists suggested_workouts_program_workout_idx
   on public.suggested_workouts (program_workout_id);
 
+create index if not exists suggested_workouts_location_status_idx
+  on public.suggested_workouts (person_id, training_location_id, status, created_at desc);
+
+create index if not exists suggested_workouts_training_location_idx
+  on public.suggested_workouts (training_location_id);
+
+create index if not exists suggested_workouts_completed_session_idx
+  on public.suggested_workouts (completed_session_id);
+
+create index if not exists suggested_workout_entries_workout_idx
+  on public.suggested_workout_entries (suggested_workout_id, order_index);
+
+create index if not exists suggested_workout_entries_exercise_idx
+  on public.suggested_workout_entries (exercise_id);
+
+create index if not exists suggested_workout_sets_entry_idx
+  on public.suggested_workout_sets (suggested_workout_entry_id, set_number);
+
 alter table public.people enable row level security;
 alter table public.admin_people enable row level security;
 alter table public.app_profiles enable row level security;
@@ -654,6 +711,8 @@ alter table public.program_workout_entries enable row level security;
 alter table public.program_assignments enable row level security;
 alter table public.program_assignment_exercises enable row level security;
 alter table public.suggested_workouts enable row level security;
+alter table public.suggested_workout_entries enable row level security;
+alter table public.suggested_workout_sets enable row level security;
 
 grant usage on schema public to authenticated;
 
@@ -681,7 +740,9 @@ grant select on
   public.program_workout_entries,
   public.program_assignments,
   public.program_assignment_exercises,
-  public.suggested_workouts
+  public.suggested_workouts,
+  public.suggested_workout_entries,
+  public.suggested_workout_sets
 to authenticated;
 
 grant insert, update, delete on public.goals to authenticated;
@@ -696,6 +757,9 @@ grant insert on public.entry_sets to authenticated;
 grant insert on public.entry_metrics to authenticated;
 grant insert on public.one_rm_tests to authenticated;
 grant insert, update, delete on public.program_assignment_exercises to authenticated;
+grant insert, update, delete on public.suggested_workouts to authenticated;
+grant insert, update, delete on public.suggested_workout_entries to authenticated;
+grant insert, update, delete on public.suggested_workout_sets to authenticated;
 grant insert on public.bodyweight_logs to authenticated;
 grant delete on public.sessions to authenticated;
 grant delete on public.one_rm_tests to authenticated;
@@ -1116,3 +1180,104 @@ create policy program_assignment_exercises_delete_managed
         and app_private.person_is_accessible(pa.person_id)
     )
   );
+
+create policy suggested_workouts_select_accessible
+  on public.suggested_workouts for select to authenticated
+  using (app_private.person_is_accessible(person_id));
+
+create policy suggested_workouts_insert_accessible
+  on public.suggested_workouts for insert to authenticated
+  with check (app_private.person_is_accessible(person_id));
+
+create policy suggested_workouts_update_accessible
+  on public.suggested_workouts for update to authenticated
+  using (app_private.person_is_accessible(person_id))
+  with check (app_private.person_is_accessible(person_id));
+
+create policy suggested_workouts_delete_accessible
+  on public.suggested_workouts for delete to authenticated
+  using (app_private.person_is_accessible(person_id));
+
+create policy suggested_workout_entries_select_accessible
+  on public.suggested_workout_entries for select to authenticated
+  using (exists (
+    select 1 from public.suggested_workouts workout
+    where workout.id = suggested_workout_id
+      and app_private.person_is_accessible(workout.person_id)
+  ));
+
+create policy suggested_workout_entries_insert_accessible
+  on public.suggested_workout_entries for insert to authenticated
+  with check (exists (
+    select 1 from public.suggested_workouts workout
+    where workout.id = suggested_workout_id
+      and app_private.person_is_accessible(workout.person_id)
+  ));
+
+create policy suggested_workout_entries_update_accessible
+  on public.suggested_workout_entries for update to authenticated
+  using (exists (
+    select 1 from public.suggested_workouts workout
+    where workout.id = suggested_workout_id
+      and app_private.person_is_accessible(workout.person_id)
+  ))
+  with check (exists (
+    select 1 from public.suggested_workouts workout
+    where workout.id = suggested_workout_id
+      and app_private.person_is_accessible(workout.person_id)
+  ));
+
+create policy suggested_workout_entries_delete_accessible
+  on public.suggested_workout_entries for delete to authenticated
+  using (exists (
+    select 1 from public.suggested_workouts workout
+    where workout.id = suggested_workout_id
+      and app_private.person_is_accessible(workout.person_id)
+  ));
+
+create policy suggested_workout_sets_select_accessible
+  on public.suggested_workout_sets for select to authenticated
+  using (exists (
+    select 1
+    from public.suggested_workout_entries entry
+    join public.suggested_workouts workout on workout.id = entry.suggested_workout_id
+    where entry.id = suggested_workout_entry_id
+      and app_private.person_is_accessible(workout.person_id)
+  ));
+
+create policy suggested_workout_sets_insert_accessible
+  on public.suggested_workout_sets for insert to authenticated
+  with check (exists (
+    select 1
+    from public.suggested_workout_entries entry
+    join public.suggested_workouts workout on workout.id = entry.suggested_workout_id
+    where entry.id = suggested_workout_entry_id
+      and app_private.person_is_accessible(workout.person_id)
+  ));
+
+create policy suggested_workout_sets_update_accessible
+  on public.suggested_workout_sets for update to authenticated
+  using (exists (
+    select 1
+    from public.suggested_workout_entries entry
+    join public.suggested_workouts workout on workout.id = entry.suggested_workout_id
+    where entry.id = suggested_workout_entry_id
+      and app_private.person_is_accessible(workout.person_id)
+  ))
+  with check (exists (
+    select 1
+    from public.suggested_workout_entries entry
+    join public.suggested_workouts workout on workout.id = entry.suggested_workout_id
+    where entry.id = suggested_workout_entry_id
+      and app_private.person_is_accessible(workout.person_id)
+  ));
+
+create policy suggested_workout_sets_delete_accessible
+  on public.suggested_workout_sets for delete to authenticated
+  using (exists (
+    select 1
+    from public.suggested_workout_entries entry
+    join public.suggested_workouts workout on workout.id = entry.suggested_workout_id
+    where entry.id = suggested_workout_entry_id
+      and app_private.person_is_accessible(workout.person_id)
+  ));

@@ -736,9 +736,9 @@ RLS:
 
 - Managed-person SELECT/INSERT/UPDATE/DELETE policies via the parent `program_assignments.person_id`.
 
-### `suggested_workouts`
+### `suggested_workouts`, `suggested_workout_entries`, and `suggested_workout_sets`
 
-Purpose: future suggested workout instances for a person.
+Purpose: persistent, editable next-workout plans that can move from suggestion to a completed session.
 
 Rows: 0
 
@@ -748,11 +748,22 @@ Key columns:
 - `person_id uuid -> people.id`
 - `program_assignment_id uuid -> program_assignments.id nullable`
 - `program_workout_id uuid -> program_workouts.id nullable`
+- `training_location_id uuid -> training_locations.id nullable`
 - `suggested_for date nullable`
 - `status text`, one of `pending`, `accepted`, `completed`, `skipped`, `archived`
 - `title text`
+- `readiness text`, one of `normal`, `fresh`, `tired`
+- `basis text nullable`
+- `completed_session_id uuid -> sessions.id nullable`
 - `notes text nullable`
 - timestamps
+
+`suggested_workout_entries` stores ordered movement names, workout types, source dates, and plain-language progression reasons. `suggested_workout_sets` stores ordered reps, weight, RPE, and completion targets for each entry.
+
+RLS:
+
+- Authenticated SELECT/INSERT/UPDATE/DELETE policies use `app_private.person_is_accessible` directly on the plan and through the parent plan for entry/set rows.
+- A rollback-only authenticated test inserted and read one plan, entry, and set successfully after the 2026-07-13 migration.
 
 Programme-template decision:
 
@@ -887,9 +898,10 @@ The top-level Plan workspace builds an editable next-workout draft from recent c
 - Below 5 reps, weighted work keeps the load and adds one rep per set up to 5.
 - Comfortable 5+ rep sets require a logged RPE of 8 or below before `Normal` moves load up 2.5 kg and resets the target to 3 reps. `Fresh` allows that small move without the RPE confirmation; `Tired` removes one set and reduces load by about 10%.
 - Every movement shows the source date and a plain-language reason. Suggested sets remain editable and movements can be removed.
-- `Start this workout` stores a short-lived browser draft and opens Full Workout with location, movements, and sets prefilled. The draft is removed immediately after loading and nothing is written to Supabase until the normal workout save succeeds.
-
-This first planner does not create `suggested_workouts` rows. That table currently stores suggestion headers but has no child-entry model for editable movement/set prescriptions; persisting incomplete plan details there would lose the transparent draft. A future persistence phase should add a proper suggestion-entry shape before saving plans.
+- `Save for later` persists the editable plan to Supabase. One current Home plan and one current Gym plan can coexist; saving a newer plan archives the older current plan for that location.
+- `Start this workout` persists the plan as accepted, then opens Full Workout with location, movements, and sets prefilled through a short-lived browser handoff.
+- Full Workout shows saved plans in a `Next workout` area with Load and Skip actions. Loading keeps every target editable.
+- Saving a Full Workout that came from a plan marks the plan completed and links it to the newly created session through `completed_session_id`.
 
 ### History
 
@@ -919,6 +931,7 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `src/lib/supabase-people.browser.ts`: current person/profile helpers.
 - `src/lib/supabase-dashboard.browser.ts`: dashboard data loading and aggregation.
 - `src/lib/supabase-log.browser.ts`: workout/climbing/1RM/bodyweight log data functions.
+- `src/lib/supabase-plans.browser.ts`: save/load/status/completion helpers for persistent workout plans.
 - `src/lib/workout-plan.ts`: transparent history grouping, pattern detection, progression rules, and plan-draft validation.
 - `src/lib/supabase-library.browser.ts`: library and person exercise selection data functions.
 - `src/lib/supabase-goals.browser.ts`: goals and check-ins data functions.
@@ -941,6 +954,7 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `supabase/schema.sql`: schema/policy snapshot.
 - `supabase/migrations/20260713100036_add_training_locations.sql`: applied and tracked training-location migration.
 - `supabase/migrations/20260713105054_add_exercise_location_scope.sql`: applied and tracked per-person Home/Gym/Both exercise availability.
+- `supabase/migrations/20260713110640_add_persistent_workout_suggestions.sql`: applied and tracked persistent workout plan entries/sets, session link, indexes, grants, and RLS.
 - `supabase/approved_logging_library_updates.sql`: reusable SQL for approved data-library changes.
 - `workout_context.md`: this handoff file; keep it current.
 
@@ -1071,9 +1085,9 @@ Recommended next work, in order:
 6. Test the duplicate-log warning by trying to save the same movement twice on the same date.
 7. Test a Home and Gym full-workout save from the deployed authenticated app, including mixed-weight sets, and confirm the location appears in History.
 8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
-9. Test Plan for Gym Normal/Tired, then use `Start this workout` and confirm the location and exact set targets reach Full Workout unchanged.
+9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-11. Decide whether accepted but not yet completed plans should persist across devices; if yes, add suggestion-entry/set tables under `suggested_workouts` before writing plan details.
+11. Decide whether the next planner iteration should support creating a plan from scratch, choosing a different historical session, or both.
 12. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
 13. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 14. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.

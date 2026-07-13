@@ -725,7 +725,7 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
     throw error;
   }
 
-  return { ok: true, row: session.source_row ?? "Supabase" };
+  return { ok: true, row: session.source_row ?? "Supabase", sessionId: session.id };
 }
 
 export async function deleteSessionClient(id: string) {

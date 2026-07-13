@@ -23,6 +23,7 @@ export type WorkoutPlanMovement = {
 
 export type WorkoutPlanDraft = {
   version: 1;
+  suggestedWorkoutId?: string;
   title: string;
   locationKind: PlannerLocation;
   basis: string;
@@ -198,6 +199,7 @@ export function readWorkoutPlanDraft(value: string | null): WorkoutPlanDraft | n
     const draft = JSON.parse(value) as WorkoutPlanDraft;
     if (
       draft.version !== 1 ||
+      (draft.suggestedWorkoutId != null && typeof draft.suggestedWorkoutId !== "string") ||
       !draft.title ||
       !["home", "gym"].includes(draft.locationKind) ||
       !Array.isArray(draft.movements) ||

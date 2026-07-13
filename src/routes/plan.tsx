@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   ArrowRight,
   BatteryLow,
@@ -22,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { formatUKDate } from "@/lib/date";
 import { getLibraryClient, getRecentLogsClient } from "@/lib/supabase-log.browser";
+import { saveWorkoutPlanClient } from "@/lib/supabase-plans.browser";
 import {
   buildWorkoutSuggestion,
   WORKOUT_PLAN_DRAFT_KEY,
@@ -73,6 +75,7 @@ const READINESS: {
 
 function PlanPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const history = useQuery({
     queryKey: ["workout-planner-history"],
     queryFn: () => getRecentLogsClient(300),
@@ -155,20 +158,36 @@ function PlanPage() {
       }),
     );
 
-  const startWorkout = () => {
+  const currentDraft = () => {
     if (!suggestion || movements.length === 0) return;
-    window.localStorage.setItem(
-      WORKOUT_PLAN_DRAFT_KEY,
-      JSON.stringify({
-        version: 1,
-        title: suggestion.title,
-        locationKind: suggestion.locationKind,
-        basis: suggestion.basis,
-        movements,
-      }),
-    );
-    navigate({ to: "/log" });
+    return {
+      version: 1 as const,
+      title: suggestion.title,
+      locationKind: suggestion.locationKind,
+      basis: suggestion.basis,
+      movements,
+    };
   };
+
+  const savePlan = useMutation({
+    mutationFn: async (status: "pending" | "accepted") => {
+      const draft = currentDraft();
+      if (!draft) throw new Error("Add at least one movement before saving.");
+      return saveWorkoutPlanClient({ draft, readiness, status });
+    },
+    onSuccess: (draft, status) => {
+      queryClient.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
+      if (status === "accepted") {
+        window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(draft));
+        navigate({ to: "/log" });
+        return;
+      }
+      toast.success("Next workout saved", {
+        description: `${draft.title} will be waiting on the Full Workout logger.`,
+      });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   return (
     <div className="space-y-6">
@@ -310,20 +329,34 @@ function PlanPage() {
                 <p className="font-medium text-foreground">Current progression rules</p>
                 <p className="mt-1">
                   Below 5 reps: keep the load and add one rep. Comfortable 5s: add 2.5 kg and
-                  restart at 3. Tired: remove one set and reduce load by roughly 10%. Nothing is
-                  saved until you complete the workout log.
+                  restart at 3. Tired: remove one set and reduce load by roughly 10%. You can still
+                  edit every target before saving.
                 </p>
               </div>
             </CardContent>
           </Card>
 
-          <div className="sticky bottom-3 z-10 rounded-xl border border-border bg-background/90 p-3 shadow-xl backdrop-blur">
+          <div className="sticky bottom-3 z-10 grid gap-2 rounded-xl border border-border bg-background/90 p-3 shadow-xl backdrop-blur sm:grid-cols-[auto_1fr]">
+            <Button
+              variant="outline"
+              size="lg"
+              disabled={movements.length === 0 || savePlan.isPending}
+              onClick={() => savePlan.mutate("pending")}
+            >
+              {savePlan.isPending && savePlan.variables === "pending" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Save for later
+            </Button>
             <Button
               className="w-full"
               size="lg"
-              disabled={movements.length === 0}
-              onClick={startWorkout}
+              disabled={movements.length === 0 || savePlan.isPending}
+              onClick={() => savePlan.mutate("accepted")}
             >
+              {savePlan.isPending && savePlan.variables === "accepted" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
               Start this workout <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
