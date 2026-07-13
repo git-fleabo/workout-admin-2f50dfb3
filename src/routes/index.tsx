@@ -14,9 +14,20 @@ import {
   Play,
   RotateCcw,
   Sparkles,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -126,6 +137,7 @@ function TodayPage() {
   const [startingPlanId, setStartingPlanId] = useState<string | null>(null);
   const [recommendationLocation, setRecommendationLocation] = useState<PlannerLocation>("gym");
   const [startingRecommendation, setStartingRecommendation] = useState(false);
+  const [discardDraftOpen, setDiscardDraftOpen] = useState(false);
   const plans = useQuery({
     queryKey: ["next-suggested-workouts"],
     queryFn: getNextSuggestedWorkoutsClient,
@@ -173,6 +185,15 @@ function TodayPage() {
   useEffect(() => {
     if (!recommendations.gym && recommendations.home) setRecommendationLocation("home");
   }, [recommendations.gym, recommendations.home]);
+
+  const discardDraft = () => {
+    window.localStorage.removeItem(workoutSessionDraftKey());
+    setDraft(null);
+    setDiscardDraftOpen(false);
+    toast.message("Workout cancelled", {
+      description: "The unfinished draft has been cleared.",
+    });
+  };
 
   const startPlan = async (plan: NonNullable<typeof plans.data>[number]) => {
     if (draft) {
@@ -261,11 +282,21 @@ function TodayPage() {
                 </p>
               </div>
             </div>
-            <Button asChild className="shrink-0">
-              <Link to="/log">
-                Resume workout <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
+            <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
+              <Button asChild>
+                <Link to="/log">
+                  Resume workout <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => setDiscardDraftOpen(true)}
+              >
+                <X className="mr-1.5 h-4 w-4" /> Cancel draft
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : completed ? (
@@ -480,6 +511,22 @@ function TodayPage() {
           <Link to="/progress">Review progress</Link>
         </Button>
       </div>
+
+      <AlertDialog open={discardDraftOpen} onOpenChange={setDiscardDraftOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this workout?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The unfinished draft, including its movements, sets and methods, will be permanently
+              cleared. Completed workouts will not be affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep workout</AlertDialogCancel>
+            <AlertDialogAction onClick={discardDraft}>Cancel workout</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

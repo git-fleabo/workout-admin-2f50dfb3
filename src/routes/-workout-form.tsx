@@ -18,6 +18,7 @@ import {
   RotateCcw,
   Star,
   Trash2,
+  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -1995,20 +1996,9 @@ export function FullWorkoutForm() {
               <Calendar className="h-3 w-3" /> {formatUKDate(form.date)}
             </Badge>
             {hasDraftContent ? (
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] text-muted-foreground">
-                  {draftTime ? `Draft saved ${draftTime}` : "Saving draft…"}
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-1.5 text-[10px] text-muted-foreground"
-                  onClick={() => setDiscardDraftOpen(true)}
-                >
-                  Discard
-                </Button>
-              </div>
+              <span className="text-[10px] text-muted-foreground">
+                {draftTime ? `Autosaved ${draftTime}` : "Autosaving…"}
+              </span>
             ) : null}
           </div>
         </div>
@@ -2110,93 +2100,12 @@ export function FullWorkoutForm() {
         </details>
       </Card>
 
-      <Card className="space-y-3 border-border bg-card p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <Layers3 className="h-4 w-4 text-indigo-300" /> Training methods
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Group movements or add a timed block while keeping every set separate.
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setMethodBlockEditor({ mode: "create" })}
-            disabled={
-              form.entries.filter((entry) => entry.exercise.trim()).length < 1 ||
-              blockMethods.length === 0
-            }
-          >
-            <Plus className="mr-1 h-3.5 w-3.5" /> Add method
-          </Button>
-        </div>
-        {methods.isLoading ? (
-          <p className="text-xs text-muted-foreground">Loading available methods…</p>
-        ) : form.methodBlocks.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-            Add a movement, then choose an exercise-group or timed training method.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {form.methodBlocks.map((block) => {
-              const movementNames = block.memberClientIds
-                .map((id) => form.entries.find((entry) => entry.clientId === id)?.exercise)
-                .filter(Boolean);
-              return (
-                <div
-                  key={block.id}
-                  className="flex flex-col gap-3 rounded-lg border border-indigo-400/25 bg-indigo-400/[0.05] p-3 sm:flex-row sm:items-center"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">{block.methodName}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {block.family === "timed_density"
-                        ? [
-                            movementNames.join(" → "),
-                            block.blockDurationMinutes
-                              ? `${block.blockDurationMinutes} min block`
-                              : "",
-                            block.workIntervalSeconds ? `${block.workIntervalSeconds}s work` : "",
-                            block.restIntervalSeconds ? `${block.restIntervalSeconds}s rest` : "",
-                            block.completedRounds
-                              ? `${block.completedRounds}/${block.rounds || "—"} rounds done`
-                              : block.rounds
-                                ? `${block.rounds} rounds planned`
-                                : "",
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")
-                        : `${movementNames.join(" → ")} · ${block.rounds || "—"} rounds · ${block.restBetweenRoundsSeconds || "0"}s between rounds`}
-                    </p>
-                  </div>
-                  <div className="flex justify-end gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setMethodBlockEditor({ mode: "edit", blockId: block.id })}
-                    >
-                      <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeMethodBlock(block.id)}
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
-
+      <div>
+        <h2 className="text-base font-semibold">1. Add movements and sets</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Build the workout first. Set-level methods stay attached to the set they change.
+        </p>
+      </div>
       <div className="space-y-3">
         {form.entries.map((entry, index) => {
           const methodBlock = form.methodBlocks.find((block) =>
@@ -2397,6 +2306,114 @@ export function FullWorkoutForm() {
         <Plus className="mr-1 h-4 w-4" /> Add movement
       </Button>
 
+      <Card className="space-y-3 border-border bg-card p-4">
+        <div>
+          <h2 className="flex items-center gap-2 text-base font-semibold">
+            <Layers3 className="h-4 w-4 text-indigo-300" /> 2. Add advanced methods
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Optional. Choose whether the method joins movements or changes one set.
+          </p>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div className="flex min-h-24 flex-col justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
+            <div>
+              <p className="text-sm font-medium">Across movements</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Supersets, circuits, EDT and Tabata.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => setMethodBlockEditor({ mode: "create" })}
+              disabled={workoutEntries.length < 1 || blockMethods.length === 0}
+            >
+              <Plus className="mr-1 h-3.5 w-3.5" /> Add grouped or timed method
+            </Button>
+          </div>
+          <div className="flex min-h-24 flex-col justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
+            <div>
+              <p className="text-sm font-medium">Within a set</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Drop sets, clusters, rest-pause, rep targets and partials.
+              </p>
+            </div>
+            <p className="text-xs font-medium text-fuchsia-200">
+              Use “Set method” beneath the set it applies to.
+            </p>
+          </div>
+        </div>
+
+        {methods.isLoading ? (
+          <p className="text-xs text-muted-foreground">Loading available methods…</p>
+        ) : form.methodBlocks.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+            {workoutEntries.length
+              ? "No grouped or timed method added."
+              : "Add a movement before creating a grouped or timed method."}
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {form.methodBlocks.map((block) => {
+              const movementNames = block.memberClientIds
+                .map((id) => form.entries.find((entry) => entry.clientId === id)?.exercise)
+                .filter(Boolean);
+              return (
+                <div
+                  key={block.id}
+                  className="flex flex-col gap-3 rounded-lg border border-indigo-400/25 bg-indigo-400/[0.05] p-3 sm:flex-row sm:items-center"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">{block.methodName}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {block.family === "timed_density"
+                        ? [
+                            movementNames.join(" → "),
+                            block.blockDurationMinutes
+                              ? `${block.blockDurationMinutes} min block`
+                              : "",
+                            block.workIntervalSeconds ? `${block.workIntervalSeconds}s work` : "",
+                            block.restIntervalSeconds ? `${block.restIntervalSeconds}s rest` : "",
+                            block.completedRounds
+                              ? `${block.completedRounds}/${block.rounds || "—"} rounds done`
+                              : block.rounds
+                                ? `${block.rounds} rounds planned`
+                                : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")
+                        : `${movementNames.join(" → ")} · ${block.rounds || "—"} rounds · ${block.restBetweenRoundsSeconds || "0"}s between rounds`}
+                    </p>
+                  </div>
+                  <div className="flex justify-end gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setMethodBlockEditor({ mode: "edit", blockId: block.id })}
+                    >
+                      <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeMethodBlock(block.id)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
       <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/50 px-3 py-2">
         <Label className="text-sm">Completed</Label>
         <Switch checked={form.completed} onCheckedChange={(v) => update("completed", v)} />
@@ -2415,6 +2432,16 @@ export function FullWorkoutForm() {
         <p className="text-center text-xs text-amber-300">
           Add load and reps to every segment before finishing.
         </p>
+      ) : null}
+      {hasDraftContent && !editingSessionId ? (
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+          onClick={() => setDiscardDraftOpen(true)}
+        >
+          <X className="mr-1.5 h-4 w-4" /> Cancel workout
+        </Button>
       ) : null}
 
       <Dialog
@@ -2510,14 +2537,15 @@ export function FullWorkoutForm() {
       <AlertDialog open={discardDraftOpen} onOpenChange={setDiscardDraftOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Discard this workout draft?</AlertDialogTitle>
+            <AlertDialogTitle>Cancel this workout?</AlertDialogTitle>
             <AlertDialogDescription>
-              Your unsaved movements, sets, and session details will be cleared.
+              The unfinished draft, including its movements, sets and methods, will be permanently
+              cleared. Completed workouts will not be affected.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep draft</AlertDialogCancel>
-            <AlertDialogAction onClick={discardDraft}>Discard draft</AlertDialogAction>
+            <AlertDialogCancel>Keep workout</AlertDialogCancel>
+            <AlertDialogAction onClick={discardDraft}>Cancel workout</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -2568,6 +2596,36 @@ function blockMinutesConfig(method: TrainingMethod | undefined) {
   return Number.isFinite(minutes) && minutes > 0 ? String(minutes) : "";
 }
 
+function methodMovementCount(method: TrainingMethod | undefined) {
+  const fallback = method?.family === "timed_density" ? 1 : 2;
+  return Math.max(fallback, Number(method?.defaultConfig.movement_count) || fallback);
+}
+
+function methodUsesExactMovementCount(method: TrainingMethod | undefined) {
+  return ["superset", "tri_set", "edt", "tabata"].includes(method?.systemKey ?? "");
+}
+
+function methodSupportsMovementCount(method: TrainingMethod, movementCount: number) {
+  const requiredCount = methodMovementCount(method);
+  return methodUsesExactMovementCount(method)
+    ? movementCount === requiredCount
+    : movementCount >= requiredCount;
+}
+
+function defaultBlockMethod(methods: TrainingMethod[], movementCount: number) {
+  const preferredSystemKey =
+    movementCount === 1 ? "tabata" : movementCount === 2 ? "superset" : null;
+  return (
+    methods.find(
+      (method) =>
+        method.systemKey === preferredSystemKey &&
+        methodSupportsMovementCount(method, movementCount),
+    ) ??
+    methods.find((method) => methodSupportsMovementCount(method, movementCount)) ??
+    methods[0]
+  );
+}
+
 function MethodBlockDialog({
   state,
   methods,
@@ -2583,10 +2641,12 @@ function MethodBlockDialog({
   onClose: () => void;
   onSave: (block: WorkoutMethodBlockState) => void;
 }) {
+  const namedEntries = entries.filter((entry) => entry.exercise.trim());
   const existing =
     state.mode === "edit" ? blocks.find((block) => block.id === state.blockId) : undefined;
   const initialMethod =
-    methods.find((method) => method.id === existing?.trainingMethodId) ?? methods[0];
+    methods.find((method) => method.id === existing?.trainingMethodId) ??
+    defaultBlockMethod(methods, namedEntries.length);
   const [methodId, setMethodId] = useState(initialMethod?.id ?? "");
   const [memberClientIds, setMemberClientIds] = useState<string[]>(existing?.memberClientIds ?? []);
   const [rounds, setRounds] = useState(
@@ -2617,7 +2677,9 @@ function MethodBlockDialog({
   useEffect(() => {
     const block =
       state.mode === "edit" ? blocks.find((item) => item.id === state.blockId) : undefined;
-    const method = methods.find((item) => item.id === block?.trainingMethodId) ?? methods[0];
+    const method =
+      methods.find((item) => item.id === block?.trainingMethodId) ??
+      defaultBlockMethod(methods, namedEntries.length);
     setMethodId(method?.id ?? "");
     setMemberClientIds(block?.memberClientIds ?? []);
     setRounds(
@@ -2641,19 +2703,12 @@ function MethodBlockDialog({
       block?.restIntervalSeconds ?? optionalNumberConfig(method, "rest_seconds"),
     );
     setCompletedRounds(block?.completedRounds ?? "");
-  }, [blocks, methods, state]);
+  }, [blocks, methods, namedEntries.length, state]);
 
   const selectedMethod = methods.find((method) => method.id === methodId);
   const isTimedDensity = selectedMethod?.family === "timed_density";
-  const requiredCount = Math.max(
-    isTimedDensity ? 1 : 2,
-    Number(selectedMethod?.defaultConfig.movement_count) || (isTimedDensity ? 1 : 2),
-  );
-  const exactCount =
-    selectedMethod?.systemKey === "superset" ||
-    selectedMethod?.systemKey === "tri_set" ||
-    selectedMethod?.systemKey === "edt" ||
-    selectedMethod?.systemKey === "tabata";
+  const requiredCount = methodMovementCount(selectedMethod);
+  const exactCount = methodUsesExactMovementCount(selectedMethod);
   const minimumCount = requiredCount;
   const selectionValid = exactCount
     ? memberClientIds.length === requiredCount
@@ -2661,7 +2716,6 @@ function MethodBlockDialog({
   const usedElsewhere = new Set(
     blocks.filter((block) => block.id !== existing?.id).flatMap((block) => block.memberClientIds),
   );
-  const namedEntries = entries.filter((entry) => entry.exercise.trim());
   const timedFieldsValid =
     !isTimedDensity ||
     (selectedMethod?.systemKey === "tabata"
@@ -3386,7 +3440,7 @@ function SetRowsEditor({
               >
                 <SelectTrigger className="border-dashed border-fuchsia-400/25 text-fuchsia-200">
                   <Layers3 className="mr-2 h-3.5 w-3.5" />
-                  <SelectValue placeholder="Add set method" />
+                  <SelectValue placeholder="Set method (optional)" />
                 </SelectTrigger>
                 <SelectContent>
                   {setMethods.map((method) => (

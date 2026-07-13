@@ -83,7 +83,9 @@ function setRowsFor(log: RecentWorkoutLog): WorkoutPlanSet[] {
   const count = Math.max(1, Math.round(numberOrNull(log.sets) ?? 1));
   const totalReps = numberOrNull(log.reps);
   const perSetReps =
-    totalReps != null ? Math.max(1, Math.ceil(totalReps / count)).toString() : log.setRows[0]?.reps;
+    totalReps != null && totalReps > 0
+      ? Math.ceil(totalReps / count).toString()
+      : log.setRows[0]?.reps;
   return Array.from({ length: count }, () => ({
     reps: perSetReps ?? "",
     weight: log.weight || log.setRows[0]?.weight || "",

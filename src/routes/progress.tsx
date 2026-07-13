@@ -173,9 +173,10 @@ function methodBreakdown(points: ExerciseSessionPoint[]) {
     });
 }
 
-function formatKg(value: number | null, decimals = 0) {
+function formatKg(value: number | null, decimals?: number) {
   if (value == null) return "—";
-  return `${value.toFixed(decimals)} kg`;
+  const precision = decimals ?? (Number.isInteger(value) ? 0 : 1);
+  return `${value.toFixed(precision)} kg`;
 }
 
 function formatChange(value: number | null) {
