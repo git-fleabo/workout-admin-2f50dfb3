@@ -14,12 +14,16 @@ import {
   YAxis,
 } from "recharts";
 import {
+  ArrowUpRight,
+  BatteryLow,
   Check,
   ChevronsUpDown,
   Dumbbell,
   Gauge,
   Loader2,
   MapPin,
+  Pause,
+  Repeat2,
   Scale,
   TrendingUp,
 } from "lucide-react";
@@ -44,6 +48,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatUKDate, formatUKDateShort } from "@/lib/date";
+import { buildProgressDecision, type ProgressDecision } from "@/lib/progress-decision";
 import {
   getExerciseHistoryClient,
   getLoggedExerciseKeysClient,
@@ -232,35 +237,12 @@ function ProgressPage() {
     };
   }, [history.data, location, period]);
 
-  const signal = useMemo(() => {
-    if (analysis.current.length < 2 || analysis.performanceChange == null) {
-      return {
-        label: "Building a baseline",
-        detail: "Log a few sessions in consecutive periods to make the comparison useful.",
-        className: "border-sky-400/25 bg-sky-400/[0.06] text-sky-200",
-      };
-    }
-    if (analysis.performanceChange <= -2 && (analysis.volumeChange ?? 0) >= 10) {
-      return {
-        label: "Review recovery",
-        detail:
-          "Performance is lower while volume is higher. Check effort, sleep and soreness before adding load.",
-        className: "border-amber-400/25 bg-amber-400/[0.06] text-amber-200",
-      };
-    }
-    if (analysis.performanceChange >= 2) {
-      return {
-        label: "Performance is moving up",
-        detail: "Your best estimated performance improved versus the previous equivalent period.",
-        className: "border-emerald-400/25 bg-emerald-400/[0.06] text-emerald-200",
-      };
-    }
-    return {
-      label: "Holding steady",
-      detail:
-        "Performance is broadly stable. Use the exact sets below to judge rep comfort and effort.",
-      className: "border-violet-400/25 bg-violet-400/[0.06] text-violet-200",
-    };
+  const decision = useMemo(() => {
+    return buildProgressDecision({
+      points: analysis.current,
+      performanceChange: analysis.performanceChange,
+      volumeChange: analysis.volumeChange,
+    });
   }, [analysis]);
 
   return (
@@ -344,6 +326,8 @@ function ProgressPage() {
         </Card>
       ) : (
         <>
+          <DecisionCard decision={decision} exerciseName={exercise?.name ?? "This exercise"} />
+
           <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard
               icon={<Dumbbell className="h-4 w-4" />}
@@ -373,11 +357,6 @@ function ProgressPage() {
             />
           </section>
 
-          <div className={cn("rounded-xl border p-4", signal.className)}>
-            <p className="text-sm font-semibold">{signal.label}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{signal.detail}</p>
-          </div>
-
           <section className="grid gap-4 xl:grid-cols-2">
             <PerformanceChart points={analysis.current} />
             <VolumeChart data={analysis.weeklyVolume} />
@@ -387,6 +366,75 @@ function ProgressPage() {
         </>
       )}
     </div>
+  );
+}
+
+const DECISION_STYLE: Record<
+  ProgressDecision["kind"],
+  { icon: React.ReactNode; className: string; eyebrow: string }
+> = {
+  progress: {
+    icon: <ArrowUpRight className="h-5 w-5" />,
+    className: "border-emerald-400/30 bg-emerald-400/[0.07] text-emerald-200",
+    eyebrow: "Progression supported",
+  },
+  continue: {
+    icon: <Repeat2 className="h-5 w-5" />,
+    className: "border-sky-400/30 bg-sky-400/[0.07] text-sky-200",
+    eyebrow: "Next decision",
+  },
+  hold: {
+    icon: <Pause className="h-5 w-5" />,
+    className: "border-violet-400/30 bg-violet-400/[0.07] text-violet-200",
+    eyebrow: "Progression not confirmed",
+  },
+  lighter: {
+    icon: <BatteryLow className="h-5 w-5" />,
+    className: "border-amber-400/30 bg-amber-400/[0.07] text-amber-200",
+    eyebrow: "Recovery check",
+  },
+  baseline: {
+    icon: <Gauge className="h-5 w-5" />,
+    className: "border-slate-400/25 bg-slate-400/[0.06] text-slate-200",
+    eyebrow: "Evidence building",
+  },
+};
+
+function DecisionCard({
+  decision,
+  exerciseName,
+}: {
+  decision: ProgressDecision;
+  exerciseName: string;
+}) {
+  const style = DECISION_STYLE[decision.kind];
+  return (
+    <Card className={style.className}>
+      <CardContent className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.85fr)] lg:items-center">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 shrink-0">{style.icon}</div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-80">
+              {style.eyebrow} · {exerciseName}
+            </p>
+            <h2 className="mt-1 text-xl font-semibold tracking-tight text-foreground">
+              {decision.label}
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{decision.detail}</p>
+          </div>
+        </div>
+        <div className="space-y-2 rounded-lg border border-border/70 bg-background/35 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Why this recommendation
+          </p>
+          {decision.evidence.map((item) => (
+            <p key={item} className="text-xs leading-relaxed text-foreground/80">
+              {item}
+            </p>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

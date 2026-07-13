@@ -97,18 +97,23 @@ Goal: make startup answer “What am I doing today?” instead of presenting an 
 - Show an explainable history-based recommendation when no saved Next Workout exists. — implemented
 - Let Home/Gym be changed on Today and carry that choice into the full Plan editor. — implemented
 
-## Phase 3: Exercise Progress Workspace
+## Phase 3: Exercise Progress Workspace — decision layer started
 
 Goal: make Progress the main large-screen decision tool.
 
-- Working-weight, best-set, estimated-strength, and weekly-volume trends.
-- Reps and RPE at each load.
-- Home/Gym and period comparison controls.
+- Working-weight, best-set, estimated-strength, and weekly-volume trends. — implemented
+- Reps and RPE at each load. — implemented
+- Home/Gym and period comparison controls. — implemented
 - Planned targets versus actual completed sets.
 - Click a point or row to inspect its session.
-- A concise mobile summary focused on the next decision.
+- A concise mobile summary focused on the next decision. — implemented
 
 Progress signals should combine performance, volume, effort, missed targets, training frequency, and consecutive hard weeks. Wording should explain the evidence and remain cautious: continue, consider progressing, hold, or consider a lighter week.
+
+The first decision layer now uses the latest working sets, five-rep progression threshold, recorded
+RPE, period performance/volume comparison, and repeated high-effort decline. It exposes the exact
+evidence and does not treat missing RPE as proof that a load was comfortable. The next Phase 3 step
+is planned targets versus actual completed sets.
 
 ## Phase 4: Weekly Planning and Deloads
 
@@ -163,9 +168,6 @@ Implementation should begin with supersets/tri-sets/giant sets and drop/strip se
 
 ## Current Focus
 
-Phase 2 is implemented. The app starts on Today, where an unfinished draft takes priority, saved
-plans and recent Home/Gym sessions can be started, an empty workout is available, and today’s
-completed workout can be reopened through Log. When no saved plan exists, Today now shows a normal-readiness
-recommendation from recent history, its source pattern, each movement's proposed target and reason,
-plus direct Start and Adjust in Plan actions. The next implementation should begin Phase 3 by
-connecting Progress evidence to a clearer exercise-level next decision.
+Phase 3 is active. Progress now leads with an exercise-level next decision and the evidence behind
+it while retaining the charts and exact set history. The next implementation should compare planned
+targets with the actual sets completed in the linked workout.
