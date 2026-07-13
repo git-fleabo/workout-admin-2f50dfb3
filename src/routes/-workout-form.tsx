@@ -6,12 +6,14 @@ import {
   ArrowUp,
   Calendar,
   Check,
+  CircleCheck,
   ChevronsUpDown,
   Copy,
   Dumbbell,
   History,
   Loader2,
   Plus,
+  Pencil,
   RotateCcw,
   Star,
   Trash2,
@@ -24,6 +26,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command,
@@ -54,6 +64,7 @@ import {
   getLibraryClient,
   getRecentLogsClient,
   getTrainingLocationsClient,
+  replaceWorkoutSessionClient,
   REST_OPTIONS,
 } from "@/lib/supabase-log.browser";
 import { formatUKDate, todayISO } from "@/lib/date";
@@ -95,6 +106,7 @@ const CLASS_WORKOUT_TYPE = "Class";
 const MOBILITY_WORKOUT_TYPE = "Mobility/Flexibility";
 const WORKOUT_SESSION_DRAFT_KEY_PREFIX = "workout-session-draft";
 const WORKOUT_FAVORITES_KEY_PREFIX = "workout-favorite-movements";
+const LAST_COMPLETED_WORKOUT_KEY_PREFIX = "last-completed-workout";
 const CLIMBING_MOVEMENTS = ["Bouldering Session", "Ropes/Belay", "Kilter", "Mix"];
 const GRIP_STYLES = [
   "Open hand",
@@ -263,7 +275,34 @@ type StoredWorkoutSessionDraft = {
   savedAt: string;
   form: SessionFormState;
   loadedSuggestionId: string | null;
+  editingSessionId?: string | null;
 };
+
+type StoredCompletedWorkout = {
+  version: 1;
+  savedAt: string;
+  sessionId: string;
+  form: SessionFormState;
+};
+
+function isSessionFormState(form: unknown): form is SessionFormState {
+  if (!form || typeof form !== "object") return false;
+  const candidate = form as SessionFormState;
+  return Boolean(
+    typeof candidate.date === "string" &&
+    typeof candidate.title === "string" &&
+    typeof candidate.trainingLocationId === "string" &&
+    Array.isArray(candidate.entries) &&
+    candidate.entries.length > 0 &&
+    candidate.entries.every(
+      (entry) =>
+        entry &&
+        typeof entry.exercise === "string" &&
+        typeof entry.workoutType === "string" &&
+        Array.isArray(entry.setRows),
+    ),
+  );
+}
 
 function readWorkoutSessionDraft(value: string | null): StoredWorkoutSessionDraft | null {
   if (!value) return null;
@@ -273,24 +312,34 @@ function readWorkoutSessionDraft(value: string | null): StoredWorkoutSessionDraf
       draft.version !== 1 ||
       typeof draft.savedAt !== "string" ||
       Number.isNaN(Date.parse(draft.savedAt)) ||
-      !draft.form ||
-      typeof draft.form.date !== "string" ||
-      typeof draft.form.title !== "string" ||
-      typeof draft.form.trainingLocationId !== "string" ||
-      !Array.isArray(draft.form.entries) ||
-      draft.form.entries.length === 0 ||
-      !draft.form.entries.every(
-        (entry) =>
-          entry &&
-          typeof entry.exercise === "string" &&
-          typeof entry.workoutType === "string" &&
-          Array.isArray(entry.setRows),
-      ) ||
-      (draft.loadedSuggestionId != null && typeof draft.loadedSuggestionId !== "string")
+      !isSessionFormState(draft.form) ||
+      (draft.loadedSuggestionId != null && typeof draft.loadedSuggestionId !== "string") ||
+      (draft.editingSessionId != null && typeof draft.editingSessionId !== "string")
     ) {
       return null;
     }
     return draft;
+  } catch {
+    return null;
+  }
+}
+
+function readCompletedWorkout(value: string | null): StoredCompletedWorkout | null {
+  if (!value) return null;
+  try {
+    const completed = JSON.parse(value) as StoredCompletedWorkout;
+    if (
+      completed.version !== 1 ||
+      typeof completed.savedAt !== "string" ||
+      Number.isNaN(Date.parse(completed.savedAt)) ||
+      typeof completed.sessionId !== "string" ||
+      !completed.sessionId ||
+      !isSessionFormState(completed.form) ||
+      completed.form.date !== today()
+    ) {
+      return null;
+    }
+    return completed;
   } catch {
     return null;
   }
@@ -353,6 +402,11 @@ function workoutFavoritesKey() {
   return `${WORKOUT_FAVORITES_KEY_PREFIX}:${userId ?? "signed-out"}`;
 }
 
+function lastCompletedWorkoutKey() {
+  const userId = getSupabaseSession()?.user.id;
+  return `${LAST_COMPLETED_WORKOUT_KEY_PREFIX}:${userId ?? "signed-out"}`;
+}
+
 function readWorkoutFavorites(value: string | null) {
   if (!value) return [];
   try {
@@ -383,6 +437,36 @@ function setSummary(set: WorkoutSetState, usesLoad: boolean) {
   const reps = set.reps ? `${set.reps} reps` : "";
   const rpe = set.rpe ? `RPE ${set.rpe}` : "";
   return [load, reps, rpe].filter(Boolean).join(" · ") || "No values recorded";
+}
+
+function workoutEntrySummary(entry: FormState) {
+  const sets = entry.setRows.filter((set) => set.reps || set.weight || set.rpe);
+  if (sets.length > 0) {
+    const reps = sets.reduce((total, set) => total + (Number(set.reps) || 0), 0);
+    const volume = sets.reduce(
+      (total, set) => total + (Number(set.weight) || 0) * (Number(set.reps) || 0),
+      0,
+    );
+    return [
+      `${sets.length} ${sets.length === 1 ? "set" : "sets"}`,
+      reps > 0 ? `${reps} reps` : "",
+      volume > 0 ? `${Math.round(volume).toLocaleString()} kg volume` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+  return (
+    [
+      entry.duration ? `${entry.duration} min` : "",
+      entry.holdSeconds ? `${entry.holdSeconds}s hold` : "",
+      entry.distance ? `${entry.distance}${entry.distanceUnit || ""}` : "",
+      entry.rounds ? `${entry.rounds} rounds` : "",
+      entry.reps ? `${entry.reps} reps` : "",
+      entry.rpe ? `RPE ${entry.rpe}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ") || "No performance values entered"
+  );
 }
 
 function entryFromRecentLog(log: RecentWorkoutLog): FormState {
@@ -852,6 +936,7 @@ export function FullWorkoutForm() {
   const qc = useQueryClient();
   const draftStorageKey = useMemo(workoutSessionDraftKey, []);
   const favoritesStorageKey = useMemo(workoutFavoritesKey, []);
+  const lastCompletedStorageKey = useMemo(lastCompletedWorkoutKey, []);
   const lib = useQuery({ queryKey: ["library"], queryFn: getLibraryClient });
   const recent = useQuery({
     queryKey: ["recent-workouts", 100],
@@ -870,6 +955,11 @@ export function FullWorkoutForm() {
   const [loadedSuggestionId, setLoadedSuggestionId] = useState<string | null>(null);
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const [discardDraftOpen, setDiscardDraftOpen] = useState(false);
+  const [finishSummaryOpen, setFinishSummaryOpen] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [lastCompletedWorkout, setLastCompletedWorkout] = useState<StoredCompletedWorkout | null>(
+    null,
+  );
   const [favoriteExercises, setFavoriteExercises] = useState<string[]>([]);
   const [favoritesLoaded, setFavoritesLoaded] = useState(false);
   const [pendingRecentSession, setPendingRecentSession] = useState<RecentSessionTemplate | null>(
@@ -911,6 +1001,13 @@ export function FullWorkoutForm() {
   }, [favoritesStorageKey]);
 
   useEffect(() => {
+    const stored = window.localStorage.getItem(lastCompletedStorageKey);
+    const completed = readCompletedWorkout(stored);
+    setLastCompletedWorkout(completed);
+    if (stored && !completed) window.localStorage.removeItem(lastCompletedStorageKey);
+  }, [lastCompletedStorageKey]);
+
+  useEffect(() => {
     if (!favoritesLoaded) return;
     window.localStorage.setItem(favoritesStorageKey, JSON.stringify(favoriteExercises));
   }, [favoriteExercises, favoritesLoaded, favoritesStorageKey]);
@@ -932,6 +1029,7 @@ export function FullWorkoutForm() {
         })),
       });
       setLoadedSuggestionId(draft.suggestedWorkoutId ?? null);
+      setEditingSessionId(null);
     },
     [locations.data],
   );
@@ -958,6 +1056,7 @@ export function FullWorkoutForm() {
     if (sessionDraft) {
       setForm(sessionDraft.form);
       setLoadedSuggestionId(sessionDraft.loadedSuggestionId);
+      setEditingSessionId(sessionDraft.editingSessionId ?? null);
       setDraftSavedAt(sessionDraft.savedAt);
       toast.message("Workout draft restored", {
         description: "Your unfinished workout is ready to continue.",
@@ -981,10 +1080,11 @@ export function FullWorkoutForm() {
       savedAt,
       form,
       loadedSuggestionId,
+      editingSessionId,
     };
     window.localStorage.setItem(draftStorageKey, JSON.stringify(draft));
     setDraftSavedAt(savedAt);
-  }, [draftStorageKey, form, initialFormLoaded, loadedSuggestionId]);
+  }, [draftStorageKey, editingSessionId, form, initialFormLoaded, loadedSuggestionId]);
 
   const useSavedPlan = useMutation({
     mutationFn: async (plan: SavedWorkoutPlan) => {
@@ -1025,6 +1125,7 @@ export function FullWorkoutForm() {
     window.localStorage.removeItem(draftStorageKey);
     setForm(blankSession());
     setLoadedSuggestionId(null);
+    setEditingSessionId(null);
     setDraftSavedAt(null);
     setDiscardDraftOpen(false);
     toast.message("Workout draft discarded");
@@ -1158,6 +1259,7 @@ export function FullWorkoutForm() {
       })),
     }));
     setLoadedSuggestionId(null);
+    setEditingSessionId(null);
     setPendingRecentSession(null);
     toast.message("Recent workout loaded", {
       description: `${session.entries.length} movements copied from ${formatUKDate(session.date)}.`,
@@ -1172,56 +1274,63 @@ export function FullWorkoutForm() {
     loadRecentSession(session);
   };
 
-  const mutate = useMutation({
-    mutationFn: () =>
-      addWorkoutSessionClient({
-        date: form.date,
-        title: form.title,
-        trainingLocationId: form.trainingLocationId,
-        duration: form.duration,
-        intensity: form.intensity,
-        rpe: form.rpe,
-        completed: form.completed,
-        notes: form.notes,
-        entries: form.entries.map((entry) => {
-          const selected = libraryExercises.find(
-            (exercise) => exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
-          );
-          const profile = getMovementMetricProfile({
-            workoutType: selected?.workoutType ?? entry.workoutType,
-            movement: entry.exercise,
-            defaultMetric: selected?.metric,
-          });
-          const isSkill =
-            entry.workoutType === SKILL_WORKOUT_TYPE ||
-            selected?.workoutType === SKILL_WORKOUT_TYPE;
-          const isGrip =
-            entry.workoutType === GRIP_WORKOUT_TYPE || selected?.workoutType === GRIP_WORKOUT_TYPE;
-          const isYoga =
-            entry.workoutType === YOGA_WORKOUT_TYPE || selected?.workoutType === YOGA_WORKOUT_TYPE;
+  const buildWorkoutPayload = () => ({
+    date: form.date,
+    title: form.title,
+    trainingLocationId: form.trainingLocationId,
+    duration: form.duration,
+    intensity: form.intensity,
+    rpe: form.rpe,
+    completed: form.completed,
+    notes: form.notes,
+    entries: form.entries.map((entry) => {
+      const selected = libraryExercises.find(
+        (exercise) => exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
+      );
+      const profile = getMovementMetricProfile({
+        workoutType: selected?.workoutType ?? entry.workoutType,
+        movement: entry.exercise,
+        defaultMetric: selected?.metric,
+      });
+      const isSkill =
+        entry.workoutType === SKILL_WORKOUT_TYPE || selected?.workoutType === SKILL_WORKOUT_TYPE;
+      const isGrip =
+        entry.workoutType === GRIP_WORKOUT_TYPE || selected?.workoutType === GRIP_WORKOUT_TYPE;
+      const isYoga =
+        entry.workoutType === YOGA_WORKOUT_TYPE || selected?.workoutType === YOGA_WORKOUT_TYPE;
 
-          return {
-            ...entry,
-            date: form.date,
-            workoutType: selected?.workoutType ?? entry.workoutType,
-            focusArea: "",
-            completed: form.completed,
-            progressionLevel: isGrip ? entry.gripStyle : entry.progressionLevel,
-            assistanceType: isGrip ? entry.gripLoadType : entry.assistanceType,
-            entryKind:
-              isYoga || profile === "time" || profile === "conditioning"
-                ? "Workout"
-                : isGrip
-                  ? GRIP_WORKOUT_TYPE
-                  : isSkill
-                    ? "Skill"
-                    : entry.entryKind || "Workout",
-          };
-        }),
-      }),
+      return {
+        ...entry,
+        date: form.date,
+        workoutType: selected?.workoutType ?? entry.workoutType,
+        focusArea: "",
+        completed: form.completed,
+        progressionLevel: isGrip ? entry.gripStyle : entry.progressionLevel,
+        assistanceType: isGrip ? entry.gripLoadType : entry.assistanceType,
+        entryKind:
+          isYoga || profile === "time" || profile === "conditioning"
+            ? "Workout"
+            : isGrip
+              ? GRIP_WORKOUT_TYPE
+              : isSkill
+                ? "Skill"
+                : entry.entryKind || "Workout",
+      };
+    }),
+  });
+
+  const mutate = useMutation({
+    mutationFn: async () => {
+      if (editingSessionId) {
+        const result = await replaceWorkoutSessionClient(editingSessionId, buildWorkoutPayload());
+        return { ...result, wasCorrection: true };
+      }
+      const result = await addWorkoutSessionClient(buildWorkoutPayload());
+      return { ...result, wasCorrection: false, planRelinkFailed: false };
+    },
     onSuccess: async (result) => {
       window.localStorage.removeItem(draftStorageKey);
-      if (loadedSuggestionId) {
+      if (loadedSuggestionId && !result.wasCorrection) {
         try {
           await completeSuggestedWorkoutClient(loadedSuggestionId, result.sessionId);
           qc.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
@@ -1229,14 +1338,36 @@ export function FullWorkoutForm() {
           toast.warning("Workout saved, but the plan could not be marked complete.");
         }
       }
-      toast.success("Workout session saved", {
-        description: `${form.entries.filter((entry) => entry.exercise).length} movements were added.`,
+      if (result.planRelinkFailed) {
+        toast.warning("Workout updated, but its saved plan link could not be restored.");
+      }
+      const completed: StoredCompletedWorkout = {
+        version: 1,
+        savedAt: new Date().toISOString(),
+        sessionId: result.sessionId,
+        form,
+      };
+      if (form.date === today()) {
+        window.localStorage.setItem(lastCompletedStorageKey, JSON.stringify(completed));
+        setLastCompletedWorkout(completed);
+      } else if (result.wasCorrection) {
+        window.localStorage.removeItem(lastCompletedStorageKey);
+        setLastCompletedWorkout(null);
+      }
+      toast.success(result.wasCorrection ? "Workout updated" : "Workout session saved", {
+        description: `${form.entries.filter((entry) => entry.exercise).length} movements were ${
+          result.wasCorrection ? "updated" : "added"
+        }.`,
       });
+      setFinishSummaryOpen(false);
       setForm(blankSession());
       setLoadedSuggestionId(null);
+      setEditingSessionId(null);
       qc.invalidateQueries({ queryKey: ["recent-workouts"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["prs"] });
+      qc.invalidateQueries({ queryKey: ["timeline"] });
+      qc.invalidateQueries({ queryKey: ["exercise-history"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1250,9 +1381,74 @@ export function FullWorkoutForm() {
   const draftTime = draftSavedAt
     ? new Date(draftSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : null;
+  const workoutEntries = form.entries.filter((entry) => entry.exercise.trim());
+  const selectedLocation = locations.data?.find(
+    (location) => location.id === form.trainingLocationId,
+  );
+  const totalRecordedSets = workoutEntries.reduce(
+    (total, entry) =>
+      total + entry.setRows.filter((set) => set.reps || set.weight || set.rpe).length,
+    0,
+  );
+
+  const editLastCompletedWorkout = () => {
+    if (!lastCompletedWorkout) return;
+    setForm(lastCompletedWorkout.form);
+    setEditingSessionId(lastCompletedWorkout.sessionId);
+    setLoadedSuggestionId(null);
+    toast.message("Workout reopened", {
+      description: "Make your corrections, then review and finish again.",
+    });
+  };
+
+  const cancelCorrection = () => {
+    window.localStorage.removeItem(draftStorageKey);
+    setForm(blankSession());
+    setEditingSessionId(null);
+    setDraftSavedAt(null);
+    toast.message("Correction cancelled", {
+      description: "The completed workout was not changed.",
+    });
+  };
 
   return (
     <div className="space-y-6">
+      {editingSessionId ? (
+        <Card className="flex flex-col gap-3 border-amber-400/30 bg-amber-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <Pencil className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+            <div>
+              <p className="font-semibold">Correcting today&apos;s workout</p>
+              <p className="text-xs text-muted-foreground">
+                Finishing will safely replace the completed session with this corrected version.
+              </p>
+            </div>
+          </div>
+          <Button type="button" variant="ghost" size="sm" onClick={cancelCorrection}>
+            Cancel correction
+          </Button>
+        </Card>
+      ) : lastCompletedWorkout && !hasDraftContent ? (
+        <Card className="flex flex-col gap-3 border-emerald-400/30 bg-emerald-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <CircleCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
+            <div>
+              <p className="font-semibold">Today&apos;s workout is saved</p>
+              <p className="text-xs text-muted-foreground">
+                {lastCompletedWorkout.form.entries.filter((entry) => entry.exercise).length}{" "}
+                movements · Finished at{" "}
+                {new Date(lastCompletedWorkout.savedAt).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+            </div>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={editLastCompletedWorkout}>
+            <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit workout
+          </Button>
+        </Card>
+      ) : null}
       {!loadedSuggestionId && (nextPlans.data?.length ?? 0) > 0 ? (
         <section className="space-y-2">
           <div>
@@ -1619,19 +1815,83 @@ export function FullWorkoutForm() {
       </div>
 
       <Button
-        onClick={() => mutate.mutate()}
+        onClick={() => setFinishSummaryOpen(true)}
         disabled={!canSubmit}
         className="h-12 w-full text-base font-semibold"
         style={{ backgroundImage: "var(--gradient-primary)", color: "var(--primary-foreground)" }}
       >
-        {mutate.isPending ? (
-          <Loader2 className="h-5 w-5 animate-spin" />
-        ) : (
-          <>
-            <Plus className="mr-1 h-5 w-5" /> Save workout
-          </>
-        )}
+        <CircleCheck className="mr-1.5 h-5 w-5" />
+        {editingSessionId ? "Review correction" : "Review and finish"}
       </Button>
+
+      <Dialog
+        open={finishSummaryOpen}
+        onOpenChange={(open) => !mutate.isPending && setFinishSummaryOpen(open)}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {editingSessionId ? "Finish corrected workout?" : "Finish this workout?"}
+            </DialogTitle>
+            <DialogDescription>
+              Check the movements and recorded work before saving the completed session.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Location</p>
+              <p className="mt-1 truncate text-sm font-semibold">{selectedLocation?.name ?? "—"}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Movements
+              </p>
+              <p className="mt-1 text-sm font-semibold">{workoutEntries.length}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Sets</p>
+              <p className="mt-1 text-sm font-semibold">{totalRecordedSets || "—"}</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {workoutEntries.map((entry, index) => (
+              <div
+                key={`${entry.exercise}-${index}`}
+                className="rounded-lg border border-border p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate text-sm font-semibold">{entry.exercise}</p>
+                  <Badge variant="outline" className="shrink-0 text-[10px]">
+                    {index + 1}
+                  </Badge>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">{workoutEntrySummary(entry)}</p>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={mutate.isPending}
+              onClick={() => setFinishSummaryOpen(false)}
+            >
+              Keep editing
+            </Button>
+            <Button type="button" disabled={mutate.isPending} onClick={() => mutate.mutate()}>
+              {mutate.isPending ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <CircleCheck className="mr-1.5 h-4 w-4" />
+              )}
+              {editingSessionId ? "Save correction" : "Finish workout"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={discardDraftOpen} onOpenChange={setDiscardDraftOpen}>
         <AlertDialogContent>

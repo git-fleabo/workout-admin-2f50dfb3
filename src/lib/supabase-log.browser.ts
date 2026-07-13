@@ -2,6 +2,7 @@ import {
   supabasePublicDelete,
   supabasePublicInsert,
   supabasePublicSelect,
+  supabasePublicUpdate,
 } from "./supabase-public";
 import { claimNoamProfile, getCurrentPerson } from "./supabase-people.browser";
 
@@ -729,6 +730,60 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
   }
 
   return { ok: true, row: session.source_row ?? "Supabase", sessionId: session.id };
+}
+
+export async function replaceWorkoutSessionClient(
+  originalSessionId: string,
+  data: WorkoutSessionInput,
+) {
+  if (!originalSessionId) throw new Error("Missing workout session id.");
+  const person = await requirePerson();
+  const originals = await supabasePublicSelect<{ id: string }>("sessions", {
+    select: "id",
+    id: `eq.${originalSessionId}`,
+    person_id: `eq.${person.id}`,
+    source_sheet: "eq.Workout Log",
+    limit: 1,
+  });
+  if (!originals[0]) throw new Error("The original workout could not be found.");
+
+  const linkedPlans = await supabasePublicSelect<{ id: string }>("suggested_workouts", {
+    select: "id",
+    person_id: `eq.${person.id}`,
+    completed_session_id: `eq.${originalSessionId}`,
+  });
+  const replacement = await addWorkoutSessionClient(data);
+
+  try {
+    const deleted = await supabasePublicDelete<{ id: string }>("sessions", {
+      id: `eq.${originalSessionId}`,
+      person_id: `eq.${person.id}`,
+    });
+    if (!deleted.some((session) => session.id === originalSessionId)) {
+      throw new Error("The original workout was not removed, so the correction was cancelled.");
+    }
+  } catch (error) {
+    await supabasePublicDelete("sessions", { id: `eq.${replacement.sessionId}` }).catch(
+      () => undefined,
+    );
+    throw error;
+  }
+
+  let planRelinkFailed = false;
+  for (const plan of linkedPlans) {
+    try {
+      const updated = await supabasePublicUpdate<{ id: string }>(
+        "suggested_workouts",
+        { id: `eq.${plan.id}`, person_id: `eq.${person.id}` },
+        { status: "completed", completed_session_id: replacement.sessionId },
+      );
+      if (!updated.some((workout) => workout.id === plan.id)) planRelinkFailed = true;
+    } catch {
+      planRelinkFailed = true;
+    }
+  }
+
+  return { ...replacement, replacedSessionId: originalSessionId, planRelinkFailed };
 }
 
 export async function deleteSessionClient(id: string) {

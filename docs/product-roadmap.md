@@ -75,7 +75,7 @@ Goal: remove the decision between Quick Log and Full Workout, then make the rema
 - Allow reordering movements.
 - Offer saved plans and recent-session repeats from the same entry point.
 
-### 1.5 Finish and same-day correction
+### 1.5 Finish and same-day correction — implemented
 
 - Give Finish workout a clear session summary.
 - Make the just-completed workout easy to reopen and correct on the same day.
@@ -160,4 +160,4 @@ Implementation should begin with supersets/tri-sets/giant sets and drop/strip se
 
 ## Current Focus
 
-Phase 1 is active. Steps 1.1–1.4 are implemented: one unified logger, recoverable drafts, history-assisted sets, recent/favourite movement ordering, reordering, and recent-session repeats. The next implementation should be Step 1.5: a clear finish summary plus same-day correction.
+Phase 1 is implemented: the app now has one recoverable session composer, history-assisted sets, faster movement selection, recent-session repeats, a finish review, and safe same-day correction. The next implementation should begin Phase 2 with the Today launch screen: resume a draft, reopen today’s completed workout, start a saved/recent workout, or begin empty.
