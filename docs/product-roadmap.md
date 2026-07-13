@@ -60,7 +60,7 @@ Goal: remove the decision between Quick Log and Full Workout, then make the rema
 - Do not create partial completed sessions in Supabase.
 - Later decide whether cross-device drafts justify a server-side `draft` session status.
 
-### 1.3 Faster set entry
+### 1.3 Faster set entry — implemented
 
 - Show the most recent matching sets beside or immediately above the new targets.
 - Add `Repeat last set` and `Copy previous workout` actions.
@@ -140,4 +140,4 @@ Goal: extend the current next-workout planner into a practical view of the comin
 
 ## Current Focus
 
-Phase 1 is active. Steps 1.1 and 1.2 are implemented: one unified logger plus recoverable local drafts. The next implementation should be Step 1.3: faster set entry with clearer previous-set context and copy actions.
+Phase 1 is active. Steps 1.1–1.3 are implemented: one unified logger, recoverable local drafts, and explicit history-assisted set entry. The next implementation should be Step 1.4: faster movement selection with recent/favourite ordering, reordering, and session-repeat entry points.

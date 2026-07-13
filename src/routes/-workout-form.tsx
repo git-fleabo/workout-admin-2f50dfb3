@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Calendar, Check, ChevronsUpDown, Dumbbell, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  Calendar,
+  Check,
+  ChevronsUpDown,
+  Copy,
+  Dumbbell,
+  Loader2,
+  Plus,
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,6 +69,7 @@ import {
 import {
   readWorkoutPlanDraft,
   WORKOUT_PLAN_DRAFT_KEY,
+  type RecentWorkoutLog,
   type WorkoutPlanDraft,
 } from "@/lib/workout-plan";
 import {
@@ -322,6 +333,26 @@ function sessionHasDraftContent(form: SessionFormState) {
 function workoutSessionDraftKey() {
   const userId = getSupabaseSession()?.user.id;
   return `${WORKOUT_SESSION_DRAFT_KEY_PREFIX}:${userId ?? "signed-out"}`;
+}
+
+function setRowsFromRecentLog(log: RecentWorkoutLog): WorkoutSetState[] {
+  if (log.setRows.length > 1) return log.setRows.map((set) => ({ ...set }));
+  const count = Math.max(1, Number(log.sets) || 1);
+  const totalReps = Number(log.reps) || 0;
+  const reps = totalReps ? Math.ceil(totalReps / count).toString() : (log.setRows[0]?.reps ?? "");
+  return Array.from({ length: count }, () => ({
+    reps,
+    weight: log.weight,
+    rpe: "",
+    completed: true,
+  }));
+}
+
+function setSummary(set: WorkoutSetState, usesLoad: boolean) {
+  const load = usesLoad && set.weight ? `${set.weight} kg` : "";
+  const reps = set.reps ? `${set.reps} reps` : "";
+  const rpe = set.rpe ? `RPE ${set.rpe}` : "";
+  return [load, reps, rpe].filter(Boolean).join(" · ") || "No values recorded";
 }
 
 function recentSetRepSummary(sets: string, reps: string) {
@@ -726,8 +757,8 @@ export function FullWorkoutForm() {
   const draftStorageKey = useMemo(workoutSessionDraftKey, []);
   const lib = useQuery({ queryKey: ["library"], queryFn: getLibraryClient });
   const recent = useQuery({
-    queryKey: ["recent-workouts"],
-    queryFn: () => getRecentLogsClient(),
+    queryKey: ["recent-workouts", 100],
+    queryFn: () => getRecentLogsClient(100),
   });
   const locations = useQuery({
     queryKey: ["training-locations"],
@@ -916,14 +947,24 @@ export function FullWorkoutForm() {
           : entry,
       ),
     }));
-  const addSet = (entryIndex: number) =>
+  const repeatLastSet = (entryIndex: number) =>
     setForm((current) => ({
       ...current,
       entries: current.entries.map((entry, i) => {
         if (i !== entryIndex) return entry;
         const previous = entry.setRows[entry.setRows.length - 1] ?? blankSet();
-        return { ...entry, setRows: [...entry.setRows, { ...previous, rpe: "" }] };
+        return {
+          ...entry,
+          setRows: [...entry.setRows, { ...previous, rpe: "", completed: true }],
+        };
       }),
+    }));
+  const addBlankSet = (entryIndex: number) =>
+    setForm((current) => ({
+      ...current,
+      entries: current.entries.map((entry, i) =>
+        i === entryIndex ? { ...entry, setRows: [...entry.setRows, blankSet()] } : entry,
+      ),
     }));
   const removeSet = (entryIndex: number, setIndex: number) =>
     setForm((current) => ({
@@ -941,23 +982,23 @@ export function FullWorkoutForm() {
       ),
     }));
 
-  const previousSetsFor = (exerciseName: string): WorkoutSetState[] => {
-    const match = recent.data?.recent.find(
-      (item) => item.exercise.toLowerCase() === exerciseName.toLowerCase(),
+  const previousWorkoutFor = (exerciseName: string) => {
+    if (!exerciseName) return undefined;
+    const matches = recent.data?.recent.filter(
+      (item) => item.completed && item.exercise.toLowerCase() === exerciseName.trim().toLowerCase(),
     );
-    if (!match) return [blankSet()];
-    if (match.setRows.length > 1) return match.setRows.map((set) => ({ ...set }));
-    const count = Math.max(1, Number(match.sets) || 1);
-    const totalReps = Number(match.reps) || 0;
-    const reps = totalReps
-      ? Math.ceil(totalReps / count).toString()
-      : (match.setRows[0]?.reps ?? "");
-    return Array.from({ length: count }, () => ({
-      reps,
-      weight: match.weight,
-      rpe: "",
-      completed: true,
-    }));
+    return (
+      matches?.find((item) => item.trainingLocation?.kind === selectedLocationKind) ?? matches?.[0]
+    );
+  };
+
+  const copyPreviousWorkout = (entryIndex: number, exerciseName: string) => {
+    const previous = previousWorkoutFor(exerciseName);
+    if (!previous) return;
+    updateEntry(entryIndex, "setRows", setRowsFromRecentLog(previous));
+    toast.message("Previous workout copied", {
+      description: `${exerciseName} targets now match ${formatUKDate(previous.date)}.`,
+    });
   };
 
   const mutate = useMutation({
@@ -1214,6 +1255,8 @@ export function FullWorkoutForm() {
             entry.entryKind === GRIP_WORKOUT_TYPE ||
             entry.workoutType === GRIP_WORKOUT_TYPE ||
             selectedExercise?.workoutType === GRIP_WORKOUT_TYPE;
+          const previousWorkout = previousWorkoutFor(entry.exercise);
+          const previousSets = previousWorkout ? setRowsFromRecentLog(previousWorkout) : [];
 
           return (
             <Card key={index} className="space-y-4 border-border bg-card p-4">
@@ -1246,7 +1289,7 @@ export function FullWorkoutForm() {
                           ? GRIP_WORKOUT_TYPE
                           : "Workout",
                     );
-                    updateEntry(index, "setRows", previousSetsFor(name));
+                    updateEntry(index, "setRows", [blankSet()]);
                   }}
                 />
               </Field>
@@ -1262,8 +1305,21 @@ export function FullWorkoutForm() {
                 <SetRowsEditor
                   rows={entry.setRows}
                   usesLoad={profileUsesLoad(profile)}
+                  previousWorkout={
+                    previousWorkout
+                      ? {
+                          date: previousWorkout.date,
+                          location:
+                            previousWorkout.trainingLocation?.name ??
+                            previousWorkout.trainingLocation?.kind,
+                          rows: previousSets,
+                        }
+                      : undefined
+                  }
                   onChange={(setIndex, key, value) => updateSet(index, setIndex, key, value)}
-                  onAdd={() => addSet(index)}
+                  onCopyPrevious={() => copyPreviousWorkout(index, entry.exercise)}
+                  onRepeat={() => repeatLastSet(index)}
+                  onAddBlank={() => addBlankSet(index)}
                   onRemove={(setIndex) => removeSet(index, setIndex)}
                 />
               ) : (
@@ -1282,14 +1338,18 @@ export function FullWorkoutForm() {
                   />
                 )
               )}
-              <Field label="Movement notes">
+              <details className="rounded-lg border border-border/70 bg-secondary/10 px-3 py-2">
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+                  Movement notes {entry.notes ? "· Added" : "· Optional"}
+                </summary>
                 <Textarea
                   rows={2}
+                  className="mt-2"
                   value={entry.notes}
                   onChange={(e) => updateEntry(index, "notes", e.target.value)}
                   placeholder="Movement-specific notes..."
                 />
-              </Field>
+              </details>
             </Card>
           );
         })}
@@ -1396,24 +1456,64 @@ function MovementPicker({
 function SetRowsEditor({
   rows,
   usesLoad,
+  previousWorkout,
   onChange,
-  onAdd,
+  onCopyPrevious,
+  onRepeat,
+  onAddBlank,
   onRemove,
 }: {
   rows: WorkoutSetState[];
   usesLoad: boolean;
+  previousWorkout?: { date: string; location?: string; rows: WorkoutSetState[] };
   onChange: <K extends keyof WorkoutSetState>(
     setIndex: number,
     key: K,
     value: WorkoutSetState[K],
   ) => void;
-  onAdd: () => void;
+  onCopyPrevious: () => void;
+  onRepeat: () => void;
+  onAddBlank: () => void;
   onRemove: (setIndex: number) => void;
 }) {
   return (
-    <div className="space-y-2 rounded-lg border border-border bg-secondary/20 p-3">
+    <div className="space-y-3 rounded-lg border border-border bg-secondary/20 p-3">
+      {previousWorkout ? (
+        <div className="space-y-2 rounded-md border border-border bg-background/70 p-2.5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                Previous workout · {formatUKDate(previousWorkout.date)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {previousWorkout.rows.length} {previousWorkout.rows.length === 1 ? "set" : "sets"}
+                {previousWorkout.location ? ` · ${previousWorkout.location}` : ""}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 w-full sm:w-auto"
+              onClick={onCopyPrevious}
+            >
+              <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy previous workout
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {previousWorkout.rows.map((set, index) => (
+              <span
+                key={index}
+                className="rounded-md bg-secondary px-2 py-1 text-[11px] text-foreground"
+              >
+                {index + 1}. {setSummary(set, usesLoad)}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div
-        className={`grid items-end gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground ${
+        className={`hidden items-end gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:grid ${
           usesLoad ? "grid-cols-[32px_1fr_1fr_1fr_32px]" : "grid-cols-[32px_1fr_1fr_32px]"
         }`}
       >
@@ -1426,39 +1526,77 @@ function SetRowsEditor({
       {rows.map((set, setIndex) => (
         <div
           key={setIndex}
-          className={`grid items-center gap-2 ${
-            usesLoad ? "grid-cols-[32px_1fr_1fr_1fr_32px]" : "grid-cols-[32px_1fr_1fr_32px]"
+          className={`rounded-md border border-border/70 bg-background p-2 sm:grid sm:items-center sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0 ${
+            usesLoad ? "sm:grid-cols-[32px_1fr_1fr_1fr_32px]" : "sm:grid-cols-[32px_1fr_1fr_32px]"
           }`}
         >
-          <span className="text-center text-sm font-semibold text-muted-foreground">
+          <div className="mb-2 flex items-center justify-between sm:hidden">
+            <span className="text-xs font-semibold text-muted-foreground">Set {setIndex + 1}</span>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 text-muted-foreground"
+              disabled={rows.length === 1}
+              onClick={() => onRemove(setIndex)}
+              aria-label={`Remove set ${setIndex + 1}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+          <span className="hidden text-center text-sm font-semibold text-muted-foreground sm:block">
             {setIndex + 1}
           </span>
-          {usesLoad && (
-            <Input
-              inputMode="decimal"
-              aria-label={`Set ${setIndex + 1} weight`}
-              value={set.weight}
-              onChange={(event) => onChange(setIndex, "weight", event.target.value)}
-            />
-          )}
-          <Input
-            inputMode="numeric"
-            pattern="[0-9]*"
-            aria-label={`Set ${setIndex + 1} reps`}
-            value={set.reps}
-            onChange={(event) => onChange(setIndex, "reps", event.target.value)}
-          />
-          <Input
-            inputMode="decimal"
-            aria-label={`Set ${setIndex + 1} RPE`}
-            value={set.rpe}
-            onChange={(event) => onChange(setIndex, "rpe", event.target.value)}
-          />
+          <div
+            className={`grid items-end gap-2 sm:contents ${
+              usesLoad ? "grid-cols-[1fr_1fr_0.75fr]" : "grid-cols-[1fr_0.75fr]"
+            }`}
+          >
+            {usesLoad && (
+              <label className="space-y-1 sm:space-y-0">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
+                  Weight (kg)
+                </span>
+                <Input
+                  inputMode="decimal"
+                  className="h-12 text-lg font-semibold sm:h-10 sm:text-sm sm:font-normal"
+                  aria-label={`Set ${setIndex + 1} weight`}
+                  value={set.weight}
+                  onChange={(event) => onChange(setIndex, "weight", event.target.value)}
+                />
+              </label>
+            )}
+            <label className="space-y-1 sm:space-y-0">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
+                Reps
+              </span>
+              <Input
+                inputMode="numeric"
+                pattern="[0-9]*"
+                className="h-12 text-lg font-semibold sm:h-10 sm:text-sm sm:font-normal"
+                aria-label={`Set ${setIndex + 1} reps`}
+                value={set.reps}
+                onChange={(event) => onChange(setIndex, "reps", event.target.value)}
+              />
+            </label>
+            <label className="space-y-1 sm:space-y-0">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
+                RPE
+              </span>
+              <Input
+                inputMode="decimal"
+                className="h-12 text-base sm:h-10 sm:text-sm"
+                aria-label={`Set ${setIndex + 1} RPE`}
+                value={set.rpe}
+                onChange={(event) => onChange(setIndex, "rpe", event.target.value)}
+              />
+            </label>
+          </div>
           <Button
             type="button"
             size="icon"
             variant="ghost"
-            className="h-8 w-8 text-muted-foreground"
+            className="hidden h-8 w-8 text-muted-foreground sm:inline-flex"
             disabled={rows.length === 1}
             onClick={() => onRemove(setIndex)}
             aria-label={`Remove set ${setIndex + 1}`}
@@ -1467,9 +1605,14 @@ function SetRowsEditor({
           </Button>
         </div>
       ))}
-      <Button type="button" variant="ghost" size="sm" className="w-full" onClick={onAdd}>
-        <Plus className="mr-1 h-4 w-4" /> Add set
-      </Button>
+      <div className="grid grid-cols-2 gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={onRepeat}>
+          <RotateCcw className="mr-1 h-3.5 w-3.5" /> Repeat last set
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={onAddBlank}>
+          <Plus className="mr-1 h-4 w-4" /> Add blank set
+        </Button>
+      </div>
     </div>
   );
 }
