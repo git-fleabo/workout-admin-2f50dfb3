@@ -422,6 +422,7 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
             sets: null,
             reps: metricNumber(metrics, "boulders"),
             weight: null,
+            volume: null,
             minutes: minutes || null,
             completed: true,
             counts: false,
@@ -578,10 +579,10 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
             assistanceAmount: base.assistanceAmount,
           });
         };
-        if (Number.isFinite(holdSeconds) && holdSeconds > 0) {
+        if (holdSeconds != null && Number.isFinite(holdSeconds) && holdSeconds > 0) {
           consider("hold", holdSeconds, `${holdSeconds}s`);
         }
-        if (Number.isFinite(reps) && reps > 0) {
+        if (reps != null && Number.isFinite(reps) && reps > 0) {
           consider("reps", reps, `${reps} reps`);
         }
       }

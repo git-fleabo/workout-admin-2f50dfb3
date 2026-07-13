@@ -93,7 +93,13 @@ const FALLBACK_WORKOUT_TYPES = [
   GRIP_WORKOUT_TYPE,
   "Other",
 ];
-const FALLBACK_MOVEMENTS = [
+const FALLBACK_MOVEMENTS: Array<{
+  workoutType: string;
+  focusArea: string;
+  name: string;
+  metric?: string;
+  locationScope?: "home" | "gym" | "both";
+}> = [
   { workoutType: "Strength", focusArea: "", name: "Bench Press" },
   { workoutType: "Strength", focusArea: "", name: "High Bar Squat" },
   { workoutType: "Strength", focusArea: "", name: "Kettlebell Clean" },
@@ -232,7 +238,10 @@ export function WorkoutForm({
 }) {
   const qc = useQueryClient();
   const lib = useQuery({ queryKey: ["library"], queryFn: getLibraryClient });
-  const recent = useQuery({ queryKey: ["recent-workouts"], queryFn: getRecentLogsClient });
+  const recent = useQuery({
+    queryKey: ["recent-workouts"],
+    queryFn: () => getRecentLogsClient(),
+  });
 
   const [form, setForm] = useState<FormState>(() => blank(defaultWorkoutType));
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
@@ -613,15 +622,33 @@ export function WorkoutForm({
 export function FullWorkoutForm() {
   const qc = useQueryClient();
   const lib = useQuery({ queryKey: ["library"], queryFn: getLibraryClient });
-  const recent = useQuery({ queryKey: ["recent-workouts"], queryFn: getRecentLogsClient });
+  const recent = useQuery({
+    queryKey: ["recent-workouts"],
+    queryFn: () => getRecentLogsClient(),
+  });
   const locations = useQuery({
     queryKey: ["training-locations"],
     queryFn: getTrainingLocationsClient,
   });
   const [form, setForm] = useState<SessionFormState>(() => blankSession());
   const [planDraftLoaded, setPlanDraftLoaded] = useState(false);
-  const libraryExercises =
+  const allLibraryExercises =
     lib.data?.exercises && lib.data.exercises.length > 0 ? lib.data.exercises : FALLBACK_MOVEMENTS;
+  const selectedLocationKind = locations.data?.find(
+    (location) => location.id === form.trainingLocationId,
+  )?.kind;
+  const libraryExercises = useMemo(
+    () =>
+      selectedLocationKind === "home" || selectedLocationKind === "gym"
+        ? allLibraryExercises.filter(
+            (exercise) =>
+              !("locationScope" in exercise) ||
+              exercise.locationScope === "both" ||
+              exercise.locationScope === selectedLocationKind,
+          )
+        : allLibraryExercises,
+    [allLibraryExercises, selectedLocationKind],
+  );
 
   useEffect(() => {
     if (planDraftLoaded) return;

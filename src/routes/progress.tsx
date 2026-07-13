@@ -64,7 +64,10 @@ export const Route = createFileRoute("/progress")({
 
 type Period = 4 | 8 | 12 | 26 | "all";
 type LocationFilter = "all" | "home" | "gym";
-type ExerciseOption = LibraryRow & { id: string };
+type ExerciseOption = Omit<LibraryRow, "row"> & {
+  id: string;
+  locationScope: "home" | "gym" | "both";
+};
 
 const PERIODS: { value: Period; label: string }[] = [
   { value: 4, label: "4 weeks" },
@@ -126,12 +129,24 @@ function ProgressPage() {
   const [exerciseId, setExerciseId] = useState("");
   const [period, setPeriod] = useState<Period>(8);
   const [location, setLocation] = useState<LocationFilter>("all");
+  const locationExercises = useMemo(
+    () =>
+      exercises.filter(
+        (exercise) =>
+          location === "all" ||
+          exercise.locationScope === "both" ||
+          exercise.locationScope === location,
+      ),
+    [exercises, location],
+  );
 
   useEffect(() => {
-    if (exerciseId || exercises.length === 0) return;
-    const bench = exercises.find((exercise) => exercise.name.toLowerCase() === "bench press");
-    setExerciseId((bench ?? exercises[0]).id);
-  }, [exerciseId, exercises]);
+    if (locationExercises.some((exercise) => exercise.id === exerciseId)) return;
+    const bench = locationExercises.find(
+      (exercise) => exercise.name.toLowerCase() === "bench press",
+    );
+    setExerciseId((bench ?? locationExercises[0])?.id ?? "");
+  }, [exerciseId, locationExercises]);
 
   const exercise = exercises.find((item) => item.id === exerciseId) ?? null;
   const history = useQuery({
@@ -245,7 +260,7 @@ function ProgressPage() {
             Compare load, estimated strength and volume before deciding what to do next.
           </p>
         </div>
-        <ExercisePicker exercises={exercises} value={exerciseId} onChange={setExerciseId} />
+        <ExercisePicker exercises={locationExercises} value={exerciseId} onChange={setExerciseId} />
       </header>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -73,6 +73,7 @@ type ExerciseRecord = {
 type PersonExerciseRecord = {
   exercise_id: string;
   is_enabled: boolean;
+  location_scope: "home" | "gym" | "both";
 };
 
 type EntrySetRecord = {
@@ -380,7 +381,7 @@ export async function getLibraryClient() {
       limit: 1000,
     }),
     supabasePublicSelect<PersonExerciseRecord>("person_exercises", {
-      select: "exercise_id,is_enabled",
+      select: "exercise_id,is_enabled,location_scope",
       person_id: `eq.${person.id}`,
     }),
   ]);
@@ -408,6 +409,9 @@ export async function getLibraryClient() {
       suggestedSets: row.suggested_sets ?? "",
       suggestedReps: row.suggested_reps ?? "",
       notes: row.notes ?? "",
+      locationScope:
+        personExercises.find((personExercise) => personExercise.exercise_id === row.id)
+          ?.location_scope ?? "both",
     })),
     workoutTypes,
     focusAreas: Array.from(

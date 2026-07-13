@@ -391,7 +391,7 @@ RLS:
 
 Purpose: per-person enable/disable/customization of master library exercises.
 
-Rows: 47
+Rows: 55 (checked 2026-07-13)
 
 Key columns:
 
@@ -399,6 +399,7 @@ Key columns:
 - `person_id uuid -> people.id`
 - `exercise_id uuid -> exercises.id`
 - `is_enabled boolean`
+- `location_scope text`, one of `home`, `gym`, `both`; default `both`
 - `custom_name text nullable`
 - `notes text nullable`
 - timestamps
@@ -806,7 +807,7 @@ The Log tab defaults to the movement-first `Full workout` mode. It starts with H
 
 For standard set/reps movements, Full workout records one `entry_sets` row per real set with its own weight, reps, and RPE. Selecting a movement prefills the most recent matching set pattern; adding a set copies the previous load/reps and leaves RPE blank. Legacy single-row aggregate entries remain readable and analytics distinguish them from newer multi-row set data.
 
-Home/Gym selection is saved on `sessions.training_location_id` and remembered locally for the next full-workout entry. History details show the saved location. Future suggested-workout logic should filter by this explicit context before analysing exercise patterns.
+Home/Gym selection is saved on `sessions.training_location_id` and remembered locally for the next full-workout entry. History details show the saved location. The Full Workout movement picker filters enabled exercises using the selected person's `person_exercises.location_scope`: Home, Gym, or Both.
 
 Climbing:
 
@@ -817,7 +818,7 @@ Climbing:
 - Gradient appears and saves only for `Kilter`
 - Climbing saves normalise metric rows before inserting `entry_metrics` because Supabase/PostgREST batch inserts require consistent object keys. Blank optional metrics are filtered out. If a detail insert fails after the session is created, the app deletes the partially created session so future duplicate checks are not blocked by half-saved data.
 - Normal workout saves should use the same cleanup behavior after creating the session: if entry, set, or metric inserts fail, delete the partially created session.
-- The Log screen movement picker should respect `person_exercises.is_enabled` for the current person. The Library remains the place to review the master movement list and toggle which movements are available for logging.
+- The Log screen movement picker respects both `person_exercises.is_enabled` and `person_exercises.location_scope` for the current person. Quick Log has no session-location selector and continues to show the full enabled list; Full Workout filters immediately after Home or Gym is selected.
 
 Flexible metric profiles:
 
@@ -840,6 +841,8 @@ The library reads from Supabase. It supports:
 - add/edit/hide movements
 - a type-first new movement dialog with fields/defaults that adapt to the selected type and mirror the logging screen profiles
 - per-person enable/disable selections
+- per-person Home, Gym, or Both availability, editable inline on each movement
+- an All/Home/Gym library filter that includes Both movements in either location view
 - exercise history/details
 - a `Show inactive` toggle for admin review of hidden/retired movements
 
@@ -860,6 +863,7 @@ Check-ins are stored in `goal_checkins`.
 The top-level Progress workspace is designed to be especially useful on larger screens while retaining a stacked mobile layout. It includes:
 
 - a searchable exercise selector that starts with Bench Press when available
+- exercise choices filtered by the selected All/Home/Gym view using per-person location availability
 - 4, 8, 12, and 26-week plus all-time periods
 - All, Home, and Gym location filters
 - session count, top working weight, best estimated 1RM, and average weekly volume summaries
@@ -875,6 +879,7 @@ Exercise history now groups by session rather than only by date and retains each
 The top-level Plan workspace builds an editable next-workout draft from recent completed Workout Log history:
 
 - Home and Gym are analysed separately when explicit location history exists.
+- Movements excluded from the selected location in the Library are also excluded from suggestions.
 - If the selected location has no labelled history yet, the app clearly falls back to older locationless logs instead of pretending those sessions are known to be Home or Gym.
 - Legacy separate movement sessions are grouped back into training days so older history can still form a workout pattern.
 - If the last three matching training days clearly resemble an A/B/A rotation, the planner suggests the B pattern next; otherwise it repeats the most recent matching training day.
@@ -919,7 +924,8 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `src/lib/supabase-goals.browser.ts`: goals and check-ins data functions.
 - `src/lib/supabase-history.browser.ts`: exercise-specific history for library detail.
 - `src/lib/supabase-timeline.browser.ts`: combined History tab data.
-- `src/routes/index.tsx`: dashboard route.
+- `src/routes/index.tsx`: startup redirect from `/` to `/log`.
+- `src/routes/dashboard.tsx`: dashboard route at `/dashboard`.
 - `src/routes/log.tsx`: log screen route.
 - `src/routes/plan.tsx`: next-workout planner, readiness choices, and editable suggested sets.
 - `src/routes/progress.tsx`: exercise-specific progress analysis, charts, period/location filters, and set history.
@@ -934,6 +940,7 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `package.json`: scripts and dependencies.
 - `supabase/schema.sql`: schema/policy snapshot.
 - `supabase/migrations/20260713100036_add_training_locations.sql`: applied and tracked training-location migration.
+- `supabase/migrations/20260713105054_add_exercise_location_scope.sql`: applied and tracked per-person Home/Gym/Both exercise availability.
 - `supabase/approved_logging_library_updates.sql`: reusable SQL for approved data-library changes.
 - `workout_context.md`: this handoff file; keep it current.
 
@@ -943,6 +950,12 @@ Standard build:
 
 ```bash
 npm run build
+```
+
+Type check:
+
+```bash
+npx tsc --noEmit
 ```
 
 Alternative explicit build command used previously:
@@ -1052,21 +1065,23 @@ Recommended next work, in order:
 
 1. Push any local commits via GitHub Desktop if the branch is ahead of remote.
 2. In Lovable preview, confirm the commit label matches the latest pushed commit.
-3. Test Log flows for Strength, Run, Class, Mobility/Flexibility, Grip, Climbing, 1RM, and Bodyweight.
-4. Test the duplicate-log warning by trying to save the same movement twice on the same date.
-5. Test a Home and Gym full-workout save from the deployed authenticated app, including mixed-weight sets, and confirm the location appears in History.
-6. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
-7. Test Plan for Gym Normal/Tired, then use `Start this workout` and confirm the location and exact set targets reach Full Workout unchanged.
-8. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-9. Decide whether accepted but not yet completed plans should persist across devices; if yes, add suggestion-entry/set tables under `suggested_workouts` before writing plan details.
-10. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
-11. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
-12. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
-13. Build a simple admin-only user management flow before inviting friends: create person, link auth user, select app profile, select/deselect exercises.
-14. Tighten the profile-claim bootstrap now that Noam's account is linked.
-15. Start implementing programme assignment and suggested workout UI on top of the seeded Percentage Strength Blocks.
-16. Consider generating and saving TypeScript types from Supabase once schema/data shape stabilizes.
-17. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
+3. Confirm app startup opens Full Workout on Log and the Dashboard nav still opens `/dashboard`.
+4. Set a few Library movements to Home-only and Gym-only, then confirm each Full Workout movement list filters correctly while Both appears in both lists.
+5. Test Log flows for Strength, Run, Class, Mobility/Flexibility, Grip, Climbing, 1RM, and Bodyweight.
+6. Test the duplicate-log warning by trying to save the same movement twice on the same date.
+7. Test a Home and Gym full-workout save from the deployed authenticated app, including mixed-weight sets, and confirm the location appears in History.
+8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
+9. Test Plan for Gym Normal/Tired, then use `Start this workout` and confirm the location and exact set targets reach Full Workout unchanged.
+10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
+11. Decide whether accepted but not yet completed plans should persist across devices; if yes, add suggestion-entry/set tables under `suggested_workouts` before writing plan details.
+12. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
+13. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
+14. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
+15. Build a simple admin-only user management flow before inviting friends: create person, link auth user, select app profile, select/deselect exercises.
+16. Tighten the profile-claim bootstrap now that Noam's account is linked.
+17. Start implementing programme assignment and suggested workout UI on top of the seeded Percentage Strength Blocks.
+18. Consider generating and saving TypeScript types from Supabase once schema/data shape stabilizes.
+19. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
 
 ## Future Stage: iPhone App
 

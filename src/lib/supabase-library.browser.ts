@@ -38,13 +38,17 @@ type PersonExerciseRecord = {
   person_id: string;
   exercise_id: string;
   is_enabled: boolean;
+  location_scope: ExerciseLocationScope;
 };
+
+export type ExerciseLocationScope = "home" | "gym" | "both";
 
 export type LibraryClientRow = LibraryRow & {
   id: string;
   enabled: boolean;
   active: boolean;
   personExerciseId: string | null;
+  locationScope: ExerciseLocationScope;
 };
 
 export type LibraryFields = Omit<LibraryRow, "row">;
@@ -75,6 +79,7 @@ function mapExercise(row: ExerciseRecord, personExercise?: PersonExerciseRecord)
     active: row.is_active,
     enabled: personExercise?.is_enabled ?? false,
     personExerciseId: personExercise?.id ?? null,
+    locationScope: personExercise?.location_scope ?? "both",
   };
 }
 
@@ -124,7 +129,7 @@ async function findNextExerciseSourceRow() {
 
 async function listPersonExercises(personId: string) {
   return supabasePublicSelect<PersonExerciseRecord>("person_exercises", {
-    select: "id,person_id,exercise_id,is_enabled",
+    select: "id,person_id,exercise_id,is_enabled,location_scope",
     person_id: `eq.${personId}`,
   });
 }
@@ -166,7 +171,10 @@ export async function listLibraryClient(personId?: string, includeInactive = fal
 
   const byExercise = new Map(personExercises.map((pe) => [pe.exercise_id, pe]));
   const activeExerciseTypes = new Set(
-    exercises.filter((row) => row.is_active).map((row) => row.activity_types?.name).filter(Boolean),
+    exercises
+      .filter((row) => row.is_active)
+      .map((row) => row.activity_types?.name)
+      .filter(Boolean),
   );
   const workoutTypes = activityTypes
     .map((t) => t.name)
@@ -212,6 +220,7 @@ export async function addExerciseClient(fields: LibraryFields, personId?: string
       person_id: targetPerson.id,
       exercise_id: exercise.id,
       is_enabled: true,
+      location_scope: "both",
     });
   }
   return { ok: true, row: exercise?.source_row ?? sourceRow };
@@ -237,11 +246,7 @@ export async function updateExerciseClient(id: string, fields: LibraryFields) {
 }
 
 export async function hideExerciseClient(id: string) {
-  await supabasePublicUpdate<ExerciseRecord>(
-    "exercises",
-    { id: `eq.${id}` },
-    { is_active: false },
-  );
+  await supabasePublicUpdate<ExerciseRecord>("exercises", { id: `eq.${id}` }, { is_active: false });
   return { ok: true };
 }
 
@@ -253,7 +258,7 @@ export async function setExerciseEnabledClient(
   const targetPerson = await getTargetPerson(personId);
   if (!targetPerson) throw new Error("Claim your profile first.");
   const existing = await supabasePublicSelect<PersonExerciseRecord>("person_exercises", {
-    select: "id,person_id,exercise_id,is_enabled",
+    select: "id,person_id,exercise_id,is_enabled,location_scope",
     person_id: `eq.${targetPerson.id}`,
     exercise_id: `eq.${exerciseId}`,
     limit: 1,
@@ -270,6 +275,38 @@ export async function setExerciseEnabledClient(
       person_id: targetPerson.id,
       exercise_id: exerciseId,
       is_enabled: enabled,
+      location_scope: "both",
+    });
+  }
+  return { ok: true };
+}
+
+export async function setExerciseLocationScopeClient(
+  exerciseId: string,
+  locationScope: ExerciseLocationScope,
+  personId?: string,
+) {
+  const targetPerson = await getTargetPerson(personId);
+  if (!targetPerson) throw new Error("Claim your profile first.");
+  const existing = await supabasePublicSelect<PersonExerciseRecord>("person_exercises", {
+    select: "id,person_id,exercise_id,is_enabled,location_scope",
+    person_id: `eq.${targetPerson.id}`,
+    exercise_id: `eq.${exerciseId}`,
+    limit: 1,
+  });
+  const row = existing[0];
+  if (row) {
+    await supabasePublicUpdate<PersonExerciseRecord>(
+      "person_exercises",
+      { id: `eq.${row.id}` },
+      { location_scope: locationScope },
+    );
+  } else {
+    await supabasePublicInsert<PersonExerciseRecord>("person_exercises", {
+      person_id: targetPerson.id,
+      exercise_id: exerciseId,
+      is_enabled: false,
+      location_scope: locationScope,
     });
   }
   return { ok: true };

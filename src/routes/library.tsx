@@ -43,7 +43,9 @@ import {
   hideExerciseClient,
   listLibraryClient,
   setExerciseEnabledClient,
+  setExerciseLocationScopeClient,
   updateExerciseClient,
+  type ExerciseLocationScope,
   type LibraryClientRow,
 } from "@/lib/supabase-library.browser";
 import { ExerciseDetail } from "@/components/exercise-detail";
@@ -258,6 +260,7 @@ function LibraryPage() {
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("");
+  const [locationFilter, setLocationFilter] = useState<"" | "home" | "gym">("");
   const [editor, setEditor] = useState<EditorState>({ mode: "closed" });
   const [pendingDelete, setPendingDelete] = useState<LibraryClientRow | null>(null);
   const [selected, setSelected] = useState<LibraryClientRow | null>(null);
@@ -269,6 +272,8 @@ function LibraryPage() {
     const q = search.trim().toLowerCase();
     return items.filter((i) => {
       if (typeFilter && i.workoutType !== typeFilter) return false;
+      if (locationFilter && i.locationScope !== "both" && i.locationScope !== locationFilter)
+        return false;
       if (!q) return true;
       return (
         i.name.toLowerCase().includes(q) ||
@@ -276,7 +281,7 @@ function LibraryPage() {
         i.notes.toLowerCase().includes(q)
       );
     });
-  }, [list.data, search, typeFilter]);
+  }, [list.data, locationFilter, search, typeFilter]);
 
   const addMutation = useMutation({
     mutationFn: (fields: typeof BLANK) => addExerciseClient(fields, effectivePersonId || undefined),
@@ -316,6 +321,13 @@ function LibraryPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const locationMutation = useMutation({
+    mutationFn: ({ id, scope }: { id: string; scope: ExerciseLocationScope }) =>
+      setExerciseLocationScopeClient(id, scope, effectivePersonId || undefined),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["library"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const claimMutation = useMutation({
     mutationFn: () => claimNoamProfile(),
     onSuccess: () => {
@@ -351,6 +363,26 @@ function LibraryPage() {
             onChange={setTypeFilter}
             options={list.data?.workoutTypes ?? []}
           />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Location
+          </Label>
+          <Select
+            value={locationFilter || "all"}
+            onValueChange={(value) =>
+              setLocationFilter(value === "all" ? "" : (value as "home" | "gym"))
+            }
+          >
+            <SelectTrigger className="h-10 w-[130px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="home">Home</SelectItem>
+              <SelectItem value="gym">Gym</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         {(list.data?.people.length ?? 0) > 1 && (
           <div className="flex flex-col gap-1">
@@ -439,7 +471,7 @@ function LibraryPage() {
                 <Fragment key={ex.row}>
                   <Card
                     onClick={() => setSelected(isSelected ? null : ex)}
-                    className={`flex cursor-pointer items-start gap-3 border-border bg-card p-3 transition hover:border-primary/50 ${
+                    className={`flex cursor-pointer flex-col items-start gap-3 border-border bg-card p-3 transition hover:border-primary/50 sm:flex-row ${
                       isSelected ? "border-primary/70 ring-1 ring-primary/40" : ""
                     }`}
                   >
@@ -451,6 +483,13 @@ function LibraryPage() {
                             {ex.workoutType}
                           </span>
                         )}
+                        <span className="rounded-full border border-sky-400/20 bg-sky-400/[0.06] px-2 py-0.5 text-[10px] uppercase tracking-wider text-sky-300">
+                          {ex.locationScope === "both"
+                            ? "Home + Gym"
+                            : ex.locationScope === "home"
+                              ? "Home"
+                              : "Gym"}
+                        </span>
                         {!ex.enabled && (
                           <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
                             Disabled
@@ -478,9 +517,36 @@ function LibraryPage() {
                         </p>
                       )}
                     </div>
-                    <div className="flex shrink-0 gap-1" onClick={(e) => e.stopPropagation()}>
+                    <div
+                      className="flex w-full shrink-0 flex-wrap justify-end gap-1 sm:w-auto"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {ex.active && (
-                        <div className="mr-1 flex items-center gap-2 rounded-md border border-border px-2 py-1">
+                        <Select
+                          value={ex.locationScope}
+                          onValueChange={(scope) =>
+                            locationMutation.mutate({
+                              id: ex.id,
+                              scope: scope as ExerciseLocationScope,
+                            })
+                          }
+                          disabled={locationMutation.isPending}
+                        >
+                          <SelectTrigger
+                            className="h-8 w-[112px] text-xs"
+                            aria-label={`Training location for ${ex.name}`}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="both">Both</SelectItem>
+                            <SelectItem value="home">Home</SelectItem>
+                            <SelectItem value="gym">Gym</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {ex.active && (
+                        <div className="flex items-center gap-2 rounded-md border border-border px-2 py-1">
                           <span className="text-xs text-muted-foreground">Use</span>
                           <Switch
                             checked={ex.enabled}

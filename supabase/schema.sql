@@ -178,6 +178,8 @@ create table if not exists public.person_exercises (
   person_id uuid not null references public.people(id) on delete cascade,
   exercise_id uuid not null references public.exercises(id) on delete cascade,
   is_enabled boolean not null default true,
+  location_scope text not null default 'both'
+    check (location_scope in ('home', 'gym', 'both')),
   custom_name text,
   notes text,
   created_at timestamptz not null default now(),

@@ -15,6 +15,7 @@ import { Route as LogRouteImport } from './routes/log'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as GoalsRouteImport } from './routes/goals'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 
 const ProgressRoute = ProgressRouteImport.update({
@@ -47,6 +48,11 @@ const GoalsRoute = GoalsRouteImport.update({
   path: '/goals',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -55,6 +61,7 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/goals': typeof GoalsRoute
   '/history': typeof HistoryRoute
   '/library': typeof LibraryRoute
@@ -64,6 +71,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/goals': typeof GoalsRoute
   '/history': typeof HistoryRoute
   '/library': typeof LibraryRoute
@@ -74,6 +82,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/goals': typeof GoalsRoute
   '/history': typeof HistoryRoute
   '/library': typeof LibraryRoute
@@ -85,6 +94,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/dashboard'
     | '/goals'
     | '/history'
     | '/library'
@@ -92,10 +102,19 @@ export interface FileRouteTypes {
     | '/plan'
     | '/progress'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/goals' | '/history' | '/library' | '/log' | '/plan' | '/progress'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/goals'
+    | '/history'
+    | '/library'
+    | '/log'
+    | '/plan'
+    | '/progress'
   id:
     | '__root__'
     | '/'
+    | '/dashboard'
     | '/goals'
     | '/history'
     | '/library'
@@ -106,6 +125,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DashboardRoute: typeof DashboardRoute
   GoalsRoute: typeof GoalsRoute
   HistoryRoute: typeof HistoryRoute
   LibraryRoute: typeof LibraryRoute
@@ -158,6 +178,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GoalsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -170,6 +197,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DashboardRoute: DashboardRoute,
   GoalsRoute: GoalsRoute,
   HistoryRoute: HistoryRoute,
   LibraryRoute: LibraryRoute,

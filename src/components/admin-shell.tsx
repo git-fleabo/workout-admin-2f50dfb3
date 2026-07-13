@@ -26,7 +26,7 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   {
-    to: "/",
+    to: "/dashboard",
     label: "Dashboard",
     icon: <Activity className="h-4 w-4" />,
     activeClass: "border-sky-500/40 bg-sky-500/10 text-sky-300 shadow",
@@ -114,8 +114,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </div>
         <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-3 pb-3 sm:px-5">
           {NAV.map((item) => {
-            const active =
-              pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
+            const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
             return (
               <Link
                 key={item.to}

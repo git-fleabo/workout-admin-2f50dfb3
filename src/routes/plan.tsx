@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { formatUKDate } from "@/lib/date";
-import { getRecentLogsClient } from "@/lib/supabase-log.browser";
+import { getLibraryClient, getRecentLogsClient } from "@/lib/supabase-log.browser";
 import {
   buildWorkoutSuggestion,
   WORKOUT_PLAN_DRAFT_KEY,
@@ -78,12 +78,26 @@ function PlanPage() {
     queryFn: () => getRecentLogsClient(300),
     staleTime: 60_000,
   });
+  const library = useQuery({
+    queryKey: ["library"],
+    queryFn: getLibraryClient,
+    staleTime: 5 * 60_000,
+  });
   const [location, setLocation] = useState<PlannerLocation>("gym");
   const [readiness, setReadiness] = useState<PlannerReadiness>("normal");
-  const suggestion = useMemo(
-    () => buildWorkoutSuggestion(history.data?.recent ?? [], location, readiness),
-    [history.data?.recent, location, readiness],
-  );
+  const suggestion = useMemo(() => {
+    const allowed = new Set(
+      (library.data?.exercises ?? [])
+        .filter(
+          (exercise) => exercise.locationScope === "both" || exercise.locationScope === location,
+        )
+        .map((exercise) => exercise.name.toLowerCase()),
+    );
+    const logs = (history.data?.recent ?? []).filter((log) =>
+      allowed.has(log.exercise.toLowerCase()),
+    );
+    return buildWorkoutSuggestion(logs, location, readiness);
+  }, [history.data?.recent, library.data?.exercises, location, readiness]);
   const [movements, setMovements] = useState<WorkoutPlanMovement[]>([]);
 
   useEffect(() => {
@@ -215,11 +229,11 @@ function PlanPage() {
         </Card>
       </section>
 
-      {history.isLoading ? (
+      {history.isLoading || library.isLoading ? (
         <div className="flex items-center justify-center py-24 text-sm text-muted-foreground">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Reviewing recent training…
         </div>
-      ) : history.error ? (
+      ) : history.error || library.error ? (
         <Card className="border-destructive/40">
           <CardContent className="p-6 text-sm text-destructive">
             Training history could not be loaded. Please refresh and try again.
