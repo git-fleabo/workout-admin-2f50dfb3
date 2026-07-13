@@ -24,7 +24,7 @@ type WorkoutMode = "single" | "session";
 
 function LogPage() {
   const [mode, setMode] = useState<Mode>("log");
-  const [workoutMode, setWorkoutMode] = useState<WorkoutMode>("single");
+  const [workoutMode, setWorkoutMode] = useState<WorkoutMode>("session");
 
   return (
     <div className="space-y-5">
@@ -65,8 +65,8 @@ function WorkoutModeSwitch({
   onChange: (m: WorkoutMode) => void;
 }) {
   const tabs: { id: WorkoutMode; label: string }[] = [
-    { id: "single", label: "Single movement" },
     { id: "session", label: "Full workout" },
+    { id: "single", label: "Quick log" },
   ];
 
   return (

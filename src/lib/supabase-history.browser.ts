@@ -6,6 +6,8 @@ type EntrySetRecord = {
   reps: number | string | null;
   weight: number | string | null;
   duration_seconds: number | string | null;
+  rpe: number | string | null;
+  completed: boolean | null;
 };
 
 type SessionEntryRecord = {
@@ -13,8 +15,13 @@ type SessionEntryRecord = {
   name: string;
   completed: boolean;
   sessions: {
+    id: string;
     session_date: string;
     source_sheet: string | null;
+    training_locations: {
+      name: string;
+      kind: "home" | "gym" | "other";
+    } | null;
   } | null;
   entry_sets: EntrySetRecord[] | null;
 };
@@ -36,15 +43,19 @@ function repsPerSet(totalReps: number, sets: number) {
   return Math.ceil(totalReps / sets);
 }
 
-function blankPoint(date: string): ExerciseSessionPoint {
+function blankPoint(row: SessionEntryRecord): ExerciseSessionPoint {
   return {
-    date,
+    sessionId: row.sessions?.id ?? row.id,
+    date: row.sessions?.session_date ?? "",
+    locationName: row.sessions?.training_locations?.name ?? null,
+    locationKind: row.sessions?.training_locations?.kind ?? null,
     sessions: 0,
     totalReps: 0,
     totalVolume: 0,
     maxWeight: null,
     totalDuration: 0,
     est1RM: null,
+    sets: [],
   };
 }
 
@@ -53,7 +64,7 @@ export async function getExerciseHistoryClient(
 ): Promise<ExerciseHistory> {
   const params: Record<string, string | number | boolean> = {
     select:
-      "id,name,completed,sessions!inner(session_date,source_sheet),entry_sets(set_number,reps,weight,duration_seconds)",
+      "id,name,completed,sessions!inner(id,session_date,source_sheet,training_locations(name,kind)),entry_sets(set_number,reps,weight,duration_seconds,rpe,completed)",
     completed: "eq.true",
     source_sheet: "eq.Workout Log",
     "sessions.source_sheet": "eq.Workout Log",
@@ -67,7 +78,7 @@ export async function getExerciseHistoryClient(
 
   const rows = await supabasePublicSelect<SessionEntryRecord>("session_entries", params);
 
-  const byDate = new Map<string, ExerciseSessionPoint>();
+  const bySession = new Map<string, ExerciseSessionPoint>();
   let anyWeight = false;
   let anyReps = false;
   let anyDuration = false;
@@ -76,9 +87,10 @@ export async function getExerciseHistoryClient(
   for (const row of rows) {
     const date = row.sessions?.session_date;
     if (!date) continue;
+    const sessionId = row.sessions?.id ?? row.id;
     const sets = row.entry_sets?.length ? row.entry_sets : [{} as EntrySetRecord];
-    const individualSets = sets.length > 1;
-    const point = byDate.get(date) ?? blankPoint(date);
+    const individualSets = sets.length > 1 || toNumber(sets[0]?.set_number) <= 1;
+    const point = bySession.get(sessionId) ?? blankPoint(row);
     point.sessions += 1;
     totalRows += 1;
 
@@ -87,11 +99,23 @@ export async function getExerciseHistoryClient(
       const reps = toNumber(set.reps);
       const weight = toNumber(set.weight);
       const durationSeconds = toNumber(set.duration_seconds);
+      const rpe = toNumber(set.rpe);
 
       const repsN = Number.isFinite(reps) && reps > 0 ? reps : null;
       const weightN = Number.isFinite(weight) && weight > 0 ? weight : null;
       const durationMinutes =
         Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds / 60 : 0;
+      const aggregateSets =
+        !individualSets && setsKnown ? Math.max(1, Math.round(toNumber(set.set_number))) : null;
+
+      point.sets.push({
+        setNumber: individualSets && setsKnown ? Math.round(toNumber(set.set_number)) : null,
+        reps: repsN,
+        weight: weightN,
+        rpe: Number.isFinite(rpe) && rpe > 0 ? rpe : null,
+        completed: set.completed !== false,
+        aggregateSets,
+      });
 
       if (weightN != null) anyWeight = true;
       if (repsN != null) anyReps = true;
@@ -114,11 +138,16 @@ export async function getExerciseHistoryClient(
       }
     }
 
-    byDate.set(date, point);
+    bySession.set(sessionId, point);
   }
 
-  const points = Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+  const points = Array.from(bySession.values()).sort((a, b) =>
+    a.date === b.date ? a.sessionId.localeCompare(b.sessionId) : a.date.localeCompare(b.date),
+  );
   for (const point of points) {
+    point.sets.sort(
+      (a, b) => (a.setNumber ?? Number.MAX_SAFE_INTEGER) - (b.setNumber ?? Number.MAX_SAFE_INTEGER),
+    );
     point.totalVolume = Math.round(point.totalVolume);
     point.totalDuration = Math.round(point.totalDuration * 10) / 10;
     if (point.est1RM != null) point.est1RM = Math.round(point.est1RM * 10) / 10;

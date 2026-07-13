@@ -802,7 +802,7 @@ After a workout/climb is saved, the Log form clears all fields back to a fresh b
 
 Before saving a workout or climb, the app checks for an existing same-date, same-movement entry in Supabase. If one exists, it shows an app dialog asking whether to save another anyway.
 
-The Log tab has a movement-first `Full workout` mode alongside the existing single-movement logger. It starts with Home/Gym context, keeps session date/name/duration/intensity/RPE/notes inside an optional collapsed section, and uses a searchable movement picker without a separate type selection. The existing single-movement logger remains available as the quick-log path.
+The Log tab defaults to the movement-first `Full workout` mode. It starts with Home/Gym context, keeps session date/name/duration/intensity/RPE/notes inside an optional collapsed section, and uses a searchable movement picker without a separate type selection. The existing single-movement logger remains available as the `Quick log` path.
 
 For standard set/reps movements, Full workout records one `entry_sets` row per real set with its own weight, reps, and RPE. Selecting a movement prefills the most recent matching set pattern; adding a set copies the previous load/reps and leaves RPE blank. Legacy single-row aggregate entries remain readable and analytics distinguish them from newer multi-row set data.
 
@@ -855,6 +855,21 @@ Goals read/write Supabase. The Goals tab has a lightweight checklist flow:
 
 Check-ins are stored in `goal_checkins`.
 
+### Progress
+
+The top-level Progress workspace is designed to be especially useful on larger screens while retaining a stacked mobile layout. It includes:
+
+- a searchable exercise selector that starts with Bench Press when available
+- 4, 8, 12, and 26-week plus all-time periods
+- All, Home, and Gym location filters
+- session count, top working weight, best estimated 1RM, and average weekly volume summaries
+- comparisons against the previous equivalent period
+- separate aligned performance and weekly-volume charts so unlike units are not mixed on one axis
+- a cautious recovery/progression signal based on performance and volume changes
+- exact recent set history, with older single-row aggregate logs explicitly labelled as totals
+
+Exercise history now groups by session rather than only by date and retains each set's weight, reps, RPE, completion state, and saved training location. This enriched history remains shared with the Library exercise detail view.
+
 ### History
 
 Top-level History tab includes:
@@ -889,6 +904,7 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `src/lib/supabase-timeline.browser.ts`: combined History tab data.
 - `src/routes/index.tsx`: dashboard route.
 - `src/routes/log.tsx`: log screen route.
+- `src/routes/progress.tsx`: exercise-specific progress analysis, charts, period/location filters, and set history.
 - `src/routes/-workout-form.tsx`: shared workout/climbing log form and metric-field UI.
 - `src/routes/library.tsx`: library route.
 - `src/routes/goals.tsx`: goals route.
@@ -1021,16 +1037,16 @@ Recommended next work, in order:
 3. Test Log flows for Strength, Run, Class, Mobility/Flexibility, Grip, Climbing, 1RM, and Bodyweight.
 4. Test the duplicate-log warning by trying to save the same movement twice on the same date.
 5. Test a Home and Gym full-workout save from the deployed authenticated app, including mixed-weight sets, and confirm the location appears in History.
-6. Build the exercise Progress workspace with selectable periods, aligned performance/volume charts, and exact set history.
+6. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
 7. Add transparent next-workout suggestions that filter by Home/Gym before reviewing recent exercise patterns.
-5. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
-6. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
-7. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
-8. Build a simple admin-only user management flow before inviting friends: create person, link auth user, select app profile, select/deselect exercises.
-9. Tighten the profile-claim bootstrap now that Noam's account is linked.
-10. Start implementing programme assignment and suggested workout UI on top of the seeded Percentage Strength Blocks.
-11. Consider generating and saving TypeScript types from Supabase once schema/data shape stabilizes.
-12. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
+8. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
+9. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
+10. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
+11. Build a simple admin-only user management flow before inviting friends: create person, link auth user, select app profile, select/deselect exercises.
+12. Tighten the profile-claim bootstrap now that Noam's account is linked.
+13. Start implementing programme assignment and suggested workout UI on top of the seeded Percentage Strength Blocks.
+14. Consider generating and saving TypeScript types from Supabase once schema/data shape stabilizes.
+15. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
 
 ## Future Stage: iPhone App
 

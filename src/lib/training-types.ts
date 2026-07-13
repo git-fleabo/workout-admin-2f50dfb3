@@ -87,13 +87,26 @@ export type MonthRow = {
 };
 
 export type ExerciseSessionPoint = {
+  sessionId: string;
   date: string;
+  locationName: string | null;
+  locationKind: "home" | "gym" | "other" | null;
   sessions: number;
   totalReps: number;
   totalVolume: number;
   maxWeight: number | null;
   totalDuration: number;
   est1RM: number | null;
+  sets: ExerciseSetPoint[];
+};
+
+export type ExerciseSetPoint = {
+  setNumber: number | null;
+  reps: number | null;
+  weight: number | null;
+  rpe: number | null;
+  completed: boolean;
+  aggregateSets: number | null;
 };
 
 export type ExerciseHistory = {

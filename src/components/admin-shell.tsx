@@ -1,6 +1,15 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { type ReactNode } from "react";
-import { Activity, BookOpen, Dumbbell, History, LogOut, Settings as SettingsIcon, ShieldCheck } from "lucide-react";
+import {
+  Activity,
+  BookOpen,
+  ChartNoAxesCombined,
+  Dumbbell,
+  History,
+  LogOut,
+  Settings as SettingsIcon,
+  ShieldCheck,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { APP_BUILD_LABEL } from "@/lib/build-info";
@@ -28,6 +37,13 @@ const NAV: NavItem[] = [
     icon: <Dumbbell className="h-4 w-4" />,
     activeClass: "border-violet-500/40 bg-violet-500/10 text-violet-300 shadow",
     iconClass: "text-violet-400",
+  },
+  {
+    to: "/progress",
+    label: "Progress",
+    icon: <ChartNoAxesCombined className="h-4 w-4" />,
+    activeClass: "border-cyan-500/40 bg-cyan-500/10 text-cyan-300 shadow",
+    iconClass: "text-cyan-400",
   },
   {
     to: "/library",
@@ -58,7 +74,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:px-6">
           <div
             className="flex h-10 w-10 items-center justify-center rounded-xl text-primary-foreground"
             style={{ backgroundImage: "var(--gradient-primary)" }}
@@ -88,11 +104,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <LogOut className="h-4 w-4" />
           </Button>
         </div>
-        <nav className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-3 pb-3 sm:px-5">
+        <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-3 pb-3 sm:px-5">
           {NAV.map((item) => {
             const active =
-              pathname === item.to ||
-              (item.to !== "/" && pathname.startsWith(item.to));
+              pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
             return (
               <Link
                 key={item.to}
@@ -111,7 +126,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </nav>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 pb-24 pt-6 sm:px-6">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 pb-24 pt-6 sm:px-6">{children}</main>
     </div>
   );
 }
