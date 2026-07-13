@@ -1281,7 +1281,7 @@ create policy suggested_workout_sets_delete_accessible
     where entry.id = suggested_workout_entry_id
       and app_private.person_is_accessible(workout.person_id)
   ));
-+create table if not exists public.training_methods (
+create table if not exists public.training_methods (
   id uuid primary key default gen_random_uuid(),
   person_id uuid references public.people(id) on delete cascade,
   system_key text unique,
@@ -1420,7 +1420,7 @@ set
   description = excluded.description,
   default_config = excluded.default_config,
   is_active = true;
-+create table if not exists public.session_method_blocks (
+create table if not exists public.session_method_blocks (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null references public.sessions(id) on delete cascade,
   training_method_id uuid not null references public.training_methods(id) on delete restrict,
@@ -1444,19 +1444,39 @@ create table if not exists public.session_method_block_entries (
   unique (block_id, sequence_index)
 );
 
+create table if not exists public.entry_set_segments (
+  id uuid primary key default gen_random_uuid(),
+  entry_set_id uuid not null references public.entry_sets(id) on delete cascade,
+  training_method_id uuid not null references public.training_methods(id) on delete restrict,
+  method_name text not null,
+  segment_index integer not null default 0,
+  reps numeric,
+  weight numeric,
+  rpe numeric,
+  rest_after_seconds integer,
+  range_of_motion text,
+  config jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  unique (entry_set_id, segment_index)
+);
+
 create index if not exists session_method_blocks_session_idx
   on public.session_method_blocks (session_id, order_index);
 create index if not exists session_method_blocks_method_idx
   on public.session_method_blocks (training_method_id);
 create index if not exists session_method_block_entries_entry_idx
   on public.session_method_block_entries (session_entry_id);
+create index if not exists entry_set_segments_method_idx
+  on public.entry_set_segments (training_method_id);
 
 alter table public.session_method_blocks enable row level security;
 alter table public.session_method_block_entries enable row level security;
+alter table public.entry_set_segments enable row level security;
 
 grant select, insert on
   public.session_method_blocks,
-  public.session_method_block_entries
+  public.session_method_block_entries,
+  public.entry_set_segments
 to authenticated;
 
 drop policy if exists session_method_blocks_select_accessible on public.session_method_blocks;
@@ -1516,3 +1536,39 @@ create policy session_method_block_entries_insert_accessible
       and entry.session_id = session.id
       and app_private.person_is_accessible(session.person_id)
   ));
+
+drop policy if exists entry_set_segments_select_accessible on public.entry_set_segments;
+create policy entry_set_segments_select_accessible
+  on public.entry_set_segments for select to authenticated
+  using (exists (
+    select 1
+    from public.entry_sets set_row
+    join public.session_entries entry on entry.id = set_row.session_entry_id
+    join public.sessions session on session.id = entry.session_id
+    where set_row.id = entry_set_id
+      and app_private.person_is_accessible(session.person_id)
+  ));
+
+drop policy if exists entry_set_segments_insert_accessible on public.entry_set_segments;
+create policy entry_set_segments_insert_accessible
+  on public.entry_set_segments for insert to authenticated
+  with check (
+    exists (
+      select 1
+      from public.entry_sets set_row
+      join public.session_entries entry on entry.id = set_row.session_entry_id
+      join public.sessions session on session.id = entry.session_id
+      where set_row.id = entry_set_id
+        and app_private.person_is_accessible(session.person_id)
+    )
+    and exists (
+      select 1
+      from public.training_methods method
+      join public.entry_sets set_row on set_row.id = entry_set_id
+      join public.session_entries entry on entry.id = set_row.session_entry_id
+      join public.sessions session on session.id = entry.session_id
+      where method.id = training_method_id
+        and method.family = 'set_method'
+        and (method.person_id is null or method.person_id = session.person_id)
+    )
+  );

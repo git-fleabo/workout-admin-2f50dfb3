@@ -972,8 +972,12 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - Stable client-side movement IDs keep group membership intact while drafting, reordering, and applying same-day corrections. The normal exercise set rows remain unchanged, so existing volume and progress analytics continue to count the underlying work. Saving adds the method block only after its movement entries exist, and rolls back the whole session on any partial failure.
 - The finish review labels grouped movements, and completed-session detail shows each method with its ordered exercises, rounds, and rest. Repeating a server-loaded recent session does not yet reconstruct its prior method blocks; draft and same-day correction flows do preserve them.
 - A live authenticated-role database test saved a temporary Superset with two ordered member entries, read both members through RLS, then deleted the session and confirmed cascade cleanup. The preview session expired again before the new composer could be exercised through the UI, so `/log` is left ready for sign-in.
+- `entry_set_segments` adds ordered within-set work without flattening variable loads into one `entry_sets` row. Each row snapshots the method name and definition ID plus load, reps, RPE, rest-after seconds, range of motion, and structured config. It cascades with its parent set, protects referenced method definitions, has explicit authenticated select/insert grants, and applies accessible-session RLS on both operations.
+- A loaded set now offers `Add drop / strip set`. The first segment is the normal set row; each subsequent drop gets a thumb-friendly card with load, reps, RPE, rest, and full/partial range controls. The next weight is suggested from the method's configured percentage drop, but every value remains editable. Removing the final drop returns the set to a normal straight set.
+- Draft normalization, repeat-last-set, same-day correction, and recent-workout copies preserve segment configuration. The finish summary includes drop-segment reps and volume, session detail shows the complete ordered sequence, and the History/Progress mapper replaces the parent with its segments for reps, maximum load, estimated 1RM, and volume so work is not double counted.
+- A live authenticated-role test inserted an 80 kg x 8 segment and a 68 kg x 10 drop, then read 2 segments, 18 reps, and 1,320 kg volume through RLS. Deleting the temporary session cascaded to all segments and left no verification rows. The local preview remains signed out, so mobile browser interaction is still awaiting the next sign-in.
 
-The next Phase 5 slice should add within-set segments for drop/strip sets. Each segment must preserve load, reps, range of motion, and short rest rather than flattening the work into one ordinary set.
+The next Phase 5 slice should reuse the segment model for cluster and rest-pause sets, where short rests and rep clusters need different labels and defaults from load reductions.
 
 ## Key Files
 
@@ -1157,7 +1161,7 @@ Recommended next work, in order:
 8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-11. Continue Phase 5 by adding preserved within-set segments for drop/strip sets, then extend the same model to cluster and rest-pause work.
+11. Continue Phase 5 by extending preserved set segments to cluster and rest-pause work, with method-specific labels, validation, and defaults.
 12. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
 13. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 14. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.

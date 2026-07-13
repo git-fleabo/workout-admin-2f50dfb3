@@ -88,6 +88,17 @@ type EntrySetRecord = {
   assistance_detail: string | null;
   quality: string | null;
   completed: boolean | null;
+  entry_set_segments: Array<{
+    training_method_id: string;
+    method_name: string;
+    segment_index: number | string;
+    reps: number | string | null;
+    weight: number | string | null;
+    rpe: number | string | null;
+    rest_after_seconds: number | string | null;
+    range_of_motion: string | null;
+    config: Record<string, number | string | boolean> | null;
+  }> | null;
 };
 
 type EntryMetricRecord = {
@@ -198,6 +209,22 @@ export type WorkoutSetInput = {
   weight: string;
   rpe: string;
   completed: boolean;
+  method?: WorkoutSetMethodInput;
+};
+
+export type WorkoutSetSegmentInput = {
+  reps: string;
+  weight: string;
+  rpe: string;
+  restAfterSeconds: string;
+  rangeOfMotion: string;
+};
+
+export type WorkoutSetMethodInput = {
+  trainingMethodId: string;
+  methodName: string;
+  segments: WorkoutSetSegmentInput[];
+  config: Record<string, number | string | boolean>;
 };
 
 export type TrainingLocation = {
@@ -464,7 +491,7 @@ export async function getRecentLogsClient(limit = 15) {
   await requirePerson();
   const rows = await supabasePublicSelect<SessionEntryRecord>("session_entries", {
     select:
-      "id,order_index,entry_kind,name,progression_level,completed,notes,source_sheet,exercises(name,focus_area,activity_types(name)),activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,completed),sessions!inner(id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name),training_locations(id,name,kind))",
+      "id,order_index,entry_kind,name,progression_level,completed,notes,source_sheet,exercises(name,focus_area,activity_types(name)),activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,completed,entry_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion,config)),sessions!inner(id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name),training_locations(id,name,kind))",
     "sessions.source_sheet": "eq.Workout Log",
     order: "created_at.desc",
     limit: Math.min(Math.max(Math.round(limit), 1), 500),
@@ -477,10 +504,16 @@ export async function getRecentLogsClient(limit = 15) {
       );
       const set = sets[0];
       const individualSets = sets.length > 1;
-      const totalReps = individualSets
-        ? sets.reduce((total, item) => total + (toNum(item.reps) ?? 0), 0)
-        : toNum(set?.reps);
-      const maxWeight = sets.reduce<number | null>((max, item) => {
+      const workRows: Array<{
+        reps: number | string | null;
+        weight: number | string | null;
+      }> = [];
+      for (const item of sets) {
+        if (item.entry_set_segments?.length) workRows.push(...item.entry_set_segments);
+        else workRows.push(item);
+      }
+      const totalReps = workRows.reduce((total, item) => total + (toNum(item.reps) ?? 0), 0);
+      const maxWeight = workRows.reduce<number | null>((max, item) => {
         const weight = toNum(item.weight);
         return weight == null || (max != null && max >= weight) ? max : weight;
       }, null);
@@ -512,12 +545,33 @@ export async function getRecentLogsClient(limit = 15) {
         assistanceDetail: set?.assistance_detail ?? "",
         quality: set?.quality ?? "",
         trainingLocation: row.sessions?.training_locations ?? null,
-        setRows: sets.map((item) => ({
-          reps: asText(item.reps),
-          weight: asText(item.weight),
-          rpe: asText(item.rpe),
-          completed: item.completed !== false,
-        })),
+        setRows: sets.map((item) => {
+          const segments = [...(item.entry_set_segments ?? [])].sort(
+            (a, b) => Number(a.segment_index) - Number(b.segment_index),
+          );
+          const firstSegment = segments[0];
+          return {
+            reps: asText(item.reps),
+            weight: asText(item.weight),
+            rpe: asText(item.rpe),
+            completed: item.completed !== false,
+            method:
+              firstSegment && segments.length > 1
+                ? {
+                    trainingMethodId: firstSegment.training_method_id,
+                    methodName: firstSegment.method_name,
+                    segments: segments.slice(1).map((segment) => ({
+                      reps: asText(segment.reps),
+                      weight: asText(segment.weight),
+                      rpe: asText(segment.rpe),
+                      restAfterSeconds: asText(segment.rest_after_seconds),
+                      rangeOfMotion: segment.range_of_motion ?? "full",
+                    })),
+                    config: firstSegment.config ?? {},
+                  }
+                : undefined,
+          };
+        }),
       };
     }),
   };
@@ -687,11 +741,12 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
       if (!entry) throw new Error(`${entryData.exercise} was not saved.`);
       if (entryData.clientId) entryIdsByClientId.set(entryData.clientId, entry.id);
 
-      const setRows = (entryData.setRows ?? []).filter((set) => set.reps || set.weight || set.rpe);
+      const setRows = (entryData.setRows ?? []).filter(
+        (set) => set.reps || set.weight || set.rpe || set.method,
+      );
       if (setRows.length) {
-        await supabasePublicInsert(
-          "entry_sets",
-          setRows.map((set, setIndex) => ({
+        for (const [setIndex, set] of setRows.entries()) {
+          const insertedSets = await supabasePublicInsert<{ id: string }>("entry_sets", {
             session_entry_id: entry.id,
             set_number: setIndex + 1,
             reps: toNum(set.reps),
@@ -700,8 +755,38 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
             rest_time: entryData.restTime || null,
             completed: set.completed,
             notes: entryData.notes || null,
-          })),
-        );
+          });
+          const insertedSet = insertedSets[0];
+          if (!insertedSet)
+            throw new Error(`${entryData.exercise} set ${setIndex + 1} was not saved.`);
+          if (set.method && set.method.segments.length > 0) {
+            const segments = [
+              {
+                reps: set.reps,
+                weight: set.weight,
+                rpe: set.rpe,
+                restAfterSeconds: "0",
+                rangeOfMotion: "full",
+              },
+              ...set.method.segments,
+            ];
+            await supabasePublicInsert(
+              "entry_set_segments",
+              segments.map((segment, segmentIndex) => ({
+                entry_set_id: insertedSet.id,
+                training_method_id: set.method?.trainingMethodId,
+                method_name: set.method?.methodName,
+                segment_index: segmentIndex,
+                reps: toNum(segment.reps),
+                weight: toNum(segment.weight),
+                rpe: toNum(segment.rpe),
+                rest_after_seconds: toNum(segment.restAfterSeconds),
+                range_of_motion: segment.rangeOfMotion || null,
+                config: set.method?.config ?? {},
+              })),
+            );
+          }
+        }
       } else {
         await supabasePublicInsert("entry_sets", {
           session_entry_id: entry.id,

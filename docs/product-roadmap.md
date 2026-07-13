@@ -129,7 +129,7 @@ Goal: extend the current next-workout planner into a practical view of the comin
 - A lighter workout or full deload-week option. — implemented with an explainable recovery decision and editable mode
 - Editable recommendations with visible source sessions and reasons. — next-workout targets are editable; weekly day load is now adjustable and saved locally per account/week
 
-## Phase 5: Advanced Training Methods — exercise groups implemented
+## Phase 5: Advanced Training Methods — groups and drop sets implemented
 
 Goal: plan, log, and review non-straight-set methods without hiding their actual exercise, set, rep, load, rest, and sequence data.
 
@@ -158,6 +158,13 @@ without changing their underlying set rows. A block stores its method snapshot, 
 rounds, rest between movements, and rest between rounds; draft restoration and same-day corrections
 preserve the configuration. The review step and completed-session detail both show the method and
 ordered movements.
+
+Drop/strip sets are now first-class within-set methods. Any loaded set can become a drop set, with a
+mobile-friendly segment editor that suggests each reduced load from the method defaults. Every segment
+keeps its own load, reps, RPE, rest, and full/partial range marker. Drafts, same-day corrections, and
+recent-workout copies retain the method; completed-session review shows the full sequence. Progress and
+timeline summaries use segment work for reps, maximum load, and volume without counting the parent set
+twice.
 
 Implementation should begin with supersets/tri-sets/giant sets and drop/strip sets, then add the remaining OriGym methods. Progress and planning must continue to count the underlying exercise volume while also showing the method used.
 
@@ -188,6 +195,6 @@ while completed history stays separate. A Recovery decision combines recent and 
 exercise-level high-effort decline, and the adjusted coming week. It can keep the normal plan, make the
 next workout lighter, or apply a week-local deload mode while retaining editable days and targets.
 
-Phase 5 is now active. The Training Methods library and ordered exercise-group logging are live. The
-next implementation should add preserved within-set segments for drop/strip sets, followed by cluster,
-rest-pause, rep-targeting, partial-rep, and timed/density logging.
+Phase 5 is now active. The Training Methods library, ordered exercise-group logging, and preserved
+drop/strip-set segments are live. The next implementation should extend segment logging to cluster and
+rest-pause work, followed by rep-targeting, partial-rep, and timed/density logging.

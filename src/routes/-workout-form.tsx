@@ -230,6 +230,22 @@ type WorkoutSetState = {
   weight: string;
   rpe: string;
   completed: boolean;
+  method?: WorkoutSetMethodState;
+};
+
+type WorkoutSetSegmentState = {
+  reps: string;
+  weight: string;
+  rpe: string;
+  restAfterSeconds: string;
+  rangeOfMotion: string;
+};
+
+type WorkoutSetMethodState = {
+  trainingMethodId: string;
+  methodName: string;
+  segments: WorkoutSetSegmentState[];
+  config: Record<string, number | string | boolean>;
 };
 
 type SessionFormState = {
@@ -352,6 +368,24 @@ function normalizeSessionForm(form: SessionFormState): SessionFormState {
       typeof entry.clientId === "string" && entry.clientId
         ? entry.clientId
         : newClientId("movement"),
+    setRows: entry.setRows.map((set) => ({
+      ...set,
+      method:
+        set.method &&
+        typeof set.method.trainingMethodId === "string" &&
+        Array.isArray(set.method.segments)
+          ? {
+              ...set.method,
+              segments: set.method.segments.map((segment) => ({
+                reps: String(segment.reps ?? ""),
+                weight: String(segment.weight ?? ""),
+                rpe: String(segment.rpe ?? ""),
+                restAfterSeconds: String(segment.restAfterSeconds ?? ""),
+                rangeOfMotion: String(segment.rangeOfMotion ?? "full"),
+              })),
+            }
+          : undefined,
+    })),
   }));
   const entryIds = new Set(entries.map((entry) => entry.clientId));
   const storedBlocks = Array.isArray(form.methodBlocks) ? form.methodBlocks : [];
@@ -444,7 +478,9 @@ function entryHasDraftContent(entry: FormState) {
   return (
     stringFields.some((key) => Boolean(entry[key])) ||
     !entry.completed ||
-    entry.setRows.some((set) => set.reps || set.weight || set.rpe || !set.completed)
+    entry.setRows.some(
+      (set) => set.reps || set.weight || set.rpe || !set.completed || Boolean(set.method),
+    )
   );
 }
 
@@ -490,19 +526,42 @@ function setSummary(set: WorkoutSetState, usesLoad: boolean) {
   const load = usesLoad && set.weight ? `${set.weight} kg` : "";
   const reps = set.reps ? `${set.reps} reps` : "";
   const rpe = set.rpe ? `RPE ${set.rpe}` : "";
-  return [load, reps, rpe].filter(Boolean).join(" · ") || "No values recorded";
+  const drops = set.method?.segments
+    .map((segment) =>
+      [segment.weight ? `${segment.weight} kg` : "", segment.reps ? `${segment.reps} reps` : ""]
+        .filter(Boolean)
+        .join(" × "),
+    )
+    .filter(Boolean);
+  return (
+    [load, reps, rpe, drops?.length ? `${set.method?.methodName}: ${drops.join(" → ")}` : ""]
+      .filter(Boolean)
+      .join(" · ") || "No values recorded"
+  );
 }
 
 function workoutEntrySummary(entry: FormState) {
-  const sets = entry.setRows.filter((set) => set.reps || set.weight || set.rpe);
+  const sets = entry.setRows.filter((set) => set.reps || set.weight || set.rpe || set.method);
   if (sets.length > 0) {
-    const reps = sets.reduce((total, set) => total + (Number(set.reps) || 0), 0);
+    const segments = sets.flatMap((set) => [
+      { reps: set.reps, weight: set.weight },
+      ...(set.method?.segments ?? []),
+    ]);
+    const reps = segments.reduce((total, set) => total + (Number(set.reps) || 0), 0);
     const volume = sets.reduce(
-      (total, set) => total + (Number(set.weight) || 0) * (Number(set.reps) || 0),
+      (total, set) =>
+        total +
+        [{ reps: set.reps, weight: set.weight }, ...(set.method?.segments ?? [])].reduce(
+          (setTotal, segment) =>
+            setTotal + (Number(segment.weight) || 0) * (Number(segment.reps) || 0),
+          0,
+        ),
       0,
     );
+    const dropSegments = sets.reduce((total, set) => total + (set.method?.segments.length ?? 0), 0);
     return [
       `${sets.length} ${sets.length === 1 ? "set" : "sets"}`,
+      dropSegments ? `${dropSegments} drop ${dropSegments === 1 ? "segment" : "segments"}` : "",
       reps > 0 ? `${reps} reps` : "",
       volume > 0 ? `${Math.round(volume).toLocaleString()} kg volume` : "",
     ]
@@ -1062,6 +1121,22 @@ export function FullWorkoutForm() {
       ),
     [methods.data?.items],
   );
+  const dropSetMethods = useMemo(
+    () =>
+      (methods.data?.items ?? [])
+        .filter(
+          (method) =>
+            method.family === "set_method" &&
+            method.isActive &&
+            method.isEnabled &&
+            (method.systemKey === "drop_set" || method.systemKey == null),
+        )
+        .sort(
+          (left, right) =>
+            Number(right.systemKey === "drop_set") - Number(left.systemKey === "drop_set"),
+        ),
+    [methods.data?.items],
+  );
 
   useEffect(() => {
     setFavoriteExercises(readWorkoutFavorites(window.localStorage.getItem(favoritesStorageKey)));
@@ -1314,7 +1389,23 @@ export function FullWorkoutForm() {
         const previous = entry.setRows[entry.setRows.length - 1] ?? blankSet();
         return {
           ...entry,
-          setRows: [...entry.setRows, { ...previous, rpe: "", completed: true }],
+          setRows: [
+            ...entry.setRows,
+            {
+              ...previous,
+              rpe: "",
+              completed: true,
+              method: previous.method
+                ? {
+                    ...previous.method,
+                    segments: previous.method.segments.map((segment) => ({
+                      ...segment,
+                      rpe: "",
+                    })),
+                  }
+                : undefined,
+            },
+          ],
         };
       }),
     }));
@@ -1340,6 +1431,85 @@ export function FullWorkoutForm() {
           : entry,
       ),
     }));
+
+  const addSetMethod = (entryIndex: number, setIndex: number, method: TrainingMethod) => {
+    const set = form.entries[entryIndex]?.setRows[setIndex];
+    if (!set) return;
+    const dropPercentage = Number(method.defaultConfig.percentage_drop) || 15;
+    const startingWeight = Number(set.weight);
+    const suggestedWeight =
+      Number.isFinite(startingWeight) && startingWeight > 0
+        ? String(Math.round(startingWeight * (1 - dropPercentage / 100) * 2) / 2)
+        : "";
+    updateSet(entryIndex, setIndex, "method", {
+      trainingMethodId: method.id,
+      methodName: method.name,
+      segments: [
+        {
+          reps: "",
+          weight: suggestedWeight,
+          rpe: "",
+          restAfterSeconds: String(method.defaultConfig.rest_between_segments_seconds ?? 10),
+          rangeOfMotion: "full",
+        },
+      ],
+      config: method.defaultConfig,
+    });
+  };
+
+  const addSetSegment = (entryIndex: number, setIndex: number) => {
+    const method = form.entries[entryIndex]?.setRows[setIndex]?.method;
+    if (!method) return;
+    const previous = method.segments[method.segments.length - 1];
+    const dropPercentage = Number(method.config.percentage_drop) || 15;
+    const previousWeight = Number(previous?.weight);
+    const suggestedWeight =
+      Number.isFinite(previousWeight) && previousWeight > 0
+        ? String(Math.round(previousWeight * (1 - dropPercentage / 100) * 2) / 2)
+        : "";
+    updateSet(entryIndex, setIndex, "method", {
+      ...method,
+      segments: [
+        ...method.segments,
+        {
+          reps: "",
+          weight: suggestedWeight,
+          rpe: "",
+          restAfterSeconds: String(method.config.rest_between_segments_seconds ?? 10),
+          rangeOfMotion: "full",
+        },
+      ],
+    });
+  };
+
+  const updateSetSegment = <K extends keyof WorkoutSetSegmentState>(
+    entryIndex: number,
+    setIndex: number,
+    segmentIndex: number,
+    key: K,
+    value: WorkoutSetSegmentState[K],
+  ) => {
+    const method = form.entries[entryIndex]?.setRows[setIndex]?.method;
+    if (!method) return;
+    updateSet(entryIndex, setIndex, "method", {
+      ...method,
+      segments: method.segments.map((segment, index) =>
+        index === segmentIndex ? { ...segment, [key]: value } : segment,
+      ),
+    });
+  };
+
+  const removeSetSegment = (entryIndex: number, setIndex: number, segmentIndex: number) => {
+    const method = form.entries[entryIndex]?.setRows[setIndex]?.method;
+    if (!method) return;
+    const segments = method.segments.filter((_, index) => index !== segmentIndex);
+    updateSet(
+      entryIndex,
+      setIndex,
+      "method",
+      segments.length ? { ...method, segments } : undefined,
+    );
+  };
 
   const previousWorkoutFor = (exerciseName: string) => {
     if (!exerciseName) return undefined;
@@ -1983,6 +2153,7 @@ export function FullWorkoutForm() {
                 <SetRowsEditor
                   rows={entry.setRows}
                   usesLoad={profileUsesLoad(profile)}
+                  setMethods={dropSetMethods}
                   previousWorkout={
                     previousWorkout
                       ? {
@@ -1999,6 +2170,15 @@ export function FullWorkoutForm() {
                   onRepeat={() => repeatLastSet(index)}
                   onAddBlank={() => addBlankSet(index)}
                   onRemove={(setIndex) => removeSet(index, setIndex)}
+                  onAddMethod={(setIndex, method) => addSetMethod(index, setIndex, method)}
+                  onAddSegment={(setIndex) => addSetSegment(index, setIndex)}
+                  onUpdateSegment={(setIndex, segmentIndex, key, value) =>
+                    updateSetSegment(index, setIndex, segmentIndex, key, value)
+                  }
+                  onRemoveSegment={(setIndex, segmentIndex) =>
+                    removeSetSegment(index, setIndex, segmentIndex)
+                  }
+                  onRemoveMethod={(setIndex) => updateSet(index, setIndex, "method", undefined)}
                 />
               ) : (
                 entry.exercise && (
@@ -2488,15 +2668,22 @@ function MovementPicker({
 function SetRowsEditor({
   rows,
   usesLoad,
+  setMethods,
   previousWorkout,
   onChange,
   onCopyPrevious,
   onRepeat,
   onAddBlank,
   onRemove,
+  onAddMethod,
+  onAddSegment,
+  onUpdateSegment,
+  onRemoveSegment,
+  onRemoveMethod,
 }: {
   rows: WorkoutSetState[];
   usesLoad: boolean;
+  setMethods: TrainingMethod[];
   previousWorkout?: { date: string; location?: string; rows: WorkoutSetState[] };
   onChange: <K extends keyof WorkoutSetState>(
     setIndex: number,
@@ -2507,6 +2694,16 @@ function SetRowsEditor({
   onRepeat: () => void;
   onAddBlank: () => void;
   onRemove: (setIndex: number) => void;
+  onAddMethod: (setIndex: number, method: TrainingMethod) => void;
+  onAddSegment: (setIndex: number) => void;
+  onUpdateSegment: <K extends keyof WorkoutSetSegmentState>(
+    setIndex: number,
+    segmentIndex: number,
+    key: K,
+    value: WorkoutSetSegmentState[K],
+  ) => void;
+  onRemoveSegment: (setIndex: number, segmentIndex: number) => void;
+  onRemoveMethod: (setIndex: number) => void;
 }) {
   return (
     <div className="space-y-3 rounded-lg border border-border bg-secondary/20 p-3">
@@ -2556,19 +2753,81 @@ function SetRowsEditor({
         <span />
       </div>
       {rows.map((set, setIndex) => (
-        <div
-          key={setIndex}
-          className={`rounded-md border border-border/70 bg-background p-2 sm:grid sm:items-center sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0 ${
-            usesLoad ? "sm:grid-cols-[32px_1fr_1fr_1fr_32px]" : "sm:grid-cols-[32px_1fr_1fr_32px]"
-          }`}
-        >
-          <div className="mb-2 flex items-center justify-between sm:hidden">
-            <span className="text-xs font-semibold text-muted-foreground">Set {setIndex + 1}</span>
+        <div key={setIndex} className="space-y-2">
+          <div
+            className={`rounded-md border border-border/70 bg-background p-2 sm:grid sm:items-center sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0 ${
+              usesLoad ? "sm:grid-cols-[32px_1fr_1fr_1fr_32px]" : "sm:grid-cols-[32px_1fr_1fr_32px]"
+            }`}
+          >
+            <div className="mb-2 flex items-center justify-between sm:hidden">
+              <span className="text-xs font-semibold text-muted-foreground">
+                Set {setIndex + 1}
+              </span>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-muted-foreground"
+                disabled={rows.length === 1}
+                onClick={() => onRemove(setIndex)}
+                aria-label={`Remove set ${setIndex + 1}`}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+            <span className="hidden text-center text-sm font-semibold text-muted-foreground sm:block">
+              {setIndex + 1}
+            </span>
+            <div
+              className={`grid items-end gap-2 sm:contents ${
+                usesLoad ? "grid-cols-[1fr_1fr_0.75fr]" : "grid-cols-[1fr_0.75fr]"
+              }`}
+            >
+              {usesLoad && (
+                <label className="space-y-1 sm:space-y-0">
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
+                    Weight (kg)
+                  </span>
+                  <Input
+                    inputMode="decimal"
+                    className="h-12 text-lg font-semibold sm:h-10 sm:text-sm sm:font-normal"
+                    aria-label={`Set ${setIndex + 1} weight`}
+                    value={set.weight}
+                    onChange={(event) => onChange(setIndex, "weight", event.target.value)}
+                  />
+                </label>
+              )}
+              <label className="space-y-1 sm:space-y-0">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
+                  Reps
+                </span>
+                <Input
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  className="h-12 text-lg font-semibold sm:h-10 sm:text-sm sm:font-normal"
+                  aria-label={`Set ${setIndex + 1} reps`}
+                  value={set.reps}
+                  onChange={(event) => onChange(setIndex, "reps", event.target.value)}
+                />
+              </label>
+              <label className="space-y-1 sm:space-y-0">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
+                  RPE
+                </span>
+                <Input
+                  inputMode="decimal"
+                  className="h-12 text-base sm:h-10 sm:text-sm"
+                  aria-label={`Set ${setIndex + 1} RPE`}
+                  value={set.rpe}
+                  onChange={(event) => onChange(setIndex, "rpe", event.target.value)}
+                />
+              </label>
+            </div>
             <Button
               type="button"
               size="icon"
               variant="ghost"
-              className="h-8 w-8 text-muted-foreground"
+              className="hidden h-8 w-8 text-muted-foreground sm:inline-flex"
               disabled={rows.length === 1}
               onClick={() => onRemove(setIndex)}
               aria-label={`Remove set ${setIndex + 1}`}
@@ -2576,65 +2835,129 @@ function SetRowsEditor({
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
-          <span className="hidden text-center text-sm font-semibold text-muted-foreground sm:block">
-            {setIndex + 1}
-          </span>
-          <div
-            className={`grid items-end gap-2 sm:contents ${
-              usesLoad ? "grid-cols-[1fr_1fr_0.75fr]" : "grid-cols-[1fr_0.75fr]"
-            }`}
-          >
-            {usesLoad && (
-              <label className="space-y-1 sm:space-y-0">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
-                  Weight (kg)
-                </span>
-                <Input
-                  inputMode="decimal"
-                  className="h-12 text-lg font-semibold sm:h-10 sm:text-sm sm:font-normal"
-                  aria-label={`Set ${setIndex + 1} weight`}
-                  value={set.weight}
-                  onChange={(event) => onChange(setIndex, "weight", event.target.value)}
-                />
-              </label>
-            )}
-            <label className="space-y-1 sm:space-y-0">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
-                Reps
-              </span>
-              <Input
-                inputMode="numeric"
-                pattern="[0-9]*"
-                className="h-12 text-lg font-semibold sm:h-10 sm:text-sm sm:font-normal"
-                aria-label={`Set ${setIndex + 1} reps`}
-                value={set.reps}
-                onChange={(event) => onChange(setIndex, "reps", event.target.value)}
-              />
-            </label>
-            <label className="space-y-1 sm:space-y-0">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
-                RPE
-              </span>
-              <Input
-                inputMode="decimal"
-                className="h-12 text-base sm:h-10 sm:text-sm"
-                aria-label={`Set ${setIndex + 1} RPE`}
-                value={set.rpe}
-                onChange={(event) => onChange(setIndex, "rpe", event.target.value)}
-              />
-            </label>
-          </div>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="hidden h-8 w-8 text-muted-foreground sm:inline-flex"
-            disabled={rows.length === 1}
-            onClick={() => onRemove(setIndex)}
-            aria-label={`Remove set ${setIndex + 1}`}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+
+          {usesLoad && set.method ? (
+            <div className="ml-0 rounded-lg border border-fuchsia-400/25 bg-fuchsia-400/[0.05] p-3 sm:ml-10">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold text-fuchsia-200">{set.method.methodName}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Segment 1 uses the main set values above.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onRemoveMethod(setIndex)}
+                >
+                  Remove method
+                </Button>
+              </div>
+              <div className="mt-3 space-y-2">
+                {set.method.segments.map((segment, segmentIndex) => (
+                  <div
+                    key={segmentIndex}
+                    className="rounded-md border border-border/70 bg-background/60 p-2"
+                  >
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-xs font-medium">Drop {segmentIndex + 1}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground"
+                        onClick={() => onRemoveSegment(setIndex, segmentIndex)}
+                        aria-label={`Remove drop ${segmentIndex + 1} from set ${setIndex + 1}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Field label="kg">
+                        <Input
+                          inputMode="decimal"
+                          value={segment.weight}
+                          onChange={(event) =>
+                            onUpdateSegment(setIndex, segmentIndex, "weight", event.target.value)
+                          }
+                        />
+                      </Field>
+                      <Field label="Reps">
+                        <Input
+                          inputMode="numeric"
+                          value={segment.reps}
+                          onChange={(event) =>
+                            onUpdateSegment(setIndex, segmentIndex, "reps", event.target.value)
+                          }
+                        />
+                      </Field>
+                      <Field label="RPE">
+                        <Input
+                          inputMode="decimal"
+                          value={segment.rpe}
+                          onChange={(event) =>
+                            onUpdateSegment(setIndex, segmentIndex, "rpe", event.target.value)
+                          }
+                        />
+                      </Field>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <Field label="Rest after (sec)">
+                        <Input
+                          inputMode="numeric"
+                          value={segment.restAfterSeconds}
+                          onChange={(event) =>
+                            onUpdateSegment(
+                              setIndex,
+                              segmentIndex,
+                              "restAfterSeconds",
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </Field>
+                      <Field label="Range">
+                        <Select
+                          value={segment.rangeOfMotion}
+                          onValueChange={(value) =>
+                            onUpdateSegment(setIndex, segmentIndex, "rangeOfMotion", value)
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="full">Full</SelectItem>
+                            <SelectItem value="partial">Partial</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2 w-full"
+                onClick={() => onAddSegment(setIndex)}
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" /> Add another drop
+              </Button>
+            </div>
+          ) : usesLoad && setMethods.length ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="ml-0 w-full border border-dashed border-fuchsia-400/25 text-fuchsia-200 sm:ml-10 sm:w-auto"
+              onClick={() => onAddMethod(setIndex, setMethods[0])}
+            >
+              <Layers3 className="mr-1 h-3.5 w-3.5" /> Add drop / strip set
+            </Button>
+          ) : null}
         </div>
       ))}
       <div className="grid grid-cols-2 gap-2">

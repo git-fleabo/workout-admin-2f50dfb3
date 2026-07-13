@@ -13,6 +13,11 @@ type EntrySetRecord = {
   assistance_type: string | null;
   assistance_detail: string | null;
   quality: string | null;
+  entry_set_segments: Array<{
+    method_name: string;
+    reps: number | string | null;
+    weight: number | string | null;
+  }> | null;
 };
 
 type EntryMetricRecord = {
@@ -156,10 +161,17 @@ function describeSets(sets: EntrySetRecord[] | null | undefined) {
   const parts: string[] = [];
   const individualSets = sets.length > 1;
   const setCount = individualSets ? sets.length : toNum(set.set_number);
-  const reps = individualSets
-    ? sets.reduce((total, item) => total + (toNum(item.reps) ?? 0), 0)
-    : toNum(set.reps);
-  const weight = sets.reduce<number | null>((max, item) => {
+  const workRows: Array<{
+    method_name: string | null;
+    reps: number | string | null;
+    weight: number | string | null;
+  }> = [];
+  for (const item of sets) {
+    if (item.entry_set_segments?.length) workRows.push(...item.entry_set_segments);
+    else workRows.push({ method_name: null, reps: item.reps, weight: item.weight });
+  }
+  const reps = workRows.reduce((total, item) => total + (toNum(item.reps) ?? 0), 0);
+  const weight = workRows.reduce<number | null>((max, item) => {
     const value = toNum(item.weight);
     return value == null || (max != null && max >= value) ? max : value;
   }, null);
@@ -167,6 +179,8 @@ function describeSets(sets: EntrySetRecord[] | null | undefined) {
   if (setCount != null && setCount > 0) parts.push(`${compactNumber(setCount)} sets`);
   if (reps != null && reps > 0) parts.push(`${compactNumber(reps)} reps`);
   if (weight != null && weight > 0) parts.push(`${compactNumber(weight)}kg max`);
+  const methodName = sets.flatMap((item) => item.entry_set_segments ?? [])[0]?.method_name;
+  if (methodName) parts.push(methodName);
   if (duration != null && duration > 0) parts.push(`${compactNumber(duration)}s`);
   return parts.join(" · ");
 }
@@ -288,7 +302,7 @@ export async function getTimelineDataClient(): Promise<TimelineData> {
   const [sessions, oneRmRows, bodyweightRows] = await Promise.all([
     supabasePublicSelect<SessionRecord>("sessions", {
       select:
-        "id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name),training_locations(name,kind),session_entries(id,entry_kind,name,progression_level,completed,notes,source_sheet,activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
+        "id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name),training_locations(name,kind),session_entries(id,entry_kind,name,progression_level,completed,notes,source_sheet,activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,entry_set_segments(method_name,reps,weight)),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
       order: "session_date.desc",
       limit: 1000,
     }),

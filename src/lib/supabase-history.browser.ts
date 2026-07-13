@@ -14,6 +14,12 @@ type EntrySetRecord = {
   duration_seconds: number | string | null;
   rpe: number | string | null;
   completed: boolean | null;
+  entry_set_segments?: Array<{
+    segment_index: number | string;
+    reps: number | string | null;
+    weight: number | string | null;
+    rpe: number | string | null;
+  }> | null;
 };
 
 type SessionEntryRecord = {
@@ -220,7 +226,7 @@ export async function getExerciseHistoryClient(
 ): Promise<ExerciseHistory> {
   const params: Record<string, string | number | boolean> = {
     select:
-      "id,name,completed,sessions!inner(id,session_date,source_sheet,training_locations(name,kind)),entry_sets(set_number,reps,weight,duration_seconds,rpe,completed)",
+      "id,name,completed,sessions!inner(id,session_date,source_sheet,training_locations(name,kind)),entry_sets(set_number,reps,weight,duration_seconds,rpe,completed,entry_set_segments(segment_index,reps,weight,rpe))",
     completed: "eq.true",
     source_sheet: "eq.Workout Log",
     "sessions.source_sheet": "eq.Workout Log",
@@ -252,43 +258,52 @@ export async function getExerciseHistoryClient(
 
     for (const set of sets) {
       const setsKnown = Number.isFinite(toNumber(set.set_number)) && toNumber(set.set_number) > 0;
-      const reps = toNumber(set.reps);
-      const weight = toNumber(set.weight);
       const durationSeconds = toNumber(set.duration_seconds);
-      const rpe = toNumber(set.rpe);
-
-      const repsN = Number.isFinite(reps) && reps > 0 ? reps : null;
-      const weightN = Number.isFinite(weight) && weight > 0 ? weight : null;
       const durationMinutes =
         Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds / 60 : 0;
       const aggregateSets =
         !individualSets && setsKnown ? Math.max(1, Math.round(toNumber(set.set_number))) : null;
-
-      point.sets.push({
-        setNumber: individualSets && setsKnown ? Math.round(toNumber(set.set_number)) : null,
-        reps: repsN,
-        weight: weightN,
-        rpe: Number.isFinite(rpe) && rpe > 0 ? rpe : null,
-        completed: set.completed !== false,
-        aggregateSets,
-      });
-
-      if (weightN != null) anyWeight = true;
-      if (repsN != null) anyReps = true;
       if (durationMinutes > 0) anyDuration = true;
-
-      if (repsN != null) point.totalReps += repsN;
       point.totalDuration += durationMinutes;
-      if (weightN != null) {
-        if (point.maxWeight == null || weightN > point.maxWeight) point.maxWeight = weightN;
-        if (repsN != null) {
-          point.totalVolume += repsN * weightN;
-          const perSetReps = individualSets
-            ? repsN
-            : repsPerSet(repsN, setsKnown ? toNumber(set.set_number) : NaN);
-          if (perSetReps != null) {
-            const est = weightN * (1 + perSetReps / 30);
-            if (point.est1RM == null || est > point.est1RM) point.est1RM = est;
+
+      const workSegments = set.entry_set_segments?.length
+        ? [...set.entry_set_segments].sort(
+            (a, b) => toNumber(a.segment_index) - toNumber(b.segment_index),
+          )
+        : [set];
+      for (const [segmentIndex, segment] of workSegments.entries()) {
+        const reps = toNumber(segment.reps);
+        const weight = toNumber(segment.weight);
+        const rpe = toNumber(segment.rpe);
+        const repsN = Number.isFinite(reps) && reps > 0 ? reps : null;
+        const weightN = Number.isFinite(weight) && weight > 0 ? weight : null;
+
+        point.sets.push({
+          setNumber:
+            individualSets && setsKnown && segmentIndex === 0
+              ? Math.round(toNumber(set.set_number))
+              : null,
+          reps: repsN,
+          weight: weightN,
+          rpe: Number.isFinite(rpe) && rpe > 0 ? rpe : null,
+          completed: set.completed !== false,
+          aggregateSets: segmentIndex === 0 ? aggregateSets : null,
+        });
+
+        if (weightN != null) anyWeight = true;
+        if (repsN != null) anyReps = true;
+        if (repsN != null) point.totalReps += repsN;
+        if (weightN != null) {
+          if (point.maxWeight == null || weightN > point.maxWeight) point.maxWeight = weightN;
+          if (repsN != null) {
+            point.totalVolume += repsN * weightN;
+            const perSetReps = individualSets
+              ? repsN
+              : repsPerSet(repsN, setsKnown ? toNumber(set.set_number) : NaN);
+            if (perSetReps != null) {
+              const est = weightN * (1 + perSetReps / 30);
+              if (point.est1RM == null || est > point.est1RM) point.est1RM = est;
+            }
           }
         }
       }

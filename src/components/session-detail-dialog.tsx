@@ -87,6 +87,30 @@ function MovementDetail({ entry }: { entry: SessionDetailEntry }) {
                       .join(" · ")}
                   </p>
                 ) : null}
+                {set.segments.length ? (
+                  <div className="mt-2 space-y-1.5 sm:ml-[76px]">
+                    <p className="text-[10px] font-medium uppercase tracking-wider text-fuchsia-300">
+                      {set.segments[0]?.methodName}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {set.segments.map((segment, segmentIndex) => (
+                        <span
+                          key={segmentIndex}
+                          className="rounded-md border border-fuchsia-400/20 bg-fuchsia-400/[0.06] px-2 py-1 text-[11px]"
+                        >
+                          {segmentIndex + 1}.{" "}
+                          {displayValue(segment.weight) ? `${segment.weight} kg` : "—"}
+                          {displayValue(segment.reps) ? ` × ${segment.reps}` : ""}
+                          {displayValue(segment.rpe) ? ` · RPE ${segment.rpe}` : ""}
+                          {displayValue(segment.restAfterSeconds)
+                            ? ` · ${segment.restAfterSeconds}s rest`
+                            : ""}
+                          {segment.rangeOfMotion === "partial" ? " · partial" : ""}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             );
           })}
