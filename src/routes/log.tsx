@@ -9,7 +9,7 @@ import { PRsView } from "./-prs-view";
 export const Route = createFileRoute("/log")({
   head: () => ({
     meta: [
-      { title: "Log Training · Training Admin" },
+      { title: "Log Training · Training Tracker" },
       {
         name: "description",
         content: "Log workouts, calisthenics, grip, climbing and strength tests.",

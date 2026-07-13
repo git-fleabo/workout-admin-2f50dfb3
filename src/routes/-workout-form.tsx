@@ -1205,9 +1205,16 @@ export function FullWorkoutForm() {
             method.family === "set_method" &&
             method.isActive &&
             method.isEnabled &&
-            (["drop_set", "cluster_set", "rest_pause", "rep_targeting", "partial_reps"].includes(
-              method.systemKey ?? "",
-            ) ||
+            ([
+              "drop_set",
+              "cluster_set",
+              "rest_pause",
+              "rep_targeting",
+              "partial_reps",
+              "eccentrics",
+              "pyramid",
+              "negatives",
+            ].includes(method.systemKey ?? "") ||
               method.systemKey == null),
         )
         .sort(
@@ -1218,6 +1225,9 @@ export function FullWorkoutForm() {
               "rest_pause",
               "rep_targeting",
               "partial_reps",
+              "eccentrics",
+              "pyramid",
+              "negatives",
               null,
             ].indexOf(left.systemKey) -
             [
@@ -1226,6 +1236,9 @@ export function FullWorkoutForm() {
               "rest_pause",
               "rep_targeting",
               "partial_reps",
+              "eccentrics",
+              "pyramid",
+              "negatives",
               null,
             ].indexOf(right.systemKey),
         ),
@@ -2339,7 +2352,7 @@ export function FullWorkoutForm() {
             <div>
               <p className="text-sm font-medium">Within a set</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Drop sets, clusters, rest-pause, rep targets and partials.
+                Drop sets, clusters, rest-pause, pyramids, eccentrics, negatives and more.
               </p>
             </div>
             <p className="text-xs font-medium text-fuchsia-200">
@@ -3064,6 +3077,9 @@ function setMethodKind(method: WorkoutSetMethodState) {
   if (key === "rep_targeting" || name.includes("rep target")) return "rep-target";
   if (key === "partial_reps" || name.includes("partial")) return "partial";
   if (key === "drop_set" || name.includes("drop") || name.includes("strip")) return "drop";
+  if (key === "eccentrics" || name.includes("eccentric")) return "eccentric";
+  if (key === "pyramid" || name.includes("pyramid")) return "pyramid";
+  if (key === "negatives" || name.includes("negative")) return "negative";
   return "segment";
 }
 
@@ -3094,6 +3110,27 @@ function setMethodCopy(method: WorkoutSetMethodState) {
       noun: "Partial",
       add: "Add another partial effort",
       intro: "The main set range is selectable; added efforts default to partial.",
+    };
+  }
+  if (kind === "eccentric") {
+    return {
+      noun: "Eccentric effort",
+      add: "Add another eccentric effort",
+      intro: "Effort 1 uses the main set with a controlled lowering phase.",
+    };
+  }
+  if (kind === "pyramid") {
+    return {
+      noun: "Step",
+      add: "Add another pyramid step",
+      intro: "Step 1 uses the main set; adjust load and reps at each step.",
+    };
+  }
+  if (kind === "negative") {
+    return {
+      noun: "Negative",
+      add: "Add another negative",
+      intro: "Rep 1 uses the main set; record each controlled lowering effort.",
     };
   }
   return { noun: "Segment", add: "Add another segment", intro: "Segment 1 uses the main set." };

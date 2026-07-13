@@ -39,7 +39,7 @@ import { DeleteConfirmDialog, type DeleteTarget } from "./-form-bits";
 export const Route = createFileRoute("/history")({
   head: () => ({
     meta: [
-      { title: "History · Training Admin" },
+      { title: "History · Training Tracker" },
       {
         name: "description",
         content:

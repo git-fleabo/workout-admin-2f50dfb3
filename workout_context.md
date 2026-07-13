@@ -2,7 +2,7 @@
 
 Last updated: 2026-07-13
 
-This file is the handoff document for the Training Admin workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
+This file is the handoff document for the Training Tracker workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
 
 ## Project Status
 
@@ -973,14 +973,15 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 
 - `training_methods` stores protected system definitions and person-owned custom methods with stable UUIDs, one of three families (`exercise_group`, `set_method`, or `timed_density`), a description, and structured JSON defaults.
 - `person_training_methods` stores account/person-scoped visibility and future per-person default overrides without mutating the system definition.
-- Fourteen system methods are seeded from the OriGym-aligned roadmap terminology: supersets, tri-sets, giant sets, circuits, jump sets, PHA, complex training, drop/strip sets, clusters, rest-pause, rep targeting, partial reps, EDT, and Tabata.
+- Seventeen system methods are seeded: supersets, tri-sets, giant sets, circuits, jump sets, PHA, complex training, drop/strip sets, clusters, rest-pause, rep targeting, partial reps, eccentrics, pyramid, negatives, EDT, and Tabata.
 - System definitions cannot be edited or deleted, but can be hidden or duplicated into an editable personal copy. Custom methods support create, edit, duplicate, deactivate/reactivate, and permanent deletion while they are not yet referenced by logged training.
 - RLS reuses `app_private.person_is_accessible(person_id)`. System rows are readable by authenticated users; custom definitions and preferences are limited to accessible people. Both tables have explicit authenticated Data API grants and four CRUD policies.
-- Live verification found 7 exercise-group, 5 set-method, and 2 timed/density system rows, RLS enabled, explicit select grants, and four policies on each table. An authenticated-role test saw all 14 system rows and completed an insert/update/delete cycle with no residual row. The Supabase advisor identified one missing foreign-key index, which was added. Existing unrelated advisor notices remain unchanged.
+- Live verification originally found 7 exercise-group, 5 set-method, and 2 timed/density system rows, RLS enabled, explicit select grants, and four policies on each table. The 2026-07-13 method-library update added Eccentrics, Pyramid, and Negatives as enabled set methods, taking the live system library to 17 rows (7 exercise-group, 8 set-method, and 2 timed/density). The Supabase advisor identified one missing foreign-key index, which was added. Existing unrelated advisor notices remain unchanged.
 - The local preview reached the new route, but its prior auth session had expired before browser CRUD verification; the page is left ready for sign-in.
 - `session_method_blocks` stores the method snapshot, ordered block position, rounds, two rest values, and structured configuration for a completed session. `session_method_block_entries` links the block to its underlying `session_entries` in movement order. Both tables cascade with the session, retain the method definition by foreign key, use explicit authenticated grants, and enforce accessible-person/session consistency through RLS.
 - The unified full-workout composer can add, edit, and remove ordered exercise-group blocks from the enabled Methods library. Supersets and tri-sets require exactly two or three movements; other group methods use their configured minimum. A movement belongs to at most one block in this first pass, and moving or deleting exercises updates the block safely.
 - The logger now makes the dependency order explicit: first add movements and base sets, then optionally add advanced methods. The second step separates across-movement group/timed methods from within-set methods, whose picker remains attached to the affected set. Creating a block chooses a compatible default from the current movement count: one movement starts with Tabata, two movements start with Superset, and larger workouts use the first compatible enabled definition rather than opening on an impossible method.
+- Eccentrics, Pyramid, and Negatives are system set methods available from the within-set picker. Their logged efforts use method-specific wording while retaining the same editable load, reps, RPE, rest, and range fields as other segmented methods.
 - Stable client-side movement IDs keep group membership intact while drafting, reordering, and applying same-day corrections. The normal exercise set rows remain unchanged, so existing volume and progress analytics continue to count the underlying work. Saving adds the method block only after its movement entries exist, and rolls back the whole session on any partial failure.
 - The finish review labels grouped movements, and completed-session detail shows each method with its ordered exercises, rounds, and rest. Repeating a server-loaded recent session now reconstructs its prior exercise-group and timed blocks, ordered membership, timing/rest configuration, and set-method segments; draft and same-day correction flows preserve them too.
 - A live authenticated-role database test saved a temporary Superset with two ordered member entries, read both members through RLS, then deleted the session and confirmed cascade cleanup. The preview session expired again before the new composer could be exercised through the UI, so `/log` is left ready for sign-in.
@@ -1087,6 +1088,7 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - `supabase/migrations/20260713105054_add_exercise_location_scope.sql`: applied and tracked per-person Home/Gym/Both exercise availability.
 - `supabase/migrations/20260713110640_add_persistent_workout_suggestions.sql`: applied and tracked persistent workout plan entries/sets, session link, indexes, grants, and RLS.
 - `supabase/migrations/20260713142913_add_training_methods.sql`: applied and tracked training-method definitions, per-person settings, system seed data, indexes, grants, and RLS.
+- `supabase/migrations/20260713212133_add_eccentrics_pyramid_negatives_methods.sql`: adds Eccentrics, Pyramid, and Negatives as idempotent system set-method definitions.
 - `supabase/migrations/20260713173700_add_suggested_workout_method_blocks.sql`: applied and tracked method blocks and ordered movement memberships for persistent plans.
 - `supabase/migrations/20260713173800_add_suggested_workout_set_segments.sql`: applied and tracked within-exercise method segments for persistent plans.
 - `docs/product-roadmap.md`: staged product redesign roadmap; Phase 5 advanced-method logging, planning, round trips, Progress, and adherence review are complete.
@@ -1223,15 +1225,15 @@ Recommended next work, in order:
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
 11. Start Phase 6 by auditing planned, draft, completed, skipped, and archived workout states and defining one visible session-lifecycle model.
-12. Audit climbing inside the unified logger before the next climbing-entry iteration. The current movement picker can select climbing movements, but the specialised hours/routes/grade/gradient controls still live in the unused legacy single-entry form. Live History currently shows 75-hour Ropes/Belay and Bouldering entries on 2026-07-11 and 2026-07-09; confirm whether these were intended as 75 minutes before correcting live data, then make the chosen duration unit explicit and guarded in the unified flow.
-12. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
-13. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
-14. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
-15. Build a simple admin-only user management flow before inviting friends: create person, link auth user, select app profile, select/deselect exercises.
-16. Tighten the profile-claim bootstrap now that Noam's account is linked.
-17. Start implementing programme assignment and suggested workout UI on top of the seeded Percentage Strength Blocks.
-18. Consider generating and saving TypeScript types from Supabase once schema/data shape stabilizes.
-19. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
+12. Audit climbing inside the unified logger before the next climbing-entry iteration. The current movement picker can select climbing movements, but the specialised hours/routes/grade/gradient controls still live in the unused legacy single-entry form. The 2026-07-09 Bouldering and 2026-07-11 Ropes/Belay rows were corrected from 75 hours/4,500 minutes to 1.25 hours/75 minutes; make the chosen duration unit explicit and guarded in the unified flow.
+13. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
+14. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
+15. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
+16. Build a simple admin-only user management flow before inviting friends: create person, link auth user, select app profile, select/deselect exercises.
+17. Tighten the profile-claim bootstrap now that Noam's account is linked.
+18. Start implementing programme assignment and suggested workout UI on top of the seeded Percentage Strength Blocks.
+19. Consider generating and saving TypeScript types from Supabase once schema/data shape stabilizes.
+20. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
 
 ## Future Stage: iPhone App
 

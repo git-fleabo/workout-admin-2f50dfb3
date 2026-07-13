@@ -57,7 +57,7 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Today · Training Admin" },
+      { title: "Today · Training Tracker" },
       { name: "description", content: "Choose, resume or review today's workout." },
     ],
   }),

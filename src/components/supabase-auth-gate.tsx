@@ -118,7 +118,7 @@ export function SupabaseAuthGate({ children }: { children: ReactNode }) {
             <LogIn className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-base font-semibold leading-tight">Training Admin</h1>
+            <h1 className="text-base font-semibold leading-tight">Training Tracker</h1>
             <p className="text-xs text-muted-foreground">
               {recoveryToken ? "Set a new password" : "Sign in with your approved account"}
             </p>
@@ -151,45 +151,53 @@ export function SupabaseAuthGate({ children }: { children: ReactNode }) {
             {error && <p className="text-xs text-destructive">{error}</p>}
             <Button
               type="submit"
-              disabled={!newPassword || newPassword.length < 8 || newPassword !== confirmPassword || busy}
+              disabled={
+                !newPassword || newPassword.length < 8 || newPassword !== confirmPassword || busy
+              }
               className="h-11 w-full text-sm font-semibold"
-              style={{ backgroundImage: "var(--gradient-primary)", color: "var(--primary-foreground)" }}
+              style={{
+                backgroundImage: "var(--gradient-primary)",
+                color: "var(--primary-foreground)",
+              }}
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update password"}
             </Button>
           </form>
         ) : (
-        <form onSubmit={onSubmit} className="space-y-3">
-          {passwordUpdated && (
-            <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
-              Password updated. Sign in with your new password.
-            </p>
-          )}
-          <Input
-            type="email"
-            autoFocus
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            autoComplete="email"
-          />
-          <Input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
-            autoComplete="current-password"
-          />
-          {error && <p className="text-xs text-destructive">{error}</p>}
-          <Button
-            type="submit"
-            disabled={!email.trim() || !password || busy}
-            className="h-11 w-full text-sm font-semibold"
-            style={{ backgroundImage: "var(--gradient-primary)", color: "var(--primary-foreground)" }}
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign in"}
-          </Button>
-        </form>
+          <form onSubmit={onSubmit} className="space-y-3">
+            {passwordUpdated && (
+              <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+                Password updated. Sign in with your new password.
+              </p>
+            )}
+            <Input
+              type="email"
+              autoFocus
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              autoComplete="email"
+            />
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              autoComplete="current-password"
+            />
+            {error && <p className="text-xs text-destructive">{error}</p>}
+            <Button
+              type="submit"
+              disabled={!email.trim() || !password || busy}
+              className="h-11 w-full text-sm font-semibold"
+              style={{
+                backgroundImage: "var(--gradient-primary)",
+                color: "var(--primary-foreground)",
+              }}
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign in"}
+            </Button>
+          </form>
         )}
         <p className="text-center font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
           {APP_BUILD_LABEL}

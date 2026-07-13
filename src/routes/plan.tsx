@@ -59,7 +59,7 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/plan")({
   head: () => ({
     meta: [
-      { title: "Plan Next Workout · Training Admin" },
+      { title: "Plan Next Workout · Training Tracker" },
       {
         name: "description",
         content: "Build a transparent next-workout suggestion from recent training history.",

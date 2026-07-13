@@ -70,7 +70,7 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/progress")({
   head: () => ({
     meta: [
-      { title: "Exercise Progress · Training Admin" },
+      { title: "Exercise Progress · Training Tracker" },
       {
         name: "description",
         content: "Review exercise load, estimated strength, training volume and methods over time.",

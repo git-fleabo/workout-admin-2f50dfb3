@@ -53,7 +53,7 @@ import { ExerciseDetail } from "@/components/exercise-detail";
 export const Route = createFileRoute("/library")({
   head: () => ({
     meta: [
-      { title: "Exercise Library · Training Admin" },
+      { title: "Exercise Library · Training Tracker" },
       {
         name: "description",
         content: "Add, edit and remove movements in the Supabase exercise library.",

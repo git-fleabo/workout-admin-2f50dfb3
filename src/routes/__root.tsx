@@ -81,18 +81,38 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "theme-color", content: "#1d4ed8" },
-      { title: "Workout" },
-      { name: "description", content: "Log and track your regular and calisthenics workouts with this mobile-friendly exercise tracker." },
+      { title: "Training Tracker" },
+      {
+        name: "description",
+        content:
+          "Log and track your regular and calisthenics workouts with this mobile-friendly exercise tracker.",
+      },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Workout" },
-      { property: "og:description", content: "Log and track your regular and calisthenics workouts with this mobile-friendly exercise tracker." },
+      { property: "og:title", content: "Training Tracker" },
+      {
+        property: "og:description",
+        content:
+          "Log and track your regular and calisthenics workouts with this mobile-friendly exercise tracker.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Workout" },
-      { name: "twitter:description", content: "Log and track your regular and calisthenics workouts with this mobile-friendly exercise tracker." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/2d2ba048-049f-433d-af76-257cb1b732d6/id-preview-46daf711--f5b41aaa-913d-486f-9fcc-2d36e65fbf53.lovable.app-1780138771549.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/2d2ba048-049f-433d-af76-257cb1b732d6/id-preview-46daf711--f5b41aaa-913d-486f-9fcc-2d36e65fbf53.lovable.app-1780138771549.png" },
+      { name: "twitter:title", content: "Training Tracker" },
+      {
+        name: "twitter:description",
+        content:
+          "Log and track your regular and calisthenics workouts with this mobile-friendly exercise tracker.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/2d2ba048-049f-433d-af76-257cb1b732d6/id-preview-46daf711--f5b41aaa-913d-486f-9fcc-2d36e65fbf53.lovable.app-1780138771549.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/2d2ba048-049f-433d-af76-257cb1b732d6/id-preview-46daf711--f5b41aaa-913d-486f-9fcc-2d36e65fbf53.lovable.app-1780138771549.png",
+      },
     ],
     links: [
       {

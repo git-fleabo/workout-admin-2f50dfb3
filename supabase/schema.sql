@@ -1411,6 +1411,9 @@ values
   ('rest_pause', 'Rest-pause set', 'set_method', 'Extends a set after a brief pause using the same load.', '{"segments":3,"rest_between_segments_seconds":20}'::jsonb),
   ('rep_targeting', 'Rep targeting', 'set_method', 'Accumulates a target number of reps across as many sets as needed.', '{"target_reps":25,"rest_between_segments_seconds":45}'::jsonb),
   ('partial_reps', 'Partial reps', 'set_method', 'Records deliberate partial-range work without treating it as full-range reps.', '{"range_of_motion":"partial"}'::jsonb),
+  ('eccentrics', 'Eccentrics', 'set_method', 'Emphasises a deliberately slow, controlled lowering phase.', '{"segments":2,"eccentric_seconds":4,"rest_between_segments_seconds":60}'::jsonb),
+  ('pyramid', 'Pyramid', 'set_method', 'Changes load and reps step by step through an ascending or descending sequence.', '{"segments":4,"direction":"ascending","rest_between_segments_seconds":90}'::jsonb),
+  ('negatives', 'Negatives', 'set_method', 'Records eccentric-only repetitions using a controlled lowering phase.', '{"segments":3,"eccentric_seconds":5,"rest_between_segments_seconds":90}'::jsonb),
   ('edt', 'Escalating Density Training', 'timed_density', 'Accumulates more quality work inside a fixed training block.', '{"block_minutes":15,"movement_count":2}'::jsonb),
   ('tabata', 'Tabata', 'timed_density', 'Eight rounds of timed work and recovery intervals.', '{"rounds":8,"work_seconds":20,"rest_seconds":10}'::jsonb)
 on conflict (system_key) do update

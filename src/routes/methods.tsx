@@ -61,7 +61,7 @@ import {
 export const Route = createFileRoute("/methods")({
   head: () => ({
     meta: [
-      { title: "Training Methods · Training Admin" },
+      { title: "Training Methods · Training Tracker" },
       {
         name: "description",
         content: "Manage system and custom advanced training methods.",
@@ -160,6 +160,8 @@ function configSummary(method: TrainingMethod) {
       config.reps_per_segment && `${config.reps_per_segment} reps/segment`,
       config.percentage_drop && `${config.percentage_drop}% drop`,
       config.target_reps && `${config.target_reps} target reps`,
+      config.eccentric_seconds && `${config.eccentric_seconds}s eccentric`,
+      config.direction && `${config.direction} direction`,
       config.rest_between_segments_seconds != null &&
         `${config.rest_between_segments_seconds}s short rest`,
     ]

@@ -49,7 +49,7 @@ import {
 export const Route = createFileRoute("/goals")({
   head: () => ({
     meta: [
-      { title: "Goals · Training Admin" },
+      { title: "Goals · Training Tracker" },
       {
         name: "description",
         content: "Set, edit and remove training goals stored in Supabase.",
