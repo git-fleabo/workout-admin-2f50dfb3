@@ -10,6 +10,7 @@ import {
   Dumbbell,
   Home,
   Info,
+  Layers3,
   Loader2,
   Plus,
   RotateCcw,
@@ -25,7 +26,10 @@ import { WeeklyPlanOverview } from "@/components/weekly-plan-overview";
 import { WeeklyRecoveryCard } from "@/components/weekly-recovery-card";
 import { formatUKDate, todayISO } from "@/lib/date";
 import { getLibraryClient, getRecentLogsClient } from "@/lib/supabase-log.browser";
-import { saveWorkoutPlanClient } from "@/lib/supabase-plans.browser";
+import {
+  getRecentWorkoutMethodBlocksClient,
+  saveWorkoutPlanClient,
+} from "@/lib/supabase-plans.browser";
 import { getSupabaseSession } from "@/lib/supabase-public";
 import { getWeeklyLoadHistoryClient } from "@/lib/supabase-weekly-load.browser";
 import {
@@ -47,6 +51,7 @@ import {
   type PlannerLocation,
   type PlannerReadiness,
   type WorkoutPlanMovement,
+  type WorkoutPlanMethodBlock,
   type WorkoutPlanSet,
 } from "@/lib/workout-plan";
 import { cn } from "@/lib/utils";
@@ -100,6 +105,28 @@ function weeklyRecoveryModeStorageKey(startDate: string) {
   return `weekly-recovery-mode:${userId}:${startDate}`;
 }
 
+function methodBlockSummary(block: WorkoutPlanMethodBlock) {
+  if (block.family === "timed_density") {
+    return [
+      block.blockDurationMinutes ? `${block.blockDurationMinutes} min` : "",
+      block.rounds ? `${block.rounds} rounds` : "",
+      block.workIntervalSeconds ? `${block.workIntervalSeconds}s work` : "",
+      block.restIntervalSeconds ? `${block.restIntervalSeconds}s rest` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+  return [
+    block.rounds ? `${block.rounds} rounds` : "",
+    block.restBetweenMovementsSeconds
+      ? `${block.restBetweenMovementsSeconds}s between movements`
+      : "",
+    block.restBetweenRoundsSeconds ? `${block.restBetweenRoundsSeconds}s between rounds` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 function PlanPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -116,6 +143,16 @@ function PlanPage() {
   const weeklyLoad = useQuery({
     queryKey: ["weekly-load-history"],
     queryFn: () => getWeeklyLoadHistoryClient(90),
+    staleTime: 60_000,
+  });
+  const recentSessionIds = useMemo(
+    () => Array.from(new Set((history.data?.recent ?? []).map((log) => log.id).filter(Boolean))),
+    [history.data?.recent],
+  );
+  const methodHistory = useQuery({
+    queryKey: ["workout-planner-method-history", recentSessionIds],
+    queryFn: () => getRecentWorkoutMethodBlocksClient(recentSessionIds),
+    enabled: recentSessionIds.length > 0,
     staleTime: 60_000,
   });
   const [location, setLocation] = useState<PlannerLocation>("gym");
@@ -178,10 +215,18 @@ function PlanPage() {
     [location, matchingLogs],
   );
   const suggestion = useMemo(
-    () => buildWorkoutSuggestion(matchingLogs, location, readiness, basisDate),
-    [basisDate, location, matchingLogs, readiness],
+    () =>
+      buildWorkoutSuggestion(
+        matchingLogs,
+        location,
+        readiness,
+        basisDate,
+        methodHistory.data ?? [],
+      ),
+    [basisDate, location, matchingLogs, methodHistory.data, readiness],
   );
   const [movements, setMovements] = useState<WorkoutPlanMovement[]>([]);
+  const [methodBlocks, setMethodBlocks] = useState<WorkoutPlanMethodBlock[]>([]);
 
   useEffect(() => setBasisDate(null), [location]);
 
@@ -209,6 +254,7 @@ function PlanPage() {
 
   useEffect(() => {
     setMovements(suggestion?.movements ?? []);
+    setMethodBlocks(suggestion?.methodBlocks ?? []);
   }, [suggestion]);
 
   const adjustWeeklyDay = (date: string, items: WeeklyPlanItemKind[] | null) => {
@@ -297,6 +343,23 @@ function PlanPage() {
       }),
     );
 
+  const removeMovement = (movementIndex: number) => {
+    setMovements((current) => current.filter((_, index) => index !== movementIndex));
+    setMethodBlocks((current) =>
+      current
+        .map((block) => ({
+          ...block,
+          memberMovementIndexes: block.memberMovementIndexes
+            .filter((index) => index !== movementIndex)
+            .map((index) => (index > movementIndex ? index - 1 : index)),
+        }))
+        .filter(
+          (block) =>
+            block.memberMovementIndexes.length >= (block.family === "timed_density" ? 1 : 2),
+        ),
+    );
+  };
+
   const currentDraft = () => {
     if (!suggestion || movements.length === 0) return;
     return {
@@ -305,6 +368,7 @@ function PlanPage() {
       locationKind: suggestion.locationKind,
       basis: suggestion.basis,
       movements,
+      methodBlocks,
     };
   };
 
@@ -508,7 +572,14 @@ function PlanPage() {
                   Edit sets here, or make further changes after opening the logger.
                 </p>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => setMovements(suggestion.movements)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setMovements(suggestion.movements);
+                  setMethodBlocks(suggestion.methodBlocks ?? []);
+                }}
+              >
                 <RotateCcw className="mr-1 h-3.5 w-3.5" /> Reset
               </Button>
             </div>
@@ -522,12 +593,59 @@ function PlanPage() {
                   onUpdateSet={updateSet}
                   onRemoveSet={removeSet}
                   onAddSet={addSet}
-                  onRemoveMovement={() =>
-                    setMovements((current) => current.filter((_, index) => index !== movementIndex))
-                  }
+                  onRemoveMovement={() => removeMovement(movementIndex)}
                 />
               ))}
             </div>
+          </section>
+
+          <section className="space-y-2">
+            <div>
+              <h2 className="text-base font-semibold">Training methods</h2>
+              <p className="text-xs text-muted-foreground">
+                Methods are only carried forward when they were logged in the chosen source session.
+              </p>
+            </div>
+            {methodBlocks.length ? (
+              <div className="grid gap-2 lg:grid-cols-2">
+                {methodBlocks.map((block, blockIndex) => (
+                  <div
+                    key={`${block.trainingMethodId}-${blockIndex}`}
+                    className="flex items-start gap-3 rounded-xl border border-indigo-400/25 bg-indigo-400/[0.05] p-3"
+                  >
+                    <Layers3 className="mt-0.5 h-4 w-4 shrink-0 text-indigo-300" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{block.methodName}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {block.memberMovementIndexes
+                          .map((index) => movements[index]?.exercise)
+                          .filter(Boolean)
+                          .join(" → ")}
+                      </p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {methodBlockSummary(block)}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setMethodBlocks((current) =>
+                          current.filter((_, index) => index !== blockIndex),
+                        )
+                      }
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+                No exercise-group or timed method was found in this source session. You can still
+                add one in the logger.
+              </p>
+            )}
           </section>
 
           <Card className="border-violet-400/20 bg-violet-400/[0.04]">

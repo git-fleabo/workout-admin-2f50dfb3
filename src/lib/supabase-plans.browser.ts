@@ -5,7 +5,13 @@ import {
   supabasePublicSelect,
   supabasePublicUpdate,
 } from "./supabase-public";
-import type { PlannerReadiness, WorkoutPlanDraft, WorkoutPlanMovement } from "./workout-plan";
+import type {
+  PlannerReadiness,
+  RecentWorkoutMethodBlock,
+  WorkoutPlanDraft,
+  WorkoutPlanMethodBlock,
+  WorkoutPlanMovement,
+} from "./workout-plan";
 
 type SuggestedWorkoutStatus = "pending" | "accepted" | "completed" | "skipped" | "archived";
 
@@ -36,6 +42,46 @@ type SuggestedWorkoutRow = {
   created_at: string;
   training_locations: { kind: string | null; name: string | null } | null;
   suggested_workout_entries: SuggestedEntryRow[] | null;
+  suggested_workout_method_blocks: SuggestedMethodBlockRow[] | null;
+};
+
+type SuggestedMethodBlockRow = {
+  id: string;
+  training_method_id: string;
+  method_name: string;
+  family: "exercise_group" | "timed_density";
+  order_index: number;
+  rounds: number | null;
+  rest_between_movements_seconds: number | null;
+  rest_between_rounds_seconds: number | null;
+  block_duration_seconds: number | null;
+  work_interval_seconds: number | null;
+  rest_interval_seconds: number | null;
+  config: Record<string, number | string | boolean> | null;
+  suggested_workout_method_block_entries: Array<{
+    suggested_workout_entry_id: string;
+    sequence_index: number;
+  }> | null;
+};
+
+type RecentMethodBlockRow = {
+  id: string;
+  session_id: string;
+  training_method_id: string;
+  method_name: string;
+  family: "exercise_group" | "timed_density";
+  order_index: number;
+  rounds: number | null;
+  rest_between_movements_seconds: number | null;
+  rest_between_rounds_seconds: number | null;
+  block_duration_seconds: number | null;
+  work_interval_seconds: number | null;
+  rest_interval_seconds: number | null;
+  config: Record<string, number | string | boolean> | null;
+  session_method_block_entries: Array<{
+    session_entry_id: string;
+    sequence_index: number;
+  }> | null;
 };
 
 export type SavedWorkoutPlan = WorkoutPlanDraft & {
@@ -52,6 +98,38 @@ const toNumber = (value: string) => {
 };
 
 const asText = (value: number | null) => (value == null ? "" : String(value));
+
+function methodBlockFromRow(
+  block: SuggestedMethodBlockRow,
+  movementIndexByEntryId: Map<string, number>,
+): WorkoutPlanMethodBlock | null {
+  const members = [...(block.suggested_workout_method_block_entries ?? [])].sort(
+    (a, b) => a.sequence_index - b.sequence_index,
+  );
+  const memberMovementIndexes = members
+    .map((member) => movementIndexByEntryId.get(member.suggested_workout_entry_id))
+    .filter((index): index is number => index != null);
+  if (
+    memberMovementIndexes.length !== members.length ||
+    memberMovementIndexes.length < (block.family === "timed_density" ? 1 : 2)
+  ) {
+    return null;
+  }
+  return {
+    trainingMethodId: block.training_method_id,
+    methodName: block.method_name,
+    family: block.family,
+    memberMovementIndexes,
+    rounds: asText(block.rounds),
+    restBetweenMovementsSeconds: asText(block.rest_between_movements_seconds),
+    restBetweenRoundsSeconds: asText(block.rest_between_rounds_seconds),
+    blockDurationMinutes:
+      block.block_duration_seconds == null ? "" : String(block.block_duration_seconds / 60),
+    workIntervalSeconds: asText(block.work_interval_seconds),
+    restIntervalSeconds: asText(block.rest_interval_seconds),
+    config: block.config ?? {},
+  };
+}
 
 async function requirePerson() {
   const person = await getCurrentPerson();
@@ -80,11 +158,22 @@ function movementFromRow(entry: SuggestedEntryRow): WorkoutPlanMovement {
 function planFromRow(row: SuggestedWorkoutRow): SavedWorkoutPlan | null {
   const locationKind = row.training_locations?.kind;
   if (locationKind !== "home" && locationKind !== "gym") return null;
-  const movements = [...(row.suggested_workout_entries ?? [])]
-    .sort((a, b) => a.order_index - b.order_index)
-    .map(movementFromRow)
-    .filter((movement) => movement.setRows.length > 0);
+  const orderedEntries = [...(row.suggested_workout_entries ?? [])].sort(
+    (a, b) => a.order_index - b.order_index,
+  );
+  const movements: WorkoutPlanMovement[] = [];
+  const movementIndexByEntryId = new Map<string, number>();
+  for (const entry of orderedEntries) {
+    const movement = movementFromRow(entry);
+    if (!movement.setRows.length) continue;
+    movementIndexByEntryId.set(entry.id, movements.length);
+    movements.push(movement);
+  }
   if (!movements.length) return null;
+  const methodBlocks = [...(row.suggested_workout_method_blocks ?? [])]
+    .sort((a, b) => a.order_index - b.order_index)
+    .map((block) => methodBlockFromRow(block, movementIndexByEntryId))
+    .filter((block): block is WorkoutPlanMethodBlock => block != null);
   return {
     version: 1,
     suggestedWorkoutId: row.id,
@@ -92,6 +181,7 @@ function planFromRow(row: SuggestedWorkoutRow): SavedWorkoutPlan | null {
     locationKind,
     basis: row.basis ?? "Saved workout plan.",
     movements,
+    methodBlocks,
     readiness: row.readiness,
     status: row.status,
     createdAt: row.created_at,
@@ -130,6 +220,7 @@ export async function saveWorkoutPlanClient({
   if (!workout) throw new Error("The workout plan was not saved.");
 
   try {
+    const entryIdsByMovementIndex = new Map<number, string>();
     for (const [movementIndex, movement] of draft.movements.entries()) {
       const entries = await supabasePublicInsert<{ id: string }>("suggested_workout_entries", {
         suggested_workout_id: workout.id,
@@ -141,6 +232,7 @@ export async function saveWorkoutPlanClient({
       });
       const entry = entries[0];
       if (!entry) throw new Error(`${movement.exercise} was not saved to the plan.`);
+      entryIdsByMovementIndex.set(movementIndex, entry.id);
       await supabasePublicInsert(
         "suggested_workout_sets",
         movement.setRows.map((set, setIndex) => ({
@@ -150,6 +242,47 @@ export async function saveWorkoutPlanClient({
           weight: toNumber(set.weight),
           rpe: toNumber(set.rpe),
           completed: set.completed,
+        })),
+      );
+    }
+    for (const [blockIndex, block] of (draft.methodBlocks ?? []).entries()) {
+      const memberEntryIds = block.memberMovementIndexes
+        .map((movementIndex) => entryIdsByMovementIndex.get(movementIndex))
+        .filter((id): id is string => Boolean(id));
+      if (
+        memberEntryIds.length !== block.memberMovementIndexes.length ||
+        memberEntryIds.length < (block.family === "timed_density" ? 1 : 2)
+      ) {
+        throw new Error(`${block.methodName} has an invalid planned movement group.`);
+      }
+      const insertedBlocks = await supabasePublicInsert<{ id: string }>(
+        "suggested_workout_method_blocks",
+        {
+          suggested_workout_id: workout.id,
+          training_method_id: block.trainingMethodId,
+          method_name: block.methodName,
+          family: block.family,
+          order_index: blockIndex,
+          rounds: toNumber(block.rounds),
+          rest_between_movements_seconds: toNumber(block.restBetweenMovementsSeconds),
+          rest_between_rounds_seconds: toNumber(block.restBetweenRoundsSeconds),
+          block_duration_seconds:
+            toNumber(block.blockDurationMinutes) == null
+              ? null
+              : Math.round(Number(block.blockDurationMinutes) * 60),
+          work_interval_seconds: toNumber(block.workIntervalSeconds),
+          rest_interval_seconds: toNumber(block.restIntervalSeconds),
+          config: block.config,
+        },
+      );
+      const insertedBlock = insertedBlocks[0];
+      if (!insertedBlock) throw new Error(`${block.methodName} was not saved to the plan.`);
+      await supabasePublicInsert(
+        "suggested_workout_method_block_entries",
+        memberEntryIds.map((entryId, sequenceIndex) => ({
+          block_id: insertedBlock.id,
+          suggested_workout_entry_id: entryId,
+          sequence_index: sequenceIndex,
         })),
       );
     }
@@ -177,7 +310,7 @@ export async function getNextSuggestedWorkoutsClient() {
   const person = await requirePerson();
   const rows = await supabasePublicSelect<SuggestedWorkoutRow>("suggested_workouts", {
     select:
-      "id,title,basis,readiness,status,created_at,training_locations(kind,name),suggested_workout_entries(id,name,workout_type,order_index,source_date,reason,suggested_workout_sets(set_number,reps,weight,rpe,completed))",
+      "id,title,basis,readiness,status,created_at,training_locations(kind,name),suggested_workout_entries(id,name,workout_type,order_index,source_date,reason,suggested_workout_sets(set_number,reps,weight,rpe,completed)),suggested_workout_method_blocks(id,training_method_id,method_name,family,order_index,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,block_duration_seconds,work_interval_seconds,rest_interval_seconds,config,suggested_workout_method_block_entries(suggested_workout_entry_id,sequence_index))",
     status: "in.(pending,accepted)",
     person_id: `eq.${person.id}`,
     order: "created_at.desc",
@@ -190,6 +323,40 @@ export async function getNextSuggestedWorkoutsClient() {
     seen.add(plan.locationKind);
     return true;
   });
+}
+
+export async function getRecentWorkoutMethodBlocksClient(
+  sessionIds: string[],
+): Promise<RecentWorkoutMethodBlock[]> {
+  const uniqueSessionIds = Array.from(new Set(sessionIds.filter(Boolean))).slice(0, 100);
+  if (!uniqueSessionIds.length) return [];
+  const rows = await supabasePublicSelect<RecentMethodBlockRow>("session_method_blocks", {
+    select:
+      "id,session_id,training_method_id,method_name,family,order_index,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,block_duration_seconds,work_interval_seconds,rest_interval_seconds,config,session_method_block_entries(session_entry_id,sequence_index)",
+    session_id: `in.(${uniqueSessionIds.join(",")})`,
+    family: "in.(exercise_group,timed_density)",
+    order: "order_index.asc",
+    limit: 500,
+  });
+  return rows.map((block) => ({
+    id: block.id,
+    sessionId: block.session_id,
+    trainingMethodId: block.training_method_id,
+    methodName: block.method_name,
+    family: block.family,
+    memberMovementIndexes: [],
+    memberEntryIds: [...(block.session_method_block_entries ?? [])]
+      .sort((a, b) => a.sequence_index - b.sequence_index)
+      .map((member) => member.session_entry_id),
+    rounds: asText(block.rounds),
+    restBetweenMovementsSeconds: asText(block.rest_between_movements_seconds),
+    restBetweenRoundsSeconds: asText(block.rest_between_rounds_seconds),
+    blockDurationMinutes:
+      block.block_duration_seconds == null ? "" : String(block.block_duration_seconds / 60),
+    workIntervalSeconds: asText(block.work_interval_seconds),
+    restIntervalSeconds: asText(block.rest_interval_seconds),
+    config: block.config ?? {},
+  }));
 }
 
 export async function updateSuggestedWorkoutStatusClient(

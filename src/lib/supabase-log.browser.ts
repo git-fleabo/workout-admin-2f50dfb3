@@ -523,6 +523,7 @@ export async function getRecentLogsClient(limit = 15) {
         return weight == null || (max != null && max >= weight) ? max : weight;
       }, null);
       return {
+        entryId: row.id,
         date: row.sessions?.session_date ?? "",
         id: row.sessions?.id ?? "",
         orderIndex: Number(row.order_index ?? 0),

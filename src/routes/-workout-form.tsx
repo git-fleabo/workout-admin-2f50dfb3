@@ -1209,16 +1209,41 @@ export function FullWorkoutForm() {
       const trainingLocation = locations.data?.find(
         (location) => location.kind === draft.locationKind,
       );
+      const entries = draft.movements.map((movement) => ({
+        ...blankSessionEntry(),
+        exercise: movement.exercise,
+        workoutType: movement.workoutType,
+        setRows: movement.setRows.map((set) => ({ ...set, completed: true })),
+      }));
+      const methodBlocks = (draft.methodBlocks ?? [])
+        .map((block) => ({
+          id: newClientId("method"),
+          trainingMethodId: block.trainingMethodId,
+          methodName: block.methodName,
+          family: block.family,
+          memberClientIds: block.memberMovementIndexes
+            .map((index) => entries[index]?.clientId)
+            .filter((id): id is string => Boolean(id)),
+          rounds: block.rounds,
+          restBetweenMovementsSeconds: block.restBetweenMovementsSeconds,
+          restBetweenRoundsSeconds: block.restBetweenRoundsSeconds,
+          blockDurationMinutes: block.blockDurationMinutes,
+          workIntervalSeconds: block.workIntervalSeconds,
+          restIntervalSeconds: block.restIntervalSeconds,
+          completedRounds: "",
+          config: block.config,
+        }))
+        .filter((block) =>
+          block.family === "timed_density"
+            ? block.memberClientIds.length >= 1
+            : block.memberClientIds.length >= 2,
+        );
       setForm({
         ...blankSession(),
         title: draft.title,
         trainingLocationId: trainingLocation?.id ?? "",
-        entries: draft.movements.map((movement) => ({
-          ...blankSessionEntry(),
-          exercise: movement.exercise,
-          workoutType: movement.workoutType,
-          setRows: movement.setRows.map((set) => ({ ...set, completed: true })),
-        })),
+        entries,
+        methodBlocks,
       });
       setLoadedSuggestionId(draft.suggestedWorkoutId ?? null);
       setEditingSessionId(null);

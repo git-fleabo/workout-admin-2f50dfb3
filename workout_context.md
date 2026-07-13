@@ -761,10 +761,21 @@ Key columns:
 
 `suggested_workout_entries` stores ordered movement names, workout types, source dates, and plain-language progression reasons. `suggested_workout_sets` stores ordered reps, weight, RPE, and completion targets for each entry.
 
+`suggested_workout_method_blocks` stores an ordered exercise-group or timed/density method snapshot for
+a plan, including rounds, rest, duration, intervals, and structured configuration.
+`suggested_workout_method_block_entries` links each block to its planned movements in sequence. The
+method rows stay separate from the ordinary set targets so planned volume remains attributable to the
+underlying exercises.
+
 RLS:
 
 - Authenticated SELECT/INSERT/UPDATE/DELETE policies use `app_private.person_is_accessible` directly on the plan and through the parent plan for entry/set rows.
+- Planned method blocks and memberships allow authenticated SELECT/INSERT only. Their policies require
+  an accessible parent plan, a method definition with the matching family/person, and member entries
+  belonging to that same plan.
 - A rollback-only authenticated test inserted and read one plan, entry, and set successfully after the 2026-07-13 migration.
+- A live authenticated-role smoke test inserted and read a Superset with two ordered planned movements,
+  confirmed update/delete are not granted, then deleted the parent plan and confirmed cascade cleanup.
 
 Programme-template decision:
 
@@ -985,8 +996,15 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - Custom set methods remain selectable and Methods settings now expose `reps_per_segment` alongside segment count, percentage drop, target reps, and short rest. The saved config snapshots `system_key` when available, so drafts and recent-workout copies preserve method-specific behaviour without another schema change.
 - Finishing is blocked only when an attached set method has missing load or reps on its main/extra segments, with a visible explanation. Review counts exercise-group blocks and set-level methods together. This also corrects the drop editor's numbering: the main set is segment 1 and the first added drop/cluster/effort is segment 2.
 - A live authenticated-role test saved three Cluster segments and three Rest-pause segments through the existing RLS policy. Each method returned 6 reps and 480 kg volume, and deleting the temporary session left no verification rows. The reloaded local preview is still signed out, so UI interaction remains pending.
+- `suggested_workout_method_blocks` and `suggested_workout_method_block_entries` carry exercise-group and
+  timed/density methods through the history recommendation, saved-plan, Today, and unified-logger path.
+  A recommendation only preserves a method from its selected source session when every member movement
+  is present in the proposed workout. The Plan screen exposes the carried block and allows removal before
+  saving. Tired recommendations deliberately leave advanced blocks off; they are not auto-added when the
+  source session did not contain one.
 
-The next Phase 5 slice should add rep-targeting and deliberate partial-rep behaviour, including target progress and clear full-versus-partial analytics treatment.
+The next Phase 5 slice should make Progress method-aware, surfacing method use alongside exercise and
+session evidence while retaining underlying exercise volume as the core workload signal.
 
 ## Key Files
 
@@ -1037,7 +1055,8 @@ The next Phase 5 slice should add rep-targeting and deliberate partial-rep behav
 - `supabase/migrations/20260713105054_add_exercise_location_scope.sql`: applied and tracked per-person Home/Gym/Both exercise availability.
 - `supabase/migrations/20260713110640_add_persistent_workout_suggestions.sql`: applied and tracked persistent workout plan entries/sets, session link, indexes, grants, and RLS.
 - `supabase/migrations/20260713142913_add_training_methods.sql`: applied and tracked training-method definitions, per-person settings, system seed data, indexes, grants, and RLS.
-- `docs/product-roadmap.md`: staged product redesign roadmap; Phase 4 planning/deloads are complete and Phase 5 advanced methods are next.
+- `supabase/migrations/20260713173700_add_suggested_workout_method_blocks.sql`: applied and tracked method blocks and ordered movement memberships for persistent plans.
+- `docs/product-roadmap.md`: staged product redesign roadmap; Phase 4 is complete and Phase 5 advanced-method logging, review, and planning are active.
 - `supabase/approved_logging_library_updates.sql`: reusable SQL for approved data-library changes.
 - `workout_context.md`: this handoff file; keep it current.
 
@@ -1170,7 +1189,7 @@ Recommended next work, in order:
 8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-11. Continue Phase 5 by carrying exercise-group and timed/density blocks into planned workouts and history-based next-workout recommendations.
+11. Continue Phase 5 with method-aware Progress comparisons and filters, while retaining underlying exercise volume as the workload source.
 12. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
 13. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 14. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.

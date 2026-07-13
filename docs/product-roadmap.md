@@ -129,7 +129,7 @@ Goal: extend the current next-workout planner into a practical view of the comin
 - A lighter workout or full deload-week option. — implemented with an explainable recovery decision and editable mode
 - Editable recommendations with visible source sessions and reasons. — next-workout targets are editable; weekly day load is now adjustable and saved locally per account/week
 
-## Phase 5: Advanced Training Methods — groups and segmented sets implemented
+## Phase 5: Advanced Training Methods — logging and planning bridge implemented
 
 Goal: plan, log, and review non-straight-set methods without hiding their actual exercise, set, rep, load, rest, and sequence data.
 
@@ -187,6 +187,13 @@ duration, intervals, rounds, and optional completed rounds while the movements' 
 remain the completed workload. Completed-session detail shows the timing and planned-versus-completed
 rounds. Drafts and same-day corrections preserve the whole block.
 
+History-based next-workout planning now carries exercise-group and timed/density blocks from the
+selected source session when every member movement is present in the proposed workout. The Plan screen
+shows the preserved method, movement order, and timing/rest prescription and lets the user remove a
+block before saving. Saved plans persist the block and membership separately from the ordinary movement
+and set targets, then reconstruct it in the unified logger. Tired/deload suggestions intentionally omit
+advanced blocks rather than prescribing them without recovery context.
+
 Implementation should begin with supersets/tri-sets/giant sets and drop/strip sets, then add the remaining OriGym methods. Progress and planning must continue to count the underlying exercise volume while also showing the method used.
 
 ## Phase 6: Data and Administration Refinement
@@ -216,7 +223,7 @@ while completed history stays separate. A Recovery decision combines recent and 
 exercise-level high-effort decline, and the adjusted coming week. It can keep the normal plan, make the
 next workout lighter, or apply a week-local deload mode while retaining editable days and targets.
 
-Phase 5 is now active. The Training Methods library, ordered exercise-group logging, and preserved
-drop/strip, cluster, rest-pause, rep-targeting, and deliberate partial-rep segments are live. The next
-implementation should carry these method blocks into planned workouts and history-based next-workout
-recommendations so Phase 5 covers planning as well as logging and review.
+Phase 5 is now active. The Training Methods library, advanced-method logging/review, and the planning
+bridge for exercise-group and timed/density blocks are live. The next implementation should make
+Progress method-aware: compare ordinary and advanced-method performances without changing the
+underlying exercise volume, and expose method use in the exercise/session evidence.

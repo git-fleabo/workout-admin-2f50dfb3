@@ -22,6 +22,26 @@ export type WorkoutPlanMovement = {
   setRows: WorkoutPlanSet[];
 };
 
+export type WorkoutPlanMethodBlock = {
+  trainingMethodId: string;
+  methodName: string;
+  family: "exercise_group" | "timed_density";
+  memberMovementIndexes: number[];
+  rounds: string;
+  restBetweenMovementsSeconds: string;
+  restBetweenRoundsSeconds: string;
+  blockDurationMinutes: string;
+  workIntervalSeconds: string;
+  restIntervalSeconds: string;
+  config: Record<string, number | string | boolean>;
+};
+
+export type RecentWorkoutMethodBlock = WorkoutPlanMethodBlock & {
+  id: string;
+  sessionId: string;
+  memberEntryIds: string[];
+};
+
 export type WorkoutPlanDraft = {
   version: 1;
   suggestedWorkoutId?: string;
@@ -29,6 +49,7 @@ export type WorkoutPlanDraft = {
   locationKind: PlannerLocation;
   basis: string;
   movements: WorkoutPlanMovement[];
+  methodBlocks?: WorkoutPlanMethodBlock[];
 };
 
 export type WorkoutPlanSuggestion = WorkoutPlanDraft & {
@@ -193,6 +214,7 @@ export function buildWorkoutSuggestion(
   location: PlannerLocation,
   readiness: PlannerReadiness,
   basisDate?: string | null,
+  recentMethodBlocks: RecentWorkoutMethodBlock[] = [],
 ): WorkoutPlanSuggestion | null {
   const { days, fallbackUsed } = matchingTrainingDays(logs, location);
   const manuallyChosen = basisDate ? days.find((day) => day.date === basisDate) : null;
@@ -211,15 +233,55 @@ export function buildWorkoutSuggestion(
   const fallbackBasis = fallbackUsed
     ? ` No ${locationLabel}-labelled history was found, so this uses older locationless logs.`
     : "";
+  const movementIndexes = new Map(
+    chosen.day.movements.map((movement, index) => [movement.entryId, index]),
+  );
+  const sourceMethodBlocks = recentMethodBlocks.filter((block) =>
+    chosen.day.movements.some((movement) => movement.id === block.sessionId),
+  );
+  const methodBlocks =
+    readiness === "tired"
+      ? []
+      : sourceMethodBlocks
+          .map((block) => ({
+            ...block,
+            memberMovementIndexes: block.memberEntryIds
+              .map((entryId) => movementIndexes.get(entryId))
+              .filter((index): index is number => index != null),
+          }))
+          .filter(
+            (block) =>
+              block.memberMovementIndexes.length === block.memberEntryIds.length &&
+              block.memberMovementIndexes.length >= (block.family === "timed_density" ? 1 : 2),
+          )
+          .map((block) => ({
+            trainingMethodId: block.trainingMethodId,
+            methodName: block.methodName,
+            family: block.family,
+            memberMovementIndexes: block.memberMovementIndexes,
+            rounds: block.rounds,
+            restBetweenMovementsSeconds: block.restBetweenMovementsSeconds,
+            restBetweenRoundsSeconds: block.restBetweenRoundsSeconds,
+            blockDurationMinutes: block.blockDurationMinutes,
+            workIntervalSeconds: block.workIntervalSeconds,
+            restIntervalSeconds: block.restIntervalSeconds,
+            config: block.config,
+          }));
+  const methodBasis = methodBlocks.length
+    ? ` Preserves ${methodBlocks.map((block) => block.methodName).join(" and ")} from that session.`
+    : readiness === "tired" && sourceMethodBlocks.length
+      ? " Advanced methods are left off this recovery suggestion."
+      : "";
 
   return {
     version: 1,
     title: `${locationLabel} workout`,
     locationKind: location,
-    basis: `${patternBasis}${fallbackBasis}`,
+    basis: `${patternBasis}${fallbackBasis}${methodBasis}`,
     fallbackUsed,
     pattern: chosen.pattern,
     movements: chosen.day.movements.map((movement) => suggestMovement(movement, readiness)),
+    methodBlocks,
   };
 }
 
@@ -241,6 +303,23 @@ export function readWorkoutPlanDraft(value: string | null): WorkoutPlanDraft | n
           Array.isArray(movement.setRows) &&
           movement.setRows.length > 0,
       )
+    ) {
+      return null;
+    }
+    if (
+      draft.methodBlocks != null &&
+      (!Array.isArray(draft.methodBlocks) ||
+        !draft.methodBlocks.every(
+          (block) =>
+            (block.family === "exercise_group" || block.family === "timed_density") &&
+            typeof block.trainingMethodId === "string" &&
+            Array.isArray(block.memberMovementIndexes) &&
+            block.memberMovementIndexes.length >= (block.family === "timed_density" ? 1 : 2) &&
+            new Set(block.memberMovementIndexes).size === block.memberMovementIndexes.length &&
+            block.memberMovementIndexes.every(
+              (index) => Number.isInteger(index) && index >= 0 && index < draft.movements.length,
+            ),
+        ))
     ) {
       return null;
     }
