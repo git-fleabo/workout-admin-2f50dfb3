@@ -441,14 +441,14 @@ function metricValue(metrics: EntryMetricRecord[] | null | undefined, key: strin
   return asText(row?.metric_text ?? row?.metric_value);
 }
 
-export async function getRecentLogsClient() {
+export async function getRecentLogsClient(limit = 15) {
   await requirePerson();
   const rows = await supabasePublicSelect<SessionEntryRecord>("session_entries", {
     select:
       "id,entry_kind,name,progression_level,completed,notes,source_sheet,exercises(name,focus_area,activity_types(name)),activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,completed),sessions!inner(id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name),training_locations(id,name,kind))",
     "sessions.source_sheet": "eq.Workout Log",
     order: "created_at.desc",
-    limit: 15,
+    limit: Math.min(Math.max(Math.round(limit), 1), 500),
   });
 
   return {

@@ -1,0 +1,219 @@
+import type { getRecentLogsClient } from "./supabase-log.browser";
+
+export const WORKOUT_PLAN_DRAFT_KEY = "workout-plan-draft";
+
+export type PlannerReadiness = "normal" | "fresh" | "tired";
+export type PlannerLocation = "home" | "gym";
+export type RecentWorkoutLog = Awaited<ReturnType<typeof getRecentLogsClient>>["recent"][number];
+
+export type WorkoutPlanSet = {
+  reps: string;
+  weight: string;
+  rpe: string;
+  completed: boolean;
+};
+
+export type WorkoutPlanMovement = {
+  exercise: string;
+  workoutType: string;
+  sourceDate: string;
+  reason: string;
+  setRows: WorkoutPlanSet[];
+};
+
+export type WorkoutPlanDraft = {
+  version: 1;
+  title: string;
+  locationKind: PlannerLocation;
+  basis: string;
+  movements: WorkoutPlanMovement[];
+};
+
+export type WorkoutPlanSuggestion = WorkoutPlanDraft & {
+  fallbackUsed: boolean;
+  pattern: "repeat" | "rotation";
+};
+
+type TrainingDay = {
+  date: string;
+  movements: RecentWorkoutLog[];
+};
+
+const numberOrNull = (value: string | null | undefined) => {
+  if (!value) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+
+function roundLoad(value: number) {
+  return Math.max(0, Math.round(value / 2.5) * 2.5);
+}
+
+function setRowsFor(log: RecentWorkoutLog): WorkoutPlanSet[] {
+  if (log.setRows.length > 1) return log.setRows.map((set) => ({ ...set, completed: true }));
+  const count = Math.max(1, Math.round(numberOrNull(log.sets) ?? 1));
+  const totalReps = numberOrNull(log.reps);
+  const perSetReps =
+    totalReps != null ? Math.max(1, Math.ceil(totalReps / count)).toString() : log.setRows[0]?.reps;
+  return Array.from({ length: count }, () => ({
+    reps: perSetReps ?? "",
+    weight: log.weight || log.setRows[0]?.weight || "",
+    rpe: "",
+    completed: true,
+  }));
+}
+
+function similarity(a: TrainingDay, b: TrainingDay) {
+  const left = new Set(a.movements.map((movement) => movement.exercise.toLowerCase()));
+  const right = new Set(b.movements.map((movement) => movement.exercise.toLowerCase()));
+  const union = new Set([...left, ...right]);
+  if (union.size === 0) return 0;
+  let overlap = 0;
+  for (const movement of left) if (right.has(movement)) overlap += 1;
+  return overlap / union.size;
+}
+
+function groupTrainingDays(logs: RecentWorkoutLog[]) {
+  const grouped = new Map<string, TrainingDay>();
+  for (const log of logs) {
+    if (!log.date || !log.completed || !log.exercise) continue;
+    const day = grouped.get(log.date) ?? { date: log.date, movements: [] };
+    if (
+      !day.movements.some(
+        (movement) => movement.exercise.toLowerCase() === log.exercise.toLowerCase(),
+      )
+    ) {
+      day.movements.push(log);
+    }
+    grouped.set(log.date, day);
+  }
+  return Array.from(grouped.values()).sort((a, b) => b.date.localeCompare(a.date));
+}
+
+function chooseBasis(days: TrainingDay[]) {
+  const [latest, previous, beforePrevious] = days;
+  if (
+    latest &&
+    previous &&
+    beforePrevious &&
+    similarity(latest, beforePrevious) >= 0.6 &&
+    similarity(latest, previous) < 0.5
+  ) {
+    return { day: previous, pattern: "rotation" as const };
+  }
+  return { day: latest, pattern: "repeat" as const };
+}
+
+function suggestMovement(log: RecentWorkoutLog, readiness: PlannerReadiness): WorkoutPlanMovement {
+  let rows = setRowsFor(log);
+  const weightedRows = rows.filter((set) => numberOrNull(set.weight) != null);
+  const reps = rows
+    .map((set) => numberOrNull(set.reps))
+    .filter((value): value is number => value != null);
+  const loggedRpe = log.setRows
+    .map((set) => numberOrNull(set.rpe))
+    .filter((value): value is number => value != null);
+  const allAtFive = reps.length === rows.length && reps.every((value) => value >= 5);
+  const comfortable = loggedRpe.length > 0 && Math.max(...loggedRpe) <= 8;
+
+  let reason = "Repeats the most recent set pattern for this movement.";
+  if (readiness === "tired") {
+    rows = rows.slice(0, Math.max(1, rows.length - 1)).map((set) => {
+      const load = numberOrNull(set.weight);
+      return { ...set, weight: load == null ? set.weight : String(roundLoad(load * 0.9)), rpe: "" };
+    });
+    reason = "Recovery option: one fewer set and about 10% less load than last time.";
+  } else if (weightedRows.length > 0 && allAtFive && (comfortable || readiness === "fresh")) {
+    rows = rows.map((set) => {
+      const load = numberOrNull(set.weight);
+      return {
+        ...set,
+        weight: load == null ? set.weight : String(roundLoad(load + 2.5)),
+        reps: "3",
+        rpe: "",
+      };
+    });
+    reason = comfortable
+      ? "All recorded sets reached 5+ reps at RPE 8 or below, so load moves up 2.5 kg and reps reset to 3."
+      : "You marked yourself fresh and reached 5+ reps last time, so load moves up 2.5 kg and reps reset to 3.";
+  } else if (weightedRows.length > 0 && reps.length > 0 && reps.some((value) => value < 5)) {
+    rows = rows.map((set) => {
+      const current = numberOrNull(set.reps);
+      return {
+        ...set,
+        reps: current == null ? set.reps : String(Math.min(5, current + 1)),
+        rpe: "",
+      };
+    });
+    reason = "Keeps the same load and adds one rep where possible, working toward 5 per set.";
+  } else if (weightedRows.length > 0 && allAtFive && !comfortable) {
+    reason =
+      "Repeats the load because 5 reps were reached but no comfortable RPE (8 or below) was logged.";
+  }
+
+  return {
+    exercise: log.exercise,
+    workoutType: log.workoutType || "Other",
+    sourceDate: log.date,
+    reason,
+    setRows: rows,
+  };
+}
+
+export function buildWorkoutSuggestion(
+  logs: RecentWorkoutLog[],
+  location: PlannerLocation,
+  readiness: PlannerReadiness,
+): WorkoutPlanSuggestion | null {
+  const exact = logs.filter((log) => log.trainingLocation?.kind === location);
+  const fallback = logs.filter((log) => !log.trainingLocation?.kind);
+  const fallbackUsed = exact.length === 0;
+  const days = groupTrainingDays(fallbackUsed ? fallback : exact);
+  const chosen = chooseBasis(days);
+  if (!chosen.day) return null;
+
+  const locationLabel = location === "home" ? "Home" : "Gym";
+  const patternBasis =
+    chosen.pattern === "rotation"
+      ? `Detected an alternating pattern and rotated to the session from ${chosen.day.date}.`
+      : `Based on the most recent matching training day, ${chosen.day.date}.`;
+  const fallbackBasis = fallbackUsed
+    ? ` No ${locationLabel}-labelled history was found, so this uses older locationless logs.`
+    : "";
+
+  return {
+    version: 1,
+    title: `${locationLabel} workout`,
+    locationKind: location,
+    basis: `${patternBasis}${fallbackBasis}`,
+    fallbackUsed,
+    pattern: chosen.pattern,
+    movements: chosen.day.movements.map((movement) => suggestMovement(movement, readiness)),
+  };
+}
+
+export function readWorkoutPlanDraft(value: string | null): WorkoutPlanDraft | null {
+  if (!value) return null;
+  try {
+    const draft = JSON.parse(value) as WorkoutPlanDraft;
+    if (
+      draft.version !== 1 ||
+      !draft.title ||
+      !["home", "gym"].includes(draft.locationKind) ||
+      !Array.isArray(draft.movements) ||
+      draft.movements.length === 0 ||
+      !draft.movements.every(
+        (movement) =>
+          typeof movement.exercise === "string" &&
+          typeof movement.workoutType === "string" &&
+          Array.isArray(movement.setRows) &&
+          movement.setRows.length > 0,
+      )
+    ) {
+      return null;
+    }
+    return draft;
+  } catch {
+    return null;
+  }
+}

@@ -49,6 +49,7 @@ import {
   profileUsesLoad,
   profileUsesStandardSets,
 } from "@/lib/movement-metrics";
+import { readWorkoutPlanDraft, WORKOUT_PLAN_DRAFT_KEY } from "@/lib/workout-plan";
 import {
   DateInput,
   DeleteConfirmDialog,
@@ -618,10 +619,42 @@ export function FullWorkoutForm() {
     queryFn: getTrainingLocationsClient,
   });
   const [form, setForm] = useState<SessionFormState>(() => blankSession());
+  const [planDraftLoaded, setPlanDraftLoaded] = useState(false);
   const libraryExercises =
     lib.data?.exercises && lib.data.exercises.length > 0 ? lib.data.exercises : FALLBACK_MOVEMENTS;
 
   useEffect(() => {
+    if (planDraftLoaded) return;
+    const stored = window.localStorage.getItem(WORKOUT_PLAN_DRAFT_KEY);
+    const draft = readWorkoutPlanDraft(stored);
+    if (!draft) {
+      setPlanDraftLoaded(true);
+      return;
+    }
+    if (!locations.data?.length) return;
+    const trainingLocation = locations.data.find(
+      (location) => location.kind === draft.locationKind,
+    );
+    setForm({
+      ...blankSession(),
+      title: draft.title,
+      trainingLocationId: trainingLocation?.id ?? "",
+      entries: draft.movements.map((movement) => ({
+        ...blankSessionEntry(),
+        exercise: movement.exercise,
+        workoutType: movement.workoutType,
+        setRows: movement.setRows.map((set) => ({ ...set, completed: true })),
+      })),
+    });
+    window.localStorage.removeItem(WORKOUT_PLAN_DRAFT_KEY);
+    setPlanDraftLoaded(true);
+    toast.message("Workout plan loaded", {
+      description: "Review the suggestion, adjust anything you like, then save as normal.",
+    });
+  }, [locations.data, planDraftLoaded]);
+
+  useEffect(() => {
+    if (!planDraftLoaded) return;
     if (form.trainingLocationId || !locations.data?.length) return;
     const remembered = window.localStorage.getItem("training-location-id");
     const selected =
@@ -629,7 +662,7 @@ export function FullWorkoutForm() {
     if (selected) {
       setForm((current) => ({ ...current, trainingLocationId: selected.id }));
     }
-  }, [form.trainingLocationId, locations.data]);
+  }, [form.trainingLocationId, locations.data, planDraftLoaded]);
 
   const update = <K extends keyof SessionFormState>(k: K, v: SessionFormState[K]) =>
     setForm((current) => ({ ...current, [k]: v }));

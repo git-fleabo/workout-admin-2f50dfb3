@@ -4,6 +4,7 @@ import {
   Activity,
   BookOpen,
   ChartNoAxesCombined,
+  ClipboardList,
   Dumbbell,
   History,
   LogOut,
@@ -37,6 +38,13 @@ const NAV: NavItem[] = [
     icon: <Dumbbell className="h-4 w-4" />,
     activeClass: "border-violet-500/40 bg-violet-500/10 text-violet-300 shadow",
     iconClass: "text-violet-400",
+  },
+  {
+    to: "/plan",
+    label: "Plan",
+    icon: <ClipboardList className="h-4 w-4" />,
+    activeClass: "border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-300 shadow",
+    iconClass: "text-fuchsia-400",
   },
   {
     to: "/progress",

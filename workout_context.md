@@ -870,6 +870,22 @@ The top-level Progress workspace is designed to be especially useful on larger s
 
 Exercise history now groups by session rather than only by date and retains each set's weight, reps, RPE, completion state, and saved training location. This enriched history remains shared with the Library exercise detail view.
 
+### Plan
+
+The top-level Plan workspace builds an editable next-workout draft from recent completed Workout Log history:
+
+- Home and Gym are analysed separately when explicit location history exists.
+- If the selected location has no labelled history yet, the app clearly falls back to older locationless logs instead of pretending those sessions are known to be Home or Gym.
+- Legacy separate movement sessions are grouped back into training days so older history can still form a workout pattern.
+- If the last three matching training days clearly resemble an A/B/A rotation, the planner suggests the B pattern next; otherwise it repeats the most recent matching training day.
+- `Normal`, `Fresh`, and `Tired` readiness options recalculate every movement.
+- Below 5 reps, weighted work keeps the load and adds one rep per set up to 5.
+- Comfortable 5+ rep sets require a logged RPE of 8 or below before `Normal` moves load up 2.5 kg and resets the target to 3 reps. `Fresh` allows that small move without the RPE confirmation; `Tired` removes one set and reduces load by about 10%.
+- Every movement shows the source date and a plain-language reason. Suggested sets remain editable and movements can be removed.
+- `Start this workout` stores a short-lived browser draft and opens Full Workout with location, movements, and sets prefilled. The draft is removed immediately after loading and nothing is written to Supabase until the normal workout save succeeds.
+
+This first planner does not create `suggested_workouts` rows. That table currently stores suggestion headers but has no child-entry model for editable movement/set prescriptions; persisting incomplete plan details there would lose the transparent draft. A future persistence phase should add a proper suggestion-entry shape before saving plans.
+
 ### History
 
 Top-level History tab includes:
@@ -898,12 +914,14 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `src/lib/supabase-people.browser.ts`: current person/profile helpers.
 - `src/lib/supabase-dashboard.browser.ts`: dashboard data loading and aggregation.
 - `src/lib/supabase-log.browser.ts`: workout/climbing/1RM/bodyweight log data functions.
+- `src/lib/workout-plan.ts`: transparent history grouping, pattern detection, progression rules, and plan-draft validation.
 - `src/lib/supabase-library.browser.ts`: library and person exercise selection data functions.
 - `src/lib/supabase-goals.browser.ts`: goals and check-ins data functions.
 - `src/lib/supabase-history.browser.ts`: exercise-specific history for library detail.
 - `src/lib/supabase-timeline.browser.ts`: combined History tab data.
 - `src/routes/index.tsx`: dashboard route.
 - `src/routes/log.tsx`: log screen route.
+- `src/routes/plan.tsx`: next-workout planner, readiness choices, and editable suggested sets.
 - `src/routes/progress.tsx`: exercise-specific progress analysis, charts, period/location filters, and set history.
 - `src/routes/-workout-form.tsx`: shared workout/climbing log form and metric-field UI.
 - `src/routes/library.tsx`: library route.
@@ -1038,15 +1056,17 @@ Recommended next work, in order:
 4. Test the duplicate-log warning by trying to save the same movement twice on the same date.
 5. Test a Home and Gym full-workout save from the deployed authenticated app, including mixed-weight sets, and confirm the location appears in History.
 6. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
-7. Add transparent next-workout suggestions that filter by Home/Gym before reviewing recent exercise patterns.
-8. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
-9. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
-10. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
-11. Build a simple admin-only user management flow before inviting friends: create person, link auth user, select app profile, select/deselect exercises.
-12. Tighten the profile-claim bootstrap now that Noam's account is linked.
-13. Start implementing programme assignment and suggested workout UI on top of the seeded Percentage Strength Blocks.
-14. Consider generating and saving TypeScript types from Supabase once schema/data shape stabilizes.
-15. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
+7. Test Plan for Gym Normal/Tired, then use `Start this workout` and confirm the location and exact set targets reach Full Workout unchanged.
+8. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
+9. Decide whether accepted but not yet completed plans should persist across devices; if yes, add suggestion-entry/set tables under `suggested_workouts` before writing plan details.
+10. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
+11. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
+12. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
+13. Build a simple admin-only user management flow before inviting friends: create person, link auth user, select app profile, select/deselect exercises.
+14. Tighten the profile-claim bootstrap now that Noam's account is linked.
+15. Start implementing programme assignment and suggested workout UI on top of the seeded Percentage Strength Blocks.
+16. Consider generating and saving TypeScript types from Supabase once schema/data shape stabilizes.
+17. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
 
 ## Future Stage: iPhone App
 
