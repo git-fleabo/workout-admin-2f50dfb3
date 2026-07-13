@@ -51,6 +51,10 @@ export type SessionDetailMethodBlock = {
   rounds: number | string | null;
   restBetweenMovementsSeconds: number | string | null;
   restBetweenRoundsSeconds: number | string | null;
+  blockDurationSeconds: number | string | null;
+  workIntervalSeconds: number | string | null;
+  restIntervalSeconds: number | string | null;
+  completedRounds: number | string | null;
   memberEntryIds: string[];
 };
 
@@ -86,6 +90,10 @@ type SessionDetailRecord = {
     rounds: number | string | null;
     rest_between_movements_seconds: number | string | null;
     rest_between_rounds_seconds: number | string | null;
+    block_duration_seconds: number | string | null;
+    work_interval_seconds: number | string | null;
+    rest_interval_seconds: number | string | null;
+    completed_rounds: number | string | null;
     session_method_block_entries: Array<{
       session_entry_id: string;
       sequence_index: number | string | null;
@@ -140,7 +148,7 @@ export async function getSessionDetailClient(sessionId: string): Promise<Session
   if (!person) throw new Error("This account is not linked to a training profile.");
   const rows = await supabasePublicSelect<SessionDetailRecord>("sessions", {
     select:
-      "id,session_date,title,completed,duration_minutes,intensity,rpe,notes,training_locations(name,kind),session_method_blocks(id,method_name,family,order_index,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,session_method_block_entries(session_entry_id,sequence_index)),session_entries(id,order_index,name,entry_kind,progression_level,notes,completed,activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,completed,entry_set_segments(method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
+      "id,session_date,title,completed,duration_minutes,intensity,rpe,notes,training_locations(name,kind),session_method_blocks(id,method_name,family,order_index,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,block_duration_seconds,work_interval_seconds,rest_interval_seconds,completed_rounds,session_method_block_entries(session_entry_id,sequence_index)),session_entries(id,order_index,name,entry_kind,progression_level,notes,completed,activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,completed,entry_set_segments(method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
     id: `eq.${sessionId}`,
     person_id: `eq.${person.id}`,
     limit: 1,
@@ -167,6 +175,10 @@ export async function getSessionDetailClient(sessionId: string): Promise<Session
         rounds: block.rounds,
         restBetweenMovementsSeconds: block.rest_between_movements_seconds,
         restBetweenRoundsSeconds: block.rest_between_rounds_seconds,
+        blockDurationSeconds: block.block_duration_seconds,
+        workIntervalSeconds: block.work_interval_seconds,
+        restIntervalSeconds: block.rest_interval_seconds,
+        completedRounds: block.completed_rounds,
         memberEntryIds: [...(block.session_method_block_entries ?? [])]
           .sort((a, b) => orderNumber(a.sequence_index) - orderNumber(b.sequence_index))
           .map((member) => member.session_entry_id),

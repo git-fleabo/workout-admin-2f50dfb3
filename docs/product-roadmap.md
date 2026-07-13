@@ -180,6 +180,13 @@ Partial work contributes to total reps and workload volume, but only full-range 
 working-weight maximum and estimated-1RM signal. Timeline and completed-session detail keep the partial
 work visible rather than silently treating it as a normal full-range set.
 
+EDT and Tabata now use the same ordered method-block workflow as exercise groups, with behaviour
+tailored to timed work. EDT defaults to a 15-minute two-movement block; Tabata defaults to one
+movement, eight rounds, and 20-second work/10-second rest intervals. The logger records planned block
+duration, intervals, rounds, and optional completed rounds while the movements' normal sets and reps
+remain the completed workload. Completed-session detail shows the timing and planned-versus-completed
+rounds. Drafts and same-day corrections preserve the whole block.
+
 Implementation should begin with supersets/tri-sets/giant sets and drop/strip sets, then add the remaining OriGym methods. Progress and planning must continue to count the underlying exercise volume while also showing the method used.
 
 ## Phase 6: Data and Administration Refinement
@@ -211,4 +218,5 @@ next workout lighter, or apply a week-local deload mode while retaining editable
 
 Phase 5 is now active. The Training Methods library, ordered exercise-group logging, and preserved
 drop/strip, cluster, rest-pause, rep-targeting, and deliberate partial-rep segments are live. The next
-implementation should add timed/density logging, beginning with EDT and Tabata blocks.
+implementation should carry these method blocks into planned workouts and history-based next-workout
+recommendations so Phase 5 covers planning as well as logging and review.

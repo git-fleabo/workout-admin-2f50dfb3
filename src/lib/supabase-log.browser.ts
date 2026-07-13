@@ -250,10 +250,14 @@ export type WorkoutSessionInput = {
 export type WorkoutMethodBlockInput = {
   trainingMethodId: string;
   methodName: string;
-  family: "exercise_group";
+  family: "exercise_group" | "timed_density";
   rounds: string;
   restBetweenMovementsSeconds: string;
   restBetweenRoundsSeconds: string;
+  blockDurationMinutes: string;
+  workIntervalSeconds: string;
+  restIntervalSeconds: string;
+  completedRounds: string;
   memberClientIds: string[];
   config: Record<string, number | string | boolean>;
 };
@@ -834,7 +838,7 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
       const memberEntryIds = methodBlock.memberClientIds
         .map((clientId) => entryIdsByClientId.get(clientId))
         .filter((id): id is string => Boolean(id));
-      if (memberEntryIds.length < 2) continue;
+      if (memberEntryIds.length < (methodBlock.family === "timed_density" ? 1 : 2)) continue;
       const insertedBlocks = await supabasePublicInsert<{ id: string }>("session_method_blocks", {
         session_id: session.id,
         training_method_id: methodBlock.trainingMethodId,
@@ -844,6 +848,13 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
         rounds: toNum(methodBlock.rounds),
         rest_between_movements_seconds: toNum(methodBlock.restBetweenMovementsSeconds),
         rest_between_rounds_seconds: toNum(methodBlock.restBetweenRoundsSeconds),
+        block_duration_seconds:
+          toNum(methodBlock.blockDurationMinutes) == null
+            ? null
+            : Math.round(Number(methodBlock.blockDurationMinutes) * 60),
+        work_interval_seconds: toNum(methodBlock.workIntervalSeconds),
+        rest_interval_seconds: toNum(methodBlock.restIntervalSeconds),
+        completed_rounds: toNum(methodBlock.completedRounds),
         config: methodBlock.config,
       });
       const insertedBlock = insertedBlocks[0];

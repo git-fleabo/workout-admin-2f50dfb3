@@ -221,11 +221,25 @@ export function SessionDetailDialog({
                       </p>
                       <p className="mt-1 text-[11px] text-muted-foreground">
                         {[
-                          block.rounds ? `${block.rounds} rounds` : "",
+                          block.family === "timed_density" && block.blockDurationSeconds != null
+                            ? `${Number(block.blockDurationSeconds) / 60} min block`
+                            : "",
+                          block.family === "timed_density" && block.workIntervalSeconds != null
+                            ? `${block.workIntervalSeconds}s work`
+                            : "",
+                          block.family === "timed_density" && block.restIntervalSeconds != null
+                            ? `${block.restIntervalSeconds}s rest`
+                            : "",
+                          block.completedRounds != null && block.rounds
+                            ? `${block.completedRounds}/${block.rounds} rounds completed`
+                            : block.rounds
+                              ? `${block.rounds} rounds`
+                              : "",
+                          block.family !== "timed_density" &&
                           block.restBetweenMovementsSeconds != null
                             ? `${block.restBetweenMovementsSeconds}s between movements`
                             : "",
-                          block.restBetweenRoundsSeconds != null
+                          block.family !== "timed_density" && block.restBetweenRoundsSeconds != null
                             ? `${block.restBetweenRoundsSeconds}s between rounds`
                             : "",
                         ]

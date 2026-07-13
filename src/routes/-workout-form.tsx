@@ -212,11 +212,15 @@ type WorkoutMethodBlockState = {
   id: string;
   trainingMethodId: string;
   methodName: string;
-  family: "exercise_group";
+  family: "exercise_group" | "timed_density";
   memberClientIds: string[];
   rounds: string;
   restBetweenMovementsSeconds: string;
   restBetweenRoundsSeconds: string;
+  blockDurationMinutes: string;
+  workIntervalSeconds: string;
+  restIntervalSeconds: string;
+  completedRounds: string;
   config: Record<string, number | string | boolean>;
 };
 
@@ -403,12 +407,16 @@ function normalizeSessionForm(form: SessionFormState): SessionFormState {
       memberClientIds: Array.isArray(block.memberClientIds)
         ? block.memberClientIds.filter((id) => entryIds.has(id))
         : [],
+      blockDurationMinutes: String(block.blockDurationMinutes ?? ""),
+      workIntervalSeconds: String(block.workIntervalSeconds ?? ""),
+      restIntervalSeconds: String(block.restIntervalSeconds ?? ""),
+      completedRounds: String(block.completedRounds ?? ""),
     }))
     .filter(
       (block) =>
-        block.family === "exercise_group" &&
+        (block.family === "exercise_group" || block.family === "timed_density") &&
         typeof block.trainingMethodId === "string" &&
-        block.memberClientIds.length >= 2,
+        block.memberClientIds.length >= (block.family === "timed_density" ? 1 : 2),
     );
   return { ...form, entries, methodBlocks };
 }
@@ -1133,6 +1141,17 @@ export function FullWorkoutForm() {
       ),
     [methods.data?.items],
   );
+  const timedDensityMethods = useMemo(
+    () =>
+      (methods.data?.items ?? []).filter(
+        (method) => method.family === "timed_density" && method.isActive && method.isEnabled,
+      ),
+    [methods.data?.items],
+  );
+  const blockMethods = useMemo(
+    () => [...exerciseGroupMethods, ...timedDensityMethods],
+    [exerciseGroupMethods, timedDensityMethods],
+  );
   const setMethods = useMemo(
     () =>
       (methods.data?.items ?? [])
@@ -1370,7 +1389,11 @@ export function FullWorkoutForm() {
           ...block,
           memberClientIds: block.memberClientIds.filter((id) => id !== removedId),
         }))
-        .filter((block) => block.memberClientIds.length >= 2);
+        .filter((block) =>
+          block.family === "timed_density"
+            ? block.memberClientIds.length >= 1
+            : block.memberClientIds.length >= 2,
+        );
       return {
         ...current,
         entries: current.entries.filter((_, i) => i !== index),
@@ -1672,6 +1695,10 @@ export function FullWorkoutForm() {
       rounds: block.rounds,
       restBetweenMovementsSeconds: block.restBetweenMovementsSeconds,
       restBetweenRoundsSeconds: block.restBetweenRoundsSeconds,
+      blockDurationMinutes: block.blockDurationMinutes,
+      workIntervalSeconds: block.workIntervalSeconds,
+      restIntervalSeconds: block.restIntervalSeconds,
+      completedRounds: block.completedRounds,
       memberClientIds: block.memberClientIds,
       config: block.config,
     })),
@@ -2019,7 +2046,7 @@ export function FullWorkoutForm() {
               <Layers3 className="h-4 w-4 text-indigo-300" /> Training methods
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Group movements into ordered rounds while keeping every set separate.
+              Group movements or add a timed block while keeping every set separate.
             </p>
           </div>
           <Button
@@ -2028,8 +2055,8 @@ export function FullWorkoutForm() {
             size="sm"
             onClick={() => setMethodBlockEditor({ mode: "create" })}
             disabled={
-              form.entries.filter((entry) => entry.exercise.trim()).length < 2 ||
-              exerciseGroupMethods.length === 0
+              form.entries.filter((entry) => entry.exercise.trim()).length < 1 ||
+              blockMethods.length === 0
             }
           >
             <Plus className="mr-1 h-3.5 w-3.5" /> Add method
@@ -2039,8 +2066,7 @@ export function FullWorkoutForm() {
           <p className="text-xs text-muted-foreground">Loading available methods…</p>
         ) : form.methodBlocks.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-            Add at least two movements, then choose a superset, tri-set, giant set, or another
-            exercise-group method.
+            Add a movement, then choose an exercise-group or timed training method.
           </p>
         ) : (
           <div className="space-y-2">
@@ -2056,8 +2082,23 @@ export function FullWorkoutForm() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">{block.methodName}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {movementNames.join(" → ")} · {block.rounds || "—"} rounds ·{" "}
-                      {block.restBetweenRoundsSeconds || "0"}s between rounds
+                      {block.family === "timed_density"
+                        ? [
+                            movementNames.join(" → "),
+                            block.blockDurationMinutes
+                              ? `${block.blockDurationMinutes} min block`
+                              : "",
+                            block.workIntervalSeconds ? `${block.workIntervalSeconds}s work` : "",
+                            block.restIntervalSeconds ? `${block.restIntervalSeconds}s rest` : "",
+                            block.completedRounds
+                              ? `${block.completedRounds}/${block.rounds || "—"} rounds done`
+                              : block.rounds
+                                ? `${block.rounds} rounds planned`
+                                : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")
+                        : `${movementNames.join(" → ")} · ${block.rounds || "—"} rounds · ${block.restBetweenRoundsSeconds || "0"}s between rounds`}
                     </p>
                   </div>
                   <div className="flex justify-end gap-1">
@@ -2388,7 +2429,7 @@ export function FullWorkoutForm() {
 
       <MethodBlockDialog
         state={methodBlockEditor}
-        methods={exerciseGroupMethods}
+        methods={blockMethods}
         entries={form.entries}
         blocks={form.methodBlocks}
         onClose={() => setMethodBlockEditor({ mode: "closed" })}
@@ -2441,6 +2482,21 @@ function numberConfig(method: TrainingMethod | undefined, key: string, fallback:
   return Number.isFinite(value) ? String(value) : String(fallback);
 }
 
+function optionalNumberConfig(method: TrainingMethod | undefined, key: string) {
+  const value = Number(method?.defaultConfig[key]);
+  return Number.isFinite(value) ? String(value) : "";
+}
+
+function blockMinutesConfig(method: TrainingMethod | undefined) {
+  const explicit = optionalNumberConfig(method, "block_minutes");
+  if (explicit) return explicit;
+  const rounds = Number(method?.defaultConfig.rounds);
+  const work = Number(method?.defaultConfig.work_seconds);
+  const rest = Number(method?.defaultConfig.rest_seconds);
+  const minutes = (rounds * (work + rest)) / 60;
+  return Number.isFinite(minutes) && minutes > 0 ? String(minutes) : "";
+}
+
 function MethodBlockDialog({
   state,
   methods,
@@ -2463,7 +2519,10 @@ function MethodBlockDialog({
   const [methodId, setMethodId] = useState(initialMethod?.id ?? "");
   const [memberClientIds, setMemberClientIds] = useState<string[]>(existing?.memberClientIds ?? []);
   const [rounds, setRounds] = useState(
-    existing?.rounds ?? numberConfig(initialMethod, "rounds", 3),
+    existing?.rounds ??
+      (initialMethod?.family === "timed_density"
+        ? optionalNumberConfig(initialMethod, "rounds")
+        : numberConfig(initialMethod, "rounds", 3)),
   );
   const [restBetweenMovementsSeconds, setRestBetweenMovementsSeconds] = useState(
     existing?.restBetweenMovementsSeconds ??
@@ -2473,6 +2532,16 @@ function MethodBlockDialog({
     existing?.restBetweenRoundsSeconds ??
       numberConfig(initialMethod, "rest_between_rounds_seconds", 90),
   );
+  const [blockDurationMinutes, setBlockDurationMinutes] = useState(
+    existing?.blockDurationMinutes ?? blockMinutesConfig(initialMethod),
+  );
+  const [workIntervalSeconds, setWorkIntervalSeconds] = useState(
+    existing?.workIntervalSeconds ?? optionalNumberConfig(initialMethod, "work_seconds"),
+  );
+  const [restIntervalSeconds, setRestIntervalSeconds] = useState(
+    existing?.restIntervalSeconds ?? optionalNumberConfig(initialMethod, "rest_seconds"),
+  );
+  const [completedRounds, setCompletedRounds] = useState(existing?.completedRounds ?? "");
 
   useEffect(() => {
     const block =
@@ -2480,7 +2549,12 @@ function MethodBlockDialog({
     const method = methods.find((item) => item.id === block?.trainingMethodId) ?? methods[0];
     setMethodId(method?.id ?? "");
     setMemberClientIds(block?.memberClientIds ?? []);
-    setRounds(block?.rounds ?? numberConfig(method, "rounds", 3));
+    setRounds(
+      block?.rounds ??
+        (method?.family === "timed_density"
+          ? optionalNumberConfig(method, "rounds")
+          : numberConfig(method, "rounds", 3)),
+    );
     setRestBetweenMovementsSeconds(
       block?.restBetweenMovementsSeconds ??
         numberConfig(method, "rest_between_movements_seconds", 0),
@@ -2488,12 +2562,27 @@ function MethodBlockDialog({
     setRestBetweenRoundsSeconds(
       block?.restBetweenRoundsSeconds ?? numberConfig(method, "rest_between_rounds_seconds", 90),
     );
+    setBlockDurationMinutes(block?.blockDurationMinutes ?? blockMinutesConfig(method));
+    setWorkIntervalSeconds(
+      block?.workIntervalSeconds ?? optionalNumberConfig(method, "work_seconds"),
+    );
+    setRestIntervalSeconds(
+      block?.restIntervalSeconds ?? optionalNumberConfig(method, "rest_seconds"),
+    );
+    setCompletedRounds(block?.completedRounds ?? "");
   }, [blocks, methods, state]);
 
   const selectedMethod = methods.find((method) => method.id === methodId);
-  const requiredCount = Math.max(2, Number(selectedMethod?.defaultConfig.movement_count) || 2);
+  const isTimedDensity = selectedMethod?.family === "timed_density";
+  const requiredCount = Math.max(
+    isTimedDensity ? 1 : 2,
+    Number(selectedMethod?.defaultConfig.movement_count) || (isTimedDensity ? 1 : 2),
+  );
   const exactCount =
-    selectedMethod?.systemKey === "superset" || selectedMethod?.systemKey === "tri_set";
+    selectedMethod?.systemKey === "superset" ||
+    selectedMethod?.systemKey === "tri_set" ||
+    selectedMethod?.systemKey === "edt" ||
+    selectedMethod?.systemKey === "tabata";
   const minimumCount = requiredCount;
   const selectionValid = exactCount
     ? memberClientIds.length === requiredCount
@@ -2502,14 +2591,37 @@ function MethodBlockDialog({
     blocks.filter((block) => block.id !== existing?.id).flatMap((block) => block.memberClientIds),
   );
   const namedEntries = entries.filter((entry) => entry.exercise.trim());
+  const timedFieldsValid =
+    !isTimedDensity ||
+    (selectedMethod?.systemKey === "tabata"
+      ? Boolean(rounds && workIntervalSeconds && restIntervalSeconds)
+      : Boolean(blockDurationMinutes));
+  const completedRoundsValid =
+    !completedRounds || !rounds || Number(completedRounds) <= Number(rounds);
 
   const selectMethod = (nextMethodId: string) => {
     const method = methods.find((item) => item.id === nextMethodId);
     setMethodId(nextMethodId);
     setMemberClientIds([]);
-    setRounds(numberConfig(method, "rounds", 3));
-    setRestBetweenMovementsSeconds(numberConfig(method, "rest_between_movements_seconds", 0));
-    setRestBetweenRoundsSeconds(numberConfig(method, "rest_between_rounds_seconds", 90));
+    setRounds(
+      method?.family === "timed_density"
+        ? optionalNumberConfig(method, "rounds")
+        : numberConfig(method, "rounds", 3),
+    );
+    setRestBetweenMovementsSeconds(
+      method?.family === "timed_density"
+        ? ""
+        : numberConfig(method, "rest_between_movements_seconds", 0),
+    );
+    setRestBetweenRoundsSeconds(
+      method?.family === "timed_density"
+        ? ""
+        : numberConfig(method, "rest_between_rounds_seconds", 90),
+    );
+    setBlockDurationMinutes(blockMinutesConfig(method));
+    setWorkIntervalSeconds(optionalNumberConfig(method, "work_seconds"));
+    setRestIntervalSeconds(optionalNumberConfig(method, "rest_seconds"));
+    setCompletedRounds("");
   };
 
   return (
@@ -2520,8 +2632,8 @@ function MethodBlockDialog({
             {state.mode === "edit" ? "Edit training method" : "Add training method"}
           </DialogTitle>
           <DialogDescription>
-            Choose the ordered movements and round/rest defaults. Every movement keeps its own sets,
-            load, reps, and RPE.
+            Choose the movements and method defaults. Every movement keeps its own sets, load, reps,
+            and RPE.
           </DialogDescription>
         </DialogHeader>
 
@@ -2587,35 +2699,100 @@ function MethodBlockDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <Field label="Rounds">
-              <Input
-                type="number"
-                min="1"
-                inputMode="numeric"
-                value={rounds}
-                onChange={(event) => setRounds(event.target.value)}
-              />
-            </Field>
-            <Field label="Between moves (sec)">
-              <Input
-                type="number"
-                min="0"
-                inputMode="numeric"
-                value={restBetweenMovementsSeconds}
-                onChange={(event) => setRestBetweenMovementsSeconds(event.target.value)}
-              />
-            </Field>
-            <Field label="Between rounds (sec)">
-              <Input
-                type="number"
-                min="0"
-                inputMode="numeric"
-                value={restBetweenRoundsSeconds}
-                onChange={(event) => setRestBetweenRoundsSeconds(event.target.value)}
-              />
-            </Field>
-          </div>
+          {isTimedDensity ? (
+            <div className="space-y-3 rounded-lg border border-indigo-400/20 bg-indigo-400/[0.04] p-3">
+              <p className="text-xs text-muted-foreground">
+                Record the planned timing now and completed rounds when you finish. Sets and reps
+                remain the completed workload.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Block duration (min)">
+                  <Input
+                    type="number"
+                    min="1"
+                    inputMode="numeric"
+                    value={blockDurationMinutes}
+                    placeholder={selectedMethod?.systemKey === "tabata" ? "4" : "15"}
+                    onChange={(event) => setBlockDurationMinutes(event.target.value)}
+                  />
+                </Field>
+                <Field label="Planned rounds">
+                  <Input
+                    type="number"
+                    min="1"
+                    inputMode="numeric"
+                    value={rounds}
+                    placeholder={selectedMethod?.systemKey === "edt" ? "Optional" : "8"}
+                    onChange={(event) => setRounds(event.target.value)}
+                  />
+                </Field>
+                <Field label="Work interval (sec)">
+                  <Input
+                    type="number"
+                    min="0"
+                    inputMode="numeric"
+                    value={workIntervalSeconds}
+                    placeholder={selectedMethod?.systemKey === "edt" ? "Optional" : "20"}
+                    onChange={(event) => setWorkIntervalSeconds(event.target.value)}
+                  />
+                </Field>
+                <Field label="Rest interval (sec)">
+                  <Input
+                    type="number"
+                    min="0"
+                    inputMode="numeric"
+                    value={restIntervalSeconds}
+                    placeholder={selectedMethod?.systemKey === "edt" ? "Optional" : "10"}
+                    onChange={(event) => setRestIntervalSeconds(event.target.value)}
+                  />
+                </Field>
+              </div>
+              <Field label="Completed rounds (optional)">
+                <Input
+                  type="number"
+                  min="0"
+                  inputMode="numeric"
+                  value={completedRounds}
+                  onChange={(event) => setCompletedRounds(event.target.value)}
+                />
+                {!completedRoundsValid ? (
+                  <p className="mt-1 text-[11px] text-destructive">
+                    Completed rounds cannot exceed planned rounds.
+                  </p>
+                ) : null}
+              </Field>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              <Field label="Rounds">
+                <Input
+                  type="number"
+                  min="1"
+                  inputMode="numeric"
+                  value={rounds}
+                  onChange={(event) => setRounds(event.target.value)}
+                />
+              </Field>
+              <Field label="Between moves (sec)">
+                <Input
+                  type="number"
+                  min="0"
+                  inputMode="numeric"
+                  value={restBetweenMovementsSeconds}
+                  onChange={(event) => setRestBetweenMovementsSeconds(event.target.value)}
+                />
+              </Field>
+              <Field label="Between rounds (sec)">
+                <Input
+                  type="number"
+                  min="0"
+                  inputMode="numeric"
+                  value={restBetweenRoundsSeconds}
+                  onChange={(event) => setRestBetweenRoundsSeconds(event.target.value)}
+                />
+              </Field>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -2624,7 +2801,13 @@ function MethodBlockDialog({
           </Button>
           <Button
             type="button"
-            disabled={!selectedMethod || !selectionValid || !rounds}
+            disabled={
+              !selectedMethod ||
+              !selectionValid ||
+              !timedFieldsValid ||
+              !completedRoundsValid ||
+              (!isTimedDensity && !rounds)
+            }
             onClick={() => {
               if (!selectedMethod) return;
               const entryOrder = new Map(entries.map((entry, index) => [entry.clientId, index]));
@@ -2632,19 +2815,27 @@ function MethodBlockDialog({
                 id: existing?.id ?? newClientId("method"),
                 trainingMethodId: selectedMethod.id,
                 methodName: selectedMethod.name,
-                family: "exercise_group",
+                family: selectedMethod.family as "exercise_group" | "timed_density",
                 memberClientIds: [...memberClientIds].sort(
                   (left, right) => (entryOrder.get(left) ?? 0) - (entryOrder.get(right) ?? 0),
                 ),
                 rounds,
                 restBetweenMovementsSeconds,
                 restBetweenRoundsSeconds,
+                blockDurationMinutes,
+                workIntervalSeconds,
+                restIntervalSeconds,
+                completedRounds,
                 config: {
                   ...selectedMethod.defaultConfig,
                   movement_count: memberClientIds.length,
                   rounds: Number(rounds),
                   rest_between_movements_seconds: Number(restBetweenMovementsSeconds),
                   rest_between_rounds_seconds: Number(restBetweenRoundsSeconds),
+                  block_minutes: Number(blockDurationMinutes),
+                  work_seconds: Number(workIntervalSeconds),
+                  rest_seconds: Number(restIntervalSeconds),
+                  completed_rounds: Number(completedRounds),
                 },
               });
             }}
