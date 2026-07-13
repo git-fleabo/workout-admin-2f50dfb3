@@ -2,14 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  ArrowDown,
+  ArrowUp,
   Calendar,
   Check,
   ChevronsUpDown,
   Copy,
   Dumbbell,
+  History,
   Loader2,
   Plus,
   RotateCcw,
+  Star,
   Trash2,
 } from "lucide-react";
 
@@ -90,6 +94,7 @@ const CLIMBING_WORKOUT_TYPE = "Climbing";
 const CLASS_WORKOUT_TYPE = "Class";
 const MOBILITY_WORKOUT_TYPE = "Mobility/Flexibility";
 const WORKOUT_SESSION_DRAFT_KEY_PREFIX = "workout-session-draft";
+const WORKOUT_FAVORITES_KEY_PREFIX = "workout-favorite-movements";
 const CLIMBING_MOVEMENTS = ["Bouldering Session", "Ropes/Belay", "Kilter", "Mix"];
 const GRIP_STYLES = [
   "Open hand",
@@ -191,6 +196,14 @@ type SessionFormState = {
   rpe: string;
   completed: boolean;
   notes: string;
+  entries: FormState[];
+};
+
+type RecentSessionTemplate = {
+  id: string;
+  date: string;
+  title: string;
+  location?: { name: string; kind: string } | null;
   entries: FormState[];
 };
 
@@ -335,6 +348,23 @@ function workoutSessionDraftKey() {
   return `${WORKOUT_SESSION_DRAFT_KEY_PREFIX}:${userId ?? "signed-out"}`;
 }
 
+function workoutFavoritesKey() {
+  const userId = getSupabaseSession()?.user.id;
+  return `${WORKOUT_FAVORITES_KEY_PREFIX}:${userId ?? "signed-out"}`;
+}
+
+function readWorkoutFavorites(value: string | null) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 function setRowsFromRecentLog(log: RecentWorkoutLog): WorkoutSetState[] {
   if (log.setRows.length > 1) return log.setRows.map((set) => ({ ...set }));
   const count = Math.max(1, Number(log.sets) || 1);
@@ -353,6 +383,72 @@ function setSummary(set: WorkoutSetState, usesLoad: boolean) {
   const reps = set.reps ? `${set.reps} reps` : "";
   const rpe = set.rpe ? `RPE ${set.rpe}` : "";
   return [load, reps, rpe].filter(Boolean).join(" · ") || "No values recorded";
+}
+
+function entryFromRecentLog(log: RecentWorkoutLog): FormState {
+  return {
+    ...blankSessionEntry(),
+    entryKind: log.entryKind || "Workout",
+    workoutType: log.workoutType || "Other",
+    focusArea: log.focusArea,
+    exercise: log.exercise,
+    sets: log.sets,
+    reps: log.reps,
+    weight: log.weight,
+    duration: log.duration,
+    intensity: log.intensity,
+    rpe: log.rpe,
+    restTime: log.restTime,
+    completed: true,
+    notes: "",
+    progressionLevel: log.progressionLevel,
+    holdSeconds: log.holdSeconds,
+    assistanceType: log.assistanceType,
+    assistanceDetail: log.assistanceDetail,
+    quality: log.quality,
+    setRows: setRowsFromRecentLog(log),
+  };
+}
+
+function buildRecentSessionTemplates(
+  logs: RecentWorkoutLog[],
+  locationKind?: string,
+): RecentSessionTemplate[] {
+  const completed = logs.filter((log) => log.completed && log.exercise && log.id);
+  const locationMatches = locationKind
+    ? completed.filter((log) => log.trainingLocation?.kind === locationKind)
+    : completed;
+  const source = locationMatches.length > 0 ? locationMatches : completed;
+  const sessions = new Map<string, RecentSessionTemplate>();
+  const movementOrder = new Map<string, number>();
+
+  for (const log of source) {
+    const current = sessions.get(log.id) ?? {
+      id: log.id,
+      date: log.date,
+      title: log.sessionTitle || "Workout",
+      location: log.trainingLocation,
+      entries: [],
+    };
+    if (
+      !current.entries.some((entry) => entry.exercise.toLowerCase() === log.exercise.toLowerCase())
+    ) {
+      current.entries.push(entryFromRecentLog(log));
+      movementOrder.set(`${log.id}:${log.exercise.toLowerCase()}`, log.orderIndex);
+    }
+    sessions.set(log.id, current);
+  }
+
+  return Array.from(sessions.values())
+    .map((session) => ({
+      ...session,
+      entries: session.entries.sort(
+        (left, right) =>
+          (movementOrder.get(`${session.id}:${left.exercise.toLowerCase()}`) ?? 0) -
+          (movementOrder.get(`${session.id}:${right.exercise.toLowerCase()}`) ?? 0),
+      ),
+    }))
+    .slice(0, 4);
 }
 
 function recentSetRepSummary(sets: string, reps: string) {
@@ -755,6 +851,7 @@ export function WorkoutForm({
 export function FullWorkoutForm() {
   const qc = useQueryClient();
   const draftStorageKey = useMemo(workoutSessionDraftKey, []);
+  const favoritesStorageKey = useMemo(workoutFavoritesKey, []);
   const lib = useQuery({ queryKey: ["library"], queryFn: getLibraryClient });
   const recent = useQuery({
     queryKey: ["recent-workouts", 100],
@@ -773,6 +870,11 @@ export function FullWorkoutForm() {
   const [loadedSuggestionId, setLoadedSuggestionId] = useState<string | null>(null);
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const [discardDraftOpen, setDiscardDraftOpen] = useState(false);
+  const [favoriteExercises, setFavoriteExercises] = useState<string[]>([]);
+  const [favoritesLoaded, setFavoritesLoaded] = useState(false);
+  const [pendingRecentSession, setPendingRecentSession] = useState<RecentSessionTemplate | null>(
+    null,
+  );
   const allLibraryExercises =
     lib.data?.exercises && lib.data.exercises.length > 0 ? lib.data.exercises : FALLBACK_MOVEMENTS;
   const selectedLocationKind = locations.data?.find(
@@ -790,6 +892,28 @@ export function FullWorkoutForm() {
         : allLibraryExercises,
     [allLibraryExercises, selectedLocationKind],
   );
+  const recentExerciseNames = useMemo(() => {
+    const completed = (recent.data?.recent ?? []).filter((item) => item.completed && item.exercise);
+    const locationMatches = selectedLocationKind
+      ? completed.filter((item) => item.trainingLocation?.kind === selectedLocationKind)
+      : completed;
+    const source = locationMatches.length > 0 ? locationMatches : completed;
+    return Array.from(new Set(source.map((item) => item.exercise))).slice(0, 10);
+  }, [recent.data?.recent, selectedLocationKind]);
+  const recentSessionTemplates = useMemo(
+    () => buildRecentSessionTemplates(recent.data?.recent ?? [], selectedLocationKind),
+    [recent.data?.recent, selectedLocationKind],
+  );
+
+  useEffect(() => {
+    setFavoriteExercises(readWorkoutFavorites(window.localStorage.getItem(favoritesStorageKey)));
+    setFavoritesLoaded(true);
+  }, [favoritesStorageKey]);
+
+  useEffect(() => {
+    if (!favoritesLoaded) return;
+    window.localStorage.setItem(favoritesStorageKey, JSON.stringify(favoriteExercises));
+  }, [favoriteExercises, favoritesLoaded, favoritesStorageKey]);
 
   const loadPlanIntoForm = useCallback(
     (draft: WorkoutPlanDraft) => {
@@ -920,6 +1044,14 @@ export function FullWorkoutForm() {
       ...current,
       entries: [...current.entries, blankSessionEntry()],
     }));
+  const moveEntry = (fromIndex: number, direction: -1 | 1) =>
+    setForm((current) => {
+      const toIndex = fromIndex + direction;
+      if (toIndex < 0 || toIndex >= current.entries.length) return current;
+      const entries = [...current.entries];
+      [entries[fromIndex], entries[toIndex]] = [entries[toIndex], entries[fromIndex]];
+      return { ...current, entries };
+    });
   const removeEntry = (index: number) =>
     setForm((current) => ({
       ...current,
@@ -999,6 +1131,45 @@ export function FullWorkoutForm() {
     toast.message("Previous workout copied", {
       description: `${exerciseName} targets now match ${formatUKDate(previous.date)}.`,
     });
+  };
+
+  const toggleFavoriteExercise = (exerciseName: string) => {
+    const normalized = exerciseName.trim().toLowerCase();
+    if (!normalized) return;
+    setFavoriteExercises((current) =>
+      current.some((item) => item.toLowerCase() === normalized)
+        ? current.filter((item) => item.toLowerCase() !== normalized)
+        : [...current, exerciseName],
+    );
+  };
+
+  const loadRecentSession = (session: RecentSessionTemplate) => {
+    const sessionLocation = locations.data?.find(
+      (location) => location.kind === session.location?.kind,
+    );
+    setForm((current) => ({
+      ...blankSession(),
+      date: current.date,
+      title: session.title,
+      trainingLocationId: sessionLocation?.id ?? current.trainingLocationId,
+      entries: session.entries.map((entry) => ({
+        ...entry,
+        setRows: entry.setRows.map((set) => ({ ...set, rpe: "", completed: true })),
+      })),
+    }));
+    setLoadedSuggestionId(null);
+    setPendingRecentSession(null);
+    toast.message("Recent workout loaded", {
+      description: `${session.entries.length} movements copied from ${formatUKDate(session.date)}.`,
+    });
+  };
+
+  const requestRecentSession = (session: RecentSessionTemplate) => {
+    if (sessionHasDraftContent(form)) {
+      setPendingRecentSession(session);
+      return;
+    }
+    loadRecentSession(session);
   };
 
   const mutate = useMutation({
@@ -1193,6 +1364,36 @@ export function FullWorkoutForm() {
           </div>
         </Field>
 
+        {recentSessionTemplates.length > 0 ? (
+          <details className="rounded-lg border border-border bg-secondary/20 px-3 py-2">
+            <summary className="cursor-pointer text-sm font-medium">
+              Repeat a recent workout
+            </summary>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {recentSessionTemplates.map((session) => (
+                <button
+                  key={session.id}
+                  type="button"
+                  className="rounded-md border border-border bg-background p-3 text-left transition-colors hover:bg-secondary/60"
+                  onClick={() => requestRecentSession(session)}
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-medium">{session.title}</span>
+                    <History className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </span>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    {formatUKDate(session.date)} · {session.entries.length} movements
+                    {session.location?.name ? ` · ${session.location.name}` : ""}
+                  </span>
+                  <span className="mt-1 block truncate text-[11px] text-muted-foreground">
+                    {session.entries.map((entry) => entry.exercise).join(", ")}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </details>
+        ) : null}
+
         <details className="rounded-lg border border-border bg-secondary/20 px-3 py-2">
           <summary className="cursor-pointer text-sm font-medium">
             Session details (optional)
@@ -1262,36 +1463,89 @@ export function FullWorkoutForm() {
             <Card key={index} className="space-y-4 border-border bg-card p-4">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold">Movement {index + 1}</h3>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeEntry(index)}
-                  disabled={form.entries.length === 1}
-                >
-                  Remove
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => moveEntry(index, -1)}
+                    disabled={index === 0}
+                    aria-label={`Move movement ${index + 1} up`}
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => moveEntry(index, 1)}
+                    disabled={index === form.entries.length - 1}
+                    aria-label={`Move movement ${index + 1} down`}
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeEntry(index)}
+                    disabled={form.entries.length === 1}
+                  >
+                    Remove
+                  </Button>
+                </div>
               </div>
               <Field label="Movement">
-                <MovementPicker
-                  value={entry.exercise}
-                  exercises={libraryExercises}
-                  onChange={(name) => {
-                    const selected = libraryExercises.find((exercise) => exercise.name === name);
-                    updateEntry(index, "exercise", name);
-                    updateEntry(index, "workoutType", selected?.workoutType ?? "Other");
-                    updateEntry(
-                      index,
-                      "entryKind",
-                      selected?.workoutType === SKILL_WORKOUT_TYPE
-                        ? "Skill"
-                        : selected?.workoutType === GRIP_WORKOUT_TYPE
-                          ? GRIP_WORKOUT_TYPE
-                          : "Workout",
-                    );
-                    updateEntry(index, "setRows", [blankSet()]);
-                  }}
-                />
+                <div className="flex gap-2">
+                  <MovementPicker
+                    value={entry.exercise}
+                    exercises={libraryExercises}
+                    favoriteNames={favoriteExercises}
+                    recentNames={recentExerciseNames}
+                    onChange={(name) => {
+                      const selected = libraryExercises.find((exercise) => exercise.name === name);
+                      updateEntry(index, "exercise", name);
+                      updateEntry(index, "workoutType", selected?.workoutType ?? "Other");
+                      updateEntry(
+                        index,
+                        "entryKind",
+                        selected?.workoutType === SKILL_WORKOUT_TYPE
+                          ? "Skill"
+                          : selected?.workoutType === GRIP_WORKOUT_TYPE
+                            ? GRIP_WORKOUT_TYPE
+                            : "Workout",
+                      );
+                      updateEntry(index, "setRows", [blankSet()]);
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                    disabled={!entry.exercise}
+                    onClick={() => toggleFavoriteExercise(entry.exercise)}
+                    aria-label={
+                      favoriteExercises.some(
+                        (item) => item.toLowerCase() === entry.exercise.toLowerCase(),
+                      )
+                        ? `Remove ${entry.exercise} from favourites`
+                        : `Add ${entry.exercise} to favourites`
+                    }
+                  >
+                    <Star
+                      className={`h-4 w-4 ${
+                        favoriteExercises.some(
+                          (item) => item.toLowerCase() === entry.exercise.toLowerCase(),
+                        )
+                          ? "fill-amber-400 text-amber-400"
+                          : ""
+                      }`}
+                    />
+                  </Button>
+                </div>
               </Field>
               {entry.workoutType && (
                 <Badge
@@ -1393,6 +1647,29 @@ export function FullWorkoutForm() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog
+        open={Boolean(pendingRecentSession)}
+        onOpenChange={(open) => !open && setPendingRecentSession(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace this workout?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Loading the recent workout will replace the movements and set targets currently in
+              your draft.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep current workout</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => pendingRecentSession && loadRecentSession(pendingRecentSession)}
+            >
+              Load recent workout
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -1400,13 +1677,36 @@ export function FullWorkoutForm() {
 function MovementPicker({
   value,
   exercises,
+  favoriteNames,
+  recentNames,
   onChange,
 }: {
   value: string;
   exercises: { name: string; workoutType: string; equipment?: string }[];
+  favoriteNames: string[];
+  recentNames: string[];
   onChange: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const favoriteSet = new Set(favoriteNames.map((name) => name.toLowerCase()));
+  const recentSet = new Set(recentNames.map((name) => name.toLowerCase()));
+  const favoriteExercises = exercises.filter((exercise) =>
+    favoriteSet.has(exercise.name.toLowerCase()),
+  );
+  const recentExercises = exercises.filter(
+    (exercise) =>
+      recentSet.has(exercise.name.toLowerCase()) && !favoriteSet.has(exercise.name.toLowerCase()),
+  );
+  const otherExercises = exercises.filter(
+    (exercise) =>
+      !favoriteSet.has(exercise.name.toLowerCase()) && !recentSet.has(exercise.name.toLowerCase()),
+  );
+  const groups = [
+    { label: "Favourites", exercises: favoriteExercises },
+    { label: "Recent", exercises: recentExercises },
+    { label: "All movements", exercises: otherExercises },
+  ].filter((group) => group.exercises.length > 0);
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -1428,24 +1728,26 @@ function MovementPicker({
           <CommandInput placeholder="Search by movement or type..." />
           <CommandList>
             <CommandEmpty>No movement found.</CommandEmpty>
-            <CommandGroup>
-              {exercises.map((exercise) => (
-                <CommandItem
-                  key={exercise.name}
-                  value={`${exercise.name} ${exercise.workoutType} ${exercise.equipment ?? ""}`}
-                  onSelect={() => {
-                    onChange(exercise.name);
-                    setOpen(false);
-                  }}
-                >
-                  <Check className={value === exercise.name ? "opacity-100" : "opacity-0"} />
-                  <span className="min-w-0 flex-1 truncate">{exercise.name}</span>
-                  <span className="shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
-                    {exercise.workoutType}
-                  </span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {groups.map((group) => (
+              <CommandGroup key={group.label} heading={group.label}>
+                {group.exercises.map((exercise) => (
+                  <CommandItem
+                    key={exercise.name}
+                    value={`${exercise.name} ${exercise.workoutType} ${exercise.equipment ?? ""}`}
+                    onSelect={() => {
+                      onChange(exercise.name);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check className={value === exercise.name ? "opacity-100" : "opacity-0"} />
+                    <span className="min-w-0 flex-1 truncate">{exercise.name}</span>
+                    <span className="shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {exercise.workoutType}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
           </CommandList>
         </Command>
       </PopoverContent>

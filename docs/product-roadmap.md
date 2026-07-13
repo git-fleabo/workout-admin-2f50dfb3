@@ -68,7 +68,7 @@ Goal: remove the decision between Quick Log and Full Workout, then make the rema
 - Keep Add set, remove set, and next movement thumb-reachable on mobile.
 - Reduce visual weight of optional movement notes and uncommon metrics.
 
-### 1.4 Faster movement selection
+### 1.4 Faster movement selection — implemented
 
 - Put recent and favourite movements ahead of the full search list.
 - Keep Home/Gym/Both filtering automatic.
@@ -119,7 +119,27 @@ Goal: extend the current next-workout planner into a practical view of the comin
 - A lighter workout or full deload-week option.
 - Editable recommendations with visible source sessions and reasons.
 
-## Phase 5: Data and Administration Refinement
+## Phase 5: Advanced Training Methods
+
+Goal: plan, log, and review non-straight-set methods without hiding their actual exercise, set, rep, load, rest, and sequence data.
+
+Use three method families because they behave differently in the logger and analytics:
+
+- **Exercise groups:** supersets, tri-sets, giant sets, circuits, jump sets, Peripheral Heart Action, and complex training. Store the ordered movements, rounds, rest between movements, and rest between rounds.
+- **Within-exercise set methods:** drop/strip sets, cluster sets, rest-pause sets, rep targeting, and partial reps. Preserve every segment's load, reps, range of motion, and short rest rather than flattening the method into one ordinary set.
+- **Timed or density methods:** escalating density training and Tabata. Store work/rest intervals, block duration, rounds, and completed work.
+
+Settings should provide a Training Methods library where an authorised user can:
+
+- Create, rename, duplicate, deactivate, reactivate, and delete unused custom methods.
+- Start with system definitions based on the [OriGym Advanced Training Systems terminology](https://www.origym.co.uk/course/fitness-training-systems/) while allowing personal methods such as supersets and giant sets.
+- Choose the method family and which fields apply, with stable IDs so renaming does not rewrite history.
+- Set defaults such as movement count, rest, rounds, rep targets, percentage drops, interval timing, and whether exercises alternate or run sequentially.
+- Keep system methods protected from destructive deletion, but allow them to be hidden or duplicated into an editable custom version.
+
+Implementation should begin with supersets/tri-sets/giant sets and drop/strip sets, then add the remaining OriGym methods. Progress and planning must continue to count the underlying exercise volume while also showing the method used.
+
+## Phase 6: Data and Administration Refinement
 
 - Converge planned, draft, completed, skipped, and archived work into a clearer session lifecycle where practical.
 - Maintain stable exercise IDs and treat display-name changes as aliases/renames.
@@ -140,4 +160,4 @@ Goal: extend the current next-workout planner into a practical view of the comin
 
 ## Current Focus
 
-Phase 1 is active. Steps 1.1–1.3 are implemented: one unified logger, recoverable local drafts, and explicit history-assisted set entry. The next implementation should be Step 1.4: faster movement selection with recent/favourite ordering, reordering, and session-repeat entry points.
+Phase 1 is active. Steps 1.1–1.4 are implemented: one unified logger, recoverable drafts, history-assisted sets, recent/favourite movement ordering, reordering, and recent-session repeats. The next implementation should be Step 1.5: a clear finish summary plus same-day correction.

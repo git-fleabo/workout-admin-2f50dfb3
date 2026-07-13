@@ -821,6 +821,8 @@ Meaningful workout edits are autosaved immediately to a versioned local browser 
 
 For standard set/reps movements, the unified logger records one `entry_sets` row per real set with its own weight, reps, and RPE. Selecting a movement now starts with a clean set and shows the most recent matching workout immediately above the editor, preferring history from the selected Home/Gym context when available. `Copy previous workout` copies that full set pattern, `Repeat last set` adds the current load/reps with blank RPE, and `Add blank set` adds an empty row. Weight and reps use larger mobile touch targets, while optional movement notes are collapsed. Legacy single-row aggregate entries remain readable and analytics distinguish them from newer multi-row set data.
 
+Movement selection is grouped into account-scoped local favourites, recent movements for the chosen Home/Gym context, and the remaining filtered library. The star beside a selected movement toggles its favourite status. Movement cards can be moved up or down and the reordered entry array is preserved by draft autosave. `Repeat a recent workout` groups existing recent entries by session, prefers the chosen location, and loads the full movement order and targets into today's draft; replacing a meaningful draft requires confirmation. These features reuse existing Supabase history and do not add schema or RLS changes.
+
 Home/Gym selection is saved on `sessions.training_location_id` and remembered locally for the next workout entry. History details show the saved location. The workout movement picker filters enabled exercises using the selected person's `person_exercises.location_scope`: Home, Gym, or Both.
 
 Climbing:
@@ -1093,7 +1095,7 @@ Recommended next work, in order:
 8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-11. Implement faster movement selection, favourites/recent ordering, and movement reordering from Phase 1.4 of `docs/product-roadmap.md`.
+11. Implement the finish summary and same-day workout correction flow from Phase 1.5 of `docs/product-roadmap.md`.
 12. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
 13. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 14. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
