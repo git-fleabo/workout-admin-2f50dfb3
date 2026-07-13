@@ -52,7 +52,13 @@ import { buildProgressDecision, type ProgressDecision } from "@/lib/progress-dec
 import {
   getExerciseHistoryClient,
   getLoggedExerciseKeysClient,
+  getPlannedActualComparisonsClient,
 } from "@/lib/supabase-history.browser";
+import type {
+  PlannedActualComparison,
+  PlannedActualSet,
+  PlannedActualStatus,
+} from "@/lib/planned-actual";
 import { getLibraryClient } from "@/lib/supabase-log.browser";
 import type { ExerciseSessionPoint, LibraryRow } from "@/lib/training-types";
 import { cn } from "@/lib/utils";
@@ -172,6 +178,13 @@ function ProgressPage() {
     enabled: Boolean(exercise),
     staleTime: 60_000,
   });
+  const plannedActual = useQuery({
+    queryKey: ["planned-actual-progress", exercise?.id, exercise?.name],
+    queryFn: () =>
+      getPlannedActualComparisonsClient({ id: exercise?.id, name: exercise?.name ?? "" }),
+    enabled: Boolean(exercise),
+    staleTime: 60_000,
+  });
 
   const analysis = useMemo(() => {
     const locationPoints = (history.data?.points ?? []).filter(
@@ -244,6 +257,16 @@ function ProgressPage() {
       volumeChange: analysis.volumeChange,
     });
   }, [analysis]);
+  const visibleComparisons = useMemo(() => {
+    const today = new Date();
+    const now = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+    const windowMs = period === "all" ? null : period * 7 * DAY_MS;
+    return (plannedActual.data ?? []).filter(
+      (comparison) =>
+        (location === "all" || comparison.locationKind === location) &&
+        (windowMs == null || dateTime(comparison.date) >= now - windowMs),
+    );
+  }, [location, period, plannedActual.data]);
 
   return (
     <div className="space-y-6">
@@ -357,6 +380,12 @@ function ProgressPage() {
             />
           </section>
 
+          <PlannedActualHistory
+            comparisons={visibleComparisons}
+            isLoading={plannedActual.isLoading}
+            hasError={Boolean(plannedActual.error)}
+          />
+
           <section className="grid gap-4 xl:grid-cols-2">
             <PerformanceChart points={analysis.current} />
             <VolumeChart data={analysis.weeklyVolume} />
@@ -366,6 +395,126 @@ function ProgressPage() {
         </>
       )}
     </div>
+  );
+}
+
+const COMPARISON_STATUS: Record<PlannedActualStatus, { label: string; className: string }> = {
+  exceeded: { label: "Exceeded", className: "border-emerald-400/30 text-emerald-300" },
+  met: { label: "Met", className: "border-sky-400/30 text-sky-300" },
+  partial: { label: "Partial", className: "border-amber-400/30 text-amber-300" },
+  missed: { label: "Not completed", className: "border-rose-400/30 text-rose-300" },
+};
+
+function comparisonSetSummary(sets: PlannedActualSet[]) {
+  return sets
+    .map((set) => {
+      const target = [
+        set.weight != null ? `${set.weight}kg` : "",
+        set.reps != null ? `${set.reps} reps` : "",
+        set.rpe != null ? `RPE ${set.rpe}` : "",
+      ]
+        .filter(Boolean)
+        .join(" × ");
+      return target || `Set ${set.setNumber}`;
+    })
+    .join(" · ");
+}
+
+function volumeDelta(comparison: PlannedActualComparison) {
+  if (comparison.plannedVolume <= 0 || comparison.actualVolume <= 0) return null;
+  return Math.round(
+    ((comparison.actualVolume - comparison.plannedVolume) / comparison.plannedVolume) * 100,
+  );
+}
+
+function PlannedActualHistory({
+  comparisons,
+  isLoading,
+  hasError,
+}: {
+  comparisons: PlannedActualComparison[];
+  isLoading: boolean;
+  hasError: boolean;
+}) {
+  return (
+    <Card>
+      <CardHeader className="p-4 pb-2">
+        <CardTitle className="text-sm">Plan versus actual</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Exact targets from a saved recommendation compared with its linked completed workout.
+        </p>
+      </CardHeader>
+      <CardContent className="p-4 pt-2">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading plan comparisons…
+          </div>
+        ) : hasError ? (
+          <p className="py-6 text-sm text-destructive">Plan comparisons could not be loaded.</p>
+        ) : comparisons.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+            No linked planned workout for this exercise yet. Start and finish a recommendation to
+            create the first comparison.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {comparisons.slice(0, 5).map((comparison) => {
+              const status = COMPARISON_STATUS[comparison.status];
+              const delta = volumeDelta(comparison);
+              return (
+                <div
+                  key={comparison.id}
+                  className="rounded-lg border border-border bg-secondary/15 p-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">{formatUKDate(comparison.date)}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {comparison.planTitle}
+                        {comparison.locationKind ? ` · ${comparison.locationKind}` : ""}
+                      </p>
+                    </div>
+                    <span
+                      className={cn(
+                        "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                        status.className,
+                      )}
+                    >
+                      {status.label}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Planned
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed">
+                        {comparisonSetSummary(comparison.planned) || "No set targets"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Actual
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed">
+                        {comparisonSetSummary(comparison.actual) || "No completed sets"}
+                      </p>
+                    </div>
+                  </div>
+                  {delta != null ? (
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      Volume: {comparison.plannedVolume.toLocaleString()} kg planned ·{" "}
+                      {comparison.actualVolume.toLocaleString()} kg actual · {delta > 0 ? "+" : ""}
+                      {delta}%
+                    </p>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

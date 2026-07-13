@@ -897,10 +897,13 @@ The top-level Progress workspace is designed to be especially useful on larger s
 - a cautious recovery/progression signal based on performance and volume changes
 - exact recent set history, with older single-row aggregate logs explicitly labelled as totals
 - a mobile-first next-decision card before the charts, with exact supporting evidence
+- planned-versus-actual cards for completed suggested workouts linked through `completed_session_id`
 
 Exercise history now groups by session rather than only by date and retains each set's weight, reps, RPE, completion state, and saved training location. This enriched history remains shared with the Library exercise detail view.
 
 The Progress decision layer is deliberately cautious and follows Noam's five-rep progression preference. Latest working sets below 5 reps recommend keeping the load and building reps. Sets at 5+ recommend progressing only when every comparable working set also has RPE 8 or below; high effort or missing RPE recommends holding the load. Lower period performance combined with at least 10% more weekly volume, or repeated RPE 9+ sessions alongside a recent performance decline, recommends considering lighter work. Non-weighted or sparse histories remain baseline/continue messages rather than receiving invented load advice. Every result shows the latest set evidence, latest effort evidence, and available period comparison.
+
+Plan-versus-actual comparisons read only completed `suggested_workouts` with a non-null `completed_session_id`, then pair the selected exercise's `suggested_workout_sets` with the linked session's real `entry_sets`. They classify prescribed work as `met`, `exceeded`, `partial`, or `missed`, show the exact planned and actual sets, and calculate weighted-volume variance when both sides have load and reps. Exercise ID is preferred when present, with normalized name matching retained because current suggested entries can be name-only. The Progress period and Home/Gym controls also filter these comparisons. As of 2026-07-13 there are no completed linked suggestions yet, so the authenticated app correctly shows an explanatory empty state until the first recommendation is started and finished.
 
 ### Plan
 
@@ -946,6 +949,7 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `src/lib/build-info.ts`: build/commit label support.
 - `src/lib/date.ts`: date helpers.
 - `src/lib/movement-metrics.ts`: movement-to-metric-profile rules for logging fields.
+- `src/lib/planned-actual.ts`: pure planned-set versus actual-set comparison and status rules.
 - `src/lib/progress-decision.ts`: explainable exercise-level continue/progress/hold/lighter decision rules.
 - `src/lib/supabase-public.ts`: Supabase Auth/session and REST helpers.
 - `src/lib/supabase-people.browser.ts`: current person/profile helpers.
@@ -955,7 +959,7 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `src/lib/workout-plan.ts`: transparent history grouping, pattern detection, progression rules, plan-draft validation, and Today-to-Plan location handoff.
 - `src/lib/supabase-library.browser.ts`: library and person exercise selection data functions.
 - `src/lib/supabase-goals.browser.ts`: goals and check-ins data functions.
-- `src/lib/supabase-history.browser.ts`: exercise-specific history plus the completed-log exercise keys used by Progress.
+- `src/lib/supabase-history.browser.ts`: exercise history, completed-log exercise keys, and linked planned-versus-actual reads used by Progress.
 - `src/lib/workout-local-state.ts`: account-scoped draft/favourite/completed keys and compact Today summaries.
 - `src/lib/supabase-timeline.browser.ts`: combined History tab data.
 - `src/routes/index.tsx`: compact Today startup and workout launch route.
@@ -1109,7 +1113,7 @@ Recommended next work, in order:
 8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-11. Continue Phase 3 by comparing planned targets with actual completed sets for linked suggested workouts.
+11. Continue Phase 3 by opening the underlying workout session from a Progress chart point, history row, or plan comparison.
 12. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
 13. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 14. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.

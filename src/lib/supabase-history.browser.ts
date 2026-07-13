@@ -1,5 +1,10 @@
 import { supabasePublicSelect } from "./supabase-public";
 import { getCurrentPerson } from "./supabase-people.browser";
+import {
+  comparePlannedActual,
+  type PlannedActualComparison,
+  type PlannedActualSet,
+} from "./planned-actual";
 import type { ExerciseHistory, ExerciseSessionPoint } from "./training-types";
 
 type EntrySetRecord = {
@@ -37,6 +42,40 @@ type LoggedExerciseRecord = {
   name: string;
 };
 
+type SuggestedSetRecord = {
+  set_number: number | string;
+  reps: number | string | null;
+  weight: number | string | null;
+  rpe: number | string | null;
+  completed: boolean;
+};
+
+type SuggestedEntryRecord = {
+  id: string;
+  exercise_id: string | null;
+  name: string;
+  suggested_workout_sets: SuggestedSetRecord[] | null;
+};
+
+type CompletedSuggestionRecord = {
+  id: string;
+  title: string;
+  completed_session_id: string;
+  suggested_workout_entries: SuggestedEntryRecord[] | null;
+};
+
+type ActualPlannedEntryRecord = {
+  id: string;
+  session_id: string;
+  exercise_id: string | null;
+  name: string;
+  sessions: {
+    session_date: string;
+    training_locations: { kind: "home" | "gym" | "other" } | null;
+  } | null;
+  entry_sets: EntrySetRecord[] | null;
+};
+
 export type LoggedExerciseKeys = {
   ids: string[];
   names: string[];
@@ -60,6 +99,92 @@ export async function getLoggedExerciseKeysClient(): Promise<LoggedExerciseKeys>
     ids: Array.from(new Set(rows.flatMap((row) => (row.exercise_id ? [row.exercise_id] : [])))),
     names: Array.from(new Set(rows.map((row) => row.name.trim().toLowerCase()).filter(Boolean))),
   };
+}
+
+function comparisonSet(row: SuggestedSetRecord | EntrySetRecord, index: number): PlannedActualSet {
+  const setNumber = toNumber(row.set_number);
+  const reps = toNumber(row.reps);
+  const weight = toNumber(row.weight);
+  const rpe = toNumber(row.rpe);
+  return {
+    setNumber: Number.isFinite(setNumber) ? Math.round(setNumber) : index + 1,
+    reps: Number.isFinite(reps) ? reps : null,
+    weight: Number.isFinite(weight) ? weight : null,
+    rpe: Number.isFinite(rpe) ? rpe : null,
+    completed: row.completed !== false,
+  };
+}
+
+function matchesExercise(
+  row: { exercise_id: string | null; name: string },
+  exercise: ExerciseHistoryTarget,
+) {
+  return Boolean(
+    (exercise.id && row.exercise_id === exercise.id) ||
+    row.name.trim().toLowerCase() === exercise.name.trim().toLowerCase(),
+  );
+}
+
+export async function getPlannedActualComparisonsClient(
+  exercise: ExerciseHistoryTarget,
+): Promise<PlannedActualComparison[]> {
+  const person = await getCurrentPerson();
+  if (!person) throw new Error("This account is not linked to a training profile.");
+
+  const suggestions = await supabasePublicSelect<CompletedSuggestionRecord>("suggested_workouts", {
+    select:
+      "id,title,completed_session_id,suggested_workout_entries(id,exercise_id,name,suggested_workout_sets(set_number,reps,weight,rpe,completed))",
+    person_id: `eq.${person.id}`,
+    status: "eq.completed",
+    completed_session_id: "not.is.null",
+    order: "created_at.desc",
+    limit: 100,
+  });
+  const relevant = suggestions.flatMap((suggestion) =>
+    (suggestion.suggested_workout_entries ?? [])
+      .filter((entry) => matchesExercise(entry, exercise))
+      .map((entry) => ({ suggestion, entry })),
+  );
+  if (!relevant.length) return [];
+
+  const sessionIds = Array.from(
+    new Set(relevant.map(({ suggestion }) => suggestion.completed_session_id)),
+  );
+  const actualEntries = await supabasePublicSelect<ActualPlannedEntryRecord>("session_entries", {
+    select:
+      "id,session_id,exercise_id,name,sessions!inner(session_date,training_locations(kind)),entry_sets(set_number,reps,weight,rpe,completed)",
+    session_id: `in.(${sessionIds.join(",")})`,
+    completed: "eq.true",
+    source_sheet: "eq.Workout Log",
+    limit: 1000,
+  });
+
+  return relevant
+    .flatMap(({ suggestion, entry }) => {
+      const actual = actualEntries.find(
+        (row) =>
+          row.session_id === suggestion.completed_session_id && matchesExercise(row, exercise),
+      );
+      if (!actual?.sessions?.session_date) return [];
+      const plannedSets = [...(entry.suggested_workout_sets ?? [])]
+        .sort((a, b) => toNumber(a.set_number) - toNumber(b.set_number))
+        .map(comparisonSet);
+      const actualSets = [...(actual.entry_sets ?? [])]
+        .sort((a, b) => toNumber(a.set_number) - toNumber(b.set_number))
+        .map(comparisonSet);
+      return [
+        comparePlannedActual({
+          id: `${suggestion.id}:${entry.id}`,
+          planTitle: suggestion.title,
+          sessionId: suggestion.completed_session_id,
+          date: actual.sessions.session_date,
+          locationKind: actual.sessions.training_locations?.kind ?? null,
+          planned: plannedSets,
+          actual: actualSets,
+        }),
+      ];
+    })
+    .sort((a, b) => b.date.localeCompare(a.date));
 }
 
 const toNumber = (value: unknown): number => {

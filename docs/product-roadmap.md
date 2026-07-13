@@ -104,7 +104,7 @@ Goal: make Progress the main large-screen decision tool.
 - Working-weight, best-set, estimated-strength, and weekly-volume trends. — implemented
 - Reps and RPE at each load. — implemented
 - Home/Gym and period comparison controls. — implemented
-- Planned targets versus actual completed sets.
+- Planned targets versus actual completed sets. — implemented
 - Click a point or row to inspect its session.
 - A concise mobile summary focused on the next decision. — implemented
 
@@ -112,8 +112,10 @@ Progress signals should combine performance, volume, effort, missed targets, tra
 
 The first decision layer now uses the latest working sets, five-rep progression threshold, recorded
 RPE, period performance/volume comparison, and repeated high-effort decline. It exposes the exact
-evidence and does not treat missing RPE as proof that a load was comfortable. The next Phase 3 step
-is planned targets versus actual completed sets.
+evidence and does not treat missing RPE as proof that a load was comfortable. Progress also compares
+each saved recommendation's set targets with the linked completed session and labels the result met,
+exceeded, partial, or not completed. The next Phase 3 step is opening the underlying session from a
+chart point, history row, or comparison.
 
 ## Phase 4: Weekly Planning and Deloads
 
@@ -168,6 +170,6 @@ Implementation should begin with supersets/tri-sets/giant sets and drop/strip se
 
 ## Current Focus
 
-Phase 3 is active. Progress now leads with an exercise-level next decision and the evidence behind
-it while retaining the charts and exact set history. The next implementation should compare planned
-targets with the actual sets completed in the linked workout.
+Phase 3 is active. Progress now leads with an exercise-level next decision, retains the charts and
+exact set history, and compares saved targets with linked actual sets. The next implementation should
+make chart points, history rows, and plan comparisons open the underlying workout session.
