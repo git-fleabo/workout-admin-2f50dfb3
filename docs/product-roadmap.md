@@ -125,9 +125,9 @@ Goal: extend the current next-workout planner into a practical view of the comin
 - Learned rotation from recent history. — implemented in separate Home/Gym pattern cards
 - Exercises due for progression. — implemented for the next inferred pattern
 - Exercises showing possible fatigue. — implemented cautiously from repeated recent RPE 9+ entries
-- Other load such as climbing, running, sport, or classes.
+- Other load such as climbing, running, sport, or classes. — implemented with cautious history-derived patterns and manual day choices
 - A lighter workout or full deload-week option.
-- Editable recommendations with visible source sessions and reasons.
+- Editable recommendations with visible source sessions and reasons. — next-workout targets are editable; weekly day load is now adjustable and saved locally per account/week
 
 ## Phase 5: Advanced Training Methods
 
@@ -170,8 +170,8 @@ Implementation should begin with supersets/tri-sets/giant sets and drop/strip se
 
 ## Current Focus
 
-Phase 4 is active. Plan now opens with a responsive next-seven-days view, keeps Home and Gym patterns
-separate, exposes the learned repeat/rotation, and flags evidence-backed progression or repeated high
-effort. Sparse location history is labelled with low or no confidence rather than being presented as a
-reliable schedule. The next implementation should add other training load such as climbing, running,
-classes, or sport, then make the expected week adjustable before offering a lighter week.
+Phase 4 is active. Plan now combines Home/Gym workouts with history-derived climbing, running, class,
+sport/conditioning, and recovery load. Every day can be adjusted, with account/week-local persistence,
+while completed history stays separate. Repeated activities can be scheduled automatically; one-offs
+are shown without being promoted into a routine. The next implementation should use the combined week,
+exercise effort, and recent performance to offer a transparent lighter-workout or deload-week option.

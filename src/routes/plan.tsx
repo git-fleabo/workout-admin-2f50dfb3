@@ -25,7 +25,14 @@ import { WeeklyPlanOverview } from "@/components/weekly-plan-overview";
 import { formatUKDate, todayISO } from "@/lib/date";
 import { getLibraryClient, getRecentLogsClient } from "@/lib/supabase-log.browser";
 import { saveWorkoutPlanClient } from "@/lib/supabase-plans.browser";
-import { buildWeeklyPlan } from "@/lib/weekly-plan";
+import { getSupabaseSession } from "@/lib/supabase-public";
+import { getWeeklyLoadHistoryClient } from "@/lib/supabase-weekly-load.browser";
+import {
+  buildWeeklyPlan,
+  readWeeklyPlanAdjustments,
+  type WeeklyPlanAdjustments,
+  type WeeklyPlanItemKind,
+} from "@/lib/weekly-plan";
 import {
   buildWorkoutSuggestion,
   getWorkoutBasisOptions,
@@ -77,6 +84,11 @@ const READINESS: {
   },
 ];
 
+function weeklyAdjustmentsStorageKey(startDate: string) {
+  const userId = getSupabaseSession()?.user.id ?? "signed-out";
+  return `weekly-plan-adjustments:${userId}:${startDate}`;
+}
+
 function PlanPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -90,9 +102,15 @@ function PlanPage() {
     queryFn: getLibraryClient,
     staleTime: 5 * 60_000,
   });
+  const weeklyLoad = useQuery({
+    queryKey: ["weekly-load-history"],
+    queryFn: () => getWeeklyLoadHistoryClient(90),
+    staleTime: 60_000,
+  });
   const [location, setLocation] = useState<PlannerLocation>("gym");
   const [readiness, setReadiness] = useState<PlannerReadiness>("normal");
   const [basisDate, setBasisDate] = useState<string | null>(null);
+  const [weeklyAdjustments, setWeeklyAdjustments] = useState<WeeklyPlanAdjustments>({});
 
   useEffect(() => {
     const storedLocation = window.localStorage.getItem(WORKOUT_PLAN_LOCATION_KEY);
@@ -128,7 +146,10 @@ function PlanPage() {
       }),
     };
   }, [history.data?.recent, library.data?.exercises]);
-  const weeklyPlan = useMemo(() => buildWeeklyPlan(weeklyLogs, todayISO()), [weeklyLogs]);
+  const weeklyPlan = useMemo(
+    () => buildWeeklyPlan(weeklyLogs, todayISO(), weeklyLoad.data ?? []),
+    [weeklyLoad.data, weeklyLogs],
+  );
   const basisOptions = useMemo(
     () => getWorkoutBasisOptions(matchingLogs, location),
     [location, matchingLogs],
@@ -148,8 +169,29 @@ function PlanPage() {
   }, [basisDate, basisOptions]);
 
   useEffect(() => {
+    setWeeklyAdjustments(
+      readWeeklyPlanAdjustments(
+        window.localStorage.getItem(weeklyAdjustmentsStorageKey(weeklyPlan.startDate)),
+      ),
+    );
+  }, [weeklyPlan.startDate]);
+
+  useEffect(() => {
     setMovements(suggestion?.movements ?? []);
   }, [suggestion]);
+
+  const adjustWeeklyDay = (date: string, items: WeeklyPlanItemKind[] | null) => {
+    setWeeklyAdjustments((current) => {
+      const next = { ...current };
+      if (items == null) delete next[date];
+      else next[date] = items;
+      window.localStorage.setItem(
+        weeklyAdjustmentsStorageKey(weeklyPlan.startDate),
+        JSON.stringify(next),
+      );
+      return next;
+    });
+  };
 
   const updateSet = <K extends keyof WorkoutPlanSet>(
     movementIndex: number,
@@ -245,6 +287,7 @@ function PlanPage() {
       {!history.isLoading && !library.isLoading && !history.error && !library.error ? (
         <WeeklyPlanOverview
           plan={weeklyPlan}
+          adjustments={weeklyAdjustments}
           onChooseLocation={(nextLocation) => {
             setLocation(nextLocation);
             window.requestAnimationFrame(() =>
@@ -254,6 +297,7 @@ function PlanPage() {
               }),
             );
           }}
+          onAdjustDay={adjustWeeklyDay}
         />
       ) : null}
 

@@ -4,6 +4,7 @@ import {
   type RecentWorkoutLog,
   type WorkoutPlanSuggestion,
 } from "./workout-plan";
+import type { WeeklyLoadHistoryItem, WeeklyLoadKind } from "./supabase-weekly-load.browser";
 
 export type WeeklyPlanConfidence = "none" | "low" | "medium" | "high";
 
@@ -22,16 +23,41 @@ export type WeeklyPlanDay = {
   date: string;
   expected: PlannerLocation[];
   completed: PlannerLocation[];
+  inferredItems: WeeklyPlanItemKind[];
+  completedItems: WeeklyPlanItemKind[];
 };
+
+export type WeeklyPlanItemKind = PlannerLocation | WeeklyLoadKind;
+
+export type WeeklyLoadPattern = {
+  kind: WeeklyLoadKind;
+  frequency: number;
+  confidence: WeeklyPlanConfidence;
+  sourceDays: number;
+  expectedDates: string[];
+};
+
+export type WeeklyPlanAdjustments = Partial<Record<string, WeeklyPlanItemKind[]>>;
 
 export type WeeklyPlan = {
   startDate: string;
   endDate: string;
   days: WeeklyPlanDay[];
   locations: Record<PlannerLocation, WeeklyPlanLocation>;
+  loadPatterns: WeeklyLoadPattern[];
 };
 
 type WeeklyLogs = Record<PlannerLocation, RecentWorkoutLog[]>;
+
+const PLAN_ITEM_KINDS: WeeklyPlanItemKind[] = [
+  "home",
+  "gym",
+  "climb",
+  "run",
+  "class",
+  "sport",
+  "recovery",
+];
 
 const DAY_MS = 86_400_000;
 
@@ -153,11 +179,67 @@ function buildLocationPlan(
   };
 }
 
-export function buildWeeklyPlan(logs: WeeklyLogs, today: string): WeeklyPlan {
+const LOAD_KINDS: WeeklyLoadKind[] = ["climb", "run", "class", "sport", "recovery"];
+
+export function readWeeklyPlanAdjustments(value: string | null): WeeklyPlanAdjustments {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed).flatMap(([date, items]) =>
+        /^\d{4}-\d{2}-\d{2}$/.test(date) &&
+        Array.isArray(items) &&
+        items.every((item) => PLAN_ITEM_KINDS.includes(item as WeeklyPlanItemKind))
+          ? [[date, Array.from(new Set(items)) as WeeklyPlanItemKind[]]]
+          : [],
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function buildLoadPatterns(history: WeeklyLoadHistoryItem[], today: string) {
+  const start = addDays(today, -55);
+  return LOAD_KINDS.flatMap((kind): WeeklyLoadPattern[] => {
+    const sourceDates = Array.from(
+      new Set(
+        history
+          .filter((item) => item.kind === kind && item.date >= start && item.date <= today)
+          .map((item) => item.date),
+      ),
+    ).sort();
+    if (sourceDates.length === 0) return [];
+    const pattern = sourceDates.length >= 2 ? expectedPattern(sourceDates, today) : null;
+    const expectedDates = pattern
+      ? Array.from({ length: 7 }, (_, index) => addDays(today, index)).filter((date) => {
+          const weekday = parseISO(date)?.getUTCDay();
+          return weekday != null && pattern.weekdays.includes(weekday);
+        })
+      : [];
+    return [
+      {
+        kind,
+        frequency: pattern?.frequency ?? 0,
+        confidence: confidenceFor(sourceDates.length),
+        sourceDays: sourceDates.length,
+        expectedDates,
+      },
+    ];
+  });
+}
+
+export function buildWeeklyPlan(
+  logs: WeeklyLogs,
+  today: string,
+  loadHistory: WeeklyLoadHistoryItem[] = [],
+): WeeklyPlan {
   const locations = {
     home: buildLocationPlan(logs.home, "home", today),
     gym: buildLocationPlan(logs.gym, "gym", today),
   };
+  const loadPatterns = buildLoadPatterns(loadHistory, today);
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = addDays(today, index);
     const expected = (["home", "gym"] as const).filter((location) =>
@@ -168,12 +250,23 @@ export function buildWeeklyPlan(logs: WeeklyLogs, today: string): WeeklyPlan {
         (log) => log.completed && log.date === date && log.trainingLocation?.kind === location,
       ),
     );
-    return { date, expected, completed };
+    const expectedLoads = loadPatterns
+      .filter((pattern) => pattern.expectedDates.includes(date))
+      .map((pattern) => pattern.kind);
+    const completedLoads = Array.from(
+      new Set(loadHistory.filter((item) => item.date === date).map((item) => item.kind)),
+    );
+    const completedItems: WeeklyPlanItemKind[] = [...completed, ...completedLoads];
+    const inferredItems: WeeklyPlanItemKind[] = [...expected, ...expectedLoads].filter(
+      (item) => !completedItems.includes(item),
+    );
+    return { date, expected, completed, inferredItems, completedItems };
   });
   return {
     startDate: today,
     endDate: addDays(today, 6),
     days,
     locations,
+    loadPatterns,
   };
 }
