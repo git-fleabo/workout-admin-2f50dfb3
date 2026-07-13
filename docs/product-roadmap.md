@@ -117,14 +117,14 @@ each saved recommendation's set targets with the linked completed session and la
 exceeded, partial, or not completed. Chart points, exact-history rows, and linked plan comparisons now
 open a shared full-session view with every movement and recorded set.
 
-## Phase 4: Weekly Planning and Deloads
+## Phase 4: Weekly Planning and Deloads — weekly overview started
 
 Goal: extend the current next-workout planner into a practical view of the coming week.
 
-- Expected Home/Gym training days.
-- Learned rotation from recent history.
-- Exercises due for progression.
-- Exercises showing possible fatigue.
+- Expected Home/Gym training days. — implemented as a history-derived next-seven-days view
+- Learned rotation from recent history. — implemented in separate Home/Gym pattern cards
+- Exercises due for progression. — implemented for the next inferred pattern
+- Exercises showing possible fatigue. — implemented cautiously from repeated recent RPE 9+ entries
 - Other load such as climbing, running, sport, or classes.
 - A lighter workout or full deload-week option.
 - Editable recommendations with visible source sessions and reasons.
@@ -170,7 +170,8 @@ Implementation should begin with supersets/tri-sets/giant sets and drop/strip se
 
 ## Current Focus
 
-Phase 3 is complete. Progress now leads with an exercise-level next decision, retains the charts and
-exact set history, compares saved targets with linked actual sets, and drills into the full underlying
-workout. The next implementation should begin Phase 4 with a compact weekly planning workspace for
-expected Home/Gym days, the learned rotation, and exercises due for progression or showing fatigue.
+Phase 4 is active. Plan now opens with a responsive next-seven-days view, keeps Home and Gym patterns
+separate, exposes the learned repeat/rotation, and flags evidence-backed progression or repeated high
+effort. Sparse location history is labelled with low or no confidence rather than being presented as a
+reliable schedule. The next implementation should add other training load such as climbing, running,
+classes, or sport, then make the expected week adjustable before offering a lighter week.

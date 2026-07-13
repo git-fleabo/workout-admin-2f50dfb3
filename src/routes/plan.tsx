@@ -21,9 +21,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { formatUKDate } from "@/lib/date";
+import { WeeklyPlanOverview } from "@/components/weekly-plan-overview";
+import { formatUKDate, todayISO } from "@/lib/date";
 import { getLibraryClient, getRecentLogsClient } from "@/lib/supabase-log.browser";
 import { saveWorkoutPlanClient } from "@/lib/supabase-plans.browser";
+import { buildWeeklyPlan } from "@/lib/weekly-plan";
 import {
   buildWorkoutSuggestion,
   getWorkoutBasisOptions,
@@ -107,6 +109,26 @@ function PlanPage() {
     );
     return (history.data?.recent ?? []).filter((log) => allowed.has(log.exercise.toLowerCase()));
   }, [history.data?.recent, library.data?.exercises, location]);
+  const weeklyLogs = useMemo(() => {
+    const scopes = new Map(
+      (library.data?.exercises ?? []).map((exercise) => [
+        exercise.name.toLowerCase(),
+        exercise.locationScope,
+      ]),
+    );
+    const recent = history.data?.recent ?? [];
+    return {
+      home: recent.filter((log) => {
+        const scope = scopes.get(log.exercise.toLowerCase());
+        return scope === "home" || scope === "both";
+      }),
+      gym: recent.filter((log) => {
+        const scope = scopes.get(log.exercise.toLowerCase());
+        return scope === "gym" || scope === "both";
+      }),
+    };
+  }, [history.data?.recent, library.data?.exercises]);
+  const weeklyPlan = useMemo(() => buildWeeklyPlan(weeklyLogs, todayISO()), [weeklyLogs]);
   const basisOptions = useMemo(
     () => getWorkoutBasisOptions(matchingLogs, location),
     [location, matchingLogs],
@@ -214,11 +236,33 @@ function PlanPage() {
   return (
     <div className="space-y-6">
       <header className="border-b border-border pb-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Plan Next Workout</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Plan</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Start from recent patterns, then adjust anything before it reaches the logger.
+          See the coming week, then turn a recent pattern into your next workout.
         </p>
       </header>
+
+      {!history.isLoading && !library.isLoading && !history.error && !library.error ? (
+        <WeeklyPlanOverview
+          plan={weeklyPlan}
+          onChooseLocation={(nextLocation) => {
+            setLocation(nextLocation);
+            window.requestAnimationFrame(() =>
+              document.getElementById("next-workout-builder")?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              }),
+            );
+          }}
+        />
+      ) : null}
+
+      <div id="next-workout-builder" className="scroll-mt-24 border-t border-border pt-5">
+        <h2 className="text-base font-semibold">Build next workout</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Choose the location and readiness, then edit the history-based targets.
+        </p>
+      </div>
 
       <section className="grid gap-4 lg:grid-cols-[1fr_1.5fr]">
         <Card>
