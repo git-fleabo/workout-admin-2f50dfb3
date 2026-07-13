@@ -19,6 +19,7 @@ import {
   Check,
   ChevronsUpDown,
   Dumbbell,
+  ExternalLink,
   Gauge,
   Loader2,
   MapPin,
@@ -30,6 +31,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SessionDetailDialog } from "@/components/session-detail-dialog";
 import {
   Command,
   CommandEmpty,
@@ -152,6 +154,7 @@ function ProgressPage() {
   const [exerciseId, setExerciseId] = useState("");
   const [period, setPeriod] = useState<Period>(8);
   const [location, setLocation] = useState<LocationFilter>("all");
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const locationExercises = useMemo(
     () =>
       exercises.filter(
@@ -384,16 +387,21 @@ function ProgressPage() {
             comparisons={visibleComparisons}
             isLoading={plannedActual.isLoading}
             hasError={Boolean(plannedActual.error)}
+            onSelectSession={setSelectedSessionId}
           />
 
           <section className="grid gap-4 xl:grid-cols-2">
-            <PerformanceChart points={analysis.current} />
+            <PerformanceChart points={analysis.current} onSelectSession={setSelectedSessionId} />
             <VolumeChart data={analysis.weeklyVolume} />
           </section>
 
-          <SetHistory points={analysis.current} />
+          <SetHistory points={analysis.current} onSelectSession={setSelectedSessionId} />
         </>
       )}
+      <SessionDetailDialog
+        sessionId={selectedSessionId}
+        onOpenChange={(open) => !open && setSelectedSessionId(null)}
+      />
     </div>
   );
 }
@@ -431,10 +439,12 @@ function PlannedActualHistory({
   comparisons,
   isLoading,
   hasError,
+  onSelectSession,
 }: {
   comparisons: PlannedActualComparison[];
   isLoading: boolean;
   hasError: boolean;
+  onSelectSession: (sessionId: string) => void;
 }) {
   return (
     <Card>
@@ -464,7 +474,16 @@ function PlannedActualHistory({
               return (
                 <div
                   key={comparison.id}
-                  className="rounded-lg border border-border bg-secondary/15 p-3"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onSelectSession(comparison.sessionId)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onSelectSession(comparison.sessionId);
+                    }
+                  }}
+                  className="cursor-pointer rounded-lg border border-border bg-secondary/15 p-3 transition hover:bg-secondary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
@@ -482,6 +501,7 @@ function PlannedActualHistory({
                     >
                       {status.label}
                     </span>
+                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
                   </div>
                   <div className="mt-3 grid gap-3 lg:grid-cols-2">
                     <div>
@@ -709,16 +729,33 @@ const tooltipStyle = {
   color: "var(--color-popover-foreground)",
 };
 
-function PerformanceChart({ points }: { points: ExerciseSessionPoint[] }) {
+function PerformanceChart({
+  points,
+  onSelectSession,
+}: {
+  points: ExerciseSessionPoint[];
+  onSelectSession: (sessionId: string) => void;
+}) {
   const data = points.map((point) => ({
     label: formatUKDateShort(point.date),
     weight: point.maxWeight,
     estimated: point.est1RM,
+    sessionId: point.sessionId,
   }));
   return (
-    <ChartCard title="Performance" subtitle="Top working weight and Epley estimated 1RM">
+    <ChartCard title="Performance" subtitle="Top working weight and estimated 1RM · select a point">
       <ResponsiveContainer width="100%" height={260}>
-        <LineChart data={data} margin={{ top: 12, right: 12, left: -12, bottom: 0 }}>
+        <LineChart
+          data={data}
+          margin={{ top: 12, right: 12, left: -12, bottom: 0 }}
+          onClick={(state) => {
+            const payload = state?.activePayload?.[0]?.payload as
+              | { sessionId?: string }
+              | undefined;
+            if (payload?.sessionId) onSelectSession(payload.sessionId);
+          }}
+          className="cursor-pointer"
+        >
           <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
           <XAxis
             dataKey="label"
@@ -813,7 +850,13 @@ function setSummary(point: ExerciseSessionPoint) {
     .join(" · ");
 }
 
-function SetHistory({ points }: { points: ExerciseSessionPoint[] }) {
+function SetHistory({
+  points,
+  onSelectSession,
+}: {
+  points: ExerciseSessionPoint[];
+  onSelectSession: (sessionId: string) => void;
+}) {
   const recent = [...points].reverse();
   return (
     <Card>
@@ -826,9 +869,11 @@ function SetHistory({ points }: { points: ExerciseSessionPoint[] }) {
       <CardContent className="p-0 sm:p-4 sm:pt-0">
         <div className="space-y-2 p-3 sm:hidden">
           {recent.map((point) => (
-            <div
+            <button
+              type="button"
               key={point.sessionId}
-              className="rounded-lg border border-border bg-secondary/20 p-3"
+              onClick={() => onSelectSession(point.sessionId)}
+              className="w-full rounded-lg border border-border bg-secondary/20 p-3 text-left transition hover:bg-secondary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-medium">{formatUKDate(point.date)}</span>
@@ -841,7 +886,7 @@ function SetHistory({ points }: { points: ExerciseSessionPoint[] }) {
                 {Math.round(point.totalVolume).toLocaleString()} kg volume ·{" "}
                 {formatKg(point.est1RM, 1)} est. 1RM
               </p>
-            </div>
+            </button>
           ))}
         </div>
         <div className="hidden sm:block">
@@ -857,7 +902,19 @@ function SetHistory({ points }: { points: ExerciseSessionPoint[] }) {
             </TableHeader>
             <TableBody>
               {recent.map((point) => (
-                <TableRow key={point.sessionId}>
+                <TableRow
+                  key={point.sessionId}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onSelectSession(point.sessionId)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onSelectSession(point.sessionId);
+                    }
+                  }}
+                  className="cursor-pointer transition hover:bg-secondary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                >
                   <TableCell className="whitespace-nowrap font-medium">
                     {formatUKDate(point.date)}
                   </TableCell>

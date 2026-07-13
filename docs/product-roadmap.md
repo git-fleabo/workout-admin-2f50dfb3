@@ -97,7 +97,7 @@ Goal: make startup answer “What am I doing today?” instead of presenting an 
 - Show an explainable history-based recommendation when no saved Next Workout exists. — implemented
 - Let Home/Gym be changed on Today and carry that choice into the full Plan editor. — implemented
 
-## Phase 3: Exercise Progress Workspace — decision layer started
+## Phase 3: Exercise Progress Workspace — implemented
 
 Goal: make Progress the main large-screen decision tool.
 
@@ -105,7 +105,7 @@ Goal: make Progress the main large-screen decision tool.
 - Reps and RPE at each load. — implemented
 - Home/Gym and period comparison controls. — implemented
 - Planned targets versus actual completed sets. — implemented
-- Click a point or row to inspect its session.
+- Click a chart point, history row, or plan comparison to inspect its session. — implemented
 - A concise mobile summary focused on the next decision. — implemented
 
 Progress signals should combine performance, volume, effort, missed targets, training frequency, and consecutive hard weeks. Wording should explain the evidence and remain cautious: continue, consider progressing, hold, or consider a lighter week.
@@ -114,8 +114,8 @@ The first decision layer now uses the latest working sets, five-rep progression 
 RPE, period performance/volume comparison, and repeated high-effort decline. It exposes the exact
 evidence and does not treat missing RPE as proof that a load was comfortable. Progress also compares
 each saved recommendation's set targets with the linked completed session and labels the result met,
-exceeded, partial, or not completed. The next Phase 3 step is opening the underlying session from a
-chart point, history row, or comparison.
+exceeded, partial, or not completed. Chart points, exact-history rows, and linked plan comparisons now
+open a shared full-session view with every movement and recorded set.
 
 ## Phase 4: Weekly Planning and Deloads
 
@@ -170,6 +170,7 @@ Implementation should begin with supersets/tri-sets/giant sets and drop/strip se
 
 ## Current Focus
 
-Phase 3 is active. Progress now leads with an exercise-level next decision, retains the charts and
-exact set history, and compares saved targets with linked actual sets. The next implementation should
-make chart points, history rows, and plan comparisons open the underlying workout session.
+Phase 3 is complete. Progress now leads with an exercise-level next decision, retains the charts and
+exact set history, compares saved targets with linked actual sets, and drills into the full underlying
+workout. The next implementation should begin Phase 4 with a compact weekly planning workspace for
+expected Home/Gym days, the learned rotation, and exercises due for progression or showing fatigue.
