@@ -817,6 +817,8 @@ Before saving a workout or climb, the app checks for an existing same-date, same
 
 The Log tab now has one workout-session composer rather than separate `Quick log` and `Full workout` modes. It starts with one blank movement, so a one-movement entry is simply a workout with one movement. It begins with Home/Gym context, keeps session date/name/duration/intensity/RPE/notes inside an optional collapsed section, and uses a searchable movement picker without a separate type selection.
 
+Meaningful workout edits are autosaved immediately to a versioned local browser draft scoped to the signed-in account. Refreshing, navigating away, or reopening the app restores the unfinished form, including its movements, sets, session details, location, and any link to a saved suggested workout. A newly started plan intentionally replaces an older local draft. The form shows the last draft-save time and an explicit Discard action with confirmation. A successful Supabase session insert clears the local draft immediately; drafts themselves do not create partial database rows.
+
 For standard set/reps movements, the unified logger records one `entry_sets` row per real set with its own weight, reps, and RPE. Selecting a movement prefills the most recent matching set pattern; adding a set copies the previous load/reps and leaves RPE blank. Legacy single-row aggregate entries remain readable and analytics distinguish them from newer multi-row set data.
 
 Home/Gym selection is saved on `sessions.training_location_id` and remembered locally for the next workout entry. History details show the saved location. The workout movement picker filters enabled exercises using the selected person's `person_exercises.location_scope`: Home, Gym, or Both.
@@ -1091,7 +1093,7 @@ Recommended next work, in order:
 8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-11. Implement recoverable autosaved workout drafts from Phase 1.2 of `docs/product-roadmap.md`.
+11. Implement faster set entry and previous-set context from Phase 1.3 of `docs/product-roadmap.md`.
 12. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
 13. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 14. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.

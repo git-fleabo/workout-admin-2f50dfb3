@@ -52,9 +52,9 @@ Goal: remove the decision between Quick Log and Full Workout, then make the rema
 - The same save path handles one movement or a full workout.
 - Keep 1RM and PRs as separate specialist tools.
 
-### 1.2 Autosaved drafts
+### 1.2 Autosaved drafts — implemented
 
-- Persist the current form locally while it is being edited.
+- Persist the current form locally under the signed-in account while it is being edited.
 - Restore an unfinished session after navigation, refresh, or reopening the app.
 - Make Discard explicit.
 - Do not create partial completed sessions in Supabase.
@@ -140,4 +140,4 @@ Goal: extend the current next-workout planner into a practical view of the comin
 
 ## Current Focus
 
-Phase 1 is active. Step 1.1 removes the Quick Log/Full Workout fork. The next implementation should be Step 1.2: recoverable autosaved workout drafts.
+Phase 1 is active. Steps 1.1 and 1.2 are implemented: one unified logger plus recoverable local drafts. The next implementation should be Step 1.3: faster set entry with clearer previous-set context and copy actions.

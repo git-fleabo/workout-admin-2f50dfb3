@@ -49,6 +49,7 @@ import {
   updateSuggestedWorkoutStatusClient,
   type SavedWorkoutPlan,
 } from "@/lib/supabase-plans.browser";
+import { getSupabaseSession } from "@/lib/supabase-public";
 import {
   getMovementMetricProfile,
   type MetricProfile,
@@ -77,6 +78,7 @@ const YOGA_WORKOUT_TYPE = "Yoga";
 const CLIMBING_WORKOUT_TYPE = "Climbing";
 const CLASS_WORKOUT_TYPE = "Class";
 const MOBILITY_WORKOUT_TYPE = "Mobility/Flexibility";
+const WORKOUT_SESSION_DRAFT_KEY_PREFIX = "workout-session-draft";
 const CLIMBING_MOVEMENTS = ["Bouldering Session", "Ropes/Belay", "Kilter", "Mix"];
 const GRIP_STYLES = [
   "Open hand",
@@ -231,6 +233,96 @@ const blankSession = (): SessionFormState => ({
   notes: "",
   entries: [blankSessionEntry()],
 });
+
+type StoredWorkoutSessionDraft = {
+  version: 1;
+  savedAt: string;
+  form: SessionFormState;
+  loadedSuggestionId: string | null;
+};
+
+function readWorkoutSessionDraft(value: string | null): StoredWorkoutSessionDraft | null {
+  if (!value) return null;
+  try {
+    const draft = JSON.parse(value) as StoredWorkoutSessionDraft;
+    if (
+      draft.version !== 1 ||
+      typeof draft.savedAt !== "string" ||
+      Number.isNaN(Date.parse(draft.savedAt)) ||
+      !draft.form ||
+      typeof draft.form.date !== "string" ||
+      typeof draft.form.title !== "string" ||
+      typeof draft.form.trainingLocationId !== "string" ||
+      !Array.isArray(draft.form.entries) ||
+      draft.form.entries.length === 0 ||
+      !draft.form.entries.every(
+        (entry) =>
+          entry &&
+          typeof entry.exercise === "string" &&
+          typeof entry.workoutType === "string" &&
+          Array.isArray(entry.setRows),
+      ) ||
+      (draft.loadedSuggestionId != null && typeof draft.loadedSuggestionId !== "string")
+    ) {
+      return null;
+    }
+    return draft;
+  } catch {
+    return null;
+  }
+}
+
+function entryHasDraftContent(entry: FormState) {
+  const stringFields: (keyof FormState)[] = [
+    "exercise",
+    "sets",
+    "reps",
+    "weight",
+    "duration",
+    "intensity",
+    "rpe",
+    "restTime",
+    "notes",
+    "progressionLevel",
+    "holdSeconds",
+    "assistanceType",
+    "assistanceDetail",
+    "quality",
+    "gripStyle",
+    "gripLoadType",
+    "climbingHours",
+    "climbingBoulders",
+    "climbingMaxGrade",
+    "climbingGradient",
+    "distance",
+    "rounds",
+    "feel",
+    "height",
+    "detail",
+  ];
+  return (
+    stringFields.some((key) => Boolean(entry[key])) ||
+    !entry.completed ||
+    entry.setRows.some((set) => set.reps || set.weight || set.rpe || !set.completed)
+  );
+}
+
+function sessionHasDraftContent(form: SessionFormState) {
+  return Boolean(
+    form.title !== "Workout" ||
+    form.duration ||
+    form.intensity ||
+    form.rpe ||
+    form.notes ||
+    !form.completed ||
+    form.entries.some(entryHasDraftContent),
+  );
+}
+
+function workoutSessionDraftKey() {
+  const userId = getSupabaseSession()?.user.id;
+  return `${WORKOUT_SESSION_DRAFT_KEY_PREFIX}:${userId ?? "signed-out"}`;
+}
 
 function recentSetRepSummary(sets: string, reps: string) {
   return [
@@ -631,6 +723,7 @@ export function WorkoutForm({
 
 export function FullWorkoutForm() {
   const qc = useQueryClient();
+  const draftStorageKey = useMemo(workoutSessionDraftKey, []);
   const lib = useQuery({ queryKey: ["library"], queryFn: getLibraryClient });
   const recent = useQuery({
     queryKey: ["recent-workouts"],
@@ -645,8 +738,10 @@ export function FullWorkoutForm() {
     queryFn: getNextSuggestedWorkoutsClient,
   });
   const [form, setForm] = useState<SessionFormState>(() => blankSession());
-  const [planDraftLoaded, setPlanDraftLoaded] = useState(false);
+  const [initialFormLoaded, setInitialFormLoaded] = useState(false);
   const [loadedSuggestionId, setLoadedSuggestionId] = useState<string | null>(null);
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
+  const [discardDraftOpen, setDiscardDraftOpen] = useState(false);
   const allLibraryExercises =
     lib.data?.exercises && lib.data.exercises.length > 0 ? lib.data.exercises : FALLBACK_MOVEMENTS;
   const selectedLocationKind = locations.data?.find(
@@ -687,21 +782,54 @@ export function FullWorkoutForm() {
   );
 
   useEffect(() => {
-    if (planDraftLoaded) return;
+    if (initialFormLoaded) return;
     const stored = window.localStorage.getItem(WORKOUT_PLAN_DRAFT_KEY);
-    const draft = readWorkoutPlanDraft(stored);
-    if (!draft) {
-      setPlanDraftLoaded(true);
+    const planDraft = readWorkoutPlanDraft(stored);
+    if (planDraft) {
+      if (!locations.data?.length) return;
+      loadPlanIntoForm(planDraft);
+      window.localStorage.removeItem(WORKOUT_PLAN_DRAFT_KEY);
+      window.localStorage.removeItem(draftStorageKey);
+      setDraftSavedAt(null);
+      setInitialFormLoaded(true);
+      toast.message("Workout plan loaded", {
+        description: "Review the suggestion, adjust anything you like, then save as normal.",
+      });
       return;
     }
-    if (!locations.data?.length) return;
-    loadPlanIntoForm(draft);
-    window.localStorage.removeItem(WORKOUT_PLAN_DRAFT_KEY);
-    setPlanDraftLoaded(true);
-    toast.message("Workout plan loaded", {
-      description: "Review the suggestion, adjust anything you like, then save as normal.",
-    });
-  }, [loadPlanIntoForm, locations.data, planDraftLoaded]);
+
+    const storedSessionDraft = window.localStorage.getItem(draftStorageKey);
+    const sessionDraft = readWorkoutSessionDraft(storedSessionDraft);
+    if (sessionDraft) {
+      setForm(sessionDraft.form);
+      setLoadedSuggestionId(sessionDraft.loadedSuggestionId);
+      setDraftSavedAt(sessionDraft.savedAt);
+      toast.message("Workout draft restored", {
+        description: "Your unfinished workout is ready to continue.",
+      });
+    } else if (storedSessionDraft) {
+      window.localStorage.removeItem(draftStorageKey);
+    }
+    setInitialFormLoaded(true);
+  }, [draftStorageKey, initialFormLoaded, loadPlanIntoForm, locations.data]);
+
+  useEffect(() => {
+    if (!initialFormLoaded) return;
+    if (!sessionHasDraftContent(form)) {
+      window.localStorage.removeItem(draftStorageKey);
+      setDraftSavedAt(null);
+      return;
+    }
+    const savedAt = new Date().toISOString();
+    const draft: StoredWorkoutSessionDraft = {
+      version: 1,
+      savedAt,
+      form,
+      loadedSuggestionId,
+    };
+    window.localStorage.setItem(draftStorageKey, JSON.stringify(draft));
+    setDraftSavedAt(savedAt);
+  }, [draftStorageKey, form, initialFormLoaded, loadedSuggestionId]);
 
   const useSavedPlan = useMutation({
     mutationFn: async (plan: SavedWorkoutPlan) => {
@@ -728,7 +856,7 @@ export function FullWorkoutForm() {
   });
 
   useEffect(() => {
-    if (!planDraftLoaded) return;
+    if (!initialFormLoaded) return;
     if (form.trainingLocationId || !locations.data?.length) return;
     const remembered = window.localStorage.getItem("training-location-id");
     const selected =
@@ -736,7 +864,16 @@ export function FullWorkoutForm() {
     if (selected) {
       setForm((current) => ({ ...current, trainingLocationId: selected.id }));
     }
-  }, [form.trainingLocationId, locations.data, planDraftLoaded]);
+  }, [form.trainingLocationId, initialFormLoaded, locations.data]);
+
+  const discardDraft = () => {
+    window.localStorage.removeItem(draftStorageKey);
+    setForm(blankSession());
+    setLoadedSuggestionId(null);
+    setDraftSavedAt(null);
+    setDiscardDraftOpen(false);
+    toast.message("Workout draft discarded");
+  };
 
   const update = <K extends keyof SessionFormState>(k: K, v: SessionFormState[K]) =>
     setForm((current) => ({ ...current, [k]: v }));
@@ -871,6 +1008,7 @@ export function FullWorkoutForm() {
         }),
       }),
     onSuccess: async (result) => {
+      window.localStorage.removeItem(draftStorageKey);
       if (loadedSuggestionId) {
         try {
           await completeSuggestedWorkoutClient(loadedSuggestionId, result.sessionId);
@@ -896,6 +1034,10 @@ export function FullWorkoutForm() {
     form.trainingLocationId &&
     form.entries.some((entry) => entry.exercise.trim()) &&
     !mutate.isPending;
+  const hasDraftContent = sessionHasDraftContent(form);
+  const draftTime = draftSavedAt
+    ? new Date(draftSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : null;
 
   return (
     <div className="space-y-6">
@@ -968,9 +1110,27 @@ export function FullWorkoutForm() {
               Choose where, then log one movement or add the whole session.
             </p>
           </div>
-          <Badge variant="outline" className="gap-1 border-border text-muted-foreground">
-            <Calendar className="h-3 w-3" /> {formatUKDate(form.date)}
-          </Badge>
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <Badge variant="outline" className="gap-1 border-border text-muted-foreground">
+              <Calendar className="h-3 w-3" /> {formatUKDate(form.date)}
+            </Badge>
+            {hasDraftContent ? (
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-muted-foreground">
+                  {draftTime ? `Draft saved ${draftTime}` : "Saving draft…"}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-1.5 text-[10px] text-muted-foreground"
+                  onClick={() => setDiscardDraftOpen(true)}
+                >
+                  Discard
+                </Button>
+              </div>
+            ) : null}
+          </div>
         </div>
 
         <Field label="Where are you training?">
@@ -1158,6 +1318,21 @@ export function FullWorkoutForm() {
           </>
         )}
       </Button>
+
+      <AlertDialog open={discardDraftOpen} onOpenChange={setDiscardDraftOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard this workout draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your unsaved movements, sets, and session details will be cleared.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep draft</AlertDialogCancel>
+            <AlertDialogAction onClick={discardDraft}>Discard draft</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
