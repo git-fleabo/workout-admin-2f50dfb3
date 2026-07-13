@@ -83,7 +83,7 @@ Goal: remove the decision between Quick Log and Full Workout, then make the rema
 
 Phase 1 is complete when a one-movement workout and a multi-movement workout use the same interface, an interrupted session is recoverable, and the common weighted-set flow needs materially fewer taps.
 
-## Phase 2: Today — initial launch screen implemented
+## Phase 2: Today — implemented
 
 Goal: make startup answer “What am I doing today?” instead of presenting an empty database form.
 
@@ -94,8 +94,8 @@ Goal: make startup answer “What am I doing today?” instead of presenting an 
 - Show today’s completed session with a route to its Edit action. — implemented
 - Keep the screen compact; it is a launch point, not another dashboard. — implemented
 
-The next Today refinement should move the most useful history-based recommendation onto this
-screen, with a short explanation and an easy way to adjust it before logging.
+- Show an explainable history-based recommendation when no saved Next Workout exists. — implemented
+- Let Home/Gym be changed on Today and carry that choice into the full Plan editor. — implemented
 
 ## Phase 3: Exercise Progress Workspace
 
@@ -163,7 +163,9 @@ Implementation should begin with supersets/tri-sets/giant sets and drop/strip se
 
 ## Current Focus
 
-Phase 2 now has its first complete launch screen. The app starts on Today, where an unfinished
-draft takes priority, saved plans and recent Home/Gym sessions can be started, an empty workout is
-available, and today’s completed workout can be reopened through Log. The next change should add a
-concise history-based recommendation to Today before the broader Phase 3 Progress refinement.
+Phase 2 is implemented. The app starts on Today, where an unfinished draft takes priority, saved
+plans and recent Home/Gym sessions can be started, an empty workout is available, and today’s
+completed workout can be reopened through Log. When no saved plan exists, Today now shows a normal-readiness
+recommendation from recent history, its source pattern, each movement's proposed target and reason,
+plus direct Start and Adjust in Plan actions. The next implementation should begin Phase 3 by
+connecting Progress evidence to a clearer exercise-level next decision.

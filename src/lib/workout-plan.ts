@@ -1,6 +1,7 @@
 import type { getRecentLogsClient } from "./supabase-log.browser";
 
 export const WORKOUT_PLAN_DRAFT_KEY = "workout-plan-draft";
+export const WORKOUT_PLAN_LOCATION_KEY = "workout-plan-location";
 
 export type PlannerReadiness = "normal" | "fresh" | "tired";
 export type PlannerLocation = "home" | "gym";

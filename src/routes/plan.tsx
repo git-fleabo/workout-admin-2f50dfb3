@@ -28,6 +28,7 @@ import {
   buildWorkoutSuggestion,
   getWorkoutBasisOptions,
   WORKOUT_PLAN_DRAFT_KEY,
+  WORKOUT_PLAN_LOCATION_KEY,
   type PlannerLocation,
   type PlannerReadiness,
   type WorkoutPlanMovement,
@@ -90,6 +91,12 @@ function PlanPage() {
   const [location, setLocation] = useState<PlannerLocation>("gym");
   const [readiness, setReadiness] = useState<PlannerReadiness>("normal");
   const [basisDate, setBasisDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    const storedLocation = window.localStorage.getItem(WORKOUT_PLAN_LOCATION_KEY);
+    window.localStorage.removeItem(WORKOUT_PLAN_LOCATION_KEY);
+    if (storedLocation === "home" || storedLocation === "gym") setLocation(storedLocation);
+  }, []);
   const matchingLogs = useMemo(() => {
     const allowed = new Set(
       (library.data?.exercises ?? [])

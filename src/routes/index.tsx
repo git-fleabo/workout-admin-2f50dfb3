@@ -1,16 +1,19 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
+  Building2,
   CalendarCheck2,
   CircleCheck,
   Dumbbell,
   History,
+  Home,
   Loader2,
   MapPin,
   Play,
   RotateCcw,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -18,9 +21,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatUKDate, todayISO } from "@/lib/date";
-import { getRecentLogsClient } from "@/lib/supabase-log.browser";
+import { getLibraryClient, getRecentLogsClient } from "@/lib/supabase-log.browser";
 import {
   getNextSuggestedWorkoutsClient,
+  saveWorkoutPlanClient,
   updateSuggestedWorkoutStatusClient,
 } from "@/lib/supabase-plans.browser";
 import {
@@ -31,7 +35,13 @@ import {
   workoutSessionDraftKey,
   type WorkoutLocalSummary,
 } from "@/lib/workout-local-state";
-import { WORKOUT_PLAN_DRAFT_KEY } from "@/lib/workout-plan";
+import {
+  buildWorkoutSuggestion,
+  WORKOUT_PLAN_DRAFT_KEY,
+  WORKOUT_PLAN_LOCATION_KEY,
+  type PlannerLocation,
+  type WorkoutPlanMovement,
+} from "@/lib/workout-plan";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -53,6 +63,28 @@ type RecentSession = {
 
 function formatTime(value: string) {
   return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function targetSummary(movement: WorkoutPlanMovement) {
+  const rows = movement.setRows;
+  const first = rows[0];
+  const sameTarget = rows.every((row) => row.reps === first?.reps && row.weight === first?.weight);
+  if (sameTarget) {
+    return [
+      `${rows.length} ${rows.length === 1 ? "set" : "sets"}`,
+      first?.weight ? `${first.weight} kg` : "",
+      first?.reps ? `${first.reps} reps` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+  return `${rows.length} sets · ${rows
+    .map((row) =>
+      [row.weight ? `${row.weight} kg` : "", row.reps ? `${row.reps} reps` : ""]
+        .filter(Boolean)
+        .join(" × "),
+    )
+    .join(", ")}`;
 }
 
 function groupRecentSessions(
@@ -88,16 +120,24 @@ function groupRecentSessions(
 
 function TodayPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [draft, setDraft] = useState<WorkoutLocalSummary | null>(null);
   const [completed, setCompleted] = useState<WorkoutLocalSummary | null>(null);
   const [startingPlanId, setStartingPlanId] = useState<string | null>(null);
+  const [recommendationLocation, setRecommendationLocation] = useState<PlannerLocation>("gym");
+  const [startingRecommendation, setStartingRecommendation] = useState(false);
   const plans = useQuery({
     queryKey: ["next-suggested-workouts"],
     queryFn: getNextSuggestedWorkoutsClient,
   });
   const recent = useQuery({
-    queryKey: ["recent-workouts", 100],
-    queryFn: () => getRecentLogsClient(100),
+    queryKey: ["recent-workouts", 300],
+    queryFn: () => getRecentLogsClient(300),
+  });
+  const library = useQuery({
+    queryKey: ["library"],
+    queryFn: getLibraryClient,
+    staleTime: 5 * 60_000,
   });
 
   useEffect(() => {
@@ -111,7 +151,28 @@ function TodayPage() {
     () => groupRecentSessions(recent.data?.recent ?? []),
     [recent.data?.recent],
   );
+  const recommendations = useMemo(() => {
+    const buildFor = (location: PlannerLocation) => {
+      const allowed = new Set(
+        (library.data?.exercises ?? [])
+          .filter(
+            (exercise) => exercise.locationScope === "both" || exercise.locationScope === location,
+          )
+          .map((exercise) => exercise.name.toLowerCase()),
+      );
+      const logs = (recent.data?.recent ?? []).filter((log) =>
+        allowed.has(log.exercise.toLowerCase()),
+      );
+      return buildWorkoutSuggestion(logs, location, "normal");
+    };
+    return { home: buildFor("home"), gym: buildFor("gym") };
+  }, [library.data?.exercises, recent.data?.recent]);
+  const recommendation = recommendations[recommendationLocation];
   const today = todayISO();
+
+  useEffect(() => {
+    if (!recommendations.gym && recommendations.home) setRecommendationLocation("home");
+  }, [recommendations.gym, recommendations.home]);
 
   const startPlan = async (plan: NonNullable<typeof plans.data>[number]) => {
     if (draft) {
@@ -140,6 +201,35 @@ function TodayPage() {
     }
     window.localStorage.setItem(WORKOUT_REPEAT_SESSION_KEY, session.id);
     await navigate({ to: "/log" });
+  };
+
+  const adjustRecommendation = async () => {
+    window.localStorage.setItem(WORKOUT_PLAN_LOCATION_KEY, recommendationLocation);
+    await navigate({ to: "/plan" });
+  };
+
+  const startRecommendedWorkout = async () => {
+    if (!recommendation) return;
+    if (draft) {
+      toast.message("Resume or discard your draft first", {
+        description: "Your unfinished workout is being kept safe.",
+      });
+      return;
+    }
+    setStartingRecommendation(true);
+    try {
+      const saved = await saveWorkoutPlanClient({
+        draft: recommendation,
+        readiness: "normal",
+        status: "accepted",
+      });
+      window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(saved));
+      await queryClient.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
+      await navigate({ to: "/log" });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The workout could not be started.");
+      setStartingRecommendation(false);
+    }
   };
 
   return (
@@ -199,14 +289,41 @@ function TodayPage() {
       ) : null}
 
       <section className="space-y-3">
-        <div>
-          <h2 className="text-base font-semibold">Next workout</h2>
-          <p className="text-xs text-muted-foreground">Saved plans appear first.</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold">Next workout</h2>
+            <p className="text-xs text-muted-foreground">
+              Saved plans appear first; otherwise recent history provides a starting point.
+            </p>
+          </div>
+          {!plans.data?.length ? (
+            <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-secondary/30 p-1">
+              {(["home", "gym"] as PlannerLocation[]).map((location) => (
+                <button
+                  key={location}
+                  type="button"
+                  onClick={() => setRecommendationLocation(location)}
+                  className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium capitalize transition ${
+                    recommendationLocation === location
+                      ? "bg-card text-foreground shadow"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {location === "home" ? (
+                    <Home className="h-3.5 w-3.5" />
+                  ) : (
+                    <Building2 className="h-3.5 w-3.5" />
+                  )}
+                  {location}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
-        {plans.isLoading ? (
+        {plans.isLoading || recent.isLoading || library.isLoading ? (
           <LoadingRow label="Loading saved workouts…" />
-        ) : plans.error ? (
-          <ErrorCard label="Saved workouts could not be loaded." />
+        ) : plans.error || recent.error || library.error ? (
+          <ErrorCard label="The next workout could not be loaded." />
         ) : plans.data?.length ? (
           <div className="grid gap-3 md:grid-cols-2">
             {plans.data.map((plan) => (
@@ -243,6 +360,56 @@ function TodayPage() {
               </Card>
             ))}
           </div>
+        ) : recommendation ? (
+          <Card className="border-violet-400/30 bg-violet-400/[0.05]">
+            <CardContent className="p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold">Suggested {recommendation.title}</p>
+                    <Badge variant="outline">Normal readiness</Badge>
+                  </div>
+                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                    {recommendation.basis}
+                  </p>
+                </div>
+                <Sparkles className="h-5 w-5 shrink-0 text-violet-300" />
+              </div>
+
+              <div className="mt-4 divide-y divide-border rounded-lg border border-border bg-background/30">
+                {recommendation.movements.slice(0, 4).map((movement) => (
+                  <div key={movement.exercise} className="p-3">
+                    <div className="flex flex-wrap items-baseline justify-between gap-1">
+                      <p className="text-sm font-medium">{movement.exercise}</p>
+                      <p className="text-[11px] text-foreground/75">{targetSummary(movement)}</p>
+                    </div>
+                    <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                      {movement.reason}
+                    </p>
+                  </div>
+                ))}
+                {recommendation.movements.length > 4 ? (
+                  <p className="p-3 text-xs text-muted-foreground">
+                    +{recommendation.movements.length - 4} more movements in Plan
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
+                <Button onClick={startRecommendedWorkout} disabled={startingRecommendation}>
+                  {startingRecommendation ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Play className="mr-2 h-4 w-4" />
+                  )}
+                  {draft ? "Resume draft first" : "Start recommendation"}
+                </Button>
+                <Button variant="outline" onClick={adjustRecommendation}>
+                  Adjust in Plan
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         ) : (
           <Card>
             <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">

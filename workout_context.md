@@ -831,6 +831,8 @@ Home/Gym selection is saved on `sessions.training_location_id` and remembered lo
 
 The app now starts at `/`, which is a compact Today launch screen rather than redirecting straight to Log. Today prioritises an account-scoped unfinished draft, then shows saved Next Workouts, the latest completed Home and Gym sessions, an empty-workout action, and a link to Progress. Starting a saved plan accepts it and hands the editable targets to the unified logger. Repeating a recent session uses a short-lived local session ID so the logger can rebuild the full existing session template without flattening non-standard exercise fields. If a draft exists, Today protects it and asks the user to resume or discard it before starting another workout. A same-day completed snapshot links back to the existing review/edit flow in Log.
 
+When no saved Next Workout exists, Today builds a normal-readiness Home or Gym recommendation with the same transparent history and progression rules as Plan. It filters movements by their Library location availability, uses explicit location history where available, explains any locationless-history fallback, shows the source pattern and each movement's proposed target/reason, and lets the user either start immediately or carry the selected location into Plan for readiness, basis, movement, and set editing. Starting immediately saves the recommendation as an accepted suggested workout before loading the unified logger, so normal completion linking remains intact.
+
 Climbing:
 
 - Type: `Climbing`
@@ -946,7 +948,7 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `src/lib/supabase-dashboard.browser.ts`: dashboard data loading and aggregation.
 - `src/lib/supabase-log.browser.ts`: workout/climbing/1RM/bodyweight log data functions.
 - `src/lib/supabase-plans.browser.ts`: save/load/status/completion helpers for persistent workout plans.
-- `src/lib/workout-plan.ts`: transparent history grouping, pattern detection, progression rules, and plan-draft validation.
+- `src/lib/workout-plan.ts`: transparent history grouping, pattern detection, progression rules, plan-draft validation, and Today-to-Plan location handoff.
 - `src/lib/supabase-library.browser.ts`: library and person exercise selection data functions.
 - `src/lib/supabase-goals.browser.ts`: goals and check-ins data functions.
 - `src/lib/supabase-history.browser.ts`: exercise-specific history plus the completed-log exercise keys used by Progress.
@@ -970,7 +972,7 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `supabase/migrations/20260713100036_add_training_locations.sql`: applied and tracked training-location migration.
 - `supabase/migrations/20260713105054_add_exercise_location_scope.sql`: applied and tracked per-person Home/Gym/Both exercise availability.
 - `supabase/migrations/20260713110640_add_persistent_workout_suggestions.sql`: applied and tracked persistent workout plan entries/sets, session link, indexes, grants, and RLS.
-- `docs/product-roadmap.md`: staged product redesign roadmap; the active phase is Today and its history-based recommendation.
+- `docs/product-roadmap.md`: staged product redesign roadmap; Phase 2 Today is complete and Phase 3 Progress is next.
 - `supabase/approved_logging_library_updates.sql`: reusable SQL for approved data-library changes.
 - `workout_context.md`: this handoff file; keep it current.
 
@@ -1103,7 +1105,7 @@ Recommended next work, in order:
 8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-11. Refine Phase 2 by adding a concise, explainable history-based next-workout recommendation to Today.
+11. Begin Phase 3 by turning Progress evidence into a clearer exercise-level next decision while retaining exact charts and set history on larger screens.
 12. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
 13. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 14. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
