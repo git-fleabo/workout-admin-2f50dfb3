@@ -771,7 +771,7 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
                 weight: set.weight,
                 rpe: set.rpe,
                 restAfterSeconds: "0",
-                rangeOfMotion: "full",
+                rangeOfMotion: String(set.method.config.base_range_of_motion ?? "full"),
               },
               ...set.method.segments,
             ];

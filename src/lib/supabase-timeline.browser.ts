@@ -17,6 +17,7 @@ type EntrySetRecord = {
     method_name: string;
     reps: number | string | null;
     weight: number | string | null;
+    range_of_motion: string | null;
   }> | null;
 };
 
@@ -165,10 +166,17 @@ function describeSets(sets: EntrySetRecord[] | null | undefined) {
     method_name: string | null;
     reps: number | string | null;
     weight: number | string | null;
+    range_of_motion: string | null;
   }> = [];
   for (const item of sets) {
     if (item.entry_set_segments?.length) workRows.push(...item.entry_set_segments);
-    else workRows.push({ method_name: null, reps: item.reps, weight: item.weight });
+    else
+      workRows.push({
+        method_name: null,
+        reps: item.reps,
+        weight: item.weight,
+        range_of_motion: null,
+      });
   }
   const reps = workRows.reduce((total, item) => total + (toNum(item.reps) ?? 0), 0);
   const weight = workRows.reduce<number | null>((max, item) => {
@@ -178,6 +186,12 @@ function describeSets(sets: EntrySetRecord[] | null | undefined) {
   const duration = toNum(set.duration_seconds);
   if (setCount != null && setCount > 0) parts.push(`${compactNumber(setCount)} sets`);
   if (reps != null && reps > 0) parts.push(`${compactNumber(reps)} reps`);
+  const partialReps = workRows.reduce(
+    (total, item) =>
+      total + (item.range_of_motion?.toLowerCase() === "partial" ? (toNum(item.reps) ?? 0) : 0),
+    0,
+  );
+  if (partialReps > 0) parts.push(`${compactNumber(partialReps)} partial`);
   if (weight != null && weight > 0) parts.push(`${compactNumber(weight)}kg max`);
   const methodName = sets.flatMap((item) => item.entry_set_segments ?? [])[0]?.method_name;
   if (methodName) parts.push(methodName);
@@ -302,7 +316,7 @@ export async function getTimelineDataClient(): Promise<TimelineData> {
   const [sessions, oneRmRows, bodyweightRows] = await Promise.all([
     supabasePublicSelect<SessionRecord>("sessions", {
       select:
-        "id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name),training_locations(name,kind),session_entries(id,entry_kind,name,progression_level,completed,notes,source_sheet,activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,entry_set_segments(method_name,reps,weight)),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
+        "id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name),training_locations(name,kind),session_entries(id,entry_kind,name,progression_level,completed,notes,source_sheet,activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,entry_set_segments(method_name,reps,weight,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
       order: "session_date.desc",
       limit: 1000,
     }),

@@ -172,6 +172,14 @@ per cluster; rest-pause work keeps the load stable while each post-pause effort 
 The set-method picker exposes enabled drop, cluster, rest-pause, and compatible custom definitions,
 and incomplete segment load/reps are called out before the workout can be finished.
 
+Rep targeting and deliberate partial reps now complete the initial within-exercise method set. A
+rep-target set shows the accumulated reps against its configured goal while each effort retains its
+own load, reps, RPE, and rest; the target guides the set without blocking an honest below-target log.
+Partial-rep logging records whether the main set and every added effort used full or partial range.
+Partial work contributes to total reps and workload volume, but only full-range work sets the Progress
+working-weight maximum and estimated-1RM signal. Timeline and completed-session detail keep the partial
+work visible rather than silently treating it as a normal full-range set.
+
 Implementation should begin with supersets/tri-sets/giant sets and drop/strip sets, then add the remaining OriGym methods. Progress and planning must continue to count the underlying exercise volume while also showing the method used.
 
 ## Phase 6: Data and Administration Refinement
@@ -202,5 +210,5 @@ exercise-level high-effort decline, and the adjusted coming week. It can keep th
 next workout lighter, or apply a week-local deload mode while retaining editable days and targets.
 
 Phase 5 is now active. The Training Methods library, ordered exercise-group logging, and preserved
-drop/strip, cluster, and rest-pause segments are live. The next implementation should add rep-targeting
-and deliberate partial-rep behaviour, followed by timed/density logging.
+drop/strip, cluster, rest-pause, rep-targeting, and deliberate partial-rep segments are live. The next
+implementation should add timed/density logging, beginning with EDT and Tabata blocks.

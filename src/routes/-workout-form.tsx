@@ -1141,13 +1141,29 @@ export function FullWorkoutForm() {
             method.family === "set_method" &&
             method.isActive &&
             method.isEnabled &&
-            (["drop_set", "cluster_set", "rest_pause"].includes(method.systemKey ?? "") ||
+            (["drop_set", "cluster_set", "rest_pause", "rep_targeting", "partial_reps"].includes(
+              method.systemKey ?? "",
+            ) ||
               method.systemKey == null),
         )
         .sort(
           (left, right) =>
-            ["drop_set", "cluster_set", "rest_pause", null].indexOf(left.systemKey) -
-            ["drop_set", "cluster_set", "rest_pause", null].indexOf(right.systemKey),
+            [
+              "drop_set",
+              "cluster_set",
+              "rest_pause",
+              "rep_targeting",
+              "partial_reps",
+              null,
+            ].indexOf(left.systemKey) -
+            [
+              "drop_set",
+              "cluster_set",
+              "rest_pause",
+              "rep_targeting",
+              "partial_reps",
+              null,
+            ].indexOf(right.systemKey),
         ),
     [methods.data?.items],
   );
@@ -1453,6 +1469,7 @@ export function FullWorkoutForm() {
     const startingWeight = Number(set.weight);
     const isDropSet = method.systemKey === "drop_set";
     const isClusterSet = method.systemKey === "cluster_set";
+    const isPartialReps = method.systemKey === "partial_reps";
     const suggestedWeight =
       Number.isFinite(startingWeight) && startingWeight > 0
         ? isDropSet
@@ -1469,10 +1486,14 @@ export function FullWorkoutForm() {
           weight: suggestedWeight,
           rpe: "",
           restAfterSeconds: String(method.defaultConfig.rest_between_segments_seconds ?? 10),
-          rangeOfMotion: "full",
+          rangeOfMotion: isPartialReps ? "partial" : "full",
         },
       ],
-      config: { ...method.defaultConfig, system_key: method.systemKey ?? "custom" },
+      config: {
+        ...method.defaultConfig,
+        system_key: method.systemKey ?? "custom",
+        base_range_of_motion: "full",
+      },
     });
     if (isClusterSet && !set.reps) {
       updateSet(entryIndex, setIndex, "reps", String(method.defaultConfig.reps_per_segment ?? 2));
@@ -1488,6 +1509,8 @@ export function FullWorkoutForm() {
     const isDropSet = systemKey === "drop_set" || method.methodName.toLowerCase().includes("drop");
     const isClusterSet =
       systemKey === "cluster_set" || method.methodName.toLowerCase().includes("cluster");
+    const isPartialReps =
+      systemKey === "partial_reps" || method.methodName.toLowerCase().includes("partial");
     const dropPercentage = Number(method.config.percentage_drop) || 15;
     const previousWeight = Number(previous?.weight || set?.weight);
     const suggestedWeight =
@@ -1505,7 +1528,7 @@ export function FullWorkoutForm() {
           weight: suggestedWeight,
           rpe: "",
           restAfterSeconds: String(method.config.rest_between_segments_seconds ?? 10),
-          rangeOfMotion: "full",
+          rangeOfMotion: isPartialReps ? "partial" : "full",
         },
       ],
     });
@@ -2722,6 +2745,8 @@ function setMethodKind(method: WorkoutSetMethodState) {
   if (key === "rest_pause" || name.includes("rest-pause") || name.includes("rest pause")) {
     return "rest-pause";
   }
+  if (key === "rep_targeting" || name.includes("rep target")) return "rep-target";
+  if (key === "partial_reps" || name.includes("partial")) return "partial";
   if (key === "drop_set" || name.includes("drop") || name.includes("strip")) return "drop";
   return "segment";
 }
@@ -2740,6 +2765,20 @@ function setMethodCopy(method: WorkoutSetMethodState) {
   }
   if (kind === "drop") {
     return { noun: "Drop", add: "Add another drop", intro: "Segment 1 uses the main set." };
+  }
+  if (kind === "rep-target") {
+    return {
+      noun: "Effort",
+      add: "Add another effort",
+      intro: "Effort 1 uses the main set. Stop when the target is reached.",
+    };
+  }
+  if (kind === "partial") {
+    return {
+      noun: "Partial",
+      add: "Add another partial effort",
+      intro: "The main set range is selectable; added efforts default to partial.",
+    };
   }
   return { noun: "Segment", add: "Add another segment", intro: "Segment 1 uses the main set." };
 }
@@ -2933,6 +2972,53 @@ function SetRowsEditor({
                   Remove method
                 </Button>
               </div>
+              {setMethodKind(set.method) === "rep-target" ? (
+                <div className="mt-3 rounded-md border border-fuchsia-400/20 bg-background/60 px-3 py-2">
+                  {(() => {
+                    const target = Number(set.method?.config.target_reps) || 0;
+                    const completed =
+                      (Number(set.reps) || 0) +
+                      (set.method?.segments.reduce(
+                        (total, segment) => total + (Number(segment.reps) || 0),
+                        0,
+                      ) ?? 0);
+                    const remaining = Math.max(0, target - completed);
+                    return (
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs font-medium">
+                          {completed} / {target} target reps
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {remaining > 0 ? `${remaining} remaining` : "Target reached"}
+                        </span>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : null}
+              {setMethodKind(set.method) === "partial" ? (
+                <div className="mt-3 max-w-44">
+                  <Field label="Main set range">
+                    <Select
+                      value={String(set.method.config.base_range_of_motion ?? "full")}
+                      onValueChange={(value) =>
+                        onChange(setIndex, "method", {
+                          ...set.method!,
+                          config: { ...set.method!.config, base_range_of_motion: value },
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="full">Full</SelectItem>
+                        <SelectItem value="partial">Partial</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+              ) : null}
               <div className="mt-3 space-y-2">
                 {set.method.segments.map((segment, segmentIndex) => (
                   <div

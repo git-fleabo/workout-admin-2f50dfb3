@@ -19,6 +19,7 @@ type EntrySetRecord = {
     reps: number | string | null;
     weight: number | string | null;
     rpe: number | string | null;
+    range_of_motion: string | null;
   }> | null;
 };
 
@@ -226,7 +227,7 @@ export async function getExerciseHistoryClient(
 ): Promise<ExerciseHistory> {
   const params: Record<string, string | number | boolean> = {
     select:
-      "id,name,completed,sessions!inner(id,session_date,source_sheet,training_locations(name,kind)),entry_sets(set_number,reps,weight,duration_seconds,rpe,completed,entry_set_segments(segment_index,reps,weight,rpe))",
+      "id,name,completed,sessions!inner(id,session_date,source_sheet,training_locations(name,kind)),entry_sets(set_number,reps,weight,duration_seconds,rpe,completed,entry_set_segments(segment_index,reps,weight,rpe,range_of_motion))",
     completed: "eq.true",
     source_sheet: "eq.Workout Log",
     "sessions.source_sheet": "eq.Workout Log",
@@ -277,6 +278,8 @@ export async function getExerciseHistoryClient(
         const rpe = toNumber(segment.rpe);
         const repsN = Number.isFinite(reps) && reps > 0 ? reps : null;
         const weightN = Number.isFinite(weight) && weight > 0 ? weight : null;
+        const isPartial =
+          "range_of_motion" in segment && segment.range_of_motion?.toLowerCase() === "partial";
 
         point.sets.push({
           setNumber:
@@ -294,13 +297,15 @@ export async function getExerciseHistoryClient(
         if (repsN != null) anyReps = true;
         if (repsN != null) point.totalReps += repsN;
         if (weightN != null) {
-          if (point.maxWeight == null || weightN > point.maxWeight) point.maxWeight = weightN;
+          if (!isPartial && (point.maxWeight == null || weightN > point.maxWeight)) {
+            point.maxWeight = weightN;
+          }
           if (repsN != null) {
             point.totalVolume += repsN * weightN;
             const perSetReps = individualSets
               ? repsN
               : repsPerSet(repsN, setsKnown ? toNumber(set.set_number) : NaN);
-            if (perSetReps != null) {
+            if (!isPartial && perSetReps != null) {
               const est = weightN * (1 + perSetReps / 30);
               if (point.est1RM == null || est > point.est1RM) point.est1RM = est;
             }
