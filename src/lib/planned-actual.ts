@@ -7,6 +7,12 @@ export type PlannedActualSet = {
 };
 
 export type PlannedActualStatus = "met" | "exceeded" | "partial" | "missed";
+export type PlannedActualMethodStatus = "none" | "matched" | "changed" | "omitted" | "added";
+
+export type PlannedActualMethod = {
+  key: string;
+  name: string;
+};
 
 export type PlannedActualComparison = {
   id: string;
@@ -19,6 +25,9 @@ export type PlannedActualComparison = {
   status: PlannedActualStatus;
   plannedVolume: number;
   actualVolume: number;
+  plannedMethods: PlannedActualMethod[];
+  actualMethods: PlannedActualMethod[];
+  methodStatus: PlannedActualMethodStatus;
 };
 
 function setTargetMet(planned: PlannedActualSet, actual: PlannedActualSet | undefined) {
@@ -47,10 +56,15 @@ export function comparePlannedActual({
   locationKind,
   planned,
   actual,
+  plannedMethods = [],
+  actualMethods = [],
 }: Omit<
   PlannedActualComparison,
-  "status" | "plannedVolume" | "actualVolume"
->): PlannedActualComparison {
+  "status" | "plannedVolume" | "actualVolume" | "plannedMethods" | "actualMethods" | "methodStatus"
+> & {
+  plannedMethods?: PlannedActualMethod[];
+  actualMethods?: PlannedActualMethod[];
+}): PlannedActualComparison {
   const completedActual = actual.filter((set) => set.completed);
   const targets = planned.filter((set) => set.completed);
   const allMet =
@@ -68,6 +82,27 @@ export function comparePlannedActual({
       }));
   const status: PlannedActualStatus =
     completedActual.length === 0 ? "missed" : exceeded ? "exceeded" : allMet ? "met" : "partial";
+  const uniqueMethods = (methods: PlannedActualMethod[]) =>
+    Array.from(new Map(methods.map((method) => [method.key, method])).values()).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+  const plannedMethodList = uniqueMethods(plannedMethods);
+  const actualMethodList = uniqueMethods(actualMethods);
+  const plannedKeys = plannedMethodList.map((method) => method.key);
+  const actualKeys = actualMethodList.map((method) => method.key);
+  const sameMethods =
+    plannedKeys.length === actualKeys.length &&
+    plannedKeys.every((key) => actualKeys.includes(key));
+  const methodStatus: PlannedActualMethodStatus =
+    plannedKeys.length === 0 && actualKeys.length === 0
+      ? "none"
+      : plannedKeys.length === 0
+        ? "added"
+        : actualKeys.length === 0
+          ? "omitted"
+          : sameMethods
+            ? "matched"
+            : "changed";
 
   return {
     id,
@@ -80,5 +115,8 @@ export function comparePlannedActual({
     status,
     plannedVolume: volume(targets),
     actualVolume: volume(completedActual),
+    plannedMethods: plannedMethodList,
+    actualMethods: actualMethodList,
+    methodStatus,
   };
 }

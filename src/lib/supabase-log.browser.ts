@@ -153,6 +153,24 @@ type SessionRecord = {
   session_entries: SessionEntryRecord[] | null;
 };
 
+type SessionMethodBlockRecord = {
+  session_id: string;
+  training_method_id: string;
+  method_name: string;
+  family: "exercise_group" | "timed_density";
+  rounds: number | string | null;
+  rest_between_movements_seconds: number | string | null;
+  rest_between_rounds_seconds: number | string | null;
+  block_duration_seconds: number | string | null;
+  work_interval_seconds: number | string | null;
+  rest_interval_seconds: number | string | null;
+  config: Record<string, number | string | boolean> | null;
+  session_method_block_entries: Array<{
+    session_entry_id: string;
+    sequence_index: number | string | null;
+  }> | null;
+};
+
 type OneRMRecord = {
   id: string;
   test_date: string;
@@ -260,6 +278,10 @@ export type WorkoutMethodBlockInput = {
   completedRounds: string;
   memberClientIds: string[];
   config: Record<string, number | string | boolean>;
+};
+
+export type RecentWorkoutMethodBlockInput = Omit<WorkoutMethodBlockInput, "memberClientIds"> & {
+  memberEntryIds: string[];
 };
 
 export type ClimbLogInput = {
@@ -501,6 +523,46 @@ export async function getRecentLogsClient(limit = 15) {
     order: "created_at.desc",
     limit: Math.min(Math.max(Math.round(limit), 1), 500),
   });
+  const sessionIds = Array.from(
+    new Set(rows.map((row) => row.sessions?.id).filter((id): id is string => Boolean(id))),
+  );
+  const blockBatches: Promise<SessionMethodBlockRecord[]>[] = [];
+  for (let index = 0; index < sessionIds.length; index += 100) {
+    const batch = sessionIds.slice(index, index + 100);
+    blockBatches.push(
+      supabasePublicSelect<SessionMethodBlockRecord>("session_method_blocks", {
+        select:
+          "session_id,training_method_id,method_name,family,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,block_duration_seconds,work_interval_seconds,rest_interval_seconds,config,session_method_block_entries(session_entry_id,sequence_index)",
+        session_id: `in.(${batch.join(",")})`,
+        order: "order_index.asc",
+        limit: 1000,
+      }),
+    );
+  }
+  const blocksBySession = new Map<string, RecentWorkoutMethodBlockInput[]>();
+  for (const block of (await Promise.all(blockBatches)).flat()) {
+    const methodBlocks = blocksBySession.get(block.session_id) ?? [];
+    methodBlocks.push({
+      trainingMethodId: block.training_method_id,
+      methodName: block.method_name,
+      family: block.family,
+      rounds: asText(block.rounds),
+      restBetweenMovementsSeconds: asText(block.rest_between_movements_seconds),
+      restBetweenRoundsSeconds: asText(block.rest_between_rounds_seconds),
+      blockDurationMinutes:
+        block.block_duration_seconds == null
+          ? ""
+          : String(Number(block.block_duration_seconds) / 60),
+      workIntervalSeconds: asText(block.work_interval_seconds),
+      restIntervalSeconds: asText(block.rest_interval_seconds),
+      completedRounds: "",
+      memberEntryIds: [...(block.session_method_block_entries ?? [])]
+        .sort((a, b) => Number(a.sequence_index ?? 0) - Number(b.sequence_index ?? 0))
+        .map((member) => member.session_entry_id),
+      config: block.config ?? {},
+    });
+    blocksBySession.set(block.session_id, methodBlocks);
+  }
 
   return {
     recent: rows.map((row) => {
@@ -551,6 +613,7 @@ export async function getRecentLogsClient(limit = 15) {
         assistanceDetail: set?.assistance_detail ?? "",
         quality: set?.quality ?? "",
         trainingLocation: row.sessions?.training_locations ?? null,
+        methodBlocks: blocksBySession.get(row.sessions?.id ?? "") ?? [],
         setRows: sets.map((item) => {
           const segments = [...(item.entry_set_segments ?? [])].sort(
             (a, b) => Number(a.segment_index) - Number(b.segment_index),

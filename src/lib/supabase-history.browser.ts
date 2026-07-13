@@ -2,6 +2,7 @@ import { supabasePublicSelect } from "./supabase-public";
 import { getCurrentPerson } from "./supabase-people.browser";
 import {
   comparePlannedActual,
+  type PlannedActualMethod,
   type PlannedActualComparison,
   type PlannedActualSet,
 } from "./planned-actual";
@@ -66,6 +67,10 @@ type SuggestedSetRecord = {
   weight: number | string | null;
   rpe: number | string | null;
   completed: boolean;
+  suggested_workout_set_segments: Array<{
+    training_method_id: string;
+    method_name: string;
+  }> | null;
 };
 
 type SuggestedEntryRecord = {
@@ -80,6 +85,13 @@ type CompletedSuggestionRecord = {
   title: string;
   completed_session_id: string;
   suggested_workout_entries: SuggestedEntryRecord[] | null;
+  suggested_workout_method_blocks: Array<{
+    training_method_id: string;
+    method_name: string;
+    suggested_workout_method_block_entries: Array<{
+      suggested_workout_entry_id: string;
+    }> | null;
+  }> | null;
 };
 
 type ActualPlannedEntryRecord = {
@@ -151,7 +163,7 @@ export async function getPlannedActualComparisonsClient(
 
   const suggestions = await supabasePublicSelect<CompletedSuggestionRecord>("suggested_workouts", {
     select:
-      "id,title,completed_session_id,suggested_workout_entries(id,exercise_id,name,suggested_workout_sets(set_number,reps,weight,rpe,completed))",
+      "id,title,completed_session_id,suggested_workout_entries(id,exercise_id,name,suggested_workout_sets(set_number,reps,weight,rpe,completed,suggested_workout_set_segments(training_method_id,method_name))),suggested_workout_method_blocks(training_method_id,method_name,suggested_workout_method_block_entries(suggested_workout_entry_id))",
     person_id: `eq.${person.id}`,
     status: "eq.completed",
     completed_session_id: "not.is.null",
@@ -170,12 +182,33 @@ export async function getPlannedActualComparisonsClient(
   );
   const actualEntries = await supabasePublicSelect<ActualPlannedEntryRecord>("session_entries", {
     select:
-      "id,session_id,exercise_id,name,sessions!inner(session_date,training_locations(kind)),entry_sets(set_number,reps,weight,rpe,completed)",
+      "id,session_id,exercise_id,name,sessions!inner(session_date,training_locations(kind)),entry_sets(set_number,reps,weight,rpe,completed,entry_set_segments(training_method_id,method_name))",
     session_id: `in.(${sessionIds.join(",")})`,
     completed: "eq.true",
     source_sheet: "eq.Workout Log",
     limit: 1000,
   });
+  const actualEntryIds = actualEntries.map((entry) => entry.id);
+  const membershipBatches: Promise<EntryMethodBlockRecord[]>[] = [];
+  for (let index = 0; index < actualEntryIds.length; index += 100) {
+    const batch = actualEntryIds.slice(index, index + 100);
+    membershipBatches.push(
+      supabasePublicSelect<EntryMethodBlockRecord>("session_method_block_entries", {
+        select:
+          "session_entry_id,session_method_blocks!inner(training_method_id,method_name,family)",
+        session_entry_id: `in.(${batch.join(",")})`,
+        limit: 1000,
+      }),
+    );
+  }
+  const actualBlockMethods = new Map<string, PlannedActualMethod[]>();
+  for (const membership of (await Promise.all(membershipBatches)).flat()) {
+    const method = membership.session_method_blocks;
+    if (!method) continue;
+    const methods = actualBlockMethods.get(membership.session_entry_id) ?? [];
+    methods.push({ key: method.training_method_id, name: method.method_name });
+    actualBlockMethods.set(membership.session_entry_id, methods);
+  }
 
   return relevant
     .flatMap(({ suggestion, entry }) => {
@@ -190,6 +223,30 @@ export async function getPlannedActualComparisonsClient(
       const actualSets = [...(actual.entry_sets ?? [])]
         .sort((a, b) => toNumber(a.set_number) - toNumber(b.set_number))
         .map(comparisonSet);
+      const plannedMethods: PlannedActualMethod[] = [
+        ...(entry.suggested_workout_sets ?? []).flatMap((set) =>
+          (set.suggested_workout_set_segments ?? []).map((segment) => ({
+            key: segment.training_method_id,
+            name: segment.method_name,
+          })),
+        ),
+        ...(suggestion.suggested_workout_method_blocks ?? [])
+          .filter((block) =>
+            (block.suggested_workout_method_block_entries ?? []).some(
+              (member) => member.suggested_workout_entry_id === entry.id,
+            ),
+          )
+          .map((block) => ({ key: block.training_method_id, name: block.method_name })),
+      ];
+      const actualMethods: PlannedActualMethod[] = [
+        ...(actual.entry_sets ?? []).flatMap((set) =>
+          (set.entry_set_segments ?? []).map((segment) => ({
+            key: segment.training_method_id,
+            name: segment.method_name,
+          })),
+        ),
+        ...(actualBlockMethods.get(actual.id) ?? []),
+      ];
       return [
         comparePlannedActual({
           id: `${suggestion.id}:${entry.id}`,
@@ -199,6 +256,8 @@ export async function getPlannedActualComparisonsClient(
           locationKind: actual.sessions.training_locations?.kind ?? null,
           planned: plannedSets,
           actual: actualSets,
+          plannedMethods,
+          actualMethods,
         }),
       ];
     })

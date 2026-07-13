@@ -16,11 +16,25 @@ import type {
 type SuggestedWorkoutStatus = "pending" | "accepted" | "completed" | "skipped" | "archived";
 
 type SuggestedSetRow = {
+  id: string;
   set_number: number;
   reps: number | null;
   weight: number | null;
   rpe: number | null;
   completed: boolean;
+  suggested_workout_set_segments: SuggestedSetSegmentRow[] | null;
+};
+
+type SuggestedSetSegmentRow = {
+  training_method_id: string;
+  method_name: string;
+  segment_index: number;
+  reps: number | null;
+  weight: number | null;
+  rpe: number | null;
+  rest_after_seconds: number | null;
+  range_of_motion: string | null;
+  config: Record<string, number | string | boolean> | null;
 };
 
 type SuggestedEntryRow = {
@@ -151,6 +165,26 @@ function movementFromRow(entry: SuggestedEntryRow): WorkoutPlanMovement {
       weight: asText(set.weight),
       rpe: asText(set.rpe),
       completed: set.completed,
+      method: (() => {
+        const segments = [...(set.suggested_workout_set_segments ?? [])].sort(
+          (a, b) => a.segment_index - b.segment_index,
+        );
+        const first = segments[0];
+        if (!first || segments.length < 2) return undefined;
+        return {
+          trainingMethodId: first.training_method_id,
+          methodName: first.method_name,
+          systemKey: typeof first.config?.system_key === "string" ? first.config.system_key : null,
+          segments: segments.slice(1).map((segment) => ({
+            reps: asText(segment.reps),
+            weight: asText(segment.weight),
+            rpe: asText(segment.rpe),
+            restAfterSeconds: asText(segment.rest_after_seconds),
+            rangeOfMotion: segment.range_of_motion ?? "full",
+          })),
+          config: first.config ?? {},
+        };
+      })(),
     })),
   };
 }
@@ -233,17 +267,47 @@ export async function saveWorkoutPlanClient({
       const entry = entries[0];
       if (!entry) throw new Error(`${movement.exercise} was not saved to the plan.`);
       entryIdsByMovementIndex.set(movementIndex, entry.id);
-      await supabasePublicInsert(
-        "suggested_workout_sets",
-        movement.setRows.map((set, setIndex) => ({
+      for (const [setIndex, set] of movement.setRows.entries()) {
+        const insertedSets = await supabasePublicInsert<{ id: string }>("suggested_workout_sets", {
           suggested_workout_entry_id: entry.id,
           set_number: setIndex + 1,
           reps: toNumber(set.reps),
           weight: toNumber(set.weight),
           rpe: toNumber(set.rpe),
           completed: set.completed,
-        })),
-      );
+        });
+        const insertedSet = insertedSets[0];
+        if (!insertedSet) {
+          throw new Error(`${movement.exercise} set ${setIndex + 1} was not saved to the plan.`);
+        }
+        if (set.method?.segments.length) {
+          const segments = [
+            {
+              reps: set.reps,
+              weight: set.weight,
+              rpe: set.rpe,
+              restAfterSeconds: "0",
+              rangeOfMotion: String(set.method.config.base_range_of_motion ?? "full"),
+            },
+            ...set.method.segments,
+          ];
+          await supabasePublicInsert(
+            "suggested_workout_set_segments",
+            segments.map((segment, segmentIndex) => ({
+              suggested_workout_set_id: insertedSet.id,
+              training_method_id: set.method?.trainingMethodId,
+              method_name: set.method?.methodName,
+              segment_index: segmentIndex,
+              reps: toNumber(segment.reps),
+              weight: toNumber(segment.weight),
+              rpe: toNumber(segment.rpe),
+              rest_after_seconds: toNumber(segment.restAfterSeconds),
+              range_of_motion: segment.rangeOfMotion || null,
+              config: set.method?.config ?? {},
+            })),
+          );
+        }
+      }
     }
     for (const [blockIndex, block] of (draft.methodBlocks ?? []).entries()) {
       const memberEntryIds = block.memberMovementIndexes
@@ -310,7 +374,7 @@ export async function getNextSuggestedWorkoutsClient() {
   const person = await requirePerson();
   const rows = await supabasePublicSelect<SuggestedWorkoutRow>("suggested_workouts", {
     select:
-      "id,title,basis,readiness,status,created_at,training_locations(kind,name),suggested_workout_entries(id,name,workout_type,order_index,source_date,reason,suggested_workout_sets(set_number,reps,weight,rpe,completed)),suggested_workout_method_blocks(id,training_method_id,method_name,family,order_index,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,block_duration_seconds,work_interval_seconds,rest_interval_seconds,config,suggested_workout_method_block_entries(suggested_workout_entry_id,sequence_index))",
+      "id,title,basis,readiness,status,created_at,training_locations(kind,name),suggested_workout_entries(id,name,workout_type,order_index,source_date,reason,suggested_workout_sets(id,set_number,reps,weight,rpe,completed,suggested_workout_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion,config))),suggested_workout_method_blocks(id,training_method_id,method_name,family,order_index,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,block_duration_seconds,work_interval_seconds,rest_interval_seconds,config,suggested_workout_method_block_entries(suggested_workout_entry_id,sequence_index))",
     status: "in.(pending,accepted)",
     person_id: `eq.${person.id}`,
     order: "created_at.desc",

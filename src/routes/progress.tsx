@@ -59,6 +59,7 @@ import {
 } from "@/lib/supabase-history.browser";
 import type {
   PlannedActualComparison,
+  PlannedActualMethodStatus,
   PlannedActualSet,
   PlannedActualStatus,
 } from "@/lib/planned-actual";
@@ -522,6 +523,14 @@ const COMPARISON_STATUS: Record<PlannedActualStatus, { label: string; className:
   missed: { label: "Not completed", className: "border-rose-400/30 text-rose-300" },
 };
 
+const METHOD_STATUS: Record<PlannedActualMethodStatus, { label: string; className: string }> = {
+  none: { label: "Straight sets", className: "border-border text-muted-foreground" },
+  matched: { label: "Method matched", className: "border-emerald-400/30 text-emerald-300" },
+  changed: { label: "Method changed", className: "border-amber-400/30 text-amber-300" },
+  omitted: { label: "Method omitted", className: "border-rose-400/30 text-rose-300" },
+  added: { label: "Method added", className: "border-violet-400/30 text-violet-300" },
+};
+
 function MethodBadges({ methods }: { methods: ExerciseMethodUse[] }) {
   if (!methods.length) {
     return (
@@ -669,6 +678,7 @@ function PlannedActualHistory({
           <div className="space-y-3">
             {comparisons.slice(0, 5).map((comparison) => {
               const status = COMPARISON_STATUS[comparison.status];
+              const methodStatus = METHOD_STATUS[comparison.methodStatus];
               const delta = volumeDelta(comparison);
               return (
                 <div
@@ -692,14 +702,24 @@ function PlannedActualHistory({
                         {comparison.locationKind ? ` · ${comparison.locationKind}` : ""}
                       </p>
                     </div>
-                    <span
-                      className={cn(
-                        "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                        status.className,
-                      )}
-                    >
-                      {status.label}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span
+                        className={cn(
+                          "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                          status.className,
+                        )}
+                      >
+                        {status.label}
+                      </span>
+                      <span
+                        className={cn(
+                          "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                          methodStatus.className,
+                        )}
+                      >
+                        {methodStatus.label}
+                      </span>
+                    </div>
                     <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
                   </div>
                   <div className="mt-3 grid gap-3 lg:grid-cols-2">
@@ -720,6 +740,18 @@ function PlannedActualHistory({
                       </p>
                     </div>
                   </div>
+                  {comparison.methodStatus !== "none" ? (
+                    <div className="mt-2 rounded-lg border border-border/70 bg-background/25 p-2.5 text-[11px] text-muted-foreground">
+                      <span className="font-semibold text-foreground/80">Method: </span>
+                      {comparison.plannedMethods.length
+                        ? comparison.plannedMethods.map((method) => method.name).join(" + ")
+                        : "Straight sets"}
+                      <span className="mx-1.5">→</span>
+                      {comparison.actualMethods.length
+                        ? comparison.actualMethods.map((method) => method.name).join(" + ")
+                        : "Straight sets"}
+                    </div>
+                  ) : null}
                   {delta != null ? (
                     <p className="mt-2 text-[11px] text-muted-foreground">
                       Volume: {comparison.plannedVolume.toLocaleString()} kg planned ·{" "}

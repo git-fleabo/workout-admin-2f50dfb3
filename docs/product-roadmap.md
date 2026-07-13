@@ -129,7 +129,7 @@ Goal: extend the current next-workout planner into a practical view of the comin
 - A lighter workout or full deload-week option. — implemented with an explainable recovery decision and editable mode
 - Editable recommendations with visible source sessions and reasons. — next-workout targets are editable; weekly day load is now adjustable and saved locally per account/week
 
-## Phase 5: Advanced Training Methods — logging, planning, and Progress implemented
+## Phase 5: Advanced Training Methods — complete
 
 Goal: plan, log, and review non-straight-set methods without hiding their actual exercise, set, rep, load, rest, and sequence data.
 
@@ -202,7 +202,20 @@ volume, and best performance for straight work and each advanced method in the s
 location. Drop/set-method work still uses its segment loads and reps; group and timed methods still use
 their underlying movement work.
 
-Implementation should begin with supersets/tri-sets/giant sets and drop/strip sets, then add the remaining OriGym methods. Progress and planning must continue to count the underlying exercise volume while also showing the method used.
+Saved plans now preserve within-exercise methods as well as group and timed blocks. Each planned set
+can retain its ordered method segments, loads, reps, RPE, rest, range of motion, and method snapshot.
+Loading a saved plan reconstructs the complete prescription in the unified logger. Recommendations
+only retain a set method when its source set pattern is repeated exactly; progression and tired/deload
+adjustments deliberately remove it rather than attaching a stale prescription to changed work.
+
+Recent-workout repeats now reconstruct all three method families from server history. Exercise-group
+membership and order, rounds, rest, timing, completed-round configuration, and within-set segments
+survive the repeat path. A one-set drop, cluster, rest-pause, target-rep, or partial-rep method remains
+an exact method log instead of being flattened into aggregate reps.
+
+Linked plan-versus-completed review now compares the method prescription independently from set
+adherence. Progress identifies matched, changed, omitted, and newly added methods and shows the planned
+and completed method names alongside the existing load, reps, set, and volume comparison.
 
 ## Phase 6: Data and Administration Refinement
 
@@ -231,7 +244,8 @@ while completed history stays separate. A Recovery decision combines recent and 
 exercise-level high-effort decline, and the adjusted coming week. It can keep the normal plan, make the
 next workout lighter, or apply a week-local deload mode while retaining editable days and targets.
 
-Phase 5 is now active. The Training Methods library, advanced-method logging/review, the planning
-bridge for exercise-group and timed/density blocks, and method-aware Progress are live. The next
-implementation should close remaining round-trip gaps: reconstruct advanced methods when repeating a
-server-loaded recent workout and compare the planned method prescription with the completed method.
+Phase 5 is complete. The Training Methods library, all three advanced-method logging families,
+completed-session review, saved-plan and recent-repeat round trips, method-aware Progress, and
+planned-versus-completed method adherence are live. The next implementation phase is Phase 6, starting
+with an audit of planned, draft, completed, skipped, and archived workout states so the app can expose
+one clear session lifecycle before further administration work.

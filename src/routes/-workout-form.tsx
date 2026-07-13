@@ -272,6 +272,7 @@ type RecentSessionTemplate = {
   title: string;
   location?: { name: string; kind: string } | null;
   entries: FormState[];
+  methodBlocks: WorkoutMethodBlockState[];
 };
 
 let clientIdCounter = 0;
@@ -525,7 +526,19 @@ function readWorkoutFavorites(value: string | null) {
 }
 
 function setRowsFromRecentLog(log: RecentWorkoutLog): WorkoutSetState[] {
-  if (log.setRows.length > 1) return log.setRows.map((set) => ({ ...set }));
+  if (log.setRows.length > 1 || log.setRows.some((set) => set.method)) {
+    return log.setRows.map((set) => ({
+      ...set,
+      rpe: "",
+      completed: true,
+      method: set.method
+        ? {
+            ...set.method,
+            segments: set.method.segments.map((segment) => ({ ...segment, rpe: "" })),
+          }
+        : undefined,
+    }));
+  }
   const count = Math.max(1, Number(log.sets) || 1);
   const totalReps = Number(log.reps) || 0;
   const reps = totalReps ? Math.ceil(totalReps / count).toString() : (log.setRows[0]?.reps ?? "");
@@ -638,6 +651,7 @@ function buildRecentSessionTemplates(
   const source = locationMatches.length > 0 ? locationMatches : completed;
   const sessions = new Map<string, RecentSessionTemplate>();
   const movementOrder = new Map<string, number>();
+  const entryClientIds = new Map<string, string>();
 
   for (const log of source) {
     const current = sessions.get(log.id) ?? {
@@ -646,25 +660,55 @@ function buildRecentSessionTemplates(
       title: log.sessionTitle || "Workout",
       location: log.trainingLocation,
       entries: [],
+      methodBlocks: [],
     };
     if (
       !current.entries.some((entry) => entry.exercise.toLowerCase() === log.exercise.toLowerCase())
     ) {
-      current.entries.push(entryFromRecentLog(log));
+      const entry = entryFromRecentLog(log);
+      current.entries.push(entry);
+      entryClientIds.set(`${log.id}:${log.entryId}`, entry.clientId);
       movementOrder.set(`${log.id}:${log.exercise.toLowerCase()}`, log.orderIndex);
     }
     sessions.set(log.id, current);
   }
 
   return Array.from(sessions.values())
-    .map((session) => ({
-      ...session,
-      entries: session.entries.sort(
-        (left, right) =>
-          (movementOrder.get(`${session.id}:${left.exercise.toLowerCase()}`) ?? 0) -
-          (movementOrder.get(`${session.id}:${right.exercise.toLowerCase()}`) ?? 0),
-      ),
-    }))
+    .map((session) => {
+      const sourceBlocks = logs.find((log) => log.id === session.id)?.methodBlocks ?? [];
+      const methodBlocks = sourceBlocks
+        .map((block) => ({
+          id: newClientId("method"),
+          trainingMethodId: block.trainingMethodId,
+          methodName: block.methodName,
+          family: block.family,
+          rounds: block.rounds,
+          restBetweenMovementsSeconds: block.restBetweenMovementsSeconds,
+          restBetweenRoundsSeconds: block.restBetweenRoundsSeconds,
+          blockDurationMinutes: block.blockDurationMinutes,
+          workIntervalSeconds: block.workIntervalSeconds,
+          restIntervalSeconds: block.restIntervalSeconds,
+          completedRounds: "",
+          memberClientIds: block.memberEntryIds
+            .map((entryId) => entryClientIds.get(`${session.id}:${entryId}`))
+            .filter((id): id is string => Boolean(id)),
+          config: block.config,
+        }))
+        .filter((block) =>
+          block.family === "timed_density"
+            ? block.memberClientIds.length >= 1
+            : block.memberClientIds.length >= 2,
+        );
+      return {
+        ...session,
+        entries: session.entries.sort(
+          (left, right) =>
+            (movementOrder.get(`${session.id}:${left.exercise.toLowerCase()}`) ?? 0) -
+            (movementOrder.get(`${session.id}:${right.exercise.toLowerCase()}`) ?? 0),
+        ),
+        methodBlocks,
+      };
+    })
     .slice(0, 4);
 }
 
@@ -1303,6 +1347,7 @@ export function FullWorkoutForm() {
             ...entry,
             setRows: entry.setRows.map((set) => ({ ...set, rpe: "", completed: true })),
           })),
+          methodBlocks: session.methodBlocks,
         });
         toast.message("Recent workout loaded", {
           description: `${session.entries.length} movements copied from ${formatUKDate(session.date)}.`,
@@ -1653,6 +1698,7 @@ export function FullWorkoutForm() {
         ...entry,
         setRows: entry.setRows.map((set) => ({ ...set, rpe: "", completed: true })),
       })),
+      methodBlocks: session.methodBlocks,
     }));
     setLoadedSuggestionId(null);
     setEditingSessionId(null);

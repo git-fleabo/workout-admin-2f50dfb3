@@ -799,6 +799,22 @@ function MovementPlanCard({
         <div className="rounded-lg border border-sky-400/15 bg-sky-400/[0.04] p-2.5 text-xs text-muted-foreground">
           {movement.reason}
         </div>
+        {movement.setRows.some((set) => set.method) ? (
+          <div className="flex flex-wrap gap-1.5">
+            {movement.setRows.map((set, setIndex) =>
+              set.method ? (
+                <Badge
+                  key={`${set.method.trainingMethodId}-${setIndex}`}
+                  variant="outline"
+                  className="border-violet-400/30 text-[10px] text-violet-200"
+                >
+                  Set {setIndex + 1} · {set.method.methodName} · {set.method.segments.length + 1}
+                  segments
+                </Badge>
+              ) : null,
+            )}
+          </div>
+        ) : null}
         <div className="space-y-1.5">
           <div
             className={cn(

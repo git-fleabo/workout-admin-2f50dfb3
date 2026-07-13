@@ -981,7 +981,7 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - `session_method_blocks` stores the method snapshot, ordered block position, rounds, two rest values, and structured configuration for a completed session. `session_method_block_entries` links the block to its underlying `session_entries` in movement order. Both tables cascade with the session, retain the method definition by foreign key, use explicit authenticated grants, and enforce accessible-person/session consistency through RLS.
 - The unified full-workout composer can add, edit, and remove ordered exercise-group blocks from the enabled Methods library. Supersets and tri-sets require exactly two or three movements; other group methods use their configured minimum. A movement belongs to at most one block in this first pass, and moving or deleting exercises updates the block safely.
 - Stable client-side movement IDs keep group membership intact while drafting, reordering, and applying same-day corrections. The normal exercise set rows remain unchanged, so existing volume and progress analytics continue to count the underlying work. Saving adds the method block only after its movement entries exist, and rolls back the whole session on any partial failure.
-- The finish review labels grouped movements, and completed-session detail shows each method with its ordered exercises, rounds, and rest. Repeating a server-loaded recent session does not yet reconstruct its prior method blocks; draft and same-day correction flows do preserve them.
+- The finish review labels grouped movements, and completed-session detail shows each method with its ordered exercises, rounds, and rest. Repeating a server-loaded recent session now reconstructs its prior exercise-group and timed blocks, ordered membership, timing/rest configuration, and set-method segments; draft and same-day correction flows preserve them too.
 - A live authenticated-role database test saved a temporary Superset with two ordered member entries, read both members through RLS, then deleted the session and confirmed cascade cleanup. The preview session expired again before the new composer could be exercised through the UI, so `/log` is left ready for sign-in.
 - `entry_set_segments` adds ordered within-set work without flattening variable loads into one `entry_sets` row. Each row snapshots the method name and definition ID plus load, reps, RPE, rest-after seconds, range of motion, and structured config. It cascades with its parent set, protects referenced method definitions, has explicit authenticated select/insert grants, and applies accessible-session RLS on both operations.
 - Rep-targeting sets expose live completed-versus-target feedback without requiring the target to be reached before saving. Deliberate partial-rep sets let the main effort and each added effort record full or partial range independently.
@@ -1013,9 +1013,26 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
   inside a Superset. Progress showed both filters and badges, calculated 1,160 kg from the two segments,
   and reduced the full workspace to the one matching session when Superset was selected. The temporary
   session, segments, and block were then deleted with zero remaining rows.
-
-The next Phase 5 slice should reconstruct advanced methods when repeating a server-loaded recent
-workout and add method adherence to planned-versus-actual review.
+- `suggested_workout_set_segments` preserves within-exercise method prescriptions in saved plans. It
+  stores the method snapshot and ordered load, reps, RPE, short rest, range-of-motion, and configuration
+  for each planned set segment. The table cascades with its parent set, uses accessible-person RLS, and
+  grants authenticated users only `select` and `insert`; update and delete remain unavailable through
+  the Data API.
+- Saved-plan reads reconstruct set methods and their segments in the unified logger. Recommendations
+  preserve them only when the source set pattern is repeated exactly; progression and tired/deload
+  changes omit them. Server-loaded recent repeats reconstruct group/timed blocks and set methods,
+  including the one-set case that previously risked being flattened into aggregate reps.
+- Planned-versus-completed review now compares method adherence independently from set adherence.
+  Progress labels the method result as matched, changed, omitted, added, or straight sets and shows the
+  planned and actual method names.
+- A live authenticated browser smoke test saved and loaded a temporary Gym plan containing Bench Press
+  with Drop / strip set segments inside a Superset. The logger restored both methods, and repeating the
+  completed server-loaded workout retained the same block and the 70 kg x 8 plus 60 kg x 10 drop
+  sequence. Progress reported `Method matched` and displayed both planned and actual method names. The
+  live table returned two segments through RLS with authenticated `select`/`insert` but no
+  `update`/`delete`; all temporary plan/session rows and their segments were then removed.
+- Phase 5 is complete. Phase 6 should begin by auditing the planned, draft, completed, skipped, and
+  archived workout states and defining one visible session-lifecycle model.
 
 ## Key Files
 
@@ -1067,7 +1084,8 @@ workout and add method adherence to planned-versus-actual review.
 - `supabase/migrations/20260713110640_add_persistent_workout_suggestions.sql`: applied and tracked persistent workout plan entries/sets, session link, indexes, grants, and RLS.
 - `supabase/migrations/20260713142913_add_training_methods.sql`: applied and tracked training-method definitions, per-person settings, system seed data, indexes, grants, and RLS.
 - `supabase/migrations/20260713173700_add_suggested_workout_method_blocks.sql`: applied and tracked method blocks and ordered movement memberships for persistent plans.
-- `docs/product-roadmap.md`: staged product redesign roadmap; Phase 4 is complete and Phase 5 advanced-method logging, review, and planning are active.
+- `supabase/migrations/20260713173800_add_suggested_workout_set_segments.sql`: applied and tracked within-exercise method segments for persistent plans.
+- `docs/product-roadmap.md`: staged product redesign roadmap; Phase 5 advanced-method logging, planning, round trips, Progress, and adherence review are complete.
 - `supabase/approved_logging_library_updates.sql`: reusable SQL for approved data-library changes.
 - `workout_context.md`: this handoff file; keep it current.
 
@@ -1200,7 +1218,7 @@ Recommended next work, in order:
 8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-11. Continue Phase 5 by reconstructing advanced methods in server-loaded recent-workout repeats and comparing planned-versus-completed method adherence.
+11. Start Phase 6 by auditing planned, draft, completed, skipped, and archived workout states and defining one visible session-lifecycle model.
 12. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
 13. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 14. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.

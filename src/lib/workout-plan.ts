@@ -1,4 +1,4 @@
-import type { getRecentLogsClient } from "./supabase-log.browser";
+import type { getRecentLogsClient, WorkoutSetMethodInput } from "./supabase-log.browser";
 
 export const WORKOUT_PLAN_DRAFT_KEY = "workout-plan-draft";
 export const WORKOUT_PLAN_LOCATION_KEY = "workout-plan-location";
@@ -12,6 +12,7 @@ export type WorkoutPlanSet = {
   weight: string;
   rpe: string;
   completed: boolean;
+  method?: WorkoutSetMethodInput;
 };
 
 export type WorkoutPlanMovement = {
@@ -76,7 +77,9 @@ function roundLoad(value: number) {
 }
 
 function setRowsFor(log: RecentWorkoutLog): WorkoutPlanSet[] {
-  if (log.setRows.length > 1) return log.setRows.map((set) => ({ ...set, completed: true }));
+  if (log.setRows.length > 1 || log.setRows.some((set) => set.method)) {
+    return log.setRows.map((set) => ({ ...set, completed: true }));
+  }
   const count = Math.max(1, Math.round(numberOrNull(log.sets) ?? 1));
   const totalReps = numberOrNull(log.reps);
   const perSetReps =
@@ -155,6 +158,7 @@ export function getWorkoutBasisOptions(
 
 function suggestMovement(log: RecentWorkoutLog, readiness: PlannerReadiness): WorkoutPlanMovement {
   let rows = setRowsFor(log);
+  let preserveSetMethods = true;
   const weightedRows = rows.filter((set) => numberOrNull(set.weight) != null);
   const reps = rows
     .map((set) => numberOrNull(set.reps))
@@ -167,12 +171,14 @@ function suggestMovement(log: RecentWorkoutLog, readiness: PlannerReadiness): Wo
 
   let reason = "Repeats the most recent set pattern for this movement.";
   if (readiness === "tired") {
+    preserveSetMethods = false;
     rows = rows.slice(0, Math.max(1, rows.length - 1)).map((set) => {
       const load = numberOrNull(set.weight);
       return { ...set, weight: load == null ? set.weight : String(roundLoad(load * 0.9)), rpe: "" };
     });
     reason = "Recovery option: one fewer set and about 10% less load than last time.";
   } else if (weightedRows.length > 0 && allAtFive && (comfortable || readiness === "fresh")) {
+    preserveSetMethods = false;
     rows = rows.map((set) => {
       const load = numberOrNull(set.weight);
       return {
@@ -186,6 +192,7 @@ function suggestMovement(log: RecentWorkoutLog, readiness: PlannerReadiness): Wo
       ? "All recorded sets reached 5+ reps at RPE 8 or below, so load moves up 2.5 kg and reps reset to 3."
       : "You marked yourself fresh and reached 5+ reps last time, so load moves up 2.5 kg and reps reset to 3.";
   } else if (weightedRows.length > 0 && reps.length > 0 && reps.some((value) => value < 5)) {
+    preserveSetMethods = false;
     rows = rows.map((set) => {
       const current = numberOrNull(set.reps);
       return {
@@ -199,6 +206,8 @@ function suggestMovement(log: RecentWorkoutLog, readiness: PlannerReadiness): Wo
     reason =
       "Repeats the load because 5 reps were reached but no comfortable RPE (8 or below) was logged.";
   }
+
+  if (!preserveSetMethods) rows = rows.map((set) => ({ ...set, method: undefined }));
 
   return {
     exercise: log.exercise,
@@ -301,7 +310,15 @@ export function readWorkoutPlanDraft(value: string | null): WorkoutPlanDraft | n
           typeof movement.exercise === "string" &&
           typeof movement.workoutType === "string" &&
           Array.isArray(movement.setRows) &&
-          movement.setRows.length > 0,
+          movement.setRows.length > 0 &&
+          movement.setRows.every(
+            (set) =>
+              set.method == null ||
+              (typeof set.method.trainingMethodId === "string" &&
+                typeof set.method.methodName === "string" &&
+                Array.isArray(set.method.segments) &&
+                set.method.segments.length > 0),
+          ),
       )
     ) {
       return null;
