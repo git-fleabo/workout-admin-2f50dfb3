@@ -827,6 +827,10 @@ Finishing a workout is now a two-step action. `Review and finish` opens a summar
 
 Home/Gym selection is saved on `sessions.training_location_id` and remembered locally for the next workout entry. History details show the saved location. The workout movement picker filters enabled exercises using the selected person's `person_exercises.location_scope`: Home, Gym, or Both.
 
+### Today
+
+The app now starts at `/`, which is a compact Today launch screen rather than redirecting straight to Log. Today prioritises an account-scoped unfinished draft, then shows saved Next Workouts, the latest completed Home and Gym sessions, an empty-workout action, and a link to Progress. Starting a saved plan accepts it and hands the editable targets to the unified logger. Repeating a recent session uses a short-lived local session ID so the logger can rebuild the full existing session template without flattening non-standard exercise fields. If a draft exists, Today protects it and asks the user to resume or discard it before starting another workout. A same-day completed snapshot links back to the existing review/edit flow in Log.
+
 Climbing:
 
 - Type: `Climbing`
@@ -881,6 +885,7 @@ Check-ins are stored in `goal_checkins`.
 The top-level Progress workspace is designed to be especially useful on larger screens while retaining a stacked mobile layout. It includes:
 
 - a searchable exercise selector that starts with Bench Press when available
+- exercise choices limited to movements that occur in the signed-in profile's completed Workout Log history; stable exercise IDs are preferred and normalized names retain legacy name-only entries
 - exercise choices filtered by the selected All/Home/Gym view using per-person location availability
 - 4, 8, 12, and 26-week plus all-time periods
 - All, Home, and Gym location filters
@@ -944,9 +949,10 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `src/lib/workout-plan.ts`: transparent history grouping, pattern detection, progression rules, and plan-draft validation.
 - `src/lib/supabase-library.browser.ts`: library and person exercise selection data functions.
 - `src/lib/supabase-goals.browser.ts`: goals and check-ins data functions.
-- `src/lib/supabase-history.browser.ts`: exercise-specific history for library detail.
+- `src/lib/supabase-history.browser.ts`: exercise-specific history plus the completed-log exercise keys used by Progress.
+- `src/lib/workout-local-state.ts`: account-scoped draft/favourite/completed keys and compact Today summaries.
 - `src/lib/supabase-timeline.browser.ts`: combined History tab data.
-- `src/routes/index.tsx`: startup redirect from `/` to `/log`.
+- `src/routes/index.tsx`: compact Today startup and workout launch route.
 - `src/routes/dashboard.tsx`: dashboard route at `/dashboard`.
 - `src/routes/log.tsx`: log screen route.
 - `src/routes/plan.tsx`: next-workout planner, readiness choices, and editable suggested sets.
@@ -964,7 +970,7 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `supabase/migrations/20260713100036_add_training_locations.sql`: applied and tracked training-location migration.
 - `supabase/migrations/20260713105054_add_exercise_location_scope.sql`: applied and tracked per-person Home/Gym/Both exercise availability.
 - `supabase/migrations/20260713110640_add_persistent_workout_suggestions.sql`: applied and tracked persistent workout plan entries/sets, session link, indexes, grants, and RLS.
-- `docs/product-roadmap.md`: staged product redesign roadmap; the active phase is the unified workout logger.
+- `docs/product-roadmap.md`: staged product redesign roadmap; the active phase is Today and its history-based recommendation.
 - `supabase/approved_logging_library_updates.sql`: reusable SQL for approved data-library changes.
 - `workout_context.md`: this handoff file; keep it current.
 
@@ -1089,7 +1095,7 @@ Recommended next work, in order:
 
 1. Push any local commits via GitHub Desktop if the branch is ahead of remote.
 2. In Lovable preview, confirm the commit label matches the latest pushed commit.
-3. Confirm app startup opens the unified workout logger and the Dashboard nav still opens `/dashboard`.
+3. Confirm app startup opens Today and the Dashboard nav still opens `/dashboard`.
 4. Set a few Library movements to Home-only and Gym-only, then confirm the workout movement list filters correctly while Both appears in both lists.
 5. Test Log flows for Strength, Run, Class, Mobility/Flexibility, Grip, Climbing, 1RM, and Bodyweight.
 6. Test the duplicate-log warning by trying to save the same movement twice on the same date.
@@ -1097,7 +1103,7 @@ Recommended next work, in order:
 8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-11. Begin Phase 2 with the Today launch screen: resume a draft, reopen today's workout, start a saved/recent workout, or begin empty.
+11. Refine Phase 2 by adding a concise, explainable history-based next-workout recommendation to Today.
 12. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
 13. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 14. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.

@@ -10,6 +10,7 @@ import {
   LogOut,
   Settings as SettingsIcon,
   ShieldCheck,
+  Sun,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,13 @@ type NavItem = {
 };
 
 const NAV: NavItem[] = [
+  {
+    to: "/",
+    label: "Today",
+    icon: <Sun className="h-4 w-4" />,
+    activeClass: "border-amber-500/40 bg-amber-500/10 text-amber-300 shadow",
+    iconClass: "text-amber-400",
+  },
   {
     to: "/dashboard",
     label: "Dashboard",
@@ -114,7 +122,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </div>
         <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-3 pb-3 sm:px-5">
           {NAV.map((item) => {
-            const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
+            const active =
+              pathname === item.to || (item.to !== "/" && pathname.startsWith(`${item.to}/`));
             return (
               <Link
                 key={item.to}

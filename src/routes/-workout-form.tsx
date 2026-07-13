@@ -74,7 +74,12 @@ import {
   updateSuggestedWorkoutStatusClient,
   type SavedWorkoutPlan,
 } from "@/lib/supabase-plans.browser";
-import { getSupabaseSession } from "@/lib/supabase-public";
+import {
+  lastCompletedWorkoutKey,
+  WORKOUT_REPEAT_SESSION_KEY,
+  workoutFavoritesKey,
+  workoutSessionDraftKey,
+} from "@/lib/workout-local-state";
 import {
   getMovementMetricProfile,
   type MetricProfile,
@@ -104,9 +109,6 @@ const YOGA_WORKOUT_TYPE = "Yoga";
 const CLIMBING_WORKOUT_TYPE = "Climbing";
 const CLASS_WORKOUT_TYPE = "Class";
 const MOBILITY_WORKOUT_TYPE = "Mobility/Flexibility";
-const WORKOUT_SESSION_DRAFT_KEY_PREFIX = "workout-session-draft";
-const WORKOUT_FAVORITES_KEY_PREFIX = "workout-favorite-movements";
-const LAST_COMPLETED_WORKOUT_KEY_PREFIX = "last-completed-workout";
 const CLIMBING_MOVEMENTS = ["Bouldering Session", "Ropes/Belay", "Kilter", "Mix"];
 const GRIP_STYLES = [
   "Open hand",
@@ -390,21 +392,6 @@ function sessionHasDraftContent(form: SessionFormState) {
     !form.completed ||
     form.entries.some(entryHasDraftContent),
   );
-}
-
-function workoutSessionDraftKey() {
-  const userId = getSupabaseSession()?.user.id;
-  return `${WORKOUT_SESSION_DRAFT_KEY_PREFIX}:${userId ?? "signed-out"}`;
-}
-
-function workoutFavoritesKey() {
-  const userId = getSupabaseSession()?.user.id;
-  return `${WORKOUT_FAVORITES_KEY_PREFIX}:${userId ?? "signed-out"}`;
-}
-
-function lastCompletedWorkoutKey() {
-  const userId = getSupabaseSession()?.user.id;
-  return `${LAST_COMPLETED_WORKOUT_KEY_PREFIX}:${userId ?? "signed-out"}`;
 }
 
 function readWorkoutFavorites(value: string | null) {
@@ -1061,11 +1048,39 @@ export function FullWorkoutForm() {
       toast.message("Workout draft restored", {
         description: "Your unfinished workout is ready to continue.",
       });
+      setInitialFormLoaded(true);
+      return;
     } else if (storedSessionDraft) {
       window.localStorage.removeItem(draftStorageKey);
     }
+
+    const repeatSessionId = window.localStorage.getItem(WORKOUT_REPEAT_SESSION_KEY);
+    if (repeatSessionId) {
+      if (!recent.data || !locations.data?.length) return;
+      const session = buildRecentSessionTemplates(recent.data.recent).find(
+        (item) => item.id === repeatSessionId,
+      );
+      window.localStorage.removeItem(WORKOUT_REPEAT_SESSION_KEY);
+      if (session) {
+        const sessionLocation = locations.data.find(
+          (location) => location.kind === session.location?.kind,
+        );
+        setForm({
+          ...blankSession(),
+          title: session.title,
+          trainingLocationId: sessionLocation?.id ?? "",
+          entries: session.entries.map((entry) => ({
+            ...entry,
+            setRows: entry.setRows.map((set) => ({ ...set, rpe: "", completed: true })),
+          })),
+        });
+        toast.message("Recent workout loaded", {
+          description: `${session.entries.length} movements copied from ${formatUKDate(session.date)}.`,
+        });
+      }
+    }
     setInitialFormLoaded(true);
-  }, [draftStorageKey, initialFormLoaded, loadPlanIntoForm, locations.data]);
+  }, [draftStorageKey, initialFormLoaded, loadPlanIntoForm, locations.data, recent.data]);
 
   useEffect(() => {
     if (!initialFormLoaded) return;

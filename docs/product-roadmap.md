@@ -83,16 +83,19 @@ Goal: remove the decision between Quick Log and Full Workout, then make the rema
 
 Phase 1 is complete when a one-movement workout and a multi-movement workout use the same interface, an interrupted session is recoverable, and the common weighted-set flow needs materially fewer taps.
 
-## Phase 2: Today
+## Phase 2: Today — initial launch screen implemented
 
 Goal: make startup answer “What am I doing today?” instead of presenting an empty database form.
 
-- Show a saved Next Workout first.
-- Resume an unfinished draft.
-- Repeat a recent Home or Gym session.
-- Start an empty workout.
-- Show today’s completed session with an Edit action.
-- Keep the screen compact; it is a launch point, not another dashboard.
+- Show a saved Next Workout first. — implemented
+- Resume an unfinished draft. — implemented
+- Repeat a recent Home or Gym session. — implemented
+- Start an empty workout. — implemented
+- Show today’s completed session with a route to its Edit action. — implemented
+- Keep the screen compact; it is a launch point, not another dashboard. — implemented
+
+The next Today refinement should move the most useful history-based recommendation onto this
+screen, with a short explanation and an easy way to adjust it before logging.
 
 ## Phase 3: Exercise Progress Workspace
 
@@ -160,4 +163,7 @@ Implementation should begin with supersets/tri-sets/giant sets and drop/strip se
 
 ## Current Focus
 
-Phase 1 is implemented: the app now has one recoverable session composer, history-assisted sets, faster movement selection, recent-session repeats, a finish review, and safe same-day correction. The next implementation should begin Phase 2 with the Today launch screen: resume a draft, reopen today’s completed workout, start a saved/recent workout, or begin empty.
+Phase 2 now has its first complete launch screen. The app starts on Today, where an unfinished
+draft takes priority, saved plans and recent Home/Gym sessions can be started, an empty workout is
+available, and today’s completed workout can be reopened through Log. The next change should add a
+concise history-based recommendation to Today before the broader Phase 3 Progress refinement.

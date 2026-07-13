@@ -1,4 +1,5 @@
 import { supabasePublicSelect } from "./supabase-public";
+import { getCurrentPerson } from "./supabase-people.browser";
 import type { ExerciseHistory, ExerciseSessionPoint } from "./training-types";
 
 type EntrySetRecord = {
@@ -30,6 +31,36 @@ type ExerciseHistoryTarget = {
   id?: string;
   name: string;
 };
+
+type LoggedExerciseRecord = {
+  exercise_id: string | null;
+  name: string;
+};
+
+export type LoggedExerciseKeys = {
+  ids: string[];
+  names: string[];
+};
+
+export async function getLoggedExerciseKeysClient(): Promise<LoggedExerciseKeys> {
+  const person = await getCurrentPerson();
+  if (!person) throw new Error("This account is not linked to a training profile.");
+
+  const rows = await supabasePublicSelect<LoggedExerciseRecord>("session_entries", {
+    select: "exercise_id,name,sessions!inner(person_id,source_sheet,completed)",
+    completed: "eq.true",
+    source_sheet: "eq.Workout Log",
+    "sessions.person_id": `eq.${person.id}`,
+    "sessions.source_sheet": "eq.Workout Log",
+    "sessions.completed": "eq.true",
+    limit: 5000,
+  });
+
+  return {
+    ids: Array.from(new Set(rows.flatMap((row) => (row.exercise_id ? [row.exercise_id] : [])))),
+    names: Array.from(new Set(rows.map((row) => row.name.trim().toLowerCase()).filter(Boolean))),
+  };
+}
 
 const toNumber = (value: unknown): number => {
   if (value == null || value === "") return NaN;

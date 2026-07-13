@@ -44,7 +44,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatUKDate, formatUKDateShort } from "@/lib/date";
-import { getExerciseHistoryClient } from "@/lib/supabase-history.browser";
+import {
+  getExerciseHistoryClient,
+  getLoggedExerciseKeysClient,
+} from "@/lib/supabase-history.browser";
 import { getLibraryClient } from "@/lib/supabase-log.browser";
 import type { ExerciseSessionPoint, LibraryRow } from "@/lib/training-types";
 import { cn } from "@/lib/utils";
@@ -122,10 +125,19 @@ function ProgressPage() {
     queryFn: getLibraryClient,
     staleTime: 5 * 60_000,
   });
-  const exercises = useMemo(
-    () => (library.data?.exercises ?? []) as ExerciseOption[],
-    [library.data?.exercises],
-  );
+  const loggedExercises = useQuery({
+    queryKey: ["progress-logged-exercises"],
+    queryFn: getLoggedExerciseKeysClient,
+    staleTime: 5 * 60_000,
+  });
+  const exercises = useMemo(() => {
+    const loggedIds = new Set(loggedExercises.data?.ids ?? []);
+    const loggedNames = new Set(loggedExercises.data?.names ?? []);
+    return ((library.data?.exercises ?? []) as ExerciseOption[]).filter(
+      (exercise) =>
+        loggedIds.has(exercise.id) || loggedNames.has(exercise.name.trim().toLowerCase()),
+    );
+  }, [library.data?.exercises, loggedExercises.data]);
   const [exerciseId, setExerciseId] = useState("");
   const [period, setPeriod] = useState<Period>(8);
   const [location, setLocation] = useState<LocationFilter>("all");
@@ -301,11 +313,14 @@ function ProgressPage() {
         </div>
       </div>
 
-      {library.isLoading || history.isLoading || (!exercise && exercises.length > 0) ? (
+      {library.isLoading ||
+      loggedExercises.isLoading ||
+      history.isLoading ||
+      (!exercise && exercises.length > 0) ? (
         <div className="flex items-center justify-center py-24 text-sm text-muted-foreground">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading progress…
         </div>
-      ) : library.error || history.error ? (
+      ) : library.error || loggedExercises.error || history.error ? (
         <Card className="border-destructive/40">
           <CardContent className="p-6 text-sm text-destructive">
             Progress could not be loaded. Please refresh and try again.
@@ -314,7 +329,7 @@ function ProgressPage() {
       ) : exercises.length === 0 ? (
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            Add an exercise to your library before reviewing progress.
+            No completed exercise logs yet. Finish a workout to start tracking progress.
           </CardContent>
         </Card>
       ) : analysis.current.length === 0 ? (
