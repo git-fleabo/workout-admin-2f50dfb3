@@ -7,6 +7,7 @@ import {
   ClipboardList,
   Dumbbell,
   History,
+  Layers3,
   LogOut,
   Settings as SettingsIcon,
   ShieldCheck,
@@ -67,6 +68,13 @@ const NAV: NavItem[] = [
     icon: <BookOpen className="h-4 w-4" />,
     activeClass: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300 shadow",
     iconClass: "text-emerald-400",
+  },
+  {
+    to: "/methods",
+    label: "Methods",
+    icon: <Layers3 className="h-4 w-4" />,
+    activeClass: "border-indigo-500/40 bg-indigo-500/10 text-indigo-300 shadow",
+    iconClass: "text-indigo-400",
   },
   {
     to: "/history",

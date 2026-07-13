@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ProgressRouteImport } from './routes/progress'
 import { Route as PlanRouteImport } from './routes/plan'
+import { Route as MethodsRouteImport } from './routes/methods'
 import { Route as LogRouteImport } from './routes/log'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as HistoryRouteImport } from './routes/history'
@@ -26,6 +27,11 @@ const ProgressRoute = ProgressRouteImport.update({
 const PlanRoute = PlanRouteImport.update({
   id: '/plan',
   path: '/plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MethodsRoute = MethodsRouteImport.update({
+  id: '/methods',
+  path: '/methods',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LogRoute = LogRouteImport.update({
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/history': typeof HistoryRoute
   '/library': typeof LibraryRoute
   '/log': typeof LogRoute
+  '/methods': typeof MethodsRoute
   '/plan': typeof PlanRoute
   '/progress': typeof ProgressRoute
 }
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/history': typeof HistoryRoute
   '/library': typeof LibraryRoute
   '/log': typeof LogRoute
+  '/methods': typeof MethodsRoute
   '/plan': typeof PlanRoute
   '/progress': typeof ProgressRoute
 }
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/history': typeof HistoryRoute
   '/library': typeof LibraryRoute
   '/log': typeof LogRoute
+  '/methods': typeof MethodsRoute
   '/plan': typeof PlanRoute
   '/progress': typeof ProgressRoute
 }
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/history'
     | '/library'
     | '/log'
+    | '/methods'
     | '/plan'
     | '/progress'
   fileRoutesByTo: FileRoutesByTo
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/history'
     | '/library'
     | '/log'
+    | '/methods'
     | '/plan'
     | '/progress'
   id:
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/history'
     | '/library'
     | '/log'
+    | '/methods'
     | '/plan'
     | '/progress'
   fileRoutesById: FileRoutesById
@@ -130,6 +142,7 @@ export interface RootRouteChildren {
   HistoryRoute: typeof HistoryRoute
   LibraryRoute: typeof LibraryRoute
   LogRoute: typeof LogRoute
+  MethodsRoute: typeof MethodsRoute
   PlanRoute: typeof PlanRoute
   ProgressRoute: typeof ProgressRoute
 }
@@ -148,6 +161,13 @@ declare module '@tanstack/react-router' {
       path: '/plan'
       fullPath: '/plan'
       preLoaderRoute: typeof PlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/methods': {
+      id: '/methods'
+      path: '/methods'
+      fullPath: '/methods'
+      preLoaderRoute: typeof MethodsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/log': {
@@ -202,6 +222,7 @@ const rootRouteChildren: RootRouteChildren = {
   HistoryRoute: HistoryRoute,
   LibraryRoute: LibraryRoute,
   LogRoute: LogRoute,
+  MethodsRoute: MethodsRoute,
   PlanRoute: PlanRoute,
   ProgressRoute: ProgressRoute,
 }

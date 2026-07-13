@@ -956,6 +956,20 @@ History workout counts should also count same-day workout exercises as one worko
 
 History detail notes combine movement-level and session-level notes, but exact duplicate note text should be shown once. Single-exercise logs currently save the same note to both places, so the timeline mapper dedupes before rendering the detail dialog.
 
+### Training Methods
+
+The top-level Methods settings screen starts Phase 5 advanced-method support:
+
+- `training_methods` stores protected system definitions and person-owned custom methods with stable UUIDs, one of three families (`exercise_group`, `set_method`, or `timed_density`), a description, and structured JSON defaults.
+- `person_training_methods` stores account/person-scoped visibility and future per-person default overrides without mutating the system definition.
+- Fourteen system methods are seeded from the OriGym-aligned roadmap terminology: supersets, tri-sets, giant sets, circuits, jump sets, PHA, complex training, drop/strip sets, clusters, rest-pause, rep targeting, partial reps, EDT, and Tabata.
+- System definitions cannot be edited or deleted, but can be hidden or duplicated into an editable personal copy. Custom methods support create, edit, duplicate, deactivate/reactivate, and permanent deletion while they are not yet referenced by logged training.
+- RLS reuses `app_private.person_is_accessible(person_id)`. System rows are readable by authenticated users; custom definitions and preferences are limited to accessible people. Both tables have explicit authenticated Data API grants and four CRUD policies.
+- Live verification found 7 exercise-group, 5 set-method, and 2 timed/density system rows, RLS enabled, explicit select grants, and four policies on each table. An authenticated-role test saw all 14 system rows and completed an insert/update/delete cycle with no residual row. The Supabase advisor identified one missing foreign-key index, which was added. Existing unrelated advisor notices remain unchanged.
+- The local preview reached the new route, but its prior auth session had expired before browser CRUD verification; the page is left ready for sign-in.
+
+The next Phase 5 slice should add ordered method blocks to the unified workout composer. Exercise-group blocks must preserve movement order, rounds, rest between movements, and rest between rounds. Drop sets must preserve each load/reps segment rather than flattening the work into one ordinary set.
+
 ## Key Files
 
 - `src/components/admin-shell.tsx`: main shell, navigation, build label, sign out.
@@ -978,6 +992,7 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `src/lib/workout-plan.ts`: transparent history grouping, pattern detection, progression rules, plan-draft validation, and Today-to-Plan location handoff.
 - `src/lib/weekly-plan.ts`: pure expected-day, confidence, rotation, progression, repeated-high-effort, other-load, and adjustment-validation logic for the weekly Plan overview.
 - `src/lib/weekly-recovery.ts`: pure combined-load, effort, performance-decline, and deload-decision rules.
+- `src/lib/supabase-training-methods.browser.ts`: profile-scoped system/custom training-method reads and settings CRUD.
 - `src/lib/supabase-library.browser.ts`: library and person exercise selection data functions.
 - `src/lib/supabase-goals.browser.ts`: goals and check-ins data functions.
 - `src/lib/supabase-history.browser.ts`: exercise history, completed-log exercise keys, and linked planned-versus-actual reads used by Progress.
@@ -988,6 +1003,7 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `src/routes/dashboard.tsx`: dashboard route at `/dashboard`.
 - `src/routes/log.tsx`: log screen route.
 - `src/routes/plan.tsx`: next-workout planner, readiness choices, and editable suggested sets.
+- `src/routes/methods.tsx`: advanced training-method settings library, family filters, defaults, visibility, duplication, and custom CRUD.
 - `src/routes/progress.tsx`: exercise-specific progress analysis, charts, period/location filters, and set history.
 - `src/routes/-workout-form.tsx`: shared workout/climbing log form and metric-field UI.
 - `src/routes/library.tsx`: library route.
@@ -1002,6 +1018,7 @@ History detail notes combine movement-level and session-level notes, but exact d
 - `supabase/migrations/20260713100036_add_training_locations.sql`: applied and tracked training-location migration.
 - `supabase/migrations/20260713105054_add_exercise_location_scope.sql`: applied and tracked per-person Home/Gym/Both exercise availability.
 - `supabase/migrations/20260713110640_add_persistent_workout_suggestions.sql`: applied and tracked persistent workout plan entries/sets, session link, indexes, grants, and RLS.
+- `supabase/migrations/20260713142913_add_training_methods.sql`: applied and tracked training-method definitions, per-person settings, system seed data, indexes, grants, and RLS.
 - `docs/product-roadmap.md`: staged product redesign roadmap; Phase 4 planning/deloads are complete and Phase 5 advanced methods are next.
 - `supabase/approved_logging_library_updates.sql`: reusable SQL for approved data-library changes.
 - `workout_context.md`: this handoff file; keep it current.
@@ -1135,7 +1152,7 @@ Recommended next work, in order:
 8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-11. Start Phase 5 with a stable Training Methods data model and authorised methods library, then add supersets/tri-sets/giant sets and drop/strip sets to planning and logging.
+11. Continue Phase 5 by adding ordered supersets/tri-sets/giant sets to the unified workout composer, then add preserved within-set segments for drop/strip sets.
 12. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
 13. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 14. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.

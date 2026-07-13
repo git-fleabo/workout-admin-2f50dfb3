@@ -129,7 +129,7 @@ Goal: extend the current next-workout planner into a practical view of the comin
 - A lighter workout or full deload-week option. — implemented with an explainable recovery decision and editable mode
 - Editable recommendations with visible source sessions and reasons. — next-workout targets are editable; weekly day load is now adjustable and saved locally per account/week
 
-## Phase 5: Advanced Training Methods
+## Phase 5: Advanced Training Methods — settings foundation implemented
 
 Goal: plan, log, and review non-straight-set methods without hiding their actual exercise, set, rep, load, rest, and sequence data.
 
@@ -146,6 +146,11 @@ Settings should provide a Training Methods library where an authorised user can:
 - Choose the method family and which fields apply, with stable IDs so renaming does not rewrite history.
 - Set defaults such as movement count, rest, rounds, rep targets, percentage drops, interval timing, and whether exercises alternate or run sequentially.
 - Keep system methods protected from destructive deletion, but allow them to be hidden or duplicated into an editable custom version.
+
+The first Phase 5 slice is implemented: a dedicated Methods screen exposes 14 protected system
+definitions across the three families, account/person-scoped visibility settings, editable personal
+copies, and custom create/edit/deactivate/reactivate/delete flows. Each definition has a stable UUID,
+family, description, and structured defaults ready for the planning and logging model.
 
 Implementation should begin with supersets/tri-sets/giant sets and drop/strip sets, then add the remaining OriGym methods. Progress and planning must continue to count the underlying exercise volume while also showing the method used.
 
@@ -176,5 +181,6 @@ while completed history stays separate. A Recovery decision combines recent and 
 exercise-level high-effort decline, and the adjusted coming week. It can keep the normal plan, make the
 next workout lighter, or apply a week-local deload mode while retaining editable days and targets.
 
-The next implementation should start Phase 5 with the Training Methods data model and library, followed
-by the first logging flows for exercise groups and within-exercise drop segments.
+Phase 5 is now active. The Training Methods data model and settings library are live. The next
+implementation should add ordered exercise-group blocks to the workout composer, beginning with
+supersets/tri-sets/giant sets, then add preserved within-set segments for drop/strip sets.
