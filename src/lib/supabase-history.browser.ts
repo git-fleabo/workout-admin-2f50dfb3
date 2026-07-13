@@ -15,6 +15,8 @@ type EntrySetRecord = {
   rpe: number | string | null;
   completed: boolean | null;
   entry_set_segments?: Array<{
+    training_method_id: string;
+    method_name: string;
     segment_index: number | string;
     reps: number | string | null;
     weight: number | string | null;
@@ -37,6 +39,15 @@ type SessionEntryRecord = {
     } | null;
   } | null;
   entry_sets: EntrySetRecord[] | null;
+};
+
+type EntryMethodBlockRecord = {
+  session_entry_id: string;
+  session_method_blocks: {
+    training_method_id: string;
+    method_name: string;
+    family: "exercise_group" | "timed_density";
+  } | null;
 };
 
 type ExerciseHistoryTarget = {
@@ -212,6 +223,7 @@ function blankPoint(row: SessionEntryRecord): ExerciseSessionPoint {
     date: row.sessions?.session_date ?? "",
     locationName: row.sessions?.training_locations?.name ?? null,
     locationKind: row.sessions?.training_locations?.kind ?? null,
+    methods: [],
     sessions: 0,
     totalReps: 0,
     totalVolume: 0,
@@ -227,7 +239,7 @@ export async function getExerciseHistoryClient(
 ): Promise<ExerciseHistory> {
   const params: Record<string, string | number | boolean> = {
     select:
-      "id,name,completed,sessions!inner(id,session_date,source_sheet,training_locations(name,kind)),entry_sets(set_number,reps,weight,duration_seconds,rpe,completed,entry_set_segments(segment_index,reps,weight,rpe,range_of_motion))",
+      "id,name,completed,sessions!inner(id,session_date,source_sheet,training_locations(name,kind)),entry_sets(set_number,reps,weight,duration_seconds,rpe,completed,entry_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,range_of_motion))",
     completed: "eq.true",
     source_sheet: "eq.Workout Log",
     "sessions.source_sheet": "eq.Workout Log",
@@ -240,6 +252,26 @@ export async function getExerciseHistoryClient(
   }
 
   const rows = await supabasePublicSelect<SessionEntryRecord>("session_entries", params);
+  const entryIds = rows.map((row) => row.id);
+  const membershipBatches: Promise<EntryMethodBlockRecord[]>[] = [];
+  for (let index = 0; index < entryIds.length; index += 100) {
+    const batch = entryIds.slice(index, index + 100);
+    membershipBatches.push(
+      supabasePublicSelect<EntryMethodBlockRecord>("session_method_block_entries", {
+        select:
+          "session_entry_id,session_method_blocks!inner(training_method_id,method_name,family)",
+        session_entry_id: `in.(${batch.join(",")})`,
+        limit: 1000,
+      }),
+    );
+  }
+  const blockMemberships = (await Promise.all(membershipBatches)).flat();
+  const blockMethodsByEntry = new Map<string, EntryMethodBlockRecord[]>();
+  for (const membership of blockMemberships) {
+    const existing = blockMethodsByEntry.get(membership.session_entry_id) ?? [];
+    existing.push(membership);
+    blockMethodsByEntry.set(membership.session_entry_id, existing);
+  }
 
   const bySession = new Map<string, ExerciseSessionPoint>();
   let anyWeight = false;
@@ -257,6 +289,19 @@ export async function getExerciseHistoryClient(
     point.sessions += 1;
     totalRows += 1;
 
+    for (const membership of blockMethodsByEntry.get(row.id) ?? []) {
+      const method = membership.session_method_blocks;
+      if (!method) continue;
+      const key = `${method.family}:${method.training_method_id}`;
+      if (point.methods.some((item) => item.key === key)) continue;
+      point.methods.push({
+        key,
+        trainingMethodId: method.training_method_id,
+        name: method.method_name,
+        family: method.family,
+      });
+    }
+
     for (const set of sets) {
       const setsKnown = Number.isFinite(toNumber(set.set_number)) && toNumber(set.set_number) > 0;
       const durationSeconds = toNumber(set.duration_seconds);
@@ -272,6 +317,16 @@ export async function getExerciseHistoryClient(
             (a, b) => toNumber(a.segment_index) - toNumber(b.segment_index),
           )
         : [set];
+      for (const segment of set.entry_set_segments ?? []) {
+        const key = `set_method:${segment.training_method_id}`;
+        if (point.methods.some((item) => item.key === key)) continue;
+        point.methods.push({
+          key,
+          trainingMethodId: segment.training_method_id,
+          name: segment.method_name,
+          family: "set_method",
+        });
+      }
       for (const [segmentIndex, segment] of workSegments.entries()) {
         const reps = toNumber(segment.reps);
         const weight = toNumber(segment.weight);
@@ -321,6 +376,7 @@ export async function getExerciseHistoryClient(
     a.date === b.date ? a.sessionId.localeCompare(b.sessionId) : a.date.localeCompare(b.date),
   );
   for (const point of points) {
+    point.methods.sort((a, b) => a.name.localeCompare(b.name));
     point.sets.sort(
       (a, b) => (a.setNumber ?? Number.MAX_SAFE_INTEGER) - (b.setNumber ?? Number.MAX_SAFE_INTEGER),
     );

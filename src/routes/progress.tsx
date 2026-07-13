@@ -21,6 +21,7 @@ import {
   Dumbbell,
   ExternalLink,
   Gauge,
+  Layers3,
   Loader2,
   MapPin,
   Pause,
@@ -62,7 +63,7 @@ import type {
   PlannedActualStatus,
 } from "@/lib/planned-actual";
 import { getLibraryClient } from "@/lib/supabase-log.browser";
-import type { ExerciseSessionPoint, LibraryRow } from "@/lib/training-types";
+import type { ExerciseMethodUse, ExerciseSessionPoint, LibraryRow } from "@/lib/training-types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/progress")({
@@ -71,7 +72,7 @@ export const Route = createFileRoute("/progress")({
       { title: "Exercise Progress · Training Admin" },
       {
         name: "description",
-        content: "Review exercise load, estimated strength and training volume over time.",
+        content: "Review exercise load, estimated strength, training volume and methods over time.",
       },
     ],
   }),
@@ -80,6 +81,7 @@ export const Route = createFileRoute("/progress")({
 
 type Period = 4 | 8 | 12 | 26 | "all";
 type LocationFilter = "all" | "home" | "gym";
+type MethodFilter = "all" | "straight" | string;
 type ExerciseOption = Omit<LibraryRow, "row"> & {
   id: string;
   locationScope: "home" | "gym" | "both";
@@ -122,6 +124,54 @@ function totalVolume(points: ExerciseSessionPoint[]) {
   return points.reduce((sum, point) => sum + point.totalVolume, 0);
 }
 
+function matchesMethod(point: ExerciseSessionPoint, method: MethodFilter) {
+  if (method === "all") return true;
+  if (method === "straight") return point.methods.length === 0;
+  return point.methods.some((item) => item.key === method);
+}
+
+function methodName(method: ExerciseMethodUse) {
+  return method.name || "Advanced method";
+}
+
+function methodBreakdown(points: ExerciseSessionPoint[]) {
+  const buckets = new Map<string, { key: string; label: string; points: ExerciseSessionPoint[] }>();
+  for (const point of points) {
+    if (!point.methods.length) {
+      const straight = buckets.get("straight") ?? {
+        key: "straight",
+        label: "Straight sets",
+        points: [],
+      };
+      straight.points.push(point);
+      buckets.set(straight.key, straight);
+      continue;
+    }
+    for (const method of point.methods) {
+      const bucket = buckets.get(method.key) ?? {
+        key: method.key,
+        label: methodName(method),
+        points: [],
+      };
+      bucket.points.push(point);
+      buckets.set(bucket.key, bucket);
+    }
+  }
+  return Array.from(buckets.values())
+    .map((bucket) => ({
+      key: bucket.key,
+      label: bucket.label,
+      sessions: bucket.points.length,
+      averageVolume: Math.round(totalVolume(bucket.points) / bucket.points.length),
+      bestPerformance: bestPerformance(bucket.points),
+    }))
+    .sort((a, b) => {
+      if (a.key === "straight") return -1;
+      if (b.key === "straight") return 1;
+      return a.label.localeCompare(b.label);
+    });
+}
+
 function formatKg(value: number | null, decimals = 0) {
   if (value == null) return "—";
   return `${value.toFixed(decimals)} kg`;
@@ -154,6 +204,7 @@ function ProgressPage() {
   const [exerciseId, setExerciseId] = useState("");
   const [period, setPeriod] = useState<Period>(8);
   const [location, setLocation] = useState<LocationFilter>("all");
+  const [methodFilter, setMethodFilter] = useState<MethodFilter>("all");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const locationExercises = useMemo(
     () =>
@@ -188,6 +239,25 @@ function ProgressPage() {
     enabled: Boolean(exercise),
     staleTime: 60_000,
   });
+  const methodOptions = useMemo(() => {
+    const methods = new Map<string, string>();
+    for (const point of history.data?.points ?? []) {
+      for (const method of point.methods) methods.set(method.key, methodName(method));
+    }
+    return Array.from(methods, ([key, label]) => ({ key, label })).sort((a, b) =>
+      a.label.localeCompare(b.label),
+    );
+  }, [history.data?.points]);
+
+  useEffect(() => {
+    if (
+      methodFilter !== "all" &&
+      methodFilter !== "straight" &&
+      !methodOptions.some((method) => method.key === methodFilter)
+    ) {
+      setMethodFilter("all");
+    }
+  }, [methodFilter, methodOptions]);
 
   const analysis = useMemo(() => {
     const locationPoints = (history.data?.points ?? []).filter(
@@ -196,15 +266,20 @@ function ProgressPage() {
     const today = new Date();
     const now = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
     const windowMs = period === "all" ? null : period * 7 * DAY_MS;
-    const current = locationPoints.filter(
+    const periodPoints = locationPoints.filter(
       (point) => windowMs == null || dateTime(point.date) >= now - windowMs,
     );
+    const current = periodPoints.filter((point) => matchesMethod(point, methodFilter));
     const previous =
       windowMs == null
         ? []
         : locationPoints.filter((point) => {
             const time = dateTime(point.date);
-            return time >= now - 2 * windowMs && time < now - windowMs;
+            return (
+              time >= now - 2 * windowMs &&
+              time < now - windowMs &&
+              matchesMethod(point, methodFilter)
+            );
           });
     const weeks =
       period === "all"
@@ -250,8 +325,9 @@ function ProgressPage() {
         null,
       ),
       weeklyVolume,
+      methodBreakdown: methodBreakdown(periodPoints),
     };
-  }, [history.data, location, period]);
+  }, [history.data, location, methodFilter, period]);
 
   const decision = useMemo(() => {
     return buildProgressDecision({
@@ -264,12 +340,15 @@ function ProgressPage() {
     const today = new Date();
     const now = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
     const windowMs = period === "all" ? null : period * 7 * DAY_MS;
-    return (plannedActual.data ?? []).filter(
-      (comparison) =>
+    return (plannedActual.data ?? []).filter((comparison) => {
+      const point = history.data?.points.find((item) => item.sessionId === comparison.sessionId);
+      return (
         (location === "all" || comparison.locationKind === location) &&
-        (windowMs == null || dateTime(comparison.date) >= now - windowMs),
-    );
-  }, [location, period, plannedActual.data]);
+        (windowMs == null || dateTime(comparison.date) >= now - windowMs) &&
+        (methodFilter === "all" || Boolean(point && matchesMethod(point, methodFilter)))
+      );
+    });
+  }, [history.data?.points, location, methodFilter, period, plannedActual.data]);
 
   return (
     <div className="space-y-6">
@@ -277,7 +356,7 @@ function ProgressPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Exercise Progress</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Compare load, estimated strength and volume before deciding what to do next.
+            Compare load, strength, volume and training method before deciding what to do next.
           </p>
         </div>
         <ExercisePicker exercises={locationExercises} value={exerciseId} onChange={setExerciseId} />
@@ -316,6 +395,34 @@ function ProgressPage() {
             >
               {item !== "all" && <MapPin className="h-3 w-3" />}
               {item}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Layers3 className="h-3.5 w-3.5" />
+          Training method
+        </div>
+        <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-secondary/40 p-1">
+          {[
+            { key: "all", label: "All methods" },
+            { key: "straight", label: "Straight sets" },
+            ...methodOptions,
+          ].map((method) => (
+            <button
+              key={method.key}
+              type="button"
+              onClick={() => setMethodFilter(method.key)}
+              className={cn(
+                "whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition",
+                methodFilter === method.key
+                  ? "bg-card text-foreground shadow"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {method.label}
             </button>
           ))}
         </div>
@@ -383,6 +490,8 @@ function ProgressPage() {
             />
           </section>
 
+          <MethodComparison summaries={analysis.methodBreakdown} />
+
           <PlannedActualHistory
             comparisons={visibleComparisons}
             isLoading={plannedActual.isLoading}
@@ -412,6 +521,96 @@ const COMPARISON_STATUS: Record<PlannedActualStatus, { label: string; className:
   partial: { label: "Partial", className: "border-amber-400/30 text-amber-300" },
   missed: { label: "Not completed", className: "border-rose-400/30 text-rose-300" },
 };
+
+function MethodBadges({ methods }: { methods: ExerciseMethodUse[] }) {
+  if (!methods.length) {
+    return (
+      <span className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
+        Straight sets
+      </span>
+    );
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {methods.map((method) => (
+        <span
+          key={method.key}
+          className="rounded-full border border-violet-400/30 bg-violet-400/[0.08] px-2 py-0.5 text-[10px] font-medium text-violet-200"
+        >
+          {methodName(method)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function MethodComparison({
+  summaries,
+}: {
+  summaries: Array<{
+    key: string;
+    label: string;
+    sessions: number;
+    averageVolume: number;
+    bestPerformance: number | null;
+  }>;
+}) {
+  const hasAdvanced = summaries.some((summary) => summary.key !== "straight");
+  return (
+    <Card>
+      <CardHeader className="p-4 pb-2">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Layers3 className="h-4 w-4" /> Method comparison
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          The same exercise workload, grouped by how it was trained. A session can appear under more
+          than one advanced method.
+        </p>
+      </CardHeader>
+      <CardContent className="p-4 pt-2">
+        {summaries.length ? (
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {summaries.map((summary) => (
+              <div
+                key={summary.key}
+                className="rounded-lg border border-border bg-secondary/15 p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium">{summary.label}</p>
+                  <span className="text-[10px] text-muted-foreground">
+                    {summary.sessions} {summary.sessions === 1 ? "session" : "sessions"}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Avg volume
+                    </p>
+                    <p className="mt-1 text-sm font-semibold">{formatKg(summary.averageVolume)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Best performance
+                    </p>
+                    <p className="mt-1 text-sm font-semibold">
+                      {formatKg(summary.bestPerformance, 1)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {!hasAdvanced ? (
+          <p className={cn("text-xs text-muted-foreground", summaries.length && "mt-3")}>
+            No advanced-method session is logged for this exercise in the selected period and
+            location yet.
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
 
 function comparisonSetSummary(sets: PlannedActualSet[]) {
   return sets
@@ -881,6 +1080,9 @@ function SetHistory({
                   {point.locationName ?? "Location not logged"}
                 </span>
               </div>
+              <div className="mt-2">
+                <MethodBadges methods={point.methods} />
+              </div>
               <p className="mt-2 text-sm">{setSummary(point) || "No set detail"}</p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {Math.round(point.totalVolume).toLocaleString()} kg volume ·{" "}
@@ -895,6 +1097,7 @@ function SetHistory({
               <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Location</TableHead>
+                <TableHead>Method</TableHead>
                 <TableHead>Sets</TableHead>
                 <TableHead className="text-right">Volume</TableHead>
                 <TableHead className="text-right">Est. 1RM</TableHead>
@@ -920,6 +1123,9 @@ function SetHistory({
                   </TableCell>
                   <TableCell className="capitalize text-muted-foreground">
                     {point.locationName ?? "—"}
+                  </TableCell>
+                  <TableCell>
+                    <MethodBadges methods={point.methods} />
                   </TableCell>
                   <TableCell>{setSummary(point) || "—"}</TableCell>
                   <TableCell className="text-right tabular-nums">

@@ -1002,9 +1002,20 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
   is present in the proposed workout. The Plan screen exposes the carried block and allows removal before
   saving. Tired recommendations deliberately leave advanced blocks off; they are not auto-added when the
   source session did not contain one.
+- Progress derives set-method use from `entry_set_segments` and exercise-group/timed use from
+  `session_method_block_entries`. It offers All, Straight sets, and one filter per method actually used
+  for the selected exercise. The filter applies consistently to the recommendation, statistics,
+  performance/volume charts, linked plan comparisons, and exact history. Session rows show method
+  badges, and the method comparison summarizes session count, average volume, and best performance for
+  each method in the selected period/location. The underlying exercise sets and segments remain the
+  only workload source.
+- An authenticated browser smoke test used a temporary Bench Press entry with Drop / strip set segments
+  inside a Superset. Progress showed both filters and badges, calculated 1,160 kg from the two segments,
+  and reduced the full workspace to the one matching session when Superset was selected. The temporary
+  session, segments, and block were then deleted with zero remaining rows.
 
-The next Phase 5 slice should make Progress method-aware, surfacing method use alongside exercise and
-session evidence while retaining underlying exercise volume as the core workload signal.
+The next Phase 5 slice should reconstruct advanced methods when repeating a server-loaded recent
+workout and add method adherence to planned-versus-actual review.
 
 ## Key Files
 
@@ -1031,7 +1042,7 @@ session evidence while retaining underlying exercise volume as the core workload
 - `src/lib/supabase-training-methods.browser.ts`: profile-scoped system/custom training-method reads and settings CRUD.
 - `src/lib/supabase-library.browser.ts`: library and person exercise selection data functions.
 - `src/lib/supabase-goals.browser.ts`: goals and check-ins data functions.
-- `src/lib/supabase-history.browser.ts`: exercise history, completed-log exercise keys, and linked planned-versus-actual reads used by Progress.
+- `src/lib/supabase-history.browser.ts`: exercise history with method attribution, completed-log exercise keys, and linked planned-versus-actual reads used by Progress.
 - `src/lib/supabase-session-detail.browser.ts`: profile-scoped session, movement, set, metric, and notes detail read.
 - `src/lib/workout-local-state.ts`: account-scoped draft/favourite/completed keys and compact Today summaries.
 - `src/lib/supabase-timeline.browser.ts`: combined History tab data.
@@ -1189,7 +1200,7 @@ Recommended next work, in order:
 8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-11. Continue Phase 5 with method-aware Progress comparisons and filters, while retaining underlying exercise volume as the workload source.
+11. Continue Phase 5 by reconstructing advanced methods in server-loaded recent-workout repeats and comparing planned-versus-completed method adherence.
 12. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
 13. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 14. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.

@@ -91,6 +91,7 @@ export type ExerciseSessionPoint = {
   date: string;
   locationName: string | null;
   locationKind: "home" | "gym" | "other" | null;
+  methods: ExerciseMethodUse[];
   sessions: number;
   totalReps: number;
   totalVolume: number;
@@ -98,6 +99,13 @@ export type ExerciseSessionPoint = {
   totalDuration: number;
   est1RM: number | null;
   sets: ExerciseSetPoint[];
+};
+
+export type ExerciseMethodUse = {
+  key: string;
+  trainingMethodId: string;
+  name: string;
+  family: "exercise_group" | "set_method" | "timed_density";
 };
 
 export type ExerciseSetPoint = {
