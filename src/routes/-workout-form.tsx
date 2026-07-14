@@ -234,6 +234,7 @@ type MethodBlockEditorState =
 type WorkoutSetState = {
   reps: string;
   weight: string;
+  durationSeconds: string;
   rpe: string;
   completed: boolean;
   method?: WorkoutSetMethodState;
@@ -318,7 +319,13 @@ const blank = (defaultWorkoutType = ""): FormState => ({
   setRows: [],
 });
 
-const blankSet = (): WorkoutSetState => ({ reps: "", weight: "", rpe: "", completed: true });
+const blankSet = (): WorkoutSetState => ({
+  reps: "",
+  weight: "",
+  durationSeconds: "",
+  rpe: "",
+  completed: true,
+});
 
 const blankSessionEntry = () => ({ ...blank(), setRows: [blankSet()] });
 
@@ -379,6 +386,7 @@ function normalizeSessionForm(form: SessionFormState): SessionFormState {
         : newClientId("movement"),
     setRows: entry.setRows.map((set) => ({
       ...set,
+      durationSeconds: String(set.durationSeconds ?? ""),
       method:
         set.method &&
         typeof set.method.trainingMethodId === "string" &&
@@ -499,7 +507,13 @@ function entryHasDraftContent(entry: FormState) {
     stringFields.some((key) => Boolean(entry[key])) ||
     !entry.completed ||
     entry.setRows.some(
-      (set) => set.reps || set.weight || set.rpe || !set.completed || Boolean(set.method),
+      (set) =>
+        set.reps ||
+        set.weight ||
+        set.durationSeconds ||
+        set.rpe ||
+        !set.completed ||
+        Boolean(set.method),
     )
   );
 }
@@ -530,7 +544,11 @@ function readWorkoutFavorites(value: string | null) {
 }
 
 function setRowsFromRecentLog(log: RecentWorkoutLog): WorkoutSetState[] {
-  if (log.setRows.length > 1 || log.setRows.some((set) => set.method)) {
+  if (
+    log.setRows.length > 1 ||
+    log.setRows.some((set) => set.method) ||
+    (!log.sets && log.setRows.some((set) => set.durationSeconds))
+  ) {
     return log.setRows.map((set) => ({
       ...set,
       rpe: "",
@@ -549,6 +567,7 @@ function setRowsFromRecentLog(log: RecentWorkoutLog): WorkoutSetState[] {
   return Array.from({ length: count }, () => ({
     reps,
     weight: log.weight,
+    durationSeconds: log.setRows[0]?.durationSeconds ?? log.holdSeconds,
     rpe: "",
     completed: true,
   }));
@@ -557,6 +576,7 @@ function setRowsFromRecentLog(log: RecentWorkoutLog): WorkoutSetState[] {
 function setSummary(set: WorkoutSetState, usesLoad: boolean) {
   const load = usesLoad && set.weight ? `${set.weight} kg` : "";
   const reps = set.reps ? `${set.reps} reps` : "";
+  const duration = set.durationSeconds ? `${set.durationSeconds}s` : "";
   const rpe = set.rpe ? `RPE ${set.rpe}` : "";
   const drops = set.method?.segments
     .map((segment) =>
@@ -566,14 +586,22 @@ function setSummary(set: WorkoutSetState, usesLoad: boolean) {
     )
     .filter(Boolean);
   return (
-    [load, reps, rpe, drops?.length ? `${set.method?.methodName}: ${drops.join(" → ")}` : ""]
+    [
+      load,
+      reps,
+      duration,
+      rpe,
+      drops?.length ? `${set.method?.methodName}: ${drops.join(" → ")}` : "",
+    ]
       .filter(Boolean)
       .join(" · ") || "No values recorded"
   );
 }
 
 function workoutEntrySummary(entry: FormState) {
-  const sets = entry.setRows.filter((set) => set.reps || set.weight || set.rpe || set.method);
+  const sets = entry.setRows.filter(
+    (set) => set.reps || set.weight || set.durationSeconds || set.rpe || set.method,
+  );
   if (sets.length > 0) {
     const segments = sets.flatMap((set) => [
       { reps: set.reps, weight: set.weight },
@@ -594,12 +622,17 @@ function workoutEntrySummary(entry: FormState) {
       (total, set) => total + (set.method?.segments.length ?? 0),
       0,
     );
+    const totalHoldSeconds = sets.reduce(
+      (total, set) => total + (Number(set.durationSeconds) || 0),
+      0,
+    );
     return [
       `${sets.length} ${sets.length === 1 ? "set" : "sets"}`,
       methodSegments
         ? `${methodSegments} extra ${methodSegments === 1 ? "segment" : "segments"}`
         : "",
       reps > 0 ? `${reps} reps` : "",
+      totalHoldSeconds > 0 ? `${totalHoldSeconds}s total hold` : "",
       volume > 0 ? `${Math.round(volume).toLocaleString()} kg volume` : "",
     ]
       .filter(Boolean)
@@ -1291,7 +1324,11 @@ export function FullWorkoutForm() {
         ...blankSessionEntry(),
         exercise: movement.exercise,
         workoutType: movement.workoutType,
-        setRows: movement.setRows.map((set) => ({ ...set, completed: true })),
+        setRows: movement.setRows.map((set) => ({
+          ...set,
+          durationSeconds: "",
+          completed: true,
+        })),
       }));
       const methodBlocks = (draft.methodBlocks ?? [])
         .map((block) => ({
@@ -1890,7 +1927,10 @@ export function FullWorkoutForm() {
   );
   const totalRecordedSets = workoutEntries.reduce(
     (total, entry) =>
-      total + entry.setRows.filter((set) => set.reps || set.weight || set.rpe || set.method).length,
+      total +
+      entry.setRows.filter(
+        (set) => set.reps || set.weight || set.durationSeconds || set.rpe || set.method,
+      ).length,
     0,
   );
   const totalMethods =
@@ -2295,11 +2335,13 @@ export function FullWorkoutForm() {
                   {entry.workoutType}
                 </Badge>
               )}
-              {entry.exercise && profileUsesStandardSets(profile) ? (
+              {entry.exercise &&
+              (profileUsesStandardSets(profile) || profile === "hold" || profile === "grip") ? (
                 <div className="space-y-3">
                   <SetRowsEditor
                     rows={entry.setRows}
                     usesLoad={profileUsesLoad(profile)}
+                    valueKind={profile === "hold" || profile === "grip" ? "duration" : "reps"}
                     setMethods={setMethods}
                     previousWorkout={
                       previousWorkout
@@ -3214,6 +3256,7 @@ function setMethodCopy(method: WorkoutSetMethodState) {
 function SetRowsEditor({
   rows,
   usesLoad,
+  valueKind = "reps",
   setMethods,
   previousWorkout,
   onChange,
@@ -3229,6 +3272,7 @@ function SetRowsEditor({
 }: {
   rows: WorkoutSetState[];
   usesLoad: boolean;
+  valueKind?: "reps" | "duration";
   setMethods: TrainingMethod[];
   previousWorkout?: { date: string; location?: string; rows: WorkoutSetState[] };
   onChange: <K extends keyof WorkoutSetState>(
@@ -3294,7 +3338,7 @@ function SetRowsEditor({
       >
         <span>Set</span>
         {usesLoad && <span>kg</span>}
-        <span>Reps</span>
+        <span>{valueKind === "duration" ? "Hold (sec)" : "Reps"}</span>
         <span>RPE</span>
         <span />
       </div>
@@ -3345,15 +3389,18 @@ function SetRowsEditor({
               )}
               <label className="space-y-1 sm:space-y-0">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
-                  Reps
+                  {valueKind === "duration" ? "Hold (sec)" : "Reps"}
                 </span>
                 <Input
-                  inputMode="numeric"
-                  pattern="[0-9]*"
+                  inputMode="decimal"
                   className="h-12 text-lg font-semibold sm:h-10 sm:text-sm sm:font-normal"
-                  aria-label={`Set ${setIndex + 1} reps`}
-                  value={set.reps}
-                  onChange={(event) => onChange(setIndex, "reps", event.target.value)}
+                  aria-label={`Set ${setIndex + 1} ${valueKind === "duration" ? "hold seconds" : "reps"}`}
+                  value={valueKind === "duration" ? set.durationSeconds : set.reps}
+                  onChange={(event) =>
+                    valueKind === "duration"
+                      ? onChange(setIndex, "durationSeconds", event.target.value)
+                      : onChange(setIndex, "reps", event.target.value)
+                  }
                 />
               </label>
               <label className="space-y-1 sm:space-y-0">

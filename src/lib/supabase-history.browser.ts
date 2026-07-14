@@ -369,7 +369,7 @@ export async function getExerciseHistoryClient(
       const aggregateSets =
         !individualSets && setsKnown ? Math.max(1, Math.round(toNumber(set.set_number))) : null;
       if (durationMinutes > 0) anyDuration = true;
-      point.totalDuration += durationMinutes;
+      point.totalDuration += durationMinutes * (aggregateSets ?? 1);
 
       const workSegments = set.entry_set_segments?.length
         ? [...set.entry_set_segments].sort(
@@ -402,6 +402,8 @@ export async function getExerciseHistoryClient(
               : null,
           reps: repsN,
           weight: weightN,
+          durationSeconds:
+            Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds : null,
           rpe: Number.isFinite(rpe) && rpe > 0 ? rpe : null,
           completed: set.completed !== false,
           aggregateSets: segmentIndex === 0 ? aggregateSets : null,

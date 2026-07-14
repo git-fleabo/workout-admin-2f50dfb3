@@ -64,6 +64,7 @@ import type {
   PlannedActualStatus,
 } from "@/lib/planned-actual";
 import { getLibraryClient } from "@/lib/supabase-log.browser";
+import { getMovementMetricProfile } from "@/lib/movement-metrics";
 import type { ExerciseMethodUse, ExerciseSessionPoint, LibraryRow } from "@/lib/training-types";
 import { cn } from "@/lib/utils";
 
@@ -125,6 +126,31 @@ function totalVolume(points: ExerciseSessionPoint[]) {
   return points.reduce((sum, point) => sum + point.totalVolume, 0);
 }
 
+function bestHold(points: ExerciseSessionPoint[]) {
+  return points.reduce<number | null>((best, point) => {
+    const value = point.sets.reduce<number | null>(
+      (setBest, set) =>
+        set.durationSeconds != null && (setBest == null || set.durationSeconds > setBest)
+          ? set.durationSeconds
+          : setBest,
+      null,
+    );
+    return value != null && (best == null || value > best) ? value : best;
+  }, null);
+}
+
+function totalHoldSeconds(points: ExerciseSessionPoint[]) {
+  return points.reduce(
+    (total, point) =>
+      total +
+      point.sets.reduce(
+        (setTotal, set) => setTotal + (set.durationSeconds ?? 0) * (set.aggregateSets ?? 1),
+        0,
+      ),
+    0,
+  );
+}
+
 function matchesMethod(point: ExerciseSessionPoint, method: MethodFilter) {
   if (method === "all") return true;
   if (method === "straight") return point.methods.length === 0;
@@ -179,6 +205,11 @@ function formatKg(value: number | null, decimals?: number) {
   return `${value.toFixed(precision)} kg`;
 }
 
+function formatSeconds(value: number | null) {
+  if (value == null) return "—";
+  return `${Number.isInteger(value) ? value : value.toFixed(1)}s`;
+}
+
 function formatChange(value: number | null) {
   if (value == null) return "No prior comparison";
   return `${value > 0 ? "+" : ""}${value}% vs prior period`;
@@ -228,6 +259,14 @@ function ProgressPage() {
   }, [exerciseId, locationExercises]);
 
   const exercise = exercises.find((item) => item.id === exerciseId) ?? null;
+  const metricProfile = exercise
+    ? getMovementMetricProfile({
+        workoutType: exercise.workoutType,
+        movement: exercise.name,
+        defaultMetric: exercise.metric,
+      })
+    : "weighted";
+  const isHoldProfile = metricProfile === "hold" || metricProfile === "grip";
   const history = useQuery({
     queryKey: ["exercise-progress", exercise?.id],
     queryFn: () => getExerciseHistoryClient({ id: exercise?.id, name: exercise?.name ?? "" }),
@@ -302,6 +341,15 @@ function ProgressPage() {
       averageWeeklyVolume,
       previous.length ? priorAverageVolume : null,
     );
+    const currentBestHold = bestHold(current);
+    const previousBestHold = bestHold(previous);
+    const holdChange = percentageChange(currentBestHold, previousBestHold);
+    const averageWeeklyHold = totalHoldSeconds(current) / weeks;
+    const priorAverageHold = totalHoldSeconds(previous) / priorWeeks;
+    const holdVolumeChange = percentageChange(
+      averageWeeklyHold,
+      previous.length ? priorAverageHold : null,
+    );
 
     const weeklyMap = new Map<string, number>();
     for (const point of current) {
@@ -314,6 +362,17 @@ function ProgressPage() {
       volume: Math.round(volume),
     })).sort((a, b) => a.week.localeCompare(b.week));
 
+    const weeklyHoldMap = new Map<string, number>();
+    for (const point of current) {
+      const week = mondayISO(point.date);
+      weeklyHoldMap.set(week, (weeklyHoldMap.get(week) ?? 0) + totalHoldSeconds([point]));
+    }
+    const weeklyHold = Array.from(weeklyHoldMap, ([week, seconds]) => ({
+      week,
+      label: formatUKDateShort(week),
+      seconds: Math.round(seconds * 10) / 10,
+    })).sort((a, b) => a.week.localeCompare(b.week));
+
     return {
       current,
       previous,
@@ -321,12 +380,17 @@ function ProgressPage() {
       performanceChange,
       volumeChange,
       averageWeeklyVolume: Math.round(averageWeeklyVolume),
+      currentBestHold,
+      holdChange,
+      averageWeeklyHold: Math.round(averageWeeklyHold * 10) / 10,
+      holdVolumeChange,
       maxWeight: current.reduce<number | null>(
         (max, point) =>
           point.maxWeight != null && (max == null || point.maxWeight > max) ? point.maxWeight : max,
         null,
       ),
       weeklyVolume,
+      weeklyHold,
       methodBreakdown: methodBreakdown(periodPoints),
     };
   }, [history.data, location, methodFilter, period]);
@@ -461,7 +525,9 @@ function ProgressPage() {
         </Card>
       ) : (
         <>
-          <DecisionCard decision={decision} exerciseName={exercise?.name ?? "This exercise"} />
+          {!isHoldProfile ? (
+            <DecisionCard decision={decision} exerciseName={exercise?.name ?? "This exercise"} />
+          ) : null}
 
           <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard
@@ -470,43 +536,95 @@ function ProgressPage() {
               value={String(analysis.current.length)}
               detail={location === "all" ? "All locations" : location}
             />
-            <StatCard
-              icon={<Scale className="h-4 w-4" />}
-              label="Top weight"
-              value={formatKg(analysis.maxWeight)}
-              detail="Heaviest working set"
-            />
-            <StatCard
-              icon={<Gauge className="h-4 w-4" />}
-              label="Best est. 1RM"
-              value={formatKg(analysis.currentBest, 1)}
-              detail={formatChange(analysis.performanceChange)}
-              change={analysis.performanceChange}
-            />
-            <StatCard
-              icon={<TrendingUp className="h-4 w-4" />}
-              label="Avg weekly volume"
-              value={formatKg(analysis.averageWeeklyVolume)}
-              detail={formatChange(analysis.volumeChange)}
-              change={analysis.volumeChange}
-            />
+            {isHoldProfile ? (
+              <>
+                <StatCard
+                  icon={<Gauge className="h-4 w-4" />}
+                  label="Best hold"
+                  value={formatSeconds(analysis.currentBestHold)}
+                  detail={formatChange(analysis.holdChange)}
+                  change={analysis.holdChange}
+                />
+                <StatCard
+                  icon={<TrendingUp className="h-4 w-4" />}
+                  label="Avg weekly hold time"
+                  value={formatSeconds(analysis.averageWeeklyHold)}
+                  detail={formatChange(analysis.holdVolumeChange)}
+                  change={analysis.holdVolumeChange}
+                />
+                <StatCard
+                  icon={<Scale className="h-4 w-4" />}
+                  label={metricProfile === "grip" ? "Top load" : "Total hold time"}
+                  value={
+                    metricProfile === "grip"
+                      ? formatKg(analysis.maxWeight)
+                      : formatSeconds(totalHoldSeconds(analysis.current))
+                  }
+                  detail={metricProfile === "grip" ? "Heaviest loaded hold" : "Selected period"}
+                />
+              </>
+            ) : (
+              <>
+                <StatCard
+                  icon={<Scale className="h-4 w-4" />}
+                  label="Top weight"
+                  value={formatKg(analysis.maxWeight)}
+                  detail="Heaviest working set"
+                />
+                <StatCard
+                  icon={<Gauge className="h-4 w-4" />}
+                  label="Best est. 1RM"
+                  value={formatKg(analysis.currentBest, 1)}
+                  detail={formatChange(analysis.performanceChange)}
+                  change={analysis.performanceChange}
+                />
+                <StatCard
+                  icon={<TrendingUp className="h-4 w-4" />}
+                  label="Avg weekly volume"
+                  value={formatKg(analysis.averageWeeklyVolume)}
+                  detail={formatChange(analysis.volumeChange)}
+                  change={analysis.volumeChange}
+                />
+              </>
+            )}
           </section>
 
-          <MethodComparison summaries={analysis.methodBreakdown} />
+          {!isHoldProfile ? <MethodComparison summaries={analysis.methodBreakdown} /> : null}
 
-          <PlannedActualHistory
-            comparisons={visibleComparisons}
-            isLoading={plannedActual.isLoading}
-            hasError={Boolean(plannedActual.error)}
-            onSelectSession={setSelectedSessionId}
-          />
+          {!isHoldProfile ? (
+            <PlannedActualHistory
+              comparisons={visibleComparisons}
+              isLoading={plannedActual.isLoading}
+              hasError={Boolean(plannedActual.error)}
+              onSelectSession={setSelectedSessionId}
+            />
+          ) : null}
 
           <section className="grid gap-4 xl:grid-cols-2">
-            <PerformanceChart points={analysis.current} onSelectSession={setSelectedSessionId} />
-            <VolumeChart data={analysis.weeklyVolume} />
+            {isHoldProfile ? (
+              <>
+                <HoldPerformanceChart
+                  points={analysis.current}
+                  onSelectSession={setSelectedSessionId}
+                />
+                <HoldVolumeChart data={analysis.weeklyHold} />
+              </>
+            ) : (
+              <>
+                <PerformanceChart
+                  points={analysis.current}
+                  onSelectSession={setSelectedSessionId}
+                />
+                <VolumeChart data={analysis.weeklyVolume} />
+              </>
+            )}
           </section>
 
-          <SetHistory points={analysis.current} onSelectSession={setSelectedSessionId} />
+          <SetHistory
+            points={analysis.current}
+            onSelectSession={setSelectedSessionId}
+            isHoldProfile={isHoldProfile}
+          />
         </>
       )}
       <SessionDetailDialog
@@ -1032,6 +1150,66 @@ function PerformanceChart({
   );
 }
 
+function HoldPerformanceChart({
+  points,
+  onSelectSession,
+}: {
+  points: ExerciseSessionPoint[];
+  onSelectSession: (sessionId: string) => void;
+}) {
+  const data = points.map((point) => ({
+    label: formatUKDateShort(point.date),
+    best: bestHold([point]),
+    sessionId: point.sessionId,
+  }));
+  return (
+    <ChartCard title="Best hold" subtitle="Longest completed set in each session · select a point">
+      <ResponsiveContainer width="100%" height={260}>
+        <LineChart
+          data={data}
+          margin={{ top: 12, right: 12, left: -12, bottom: 0 }}
+          onClick={(state) => {
+            const payload = state?.activePayload?.[0]?.payload as
+              | { sessionId?: string }
+              | undefined;
+            if (payload?.sessionId) onSelectSession(payload.sessionId);
+          }}
+          className="cursor-pointer"
+        >
+          <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="label"
+            stroke="var(--color-muted-foreground)"
+            fontSize={10}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            unit="s"
+            stroke="var(--color-muted-foreground)"
+            fontSize={10}
+            tickLine={false}
+            axisLine={false}
+          />
+          <Tooltip
+            contentStyle={tooltipStyle}
+            formatter={(value: number) => [`${value}s`, "Best hold"]}
+          />
+          <Line
+            type="monotone"
+            dataKey="best"
+            name="Best hold"
+            stroke="var(--color-chart-2)"
+            strokeWidth={2}
+            dot={{ r: 3 }}
+            connectNulls
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </ChartCard>
+  );
+}
+
 function VolumeChart({ data }: { data: { week: string; label: string; volume: number }[] }) {
   return (
     <ChartCard title="Weekly volume" subtitle="Total recorded load × reps for each training week">
@@ -1068,14 +1246,55 @@ function VolumeChart({ data }: { data: { week: string; label: string; volume: nu
   );
 }
 
+function HoldVolumeChart({ data }: { data: { week: string; label: string; seconds: number }[] }) {
+  return (
+    <ChartCard title="Weekly hold time" subtitle="Total seconds accumulated across completed sets">
+      <ResponsiveContainer width="100%" height={260}>
+        <BarChart data={data} margin={{ top: 12, right: 12, left: -6, bottom: 0 }}>
+          <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="label"
+            stroke="var(--color-muted-foreground)"
+            fontSize={10}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            unit="s"
+            stroke="var(--color-muted-foreground)"
+            fontSize={10}
+            tickLine={false}
+            axisLine={false}
+          />
+          <Tooltip
+            contentStyle={tooltipStyle}
+            formatter={(value: number) => [`${value}s`, "Hold time"]}
+          />
+          <Bar
+            dataKey="seconds"
+            name="Hold time"
+            fill="var(--color-chart-3)"
+            radius={[4, 4, 0, 0]}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+    </ChartCard>
+  );
+}
+
 function setSummary(point: ExerciseSessionPoint) {
   return point.sets
     .map((set) => {
       if (set.aggregateSets != null) {
+        if (set.durationSeconds != null) {
+          return `${set.aggregateSets} sets · ${formatSeconds(set.durationSeconds)} each${set.weight != null ? ` @ ${set.weight}kg` : ""}${set.rpe != null ? ` · RPE ${set.rpe}` : ""}`;
+        }
         return `${set.aggregateSets} sets · ${set.reps ?? "—"} total${set.weight != null ? ` @ ${set.weight}kg` : ""}${set.rpe != null ? ` · RPE ${set.rpe}` : ""}`;
       }
       if (set.weight != null && set.reps != null)
         return `${set.weight}×${set.reps}${set.rpe != null ? ` @${set.rpe}` : ""}`;
+      if (set.durationSeconds != null)
+        return `${formatSeconds(set.durationSeconds)}${set.weight != null ? ` @ ${set.weight}kg` : ""}${set.rpe != null ? ` · RPE ${set.rpe}` : ""}`;
       if (set.reps != null) return `${set.reps} reps${set.rpe != null ? ` @${set.rpe}` : ""}`;
       return "Recorded set";
     })
@@ -1085,9 +1304,11 @@ function setSummary(point: ExerciseSessionPoint) {
 function SetHistory({
   points,
   onSelectSession,
+  isHoldProfile,
 }: {
   points: ExerciseSessionPoint[];
   onSelectSession: (sessionId: string) => void;
+  isHoldProfile: boolean;
 }) {
   const recent = [...points].reverse();
   return (
@@ -1118,8 +1339,9 @@ function SetHistory({
               </div>
               <p className="mt-2 text-sm">{setSummary(point) || "No set detail"}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {Math.round(point.totalVolume).toLocaleString()} kg volume ·{" "}
-                {formatKg(point.est1RM, 1)} est. 1RM
+                {isHoldProfile
+                  ? `${formatSeconds(totalHoldSeconds([point]))} total · ${formatSeconds(bestHold([point]))} best`
+                  : `${Math.round(point.totalVolume).toLocaleString()} kg volume · ${formatKg(point.est1RM, 1)} est. 1RM`}
               </p>
             </button>
           ))}
@@ -1132,8 +1354,12 @@ function SetHistory({
                 <TableHead>Location</TableHead>
                 <TableHead>Method</TableHead>
                 <TableHead>Sets</TableHead>
-                <TableHead className="text-right">Volume</TableHead>
-                <TableHead className="text-right">Est. 1RM</TableHead>
+                <TableHead className="text-right">
+                  {isHoldProfile ? "Total hold" : "Volume"}
+                </TableHead>
+                <TableHead className="text-right">
+                  {isHoldProfile ? "Best hold" : "Est. 1RM"}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1162,10 +1388,12 @@ function SetHistory({
                   </TableCell>
                   <TableCell>{setSummary(point) || "—"}</TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {Math.round(point.totalVolume).toLocaleString()} kg
+                    {isHoldProfile
+                      ? formatSeconds(totalHoldSeconds([point]))
+                      : `${Math.round(point.totalVolume).toLocaleString()} kg`}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {formatKg(point.est1RM, 1)}
+                    {isHoldProfile ? formatSeconds(bestHold([point])) : formatKg(point.est1RM, 1)}
                   </TableCell>
                 </TableRow>
               ))}

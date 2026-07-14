@@ -112,6 +112,7 @@ export type ExerciseSetPoint = {
   setNumber: number | null;
   reps: number | null;
   weight: number | null;
+  durationSeconds: number | null;
   rpe: number | null;
   completed: boolean;
   aggregateSets: number | null;

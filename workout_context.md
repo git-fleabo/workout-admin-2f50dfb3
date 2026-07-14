@@ -1,6 +1,6 @@
 # Workout App Context
 
-Last updated: 2026-07-13
+Last updated: 2026-07-14
 
 This file is the handoff document for the Training Tracker workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
 
@@ -341,6 +341,8 @@ Important active library decisions:
 
 - `default_metric` now stores one of eleven stable tracking keys rather than free text: `weight_reps`, `reps_only`, `hold`, `grip_hold`, `distance_time`, `duration`, `conditioning`, `carry`, `mobility_position`, `power`, or `climbing`. The Library editor exposes these as labelled dropdown choices and changes its contextual defaults accordingly.
 - The unified logger treats the selected tracking mode as authoritative. It exposes mode-specific fields for standard sets, reps with progression/assistance, holds, loaded grip, distance/time with units, duration-only work, conditioning, carries, mobility positions, power/jumps, and climbing. Non-strength metrics now survive recent-workout repeat/correction round trips.
+- Hold and loaded-grip movements now use the individual-set editor: every attempt stores its own `entry_sets.duration_seconds`, optional load, and RPE. Recent-workout copies preserve the separate hold rows, while older single-row records with an aggregate set count remain readable as repeated equal-duration attempts.
+- Progress resolves the exercise tracking profile before choosing its analysis. Hold/isometric and loaded-grip exercises show best-set seconds, accumulated weekly hold seconds, and exact duration-per-set history instead of estimated 1RM and load-volume charts. Strength exercises retain their existing load, estimated-strength, and kg-volume view.
 
 - `Pull-Up / Lat Pulldown` was split into `Pull-Up`, `Lat Pulldown`, and `Chin-Up`.
 - `Ropes/Belay` replaced `Indoor Ropes`.

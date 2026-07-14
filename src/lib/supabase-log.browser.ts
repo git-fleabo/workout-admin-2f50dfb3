@@ -231,6 +231,7 @@ export type WorkoutLogInput = {
 export type WorkoutSetInput = {
   reps: string;
   weight: string;
+  durationSeconds: string;
   rpe: string;
   completed: boolean;
   method?: WorkoutSetMethodInput;
@@ -640,6 +641,7 @@ export async function getRecentLogsClient(limit = 15) {
           return {
             reps: asText(item.reps),
             weight: asText(item.weight),
+            durationSeconds: asText(item.duration_seconds),
             rpe: asText(item.rpe),
             completed: item.completed !== false,
             method:
@@ -833,7 +835,7 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
       if (entryData.clientId) entryIdsByClientId.set(entryData.clientId, entry.id);
 
       const setRows = (entryData.setRows ?? []).filter(
-        (set) => set.reps || set.weight || set.rpe || set.method,
+        (set) => set.reps || set.weight || set.durationSeconds || set.rpe || set.method,
       );
       if (setRows.length) {
         for (const [setIndex, set] of setRows.entries()) {
@@ -842,6 +844,7 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
             set_number: setIndex + 1,
             reps: toNum(set.reps),
             weight: toNum(set.weight),
+            duration_seconds: toNum(set.durationSeconds),
             rpe: toNum(set.rpe) ?? rpe,
             rest_time: entryData.restTime || null,
             assistance_type: entryData.assistanceType || null,

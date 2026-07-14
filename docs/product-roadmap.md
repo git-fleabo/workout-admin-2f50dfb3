@@ -1,6 +1,6 @@
 # Training Admin Product Roadmap
 
-Last updated: 2026-07-13
+Last updated: 2026-07-14
 
 ## Product Direction
 
@@ -18,7 +18,7 @@ This is a product redesign, not a ground-up technical rewrite. Keep the existing
 - One obvious logging path. A one-movement entry is simply a workout with one movement.
 - Mobile is for deciding, logging, resuming, and finishing quickly.
 - Larger screens are for analysis, comparisons, planning, and administration.
-- Store individual sets for weighted and rep-based movements.
+- Store individual sets for weighted, rep-based, and isometric movements.
 - Keep recommendations transparent and editable.
 - Treat Home and Gym as first-class training contexts.
 - Preserve history and stable exercise identity during every iteration.
@@ -107,6 +107,7 @@ Goal: make Progress the main large-screen decision tool.
 - Planned targets versus actual completed sets. — implemented
 - Click a chart point, history row, or plan comparison to inspect its session. — implemented
 - A concise mobile summary focused on the next decision. — implemented
+- Isometric and loaded-hold views use best-hold seconds, weekly accumulated hold time, and per-set duration history instead of strength-only 1RM and kg-volume measures. — implemented
 
 Progress signals should combine performance, volume, effort, missed targets, training frequency, and consecutive hard weeks. Wording should explain the evidence and remain cautious: continue, consider progressing, hold, or consider a lighter week.
 
