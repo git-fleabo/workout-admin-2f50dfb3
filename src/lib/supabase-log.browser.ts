@@ -5,6 +5,7 @@ import {
   supabasePublicUpdate,
 } from "./supabase-public";
 import { claimNoamProfile, getCurrentPerson } from "./supabase-people.browser";
+import { climbingMetricIssue, supportsClimbingGradient } from "./climbing-metrics";
 
 export const REST_OPTIONS = [
   "0–30s",
@@ -600,6 +601,11 @@ export async function getRecentLogsClient(limit = 15) {
         const weight = toNum(item.weight);
         return weight == null || (max != null && max >= weight) ? max : weight;
       }, null);
+      const legacyClimbingHours = toNum(metricValue(metrics, "hours"));
+      const duration =
+        metricValue(metrics, "duration_minutes") ||
+        (legacyClimbingHours != null ? asText(legacyClimbingHours * 60) : "") ||
+        asText(row.sessions?.duration_minutes);
       return {
         entryId: row.id,
         date: row.sessions?.session_date ?? "",
@@ -616,8 +622,7 @@ export async function getRecentLogsClient(limit = 15) {
         sets: asText(individualSets ? sets.length : set?.set_number),
         reps: asText(totalReps),
         weight: asText(maxWeight ?? set?.weight),
-        duration:
-          metricValue(metrics, "duration_minutes") || asText(row.sessions?.duration_minutes),
+        duration,
         intensity: row.sessions?.intensity ?? "",
         rpe: asText(set?.rpe ?? row.sessions?.rpe),
         restTime: set?.rest_time ?? "",
@@ -792,6 +797,15 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
   const durationMinutes = toNum(data.duration);
   const entries = data.entries.filter((entry) => entry.exercise.trim());
   if (!entries.length) throw new Error("Add at least one movement.");
+  for (const entry of entries) {
+    if (entry.workoutType !== "Climbing") continue;
+    const issue = climbingMetricIssue({
+      minutes: entry.duration,
+      trackingMode: entry.climbingTrackingMode,
+      problemsOrRoutes: entry.climbingBoulders,
+    });
+    if (issue) throw new Error(`${entry.exercise}: ${issue}`);
+  }
 
   const insertedSession = await supabasePublicInsert<{ id: string; source_row: number | null }>(
     "sessions",
@@ -931,16 +945,25 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
               : null,
         },
         {
-          metric_key: "hours",
+          metric_key: "boulders",
           metric_value:
-            entryData.workoutType === "Climbing" && toNum(entryData.duration) != null
-              ? Number(entryData.duration) / 60
+            entryData.workoutType === "Climbing" &&
+            entryData.climbingTrackingMode === "Problems / routes"
+              ? toNum(entryData.climbingBoulders)
               : null,
-          metric_unit: entryData.workoutType === "Climbing" && entryData.duration ? "h" : undefined,
         },
-        { metric_key: "boulders", metric_value: toNum(entryData.climbingBoulders) },
-        { metric_key: "grade", metric_text: entryData.climbingMaxGrade || null },
-        { metric_key: "gradient", metric_text: entryData.climbingGradient || null },
+        {
+          metric_key: "grade",
+          metric_text:
+            entryData.workoutType === "Climbing" ? entryData.climbingMaxGrade || null : null,
+        },
+        {
+          metric_key: "gradient",
+          metric_text:
+            entryData.workoutType === "Climbing" && supportsClimbingGradient(entryData.exercise)
+              ? entryData.climbingGradient || null
+              : null,
+        },
       ].filter((metric) => metric.metric_value != null || metric.metric_text);
       if (metrics.length) {
         await supabasePublicInsert(

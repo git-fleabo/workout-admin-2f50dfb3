@@ -342,6 +342,7 @@ Important active library decisions:
 
 - `default_metric` now stores one of eleven stable tracking keys rather than free text: `weight_reps`, `reps_only`, `hold`, `grip_hold`, `distance_time`, `duration`, `conditioning`, `carry`, `mobility_position`, `power`, or `climbing`. The Library editor exposes these as labelled dropdown choices and changes its contextual defaults accordingly.
 - The unified logger treats the selected tracking mode as authoritative. It exposes mode-specific fields for standard sets, reps with progression/assistance, holds, loaded grip, distance/time with units, duration-only work, conditioning, carries, mobility positions, power/jumps, and climbing. Non-strength metrics now survive recent-workout repeat/correction round trips.
+- Unified climbing entries use whole `duration_minutes` as their canonical time metric. The form labels the unit explicitly, gives the `1h 15m = 75` conversion example, rejects missing/non-integer values and values above 720 minutes, and requires a positive problems/routes count when that tracking mode is selected. Persistence repeats the validation so drafts or other callers cannot bypass it. Legacy `hours` rows remain read-compatible but new saves do not dual-write hours.
 - Hold and loaded-grip movements use the individual-set editor: every attempt stores its own `entry_sets.duration_seconds`, optional load, RPE, progression, and assistance/load-type metadata. The multi-movement save payload must preserve these set rows (not collapse them into the aggregate fallback). Recent-workout copies preserve separate hold rows, while older single-row records with an aggregate set count remain readable as repeated equal-duration attempts.
 - Mobility/flexibility `feel` is an integer 1-5: 1 means restricted, 3 normal, and 5 free and comfortable. Pain is not part of the score and should stop the movement. The logger enforces the numeric range, and Progress repeats the same interpretation.
 - Workout review, History timeline, session detail, and Progress exact history describe duration-based work as attempts, calculate total and best hold time correctly for both individual and legacy aggregate rows, and retain assistance such as a Front Lever counterweight.
@@ -540,7 +541,7 @@ Key columns:
 
 Used for:
 
-- climbing metrics such as `tracking_mode`, `hours`, `boulders`, `grade`, `gradient`
+- climbing metrics such as canonical `duration_minutes`, `tracking_mode`, `boulders`, `grade`, and Kilter-only `gradient`; legacy rows may use `hours`
 - legacy skill metrics such as `legacy_pr` and `legacy_assistance`
 - flexible logging metrics such as `rounds`, `feel`, `height`, `detail`
 
@@ -867,7 +868,7 @@ Climbing:
 - Movements: `Bouldering Session`, `Ropes/Belay`, `Kilter`, `Mix`
 - Field label: `Boulders/Routes`
 - Intensity is included
-- Gradient appears and saves only for `Kilter`
+- Gradient appears and saves only for `Kilter`; stale gradient values are cleared when a different climbing movement is selected or repeated
 - Climbing saves normalise metric rows before inserting `entry_metrics` because Supabase/PostgREST batch inserts require consistent object keys. Blank optional metrics are filtered out. If a detail insert fails after the session is created, the app deletes the partially created session so future duplicate checks are not blocked by half-saved data.
 - Normal workout saves should use the same cleanup behavior after creating the session: if entry, set, or metric inserts fail, delete the partially created session.
 - The Log screen movement picker respects both `person_exercises.is_enabled` and `person_exercises.location_scope` for the current person and filters immediately after Home or Gym is selected.
@@ -1060,8 +1061,11 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
   completed session archives its plan first so completed plans cannot be left without a session.
 - `src/lib/database.types.ts` contains types generated from the live Supabase schema on 2026-07-14.
 - People & Access is intentionally deferred as of 2026-07-14 because Noam is currently the only user.
-  Do not build multi-user administration until a second user is actually being prepared; the next active
-  product item is the climbing-controls audit in the unified logger.
+  Do not build multi-user administration until a second user is actually being prepared.
+- The Phase 6 climbing-controls audit is complete. The unified logger now owns the specialist climbing
+  fields, uses guarded whole minutes as the canonical duration, keeps problem/route counts aligned with
+  tracking mode, scopes gradient to Kilter, and reconstructs legacy `hours` rows as minutes. The next
+  active product item is the Library inactive-item audit.
 
 ## Key Files
 
@@ -1252,7 +1256,7 @@ Recommended next work, in order:
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
 11. Phase 6 lifecycle audit and first visible lifecycle model — implemented across Today, Plan, Log, and History.
-12. Audit climbing inside the unified logger before the next climbing-entry iteration. The current movement picker can select climbing movements, but the specialised hours/routes/grade/gradient controls still live in the unused legacy single-entry form. The 2026-07-09 Bouldering and 2026-07-11 Ropes/Belay rows were corrected from 75 hours/4,500 minutes to 1.25 hours/75 minutes; make the chosen duration unit explicit and guarded in the unified flow.
+12. Phase 6 climbing-controls audit — implemented. The audit found that specialist controls had already moved into the unified logger, but duration and mode validation were still permissive. Climbing now uses guarded whole minutes (`duration_minutes`) with an explicit conversion example and 720-minute ceiling, requires problems/routes when that mode is selected, scopes gradient to Kilter, prevents stale specialist metrics from leaking into other entries, and converts legacy `hours` rows to minutes when repeating a workout. The corrected 2026-07-09 Bouldering and 2026-07-11 Ropes/Belay rows remain stored as 1.25 legacy hours and reconstruct as 75 minutes.
 13. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
 14. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 15. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.

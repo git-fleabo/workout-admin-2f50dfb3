@@ -98,6 +98,12 @@ import {
   profileUsesStandardSets,
 } from "@/lib/movement-metrics";
 import {
+  CLIMBING_TRACKING_MODES,
+  climbingMetricIssue,
+  MAX_CLIMBING_MINUTES,
+  supportsClimbingGradient,
+} from "@/lib/climbing-metrics";
+import {
   readWorkoutPlanDraft,
   WORKOUT_PLAN_DRAFT_KEY,
   type RecentWorkoutLog,
@@ -666,6 +672,7 @@ function workoutEntrySummary(entry: FormState) {
       entry.height ? `${entry.height} cm` : "",
       entry.climbingBoulders ? `${entry.climbingBoulders} problems/routes` : "",
       entry.climbingMaxGrade ? `Grade ${entry.climbingMaxGrade}` : "",
+      entry.climbingGradient ? entry.climbingGradient : "",
       entry.reps ? `${entry.reps} reps` : "",
       entry.rpe ? `RPE ${entry.rpe}` : "",
     ]
@@ -708,7 +715,7 @@ function entryFromRecentLog(log: RecentWorkoutLog): FormState {
         : "Problems / routes"
       : "",
     climbingMaxGrade: log.climbingMaxGrade,
-    climbingGradient: log.climbingGradient,
+    climbingGradient: supportsClimbingGradient(log.exercise) ? log.climbingGradient : "",
     setRows: setRowsFromRecentLog(log),
   };
 }
@@ -1936,11 +1943,34 @@ export function FullWorkoutForm() {
           set.method.segments.some((segment) => !segment.reps || !segment.weight)),
     ),
   );
+  const climbingIssues = form.entries
+    .filter((entry) => {
+      const selected = libraryExercises.find(
+        (exercise) => exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
+      );
+      return (
+        entry.exercise.trim() &&
+        getMovementMetricProfile({
+          workoutType: selected?.workoutType ?? entry.workoutType,
+          movement: entry.exercise,
+          defaultMetric: selected?.metric,
+        }) === "climbing"
+      );
+    })
+    .map((entry) =>
+      climbingMetricIssue({
+        minutes: entry.duration,
+        trackingMode: entry.climbingTrackingMode,
+        problemsOrRoutes: entry.climbingBoulders,
+      }),
+    )
+    .filter(Boolean);
   const canSubmit =
     form.date &&
     form.trainingLocationId &&
     form.entries.some((entry) => entry.exercise.trim()) &&
     !incompleteSetMethod &&
+    climbingIssues.length === 0 &&
     !mutate.isPending;
   const hasDraftContent = sessionHasDraftContent(form);
   const draftTime = draftSavedAt
@@ -2329,6 +2359,11 @@ export function FullWorkoutForm() {
                         "climbingTrackingMode",
                         selectedProfile === "climbing" ? "Problems / routes" : "",
                       );
+                      updateEntry(
+                        index,
+                        "climbingGradient",
+                        supportsClimbingGradient(name) ? entry.climbingGradient : "",
+                      );
                       updateEntry(index, "setRows", [blankSet()]);
                     }}
                   />
@@ -2468,6 +2503,15 @@ export function FullWorkoutForm() {
                     usesStandardSets={profileUsesStandardSets(profile)}
                     isGrip={isGrip}
                     showIntensity={entry.workoutType === CLASS_WORKOUT_TYPE}
+                    validationIssue={
+                      profile === "climbing"
+                        ? climbingMetricIssue({
+                            minutes: entry.duration,
+                            trackingMode: entry.climbingTrackingMode,
+                            problemsOrRoutes: entry.climbingBoulders,
+                          })
+                        : null
+                    }
                   />
                 )
               )}
@@ -3697,6 +3741,7 @@ function MetricFields({
   usesStandardSets,
   isGrip,
   showIntensity,
+  validationIssue = null,
 }: {
   profile: MetricProfile;
   form: FormState;
@@ -3708,6 +3753,7 @@ function MetricFields({
   usesStandardSets: boolean;
   isGrip: boolean;
   showIntensity: boolean;
+  validationIssue?: string | null;
 }) {
   if (profile === "mobility_position") {
     return (
@@ -4023,34 +4069,49 @@ function MetricFields({
   }
 
   if (profile === "climbing") {
+    const showGradient = supportsClimbingGradient(form.exercise);
     return (
       <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Tracking mode">
             <SimpleSelect
               value={form.climbingTrackingMode}
-              onChange={(value) => update("climbingTrackingMode", value)}
-              options={["Time only", "Problems / routes"]}
+              onChange={(value) => {
+                update("climbingTrackingMode", value);
+                if (value === "Time only") update("climbingBoulders", "");
+              }}
+              options={[...CLIMBING_TRACKING_MODES]}
             />
           </Field>
-          <Field label="Minutes">
+          <Field label="Duration (minutes)">
             <Input
+              type="number"
               inputMode="numeric"
+              min={1}
+              max={MAX_CLIMBING_MINUTES}
+              step={1}
               value={form.duration}
               onChange={(event) => update("duration", event.target.value)}
+              placeholder="75"
             />
           </Field>
           {form.climbingTrackingMode !== "Time only" ? (
             <Field label="Problems / routes">
               <Input
+                type="number"
                 inputMode="numeric"
+                min={1}
+                step={1}
                 value={form.climbingBoulders}
                 onChange={(event) => update("climbingBoulders", event.target.value)}
               />
             </Field>
           ) : null}
         </div>
-        <div className="grid gap-3 sm:grid-cols-4">
+        <p className="text-xs text-muted-foreground">
+          Enter total minutes — for example, 1h 15m is 75.
+        </p>
+        <div className={`grid gap-3 ${showGradient ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
           <Field label="Max grade">
             <Input
               value={form.climbingMaxGrade}
@@ -4058,13 +4119,15 @@ function MetricFields({
               placeholder="V5, 6b+, 7A..."
             />
           </Field>
-          <Field label="Gradient">
-            <SimpleSelect
-              value={form.climbingGradient}
-              onChange={(value) => update("climbingGradient", value)}
-              options={BOARD_GRADIENTS}
-            />
-          </Field>
+          {showGradient ? (
+            <Field label="Gradient">
+              <SimpleSelect
+                value={form.climbingGradient}
+                onChange={(value) => update("climbingGradient", value)}
+                options={BOARD_GRADIENTS}
+              />
+            </Field>
+          ) : null}
           <Field label="Intensity">
             <SimpleSelect
               value={form.intensity}
@@ -4080,6 +4143,9 @@ function MetricFields({
             />
           </Field>
         </div>
+        {validationIssue ? (
+          <p className="text-xs font-medium text-destructive">{validationIssue}</p>
+        ) : null}
       </div>
     );
   }
