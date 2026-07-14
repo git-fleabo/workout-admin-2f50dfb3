@@ -196,6 +196,7 @@ type FormState = {
   quality: string;
   gripStyle: string;
   gripLoadType: string;
+  climbingTrackingMode: string;
   climbingHours: string;
   climbingBoulders: string;
   climbingMaxGrade: string;
@@ -303,6 +304,7 @@ const blank = (defaultWorkoutType = ""): FormState => ({
   quality: "",
   gripStyle: "",
   gripLoadType: "",
+  climbingTrackingMode: "",
   climbingHours: "",
   climbingBoulders: "",
   climbingMaxGrade: "",
@@ -482,6 +484,7 @@ function entryHasDraftContent(entry: FormState) {
     "quality",
     "gripStyle",
     "gripLoadType",
+    "climbingTrackingMode",
     "climbingHours",
     "climbingBoulders",
     "climbingMaxGrade",
@@ -608,6 +611,9 @@ function workoutEntrySummary(entry: FormState) {
       entry.holdSeconds ? `${entry.holdSeconds}s hold` : "",
       entry.distance ? `${entry.distance}${entry.distanceUnit || ""}` : "",
       entry.rounds ? `${entry.rounds} rounds` : "",
+      entry.height ? `${entry.height} cm` : "",
+      entry.climbingBoulders ? `${entry.climbingBoulders} problems/routes` : "",
+      entry.climbingMaxGrade ? `Grade ${entry.climbingMaxGrade}` : "",
       entry.reps ? `${entry.reps} reps` : "",
       entry.rpe ? `RPE ${entry.rpe}` : "",
     ]
@@ -637,6 +643,20 @@ function entryFromRecentLog(log: RecentWorkoutLog): FormState {
     assistanceType: log.assistanceType,
     assistanceDetail: log.assistanceDetail,
     quality: log.quality,
+    distance: log.distance,
+    distanceUnit: log.distanceUnit,
+    rounds: log.rounds,
+    feel: log.feel,
+    height: log.height,
+    detail: log.detail,
+    climbingBoulders: log.climbingBoulders,
+    climbingTrackingMode: log.climbingTrackingMode
+      ? ["Hours", "Time only"].includes(log.climbingTrackingMode)
+        ? "Time only"
+        : "Problems / routes"
+      : "",
+    climbingMaxGrade: log.climbingMaxGrade,
+    climbingGradient: log.climbingGradient,
     setRows: setRowsFromRecentLog(log),
   };
 }
@@ -1757,6 +1777,7 @@ export function FullWorkoutForm() {
 
       return {
         ...entry,
+        setRows: profileUsesStandardSets(profile) ? entry.setRows : [],
         date: form.date,
         workoutType: selected?.workoutType ?? entry.workoutType,
         focusArea: "",
@@ -1764,13 +1785,15 @@ export function FullWorkoutForm() {
         progressionLevel: isGrip ? entry.gripStyle : entry.progressionLevel,
         assistanceType: isGrip ? entry.gripLoadType : entry.assistanceType,
         entryKind:
-          isYoga || profile === "time" || profile === "conditioning"
-            ? "Workout"
-            : isGrip
-              ? GRIP_WORKOUT_TYPE
-              : isSkill
-                ? "Skill"
-                : entry.entryKind || "Workout",
+          profile === "climbing"
+            ? "Climbing"
+            : isYoga || profile === "time" || profile === "duration" || profile === "conditioning"
+              ? "Workout"
+              : isGrip
+                ? GRIP_WORKOUT_TYPE
+                : isSkill
+                  ? "Skill"
+                  : entry.entryKind || "Workout",
       };
     }),
     methodBlocks: form.methodBlocks.map((block) => ({
@@ -2202,6 +2225,11 @@ export function FullWorkoutForm() {
                     recentNames={recentExerciseNames}
                     onChange={(name) => {
                       const selected = libraryExercises.find((exercise) => exercise.name === name);
+                      const selectedProfile = getMovementMetricProfile({
+                        workoutType: selected?.workoutType ?? "Other",
+                        movement: name,
+                        defaultMetric: selected?.metric,
+                      });
                       updateEntry(index, "exercise", name);
                       updateEntry(index, "workoutType", selected?.workoutType ?? "Other");
                       updateEntry(
@@ -2212,6 +2240,22 @@ export function FullWorkoutForm() {
                           : selected?.workoutType === GRIP_WORKOUT_TYPE
                             ? GRIP_WORKOUT_TYPE
                             : "Workout",
+                      );
+                      updateEntry(
+                        index,
+                        "distanceUnit",
+                        selectedProfile === "mobility_position"
+                          ? "cm"
+                          : selectedProfile === "carry"
+                            ? "m"
+                            : selectedProfile === "time"
+                              ? "km"
+                              : "",
+                      );
+                      updateEntry(
+                        index,
+                        "climbingTrackingMode",
+                        selectedProfile === "climbing" ? "Problems / routes" : "",
                       );
                       updateEntry(index, "setRows", [blankSet()]);
                     }}
@@ -2252,36 +2296,67 @@ export function FullWorkoutForm() {
                 </Badge>
               )}
               {entry.exercise && profileUsesStandardSets(profile) ? (
-                <SetRowsEditor
-                  rows={entry.setRows}
-                  usesLoad={profileUsesLoad(profile)}
-                  setMethods={setMethods}
-                  previousWorkout={
-                    previousWorkout
-                      ? {
-                          date: previousWorkout.date,
-                          location:
-                            previousWorkout.trainingLocation?.name ??
-                            previousWorkout.trainingLocation?.kind,
-                          rows: previousSets,
-                        }
-                      : undefined
-                  }
-                  onChange={(setIndex, key, value) => updateSet(index, setIndex, key, value)}
-                  onCopyPrevious={() => copyPreviousWorkout(index, entry.exercise)}
-                  onRepeat={() => repeatLastSet(index)}
-                  onAddBlank={() => addBlankSet(index)}
-                  onRemove={(setIndex) => removeSet(index, setIndex)}
-                  onAddMethod={(setIndex, method) => addSetMethod(index, setIndex, method)}
-                  onAddSegment={(setIndex) => addSetSegment(index, setIndex)}
-                  onUpdateSegment={(setIndex, segmentIndex, key, value) =>
-                    updateSetSegment(index, setIndex, segmentIndex, key, value)
-                  }
-                  onRemoveSegment={(setIndex, segmentIndex) =>
-                    removeSetSegment(index, setIndex, segmentIndex)
-                  }
-                  onRemoveMethod={(setIndex) => updateSet(index, setIndex, "method", undefined)}
-                />
+                <div className="space-y-3">
+                  <SetRowsEditor
+                    rows={entry.setRows}
+                    usesLoad={profileUsesLoad(profile)}
+                    setMethods={setMethods}
+                    previousWorkout={
+                      previousWorkout
+                        ? {
+                            date: previousWorkout.date,
+                            location:
+                              previousWorkout.trainingLocation?.name ??
+                              previousWorkout.trainingLocation?.kind,
+                            rows: previousSets,
+                          }
+                        : undefined
+                    }
+                    onChange={(setIndex, key, value) => updateSet(index, setIndex, key, value)}
+                    onCopyPrevious={() => copyPreviousWorkout(index, entry.exercise)}
+                    onRepeat={() => repeatLastSet(index)}
+                    onAddBlank={() => addBlankSet(index)}
+                    onRemove={(setIndex) => removeSet(index, setIndex)}
+                    onAddMethod={(setIndex, method) => addSetMethod(index, setIndex, method)}
+                    onAddSegment={(setIndex) => addSetSegment(index, setIndex)}
+                    onUpdateSegment={(setIndex, segmentIndex, key, value) =>
+                      updateSetSegment(index, setIndex, segmentIndex, key, value)
+                    }
+                    onRemoveSegment={(setIndex, segmentIndex) =>
+                      removeSetSegment(index, setIndex, segmentIndex)
+                    }
+                    onRemoveMethod={(setIndex) => updateSet(index, setIndex, "method", undefined)}
+                  />
+                  {profile === "reps" ? (
+                    <div className="grid gap-3 rounded-lg border border-border bg-secondary/20 p-3 sm:grid-cols-3">
+                      <Field label="Progression">
+                        <Input
+                          value={entry.progressionLevel}
+                          onChange={(event) =>
+                            updateEntry(index, "progressionLevel", event.target.value)
+                          }
+                          placeholder="Strict, assisted, variation..."
+                        />
+                      </Field>
+                      <Field label="Assistance">
+                        <SimpleSelect
+                          value={entry.assistanceType}
+                          onChange={(value) => updateEntry(index, "assistanceType", value)}
+                          options={lib.data?.assistanceTypes ?? []}
+                        />
+                      </Field>
+                      <Field label="Assistance detail">
+                        <Input
+                          value={entry.assistanceDetail}
+                          onChange={(event) =>
+                            updateEntry(index, "assistanceDetail", event.target.value)
+                          }
+                          placeholder="Band, counterweight..."
+                        />
+                      </Field>
+                    </div>
+                  ) : null}
+                </div>
               ) : (
                 entry.exercise && (
                   <MetricFields
@@ -3557,7 +3632,7 @@ function MetricFields({
   if (profile === "time") {
     return (
       <div className="space-y-3">
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-4">
           <Field label="Minutes">
             <Input
               inputMode="numeric"
@@ -3570,6 +3645,13 @@ function MetricFields({
               inputMode="decimal"
               value={form.distance}
               onChange={(e) => update("distance", e.target.value)}
+            />
+          </Field>
+          <Field label="Unit">
+            <SimpleSelect
+              value={form.distanceUnit}
+              onChange={(value) => update("distanceUnit", value)}
+              options={["km", "mi", "m"]}
             />
           </Field>
           <Field label="Feel / RPE">
@@ -3585,10 +3667,47 @@ function MetricFields({
     );
   }
 
+  if (profile === "duration") {
+    return (
+      <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Minutes">
+            <Input
+              inputMode="numeric"
+              value={form.duration}
+              onChange={(event) => update("duration", event.target.value)}
+            />
+          </Field>
+          <Field label="Intensity">
+            <SimpleSelect
+              value={form.intensity}
+              onChange={(value) => update("intensity", value)}
+              options={intensities}
+            />
+          </Field>
+          <Field label="RPE">
+            <Input
+              inputMode="decimal"
+              value={form.rpe}
+              onChange={(event) => update("rpe", event.target.value)}
+            />
+          </Field>
+        </div>
+        <Field label="Detail">
+          <Input
+            value={form.detail}
+            onChange={(event) => update("detail", event.target.value)}
+            placeholder="Zone, class focus, sequence..."
+          />
+        </Field>
+      </div>
+    );
+  }
+
   if (profile === "carry") {
     return (
       <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
-        <div className="grid gap-3 sm:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-5">
           <Field label="Rounds">
             <Input
               inputMode="numeric"
@@ -3603,7 +3722,14 @@ function MetricFields({
               onChange={(e) => update("distance", e.target.value)}
             />
           </Field>
-          <Field label="Time">
+          <Field label="Unit">
+            <SimpleSelect
+              value={form.distanceUnit}
+              onChange={(value) => update("distanceUnit", value)}
+              options={["m", "yd", "km"]}
+            />
+          </Field>
+          <Field label="Minutes">
             <Input
               inputMode="numeric"
               value={form.duration}
@@ -3626,7 +3752,7 @@ function MetricFields({
   if (profile === "hold" || profile === "grip") {
     return (
       <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className={`grid gap-3 ${usesLoad ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
           <Field label="Attempts">
             <Input
               inputMode="numeric"
@@ -3648,6 +3774,15 @@ function MetricFields({
               onChange={(e) => update("feel", e.target.value)}
             />
           </Field>
+          {usesLoad ? (
+            <Field label="Load (kg)">
+              <Input
+                inputMode="decimal"
+                value={form.weight}
+                onChange={(event) => update("weight", event.target.value)}
+              />
+            </Field>
+          ) : null}
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={isGrip ? "Grip style" : "Progression"}>
@@ -3763,6 +3898,68 @@ function MetricFields({
               inputMode="decimal"
               value={form.rpe}
               onChange={(e) => update("rpe", e.target.value)}
+            />
+          </Field>
+        </div>
+      </div>
+    );
+  }
+
+  if (profile === "climbing") {
+    return (
+      <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Tracking mode">
+            <SimpleSelect
+              value={form.climbingTrackingMode}
+              onChange={(value) => update("climbingTrackingMode", value)}
+              options={["Time only", "Problems / routes"]}
+            />
+          </Field>
+          <Field label="Minutes">
+            <Input
+              inputMode="numeric"
+              value={form.duration}
+              onChange={(event) => update("duration", event.target.value)}
+            />
+          </Field>
+          {form.climbingTrackingMode !== "Time only" ? (
+            <Field label="Problems / routes">
+              <Input
+                inputMode="numeric"
+                value={form.climbingBoulders}
+                onChange={(event) => update("climbingBoulders", event.target.value)}
+              />
+            </Field>
+          ) : null}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-4">
+          <Field label="Max grade">
+            <Input
+              value={form.climbingMaxGrade}
+              onChange={(event) => update("climbingMaxGrade", event.target.value)}
+              placeholder="V5, 6b+, 7A..."
+            />
+          </Field>
+          <Field label="Gradient">
+            <SimpleSelect
+              value={form.climbingGradient}
+              onChange={(value) => update("climbingGradient", value)}
+              options={BOARD_GRADIENTS}
+            />
+          </Field>
+          <Field label="Intensity">
+            <SimpleSelect
+              value={form.intensity}
+              onChange={(value) => update("intensity", value)}
+              options={intensities}
+            />
+          </Field>
+          <Field label="RPE">
+            <Input
+              inputMode="decimal"
+              value={form.rpe}
+              onChange={(event) => update("rpe", event.target.value)}
             />
           </Field>
         </div>

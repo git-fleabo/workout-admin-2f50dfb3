@@ -36,7 +36,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { LibraryRow } from "@/lib/training-types";
-import { getMovementMetricProfile, type MetricProfile } from "@/lib/movement-metrics";
+import {
+  getMovementMetricProfile,
+  getTrackingModeLabel,
+  getTrackingModeValue,
+  TRACKING_MODE_OPTIONS,
+  type MetricProfile,
+  type TrackingMode,
+} from "@/lib/movement-metrics";
 import {
   addExerciseClient,
   claimNoamProfile,
@@ -84,8 +91,6 @@ type LibraryFieldConfig = {
   focusPlaceholder: string;
   equipmentLabel: string;
   equipmentPlaceholder: string;
-  metricLabel: string;
-  metricPlaceholder: string;
   setsLabel: string;
   setsPlaceholder: string;
   repsLabel: string;
@@ -93,64 +98,72 @@ type LibraryFieldConfig = {
   defaults: Partial<typeof BLANK>;
 };
 
-function libraryConfigFor(type: string, profile: MetricProfile): LibraryFieldConfig {
-  const normalizedType = type.trim().toLowerCase();
+function libraryConfigFor(profile: MetricProfile): LibraryFieldConfig {
   const base: LibraryFieldConfig = {
     focusLabel: "Focus",
     focusPlaceholder: "Push, pull, legs...",
     equipmentLabel: "Equipment",
     equipmentPlaceholder: "Barbell",
-    metricLabel: "Metric",
-    metricPlaceholder: "Weight x reps",
     setsLabel: "Suggested sets",
     setsPlaceholder: "3",
     repsLabel: "Suggested reps / time",
     repsPlaceholder: "5-8",
     defaults: {
-      metric: "Weight x reps",
+      metric: "weight_reps",
       suggestedSets: "3",
       suggestedReps: "5-8",
     },
   };
 
-  if (["cardio", "run", "class", "other"].includes(normalizedType) || profile === "time") {
+  if (profile === "time") {
     return {
       ...base,
       focusLabel: "Style",
       focusPlaceholder: "Easy, intervals, recovery...",
       equipmentLabel: "Equipment",
       equipmentPlaceholder: "Road, treadmill, bike, rower...",
-      metricLabel: "Tracking",
-      metricPlaceholder: "Distance / time",
       setsLabel: "Suggested minutes",
       setsPlaceholder: "30",
       repsLabel: "Distance / detail",
       repsPlaceholder: "5 km, zone 2...",
-      defaults: { metric: "Distance / time", suggestedSets: "", suggestedReps: "" },
+      defaults: { metric: "distance_time", suggestedSets: "", suggestedReps: "" },
     };
   }
 
-  if (normalizedType === "skills/calisthenics" || profile === "reps") {
+  if (profile === "duration") {
+    return {
+      ...base,
+      focusLabel: "Session style",
+      focusPlaceholder: "Class, recovery, practice...",
+      equipmentLabel: "Equipment",
+      equipmentPlaceholder: "Mat, studio, bike...",
+      setsLabel: "Suggested minutes",
+      setsPlaceholder: "30",
+      repsLabel: "Default detail",
+      repsPlaceholder: "Zone 2, easy flow...",
+      defaults: { metric: "duration", suggestedSets: "", suggestedReps: "" },
+    };
+  }
+
+  if (profile === "reps") {
     return {
       ...base,
       focusLabel: "Skill area",
       focusPlaceholder: "Push, pull, legs, skill...",
       equipmentLabel: "Assistance / load",
       equipmentPlaceholder: "Bodyweight / rings / bar / assistance",
-      metricLabel: "Tracking",
-      metricPlaceholder: "Reps",
       repsLabel: "Suggested total reps",
       repsPlaceholder: "6-10",
       defaults: {
         equipment: "Bodyweight / Assistance / Added weight",
-        metric: "Reps",
+        metric: "reps_only",
         suggestedSets: "3",
         suggestedReps: "6-10",
       },
     };
   }
 
-  if (normalizedType === "grip" || profile === "hold" || profile === "grip") {
+  if (profile === "hold" || profile === "grip") {
     return {
       ...base,
       focusLabel: profile === "grip" ? "Grip style" : "Progression",
@@ -158,32 +171,32 @@ function libraryConfigFor(type: string, profile: MetricProfile): LibraryFieldCon
       equipmentLabel: profile === "grip" ? "Load / implement" : "Assistance",
       equipmentPlaceholder:
         profile === "grip" ? "Hangboard, pinch block..." : "Wall, band, rings...",
-      metricLabel: "Tracking",
-      metricPlaceholder: "Attempts / hold / feel",
       setsLabel: "Suggested attempts",
       setsPlaceholder: "3",
       repsLabel: "Suggested hold",
       repsPlaceholder: "10-20 sec",
-      defaults: { metric: "Attempts / hold / feel", suggestedSets: "3", suggestedReps: "" },
+      defaults: {
+        metric: profile === "grip" ? "grip_hold" : "hold",
+        suggestedSets: "3",
+        suggestedReps: "",
+      },
     };
   }
 
-  if (normalizedType === "mobility/flexibility" || profile === "mobility_position") {
+  if (profile === "mobility_position") {
     return {
       ...base,
       focusLabel: "Position group",
       focusPlaceholder: "Flexibility",
       equipmentLabel: "Equipment",
       equipmentPlaceholder: "Mat, wall, floor...",
-      metricLabel: "Tracking",
-      metricPlaceholder: "Distance / hold / feel",
       setsLabel: "Suggested hold",
       setsPlaceholder: "60 sec",
       repsLabel: "Target / detail",
       repsPlaceholder: "Distance, depth, feel...",
       defaults: {
         equipment: "Mat",
-        metric: "Distance / hold / feel",
+        metric: "mobility_position",
         suggestedSets: "",
         suggestedReps: "",
       },
@@ -197,38 +210,48 @@ function libraryConfigFor(type: string, profile: MetricProfile): LibraryFieldCon
       focusPlaceholder: "Bouldering, ropes, board...",
       equipmentLabel: "Venue / board",
       equipmentPlaceholder: "Climbing gym, Kilter board...",
-      metricLabel: "Tracking",
-      metricPlaceholder: "Hours / boulders / grade",
-      setsLabel: "Suggested hours",
-      setsPlaceholder: "2",
+      setsLabel: "Suggested minutes",
+      setsPlaceholder: "90",
       repsLabel: "Problems / routes",
       repsPlaceholder: "10-20",
       defaults: {
         equipment: "Climbing gym",
-        metric: "Hours / boulders / grade",
+        metric: "climbing",
         suggestedSets: "",
         suggestedReps: "",
       },
     };
   }
 
-  if (normalizedType === "conditioning" || profile === "carry" || profile === "conditioning") {
+  if (profile === "carry" || profile === "conditioning") {
     return {
       ...base,
       focusLabel: "Style",
       focusPlaceholder: "Carry, circuit, conditioning...",
       equipmentLabel: "Load / equipment",
       equipmentPlaceholder: "Kettlebell, dumbbell, sled...",
-      metricLabel: "Tracking",
-      metricPlaceholder:
-        profile === "carry" ? "Rounds / distance / load" : "Minutes / rounds / load",
       setsLabel: profile === "carry" ? "Suggested rounds" : "Suggested minutes",
       setsPlaceholder: profile === "carry" ? "4" : "10",
       repsLabel: "Detail",
       repsPlaceholder: profile === "carry" ? "20 m" : "Rounds, reps per minute...",
       defaults: {
-        metric: profile === "carry" ? "Rounds / distance / load" : "Minutes / rounds / load",
+        metric: profile,
       },
+    };
+  }
+
+  if (profile === "power") {
+    return {
+      ...base,
+      focusLabel: "Power focus",
+      focusPlaceholder: "Jump, throw, explosive...",
+      equipmentLabel: "Equipment",
+      equipmentPlaceholder: "Box, med ball, markers...",
+      setsLabel: "Suggested sets",
+      setsPlaceholder: "3",
+      repsLabel: "Suggested jumps / reps",
+      repsPlaceholder: "3-5",
+      defaults: { metric: "power", suggestedSets: "3", suggestedReps: "3-5" },
     };
   }
 
@@ -241,7 +264,7 @@ function withTypeDefaults(form: typeof BLANK, workoutType: string, config: Libra
     workoutType,
     focusArea: form.focusArea || config.defaults.focusArea || "",
     equipment: form.equipment || config.defaults.equipment || "",
-    metric: form.metric || config.defaults.metric || "",
+    metric: form.metric || config.defaults.metric || "weight_reps",
     suggestedSets: form.suggestedSets || config.defaults.suggestedSets || "",
     suggestedReps: form.suggestedReps || config.defaults.suggestedReps || "",
     notes: form.notes || config.defaults.notes || "",
@@ -504,7 +527,11 @@ function LibraryPage() {
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {[
                           ex.equipment,
-                          ex.metric,
+                          getTrackingModeLabel({
+                            workoutType: ex.workoutType,
+                            movement: ex.name,
+                            defaultMetric: ex.metric,
+                          }),
                           ex.suggestedSets && `${ex.suggestedSets} sets`,
                           ex.suggestedReps && `${ex.suggestedReps}`,
                         ]
@@ -686,7 +713,11 @@ function ExerciseEditorDialog({
           focusArea: state.row.focusArea,
           name: state.row.name,
           equipment: state.row.equipment,
-          metric: state.row.metric,
+          metric: getTrackingModeValue({
+            workoutType: state.row.workoutType,
+            movement: state.row.name,
+            defaultMetric: state.row.metric,
+          }),
           suggestedSets: state.row.suggestedSets,
           suggestedReps: state.row.suggestedReps,
           notes: state.row.notes,
@@ -705,15 +736,33 @@ function ExerciseEditorDialog({
     movement: form.name,
     defaultMetric: form.metric,
   });
-  const fieldConfig = libraryConfigFor(form.workoutType, profile);
+  const fieldConfig = libraryConfigFor(profile);
   const updateType = (workoutType: string) => {
     const nextProfile = getMovementMetricProfile({
       workoutType,
       movement: form.name,
       defaultMetric: form.metric,
     });
-    const nextConfig = libraryConfigFor(workoutType, nextProfile);
-    setForm((f) => withTypeDefaults(f, workoutType, nextConfig));
+    const nextConfig = libraryConfigFor(nextProfile);
+    const nextMode = getTrackingModeValue({
+      workoutType,
+      movement: form.name,
+      defaultMetric: form.metric,
+    });
+    setForm((f) => withTypeDefaults({ ...f, metric: nextMode }, workoutType, nextConfig));
+  };
+  const updateTracking = (trackingMode: TrackingMode) => {
+    const nextProfile = TRACKING_MODE_OPTIONS.find(
+      (option) => option.value === trackingMode,
+    )?.profile;
+    if (!nextProfile) return;
+    const nextConfig = libraryConfigFor(nextProfile);
+    setForm((current) => ({
+      ...current,
+      metric: trackingMode,
+      suggestedSets: String(nextConfig.defaults.suggestedSets ?? ""),
+      suggestedReps: String(nextConfig.defaults.suggestedReps ?? ""),
+    }));
   };
 
   const open = state.mode !== "closed";
@@ -735,6 +784,10 @@ function ExerciseEditorDialog({
             e.preventDefault();
             if (!form.name.trim()) {
               toast.error("Name is required");
+              return;
+            }
+            if (!form.metric) {
+              toast.error("Choose a tracking mode");
               return;
             }
             onSubmit(form);
@@ -759,6 +812,23 @@ function ExerciseEditorDialog({
               autoCapitalize="words"
             />
           </Field>
+          <Field label="Tracking">
+            <Select
+              value={form.metric}
+              onValueChange={(value) => updateTracking(value as TrackingMode)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Choose what you want to track" />
+              </SelectTrigger>
+              <SelectContent>
+                {TRACKING_MODE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label={fieldConfig.focusLabel}>
               <Input
@@ -775,13 +845,6 @@ function ExerciseEditorDialog({
               />
             </Field>
           </div>
-          <Field label={fieldConfig.metricLabel}>
-            <Input
-              value={form.metric}
-              onChange={(e) => update("metric", e.target.value)}
-              placeholder={fieldConfig.metricPlaceholder}
-            />
-          </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label={fieldConfig.setsLabel}>
               <Input
@@ -813,7 +876,7 @@ function ExerciseEditorDialog({
             </Button>
             <Button
               type="submit"
-              disabled={isPending || !form.name.trim()}
+              disabled={isPending || !form.name.trim() || !form.metric}
               style={{
                 backgroundImage: "var(--gradient-primary)",
                 color: "var(--primary-foreground)",

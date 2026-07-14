@@ -108,7 +108,7 @@ Suggested columns:
 - `activity_type_id uuid references activity_types(id)`
 - `name text not null`
 - `equipment text`
-- `default_metric text`
+- `default_metric text` using one of `weight_reps`, `reps_only`, `hold`, `grip_hold`, `distance_time`, `duration`, `conditioning`, `carry`, `mobility_position`, `power`, or `climbing`
 - `suggested_sets text`
 - `suggested_reps text`
 - `notes text`

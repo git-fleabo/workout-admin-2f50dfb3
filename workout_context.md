@@ -339,6 +339,9 @@ Key columns:
 
 Important active library decisions:
 
+- `default_metric` now stores one of eleven stable tracking keys rather than free text: `weight_reps`, `reps_only`, `hold`, `grip_hold`, `distance_time`, `duration`, `conditioning`, `carry`, `mobility_position`, `power`, or `climbing`. The Library editor exposes these as labelled dropdown choices and changes its contextual defaults accordingly.
+- The unified logger treats the selected tracking mode as authoritative. It exposes mode-specific fields for standard sets, reps with progression/assistance, holds, loaded grip, distance/time with units, duration-only work, conditioning, carries, mobility positions, power/jumps, and climbing. Non-strength metrics now survive recent-workout repeat/correction round trips.
+
 - `Pull-Up / Lat Pulldown` was split into `Pull-Up`, `Lat Pulldown`, and `Chin-Up`.
 - `Ropes/Belay` replaced `Indoor Ropes`.
 - Climbing active movements: `Bouldering Session`, `Ropes/Belay`, `Kilter`, `Mix`.
@@ -1089,6 +1092,7 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - `supabase/migrations/20260713110640_add_persistent_workout_suggestions.sql`: applied and tracked persistent workout plan entries/sets, session link, indexes, grants, and RLS.
 - `supabase/migrations/20260713142913_add_training_methods.sql`: applied and tracked training-method definitions, per-person settings, system seed data, indexes, grants, and RLS.
 - `supabase/migrations/20260713212133_add_eccentrics_pyramid_negatives_methods.sql`: adds Eccentrics, Pyramid, and Negatives as idempotent system set-method definitions.
+- `supabase/migrations/20260714061929_normalize_exercise_tracking_modes.sql`: normalizes existing exercise metrics into the eleven stable tracking-mode keys used by the Library dropdown and logger.
 - `supabase/migrations/20260713173700_add_suggested_workout_method_blocks.sql`: applied and tracked method blocks and ordered movement memberships for persistent plans.
 - `supabase/migrations/20260713173800_add_suggested_workout_set_segments.sql`: applied and tracked within-exercise method segments for persistent plans.
 - `docs/product-roadmap.md`: staged product redesign roadmap; Phase 5 advanced-method logging, planning, round trips, Progress, and adherence review are complete.

@@ -6,15 +6,43 @@ export type MetricProfile =
   | "grip"
   | "mobility_position"
   | "time"
+  | "duration"
   | "conditioning"
   | "climbing"
   | "power";
+
+export const TRACKING_MODE_OPTIONS = [
+  { value: "weight_reps", label: "Weight + reps", profile: "weighted" },
+  { value: "reps_only", label: "Reps only", profile: "reps" },
+  { value: "hold", label: "Hold / isometric", profile: "hold" },
+  { value: "grip_hold", label: "Grip / loaded hold", profile: "grip" },
+  { value: "distance_time", label: "Distance + time", profile: "time" },
+  { value: "duration", label: "Duration only", profile: "duration" },
+  { value: "conditioning", label: "Rounds / conditioning", profile: "conditioning" },
+  { value: "carry", label: "Loaded carry", profile: "carry" },
+  { value: "mobility_position", label: "Mobility position", profile: "mobility_position" },
+  { value: "power", label: "Power / jumps", profile: "power" },
+  { value: "climbing", label: "Climbing", profile: "climbing" },
+] as const satisfies ReadonlyArray<{
+  value: string;
+  label: string;
+  profile: MetricProfile;
+}>;
+
+export type TrackingMode = (typeof TRACKING_MODE_OPTIONS)[number]["value"];
 
 export type MovementMetricContext = {
   workoutType: string;
   movement: string;
   defaultMetric?: string;
 };
+
+const PROFILE_BY_TRACKING_MODE = new Map<TrackingMode, MetricProfile>(
+  TRACKING_MODE_OPTIONS.map((option) => [option.value, option.profile]),
+);
+const TRACKING_MODE_BY_PROFILE = new Map<MetricProfile, TrackingMode>(
+  TRACKING_MODE_OPTIONS.map((option) => [option.profile, option.value]),
+);
 
 const MOBILITY_POSITIONS = new Set([
   "front split",
@@ -81,25 +109,54 @@ export function getMovementMetricProfile({
   const name = movement.trim().toLowerCase();
   const metric = defaultMetric.trim().toLowerCase();
 
-  if (type === "climbing") return "climbing";
-  if (type === "power" || name === "box jumps") return "power";
-  if (WEIGHTED_EXCEPTIONS.has(name)) return "weighted";
-  if (BODYWEIGHT_REPS.has(name)) return "reps";
-  if (MOBILITY_POSITIONS.has(name)) return "mobility_position";
-  if (CARRIES.has(name)) return "carry";
-  if (type === "grip" && GRIP_HOLDS.has(name)) return "grip";
-  if (HOLDS.has(name) || metric.includes("hold")) return "hold";
-  if (type === "skills/calisthenics") return "reps";
-  if (type === "cardio" || type === "run" || type === "class") return "time";
-  if (TIME_MOVEMENTS.has(name)) return "time";
-  if (type === "conditioning" || metric.includes("round") || metric.includes("minute")) {
-    return "conditioning";
+  const selectedProfile = PROFILE_BY_TRACKING_MODE.get(metric as TrackingMode);
+  if (selectedProfile) return selectedProfile;
+
+  if (
+    type === "climbing" ||
+    metric.includes("boulder") ||
+    metric.includes("route") ||
+    metric.includes("grade")
+  ) {
+    return "climbing";
   }
+  if (type === "power" || name === "box jumps" || metric.includes("height")) return "power";
+  if (WEIGHTED_EXCEPTIONS.has(name)) return "weighted";
+  if (CARRIES.has(name)) return "carry";
+  if (metric.includes("distance / hold") || MOBILITY_POSITIONS.has(name)) {
+    return "mobility_position";
+  }
+  if (type === "grip" && (GRIP_HOLDS.has(name) || metric.includes("hold"))) return "grip";
+  if (HOLDS.has(name) || metric.includes("hold")) return "hold";
+  if ((metric.includes("load") || metric.includes("weight")) && metric.includes("rep")) {
+    return "weighted";
+  }
+  if (metric === "reps" || metric === "rep") return "reps";
+  if (metric.includes("round")) return "conditioning";
+  if (metric.includes("distance") && metric.includes("time")) return "time";
+  if (metric.includes("minute") || metric === "duration" || metric === "time") {
+    return type === "conditioning" ? "conditioning" : "duration";
+  }
+  if (BODYWEIGHT_REPS.has(name)) return "reps";
+  if (type === "skills/calisthenics") return "reps";
+  if (type === "class" || type === "yoga" || type === "mobility/flexibility") return "duration";
+  if (type === "cardio" || type === "run") return "time";
+  if (TIME_MOVEMENTS.has(name)) return "duration";
+  if (type === "conditioning") return "conditioning";
   return "weighted";
 }
 
+export function getTrackingModeValue(context: MovementMetricContext): TrackingMode {
+  return TRACKING_MODE_BY_PROFILE.get(getMovementMetricProfile(context)) ?? "weight_reps";
+}
+
+export function getTrackingModeLabel(context: MovementMetricContext) {
+  const value = getTrackingModeValue(context);
+  return TRACKING_MODE_OPTIONS.find((option) => option.value === value)?.label ?? value;
+}
+
 export function profileUsesStandardSets(profile: MetricProfile) {
-  return profile === "weighted" || profile === "reps" || profile === "power";
+  return profile === "weighted" || profile === "reps";
 }
 
 export function profileUsesLoad(profile: MetricProfile) {

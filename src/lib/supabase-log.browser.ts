@@ -82,6 +82,8 @@ type EntrySetRecord = {
   reps: number | string | null;
   weight: number | string | null;
   duration_seconds: number | string | null;
+  distance: number | string | null;
+  distance_unit: string | null;
   rpe: number | string | null;
   rest_time: string | null;
   assistance_type: string | null;
@@ -219,6 +221,10 @@ export type WorkoutLogInput = {
   feel: string;
   height: string;
   detail: string;
+  climbingBoulders?: string;
+  climbingTrackingMode?: string;
+  climbingMaxGrade?: string;
+  climbingGradient?: string;
   setRows?: WorkoutSetInput[];
 };
 
@@ -518,7 +524,7 @@ export async function getRecentLogsClient(limit = 15) {
   await requirePerson();
   const rows = await supabasePublicSelect<SessionEntryRecord>("session_entries", {
     select:
-      "id,order_index,entry_kind,name,progression_level,completed,notes,source_sheet,exercises(name,focus_area,activity_types(name)),activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,completed,entry_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion,config)),sessions!inner(id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name),training_locations(id,name,kind))",
+      "id,order_index,entry_kind,name,progression_level,completed,notes,source_sheet,exercises(name,focus_area,activity_types(name)),activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,rest_time,assistance_type,assistance_detail,quality,completed,entry_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion,config)),entry_metrics(metric_key,metric_value,metric_text,metric_unit),sessions!inner(id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name),training_locations(id,name,kind))",
     "sessions.source_sheet": "eq.Workout Log",
     order: "created_at.desc",
     limit: Math.min(Math.max(Math.round(limit), 1), 500),
@@ -570,6 +576,7 @@ export async function getRecentLogsClient(limit = 15) {
         (a, b) => Number(a.set_number ?? 0) - Number(b.set_number ?? 0),
       );
       const set = sets[0];
+      const metrics = row.entry_metrics ?? [];
       const individualSets = sets.length > 1;
       const workRows: Array<{
         reps: number | string | null;
@@ -600,7 +607,8 @@ export async function getRecentLogsClient(limit = 15) {
         sets: asText(individualSets ? sets.length : set?.set_number),
         reps: asText(totalReps),
         weight: asText(maxWeight ?? set?.weight),
-        duration: asText(row.sessions?.duration_minutes),
+        duration:
+          metricValue(metrics, "duration_minutes") || asText(row.sessions?.duration_minutes),
         intensity: row.sessions?.intensity ?? "",
         rpe: asText(set?.rpe ?? row.sessions?.rpe),
         restTime: set?.rest_time ?? "",
@@ -609,6 +617,16 @@ export async function getRecentLogsClient(limit = 15) {
         entryKind: row.entry_kind ?? "",
         progressionLevel: row.progression_level ?? "",
         holdSeconds: asText(set?.duration_seconds),
+        distance: asText(set?.distance),
+        distanceUnit: set?.distance_unit ?? "",
+        rounds: metricValue(metrics, "rounds"),
+        feel: metricValue(metrics, "feel"),
+        height: metricValue(metrics, "height"),
+        detail: metricValue(metrics, "detail"),
+        climbingBoulders: metricValue(metrics, "boulders"),
+        climbingTrackingMode: metricValue(metrics, "tracking_mode"),
+        climbingMaxGrade: metricValue(metrics, "grade"),
+        climbingGradient: metricValue(metrics, "gradient"),
         assistanceType: set?.assistance_type ?? "",
         assistanceDetail: set?.assistance_detail ?? "",
         quality: set?.quality ?? "",
@@ -826,6 +844,8 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
             weight: toNum(set.weight),
             rpe: toNum(set.rpe) ?? rpe,
             rest_time: entryData.restTime || null,
+            assistance_type: entryData.assistanceType || null,
+            assistance_detail: entryData.assistanceDetail || null,
             completed: set.completed,
             notes: entryData.notes || null,
           });
@@ -880,10 +900,34 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
       }
 
       const metrics = [
+        {
+          metric_key: "duration_minutes",
+          metric_value: toNum(entryData.duration),
+          metric_unit: entryData.duration ? "min" : undefined,
+        },
         { metric_key: "rounds", metric_value: toNum(entryData.rounds) },
         { metric_key: "feel", metric_value: toNum(entryData.feel) },
         { metric_key: "height", metric_value: toNum(entryData.height), metric_unit: "cm" },
         { metric_key: "detail", metric_text: entryData.detail || null },
+        {
+          metric_key: "tracking_mode",
+          metric_text:
+            entryData.workoutType === "Climbing"
+              ? entryData.climbingTrackingMode ||
+                (entryData.climbingBoulders ? "Problems / routes" : "Time only")
+              : null,
+        },
+        {
+          metric_key: "hours",
+          metric_value:
+            entryData.workoutType === "Climbing" && toNum(entryData.duration) != null
+              ? Number(entryData.duration) / 60
+              : null,
+          metric_unit: entryData.workoutType === "Climbing" && entryData.duration ? "h" : undefined,
+        },
+        { metric_key: "boulders", metric_value: toNum(entryData.climbingBoulders) },
+        { metric_key: "grade", metric_text: entryData.climbingMaxGrade || null },
+        { metric_key: "gradient", metric_text: entryData.climbingGradient || null },
       ].filter((metric) => metric.metric_value != null || metric.metric_text);
       if (metrics.length) {
         await supabasePublicInsert(
