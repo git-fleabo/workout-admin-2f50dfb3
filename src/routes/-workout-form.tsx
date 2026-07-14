@@ -598,6 +598,16 @@ function setSummary(set: WorkoutSetState, usesLoad: boolean) {
   );
 }
 
+function numericInputValue(value: unknown) {
+  if (value == null) return 0;
+  const match = String(value)
+    .trim()
+    .match(/-?\d+(?:\.\d+)?/);
+  if (!match) return 0;
+  const number = Number(match[0]);
+  return Number.isFinite(number) ? number : 0;
+}
+
 function workoutEntrySummary(entry: FormState) {
   const sets = entry.setRows.filter(
     (set) => set.reps || set.weight || set.durationSeconds || set.rpe || set.method,
@@ -607,13 +617,13 @@ function workoutEntrySummary(entry: FormState) {
       { reps: set.reps, weight: set.weight },
       ...(set.method?.segments ?? []),
     ]);
-    const reps = segments.reduce((total, set) => total + (Number(set.reps) || 0), 0);
+    const reps = segments.reduce((total, set) => total + numericInputValue(set.reps), 0);
     const volume = sets.reduce(
       (total, set) =>
         total +
         [{ reps: set.reps, weight: set.weight }, ...(set.method?.segments ?? [])].reduce(
           (setTotal, segment) =>
-            setTotal + (Number(segment.weight) || 0) * (Number(segment.reps) || 0),
+            setTotal + numericInputValue(segment.weight) * numericInputValue(segment.reps),
           0,
         ),
       0,
@@ -622,10 +632,9 @@ function workoutEntrySummary(entry: FormState) {
       (total, set) => total + (set.method?.segments.length ?? 0),
       0,
     );
-    const totalHoldSeconds = sets.reduce(
-      (total, set) => total + (Number(set.durationSeconds) || 0),
-      0,
-    );
+    const holdSeconds = sets.map((set) => numericInputValue(set.durationSeconds));
+    const recordedHolds = holdSeconds.filter((seconds) => seconds > 0);
+    const totalHoldSeconds = recordedHolds.reduce((total, seconds) => total + seconds, 0);
     const isAttemptBased = totalHoldSeconds > 0 && reps === 0;
     const assistance = [entry.assistanceType, entry.assistanceDetail].filter(Boolean).join(" · ");
     return [
@@ -634,7 +643,11 @@ function workoutEntrySummary(entry: FormState) {
         ? `${methodSegments} extra ${methodSegments === 1 ? "segment" : "segments"}`
         : "",
       reps > 0 ? `${reps} reps` : "",
-      totalHoldSeconds > 0 ? `${totalHoldSeconds}s total hold` : "",
+      totalHoldSeconds > 0
+        ? recordedHolds.length > 1
+          ? `${recordedHolds.map((seconds) => `${seconds}s`).join(" + ")} = ${totalHoldSeconds}s total hold`
+          : `${totalHoldSeconds}s total hold`
+        : "",
       volume > 0 ? `${Math.round(volume).toLocaleString()} kg volume` : "",
       entry.progressionLevel ? `Progression: ${entry.progressionLevel}` : "",
       assistance ? `Assistance: ${assistance}` : "",
@@ -3425,7 +3438,10 @@ function SetRowsEditor({
                   {valueKind === "duration" ? "Hold (sec)" : "Reps"}
                 </span>
                 <Input
+                  type="number"
                   inputMode="decimal"
+                  min={0}
+                  step={valueKind === "duration" ? 0.1 : 1}
                   className="h-12 text-lg font-semibold sm:h-10 sm:text-sm sm:font-normal"
                   aria-label={`Set ${setIndex + 1} ${valueKind === "duration" ? "hold seconds" : "reps"}`}
                   value={valueKind === "duration" ? set.durationSeconds : set.reps}
