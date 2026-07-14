@@ -1059,6 +1059,9 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
   browser draft on the current device. Plan includes recent lifecycle activity, and deleting a linked
   completed session archives its plan first so completed plans cannot be left without a session.
 - `src/lib/database.types.ts` contains types generated from the live Supabase schema on 2026-07-14.
+- People & Access is intentionally deferred as of 2026-07-14 because Noam is currently the only user.
+  Do not build multi-user administration until a second user is actually being prepared; the next active
+  product item is the climbing-controls audit in the unified logger.
 
 ## Key Files
 
@@ -1249,14 +1252,14 @@ Recommended next work, in order:
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
 11. Phase 6 lifecycle audit and first visible lifecycle model — implemented across Today, Plan, Log, and History.
-12. Build the Phase 6 People & Access administration slice before inviting friends: create/edit people, link an auth user, assign an app profile, and route exercise selection through the existing per-person Library controls.
-13. Audit climbing inside the unified logger before the next climbing-entry iteration. The current movement picker can select climbing movements, but the specialised hours/routes/grade/gradient controls still live in the unused legacy single-entry form. The 2026-07-09 Bouldering and 2026-07-11 Ropes/Belay rows were corrected from 75 hours/4,500 minutes to 1.25 hours/75 minutes; make the chosen duration unit explicit and guarded in the unified flow.
-14. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
-15. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
-16. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
-17. Tighten the profile-claim bootstrap now that Noam's account is linked.
-18. Start implementing programme assignment UI on top of the seeded Percentage Strength Blocks.
-19. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
+12. Audit climbing inside the unified logger before the next climbing-entry iteration. The current movement picker can select climbing movements, but the specialised hours/routes/grade/gradient controls still live in the unused legacy single-entry form. The 2026-07-09 Bouldering and 2026-07-11 Ropes/Belay rows were corrected from 75 hours/4,500 minutes to 1.25 hours/75 minutes; make the chosen duration unit explicit and guarded in the unified flow.
+13. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
+14. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
+15. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
+16. Tighten the profile-claim bootstrap now that Noam's account is linked.
+17. Start implementing programme assignment UI on top of the seeded Percentage Strength Blocks.
+18. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
+19. Only when a second user is planned, build People & Access: create/edit people, link an auth user, assign an app profile, and route exercise selection through the existing per-person Library controls.
 
 ## Future Stage: iPhone App
 

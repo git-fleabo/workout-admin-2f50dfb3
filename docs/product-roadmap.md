@@ -226,7 +226,7 @@ and completed method names alongside the existing load, reps, set, and volume co
 - Converge planned, draft, completed, skipped, and archived work into a clearer session lifecycle where practical. — first lifecycle slice implemented
 - Maintain stable exercise IDs and treat display-name changes as aliases/renames.
 - Keep movement metric profiles explicit and reusable. — implemented across Library, Log, History, and Progress
-- Add People & Access before opening the app to friends or clients.
+- Add People & Access only when preparing to add a second user. — explicitly deferred while the app remains single-user
 - Generate Supabase TypeScript types when the schema settles. — initial live-schema types generated
 - Revisit native packaging only after the web workflow is stable.
 
@@ -259,6 +259,6 @@ next workout lighter, or apply a week-local deload mode while retaining editable
 
 Phase 5 is complete. Phase 6 is underway: the lifecycle audit and first visible lifecycle release are
 complete, movement metric profiles are already shared across the core surfaces, and current live-schema
-TypeScript definitions are checked into the app. The next Phase 6 administration slice is People &
-Access before the app is opened to friends or clients. The specialised climbing controls remain the
-next logger-specific refinement outside that administration work.
+TypeScript definitions are checked into the app. People & Access is deliberately deferred while Noam is
+the only user; revisit it only when a second account is genuinely planned. The next active product work
+is the specialised climbing-controls audit inside the unified logger.
