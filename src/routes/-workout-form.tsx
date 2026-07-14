@@ -626,14 +626,18 @@ function workoutEntrySummary(entry: FormState) {
       (total, set) => total + (Number(set.durationSeconds) || 0),
       0,
     );
+    const isAttemptBased = totalHoldSeconds > 0 && reps === 0;
+    const assistance = [entry.assistanceType, entry.assistanceDetail].filter(Boolean).join(" · ");
     return [
-      `${sets.length} ${sets.length === 1 ? "set" : "sets"}`,
+      `${sets.length} ${isAttemptBased ? (sets.length === 1 ? "attempt" : "attempts") : sets.length === 1 ? "set" : "sets"}`,
       methodSegments
         ? `${methodSegments} extra ${methodSegments === 1 ? "segment" : "segments"}`
         : "",
       reps > 0 ? `${reps} reps` : "",
       totalHoldSeconds > 0 ? `${totalHoldSeconds}s total hold` : "",
       volume > 0 ? `${Math.round(volume).toLocaleString()} kg volume` : "",
+      entry.progressionLevel ? `Progression: ${entry.progressionLevel}` : "",
+      assistance ? `Assistance: ${assistance}` : "",
     ]
       .filter(Boolean)
       .join(" · ");
@@ -1814,7 +1818,10 @@ export function FullWorkoutForm() {
 
       return {
         ...entry,
-        setRows: profileUsesStandardSets(profile) ? entry.setRows : [],
+        setRows:
+          profileUsesStandardSets(profile) || profile === "hold" || profile === "grip"
+            ? entry.setRows
+            : [],
         date: form.date,
         workoutType: selected?.workoutType ?? entry.workoutType,
         focusArea: "",
@@ -2369,31 +2376,55 @@ export function FullWorkoutForm() {
                     }
                     onRemoveMethod={(setIndex) => updateSet(index, setIndex, "method", undefined)}
                   />
-                  {profile === "reps" ? (
+                  {profile === "reps" || profile === "hold" || profile === "grip" ? (
                     <div className="grid gap-3 rounded-lg border border-border bg-secondary/20 p-3 sm:grid-cols-3">
-                      <Field label="Progression">
-                        <Input
-                          value={entry.progressionLevel}
-                          onChange={(event) =>
-                            updateEntry(index, "progressionLevel", event.target.value)
-                          }
-                          placeholder="Strict, assisted, variation..."
-                        />
+                      <Field label={profile === "grip" ? "Grip style" : "Progression"}>
+                        {profile === "grip" ? (
+                          <SimpleSelect
+                            value={entry.gripStyle}
+                            onChange={(value) => updateEntry(index, "gripStyle", value)}
+                            options={GRIP_STYLES}
+                          />
+                        ) : (
+                          <Input
+                            value={entry.progressionLevel}
+                            onChange={(event) =>
+                              updateEntry(index, "progressionLevel", event.target.value)
+                            }
+                            placeholder={
+                              profile === "hold"
+                                ? "Full, straddle, tuck..."
+                                : "Strict, assisted, variation..."
+                            }
+                          />
+                        )}
                       </Field>
-                      <Field label="Assistance">
+                      <Field label={profile === "grip" ? "Load type" : "Assistance"}>
                         <SimpleSelect
-                          value={entry.assistanceType}
-                          onChange={(value) => updateEntry(index, "assistanceType", value)}
-                          options={lib.data?.assistanceTypes ?? []}
+                          value={profile === "grip" ? entry.gripLoadType : entry.assistanceType}
+                          onChange={(value) =>
+                            updateEntry(
+                              index,
+                              profile === "grip" ? "gripLoadType" : "assistanceType",
+                              value,
+                            )
+                          }
+                          options={
+                            profile === "grip" ? GRIP_LOAD_TYPES : (lib.data?.assistanceTypes ?? [])
+                          }
                         />
                       </Field>
-                      <Field label="Assistance detail">
+                      <Field label={profile === "grip" ? "Load detail" : "Assistance detail"}>
                         <Input
                           value={entry.assistanceDetail}
                           onChange={(event) =>
                             updateEntry(index, "assistanceDetail", event.target.value)
                           }
-                          placeholder="Band, counterweight..."
+                          placeholder={
+                            profile === "grip"
+                              ? "20mm edge, +10kg..."
+                              : "8.5 kg counterweight, band colour..."
+                          }
                         />
                       </Field>
                     </div>
@@ -2600,7 +2631,9 @@ export function FullWorkoutForm() {
               <p className="mt-1 text-sm font-semibold">{workoutEntries.length}</p>
             </div>
             <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Sets</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Sets / attempts
+              </p>
               <p className="mt-1 text-sm font-semibold">{totalRecordedSets || "—"}</p>
             </div>
             <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
@@ -3666,11 +3699,20 @@ function MetricFields({
           />
         </Field>
         <Field label="Feel (1-5)">
-          <Input
-            inputMode="decimal"
-            value={form.feel}
-            onChange={(e) => update("feel", e.target.value)}
-          />
+          <div className="space-y-1.5">
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={5}
+              step={1}
+              value={form.feel}
+              onChange={(e) => update("feel", e.target.value)}
+            />
+            <p className="text-[10px] leading-relaxed text-muted-foreground">
+              1 restricted · 3 normal · 5 free and comfortable. Treat pain separately and stop.
+            </p>
+          </div>
         </Field>
       </div>
     );

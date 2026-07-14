@@ -20,7 +20,7 @@ function displayValue(value: number | string | null | undefined) {
   return value == null || String(value).trim() === "" ? null : String(value).trim();
 }
 
-function setParts(set: SessionDetailSet) {
+function setParts(set: SessionDetailSet, holdMultiplier = 1) {
   const weight = displayValue(set.weight);
   const reps = displayValue(set.reps);
   const duration = displayValue(set.durationSeconds);
@@ -28,7 +28,11 @@ function setParts(set: SessionDetailSet) {
   return [
     weight ? `${weight} kg` : "",
     reps ? `${reps} reps` : "",
-    duration ? `${duration}s` : "",
+    duration
+      ? holdMultiplier > 1
+        ? `${duration}s each · ${Number(duration) * holdMultiplier}s total`
+        : `${duration}s`
+      : "",
     rpe ? `RPE ${rpe}` : "",
   ].filter(Boolean);
 }
@@ -41,6 +45,9 @@ function movementMeta(entry: SessionDetailEntry) {
 
 function MovementDetail({ entry }: { entry: SessionDetailEntry }) {
   const aggregate = entry.sets.length === 1 && Number(entry.sets[0]?.setNumber ?? 0) > 1;
+  const isHold =
+    entry.sets.some((set) => Number(set.durationSeconds ?? 0) > 0) &&
+    entry.sets.every((set) => Number(set.reps ?? 0) <= 0);
   return (
     <section className="rounded-xl border border-border bg-secondary/15 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -60,7 +67,7 @@ function MovementDetail({ entry }: { entry: SessionDetailEntry }) {
       {entry.sets.length ? (
         <div className="mt-3 space-y-2">
           {entry.sets.map((set, index) => {
-            const details = setParts(set);
+            const details = setParts(set, aggregate && isHold ? Number(set.setNumber ?? 1) : 1);
             const assistance = [set.assistanceType, set.assistanceDetail]
               .map(displayValue)
               .filter(Boolean)
@@ -72,7 +79,9 @@ function MovementDetail({ entry }: { entry: SessionDetailEntry }) {
               >
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   <span className="w-16 shrink-0 text-xs font-medium text-muted-foreground">
-                    {aggregate ? `${set.setNumber} sets` : `Set ${set.setNumber ?? index + 1}`}
+                    {aggregate
+                      ? `${set.setNumber} ${isHold ? "attempts" : "sets"}`
+                      : `${isHold ? "Attempt" : "Set"} ${set.setNumber ?? index + 1}`}
                   </span>
                   <span>{details.join(" · ") || "Recorded set"}</span>
                 </div>

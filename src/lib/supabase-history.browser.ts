@@ -15,6 +15,8 @@ type EntrySetRecord = {
   duration_seconds: number | string | null;
   distance: number | string | null;
   distance_unit: string | null;
+  assistance_type: string | null;
+  assistance_detail: string | null;
   rpe: number | string | null;
   quality: string | null;
   completed: boolean | null;
@@ -339,7 +341,7 @@ export async function getExerciseHistoryClient(
 ): Promise<ExerciseHistory> {
   const params: Record<string, string | number | boolean> = {
     select:
-      "id,name,completed,sessions!inner(id,session_date,source_sheet,training_locations(name,kind)),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,quality,completed,entry_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit)",
+      "id,name,completed,sessions!inner(id,session_date,source_sheet,training_locations(name,kind)),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,assistance_type,assistance_detail,rpe,quality,completed,entry_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit)",
     completed: "eq.true",
     source_sheet: "eq.Workout Log",
     "sessions.source_sheet": "eq.Workout Log",
@@ -472,6 +474,8 @@ export async function getExerciseHistoryClient(
             Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds : null,
           distance: distanceN,
           distanceUnit: set.distance_unit,
+          assistanceType: set.assistance_type,
+          assistanceDetail: set.assistance_detail,
           quality: set.quality,
           rpe: Number.isFinite(rpe) && rpe > 0 ? rpe : null,
           completed: set.completed !== false,

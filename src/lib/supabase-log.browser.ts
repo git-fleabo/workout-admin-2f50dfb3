@@ -341,6 +341,14 @@ const toNum = (value: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+function validatedFeel(value: unknown) {
+  const feel = toNum(value);
+  if (feel != null && (!Number.isInteger(feel) || feel < 1 || feel > 5)) {
+    throw new Error("Feel must be a whole number from 1 to 5.");
+  }
+  return feel;
+}
+
 const asText = (value: unknown) => (value == null ? "" : value.toString());
 
 function movementKey(value: string) {
@@ -684,6 +692,7 @@ export async function findDuplicateLogClient(data: DuplicateLogInput) {
 
 export async function addWorkoutClient(data: WorkoutLogInput) {
   const person = await requirePerson();
+  const feel = validatedFeel(data.feel);
   const [activityType, exercise] = await Promise.all([
     getOrCreateActivityType(data.workoutType || "Other"),
     findExercise(data.exercise),
@@ -753,7 +762,7 @@ export async function addWorkoutClient(data: WorkoutLogInput) {
 
     const metrics = [
       { metric_key: "rounds", metric_value: toNum(data.rounds) },
-      { metric_key: "feel", metric_value: toNum(data.feel) },
+      { metric_key: "feel", metric_value: feel },
       { metric_key: "height", metric_value: toNum(data.height), metric_unit: "cm" },
       { metric_key: "detail", metric_text: data.detail || null },
     ].filter((metric) => metric.metric_value != null || metric.metric_text);
@@ -778,6 +787,7 @@ export async function addWorkoutClient(data: WorkoutLogInput) {
 
 export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
   const person = await requirePerson();
+  data.entries.forEach((entry) => validatedFeel(entry.feel));
   const rpe = toNum(data.rpe);
   const durationMinutes = toNum(data.duration);
   const entries = data.entries.filter((entry) => entry.exercise.trim());
@@ -909,7 +919,7 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
           metric_unit: entryData.duration ? "min" : undefined,
         },
         { metric_key: "rounds", metric_value: toNum(entryData.rounds) },
-        { metric_key: "feel", metric_value: toNum(entryData.feel) },
+        { metric_key: "feel", metric_value: validatedFeel(entryData.feel) },
         { metric_key: "height", metric_value: toNum(entryData.height), metric_unit: "cm" },
         { metric_key: "detail", metric_text: entryData.detail || null },
         {

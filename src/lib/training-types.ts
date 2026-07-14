@@ -125,6 +125,8 @@ export type ExerciseSetPoint = {
   durationSeconds: number | null;
   distance: number | null;
   distanceUnit: string | null;
+  assistanceType: string | null;
+  assistanceDetail: string | null;
   quality: string | null;
   rpe: number | null;
   completed: boolean;

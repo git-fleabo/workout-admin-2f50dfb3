@@ -13,6 +13,7 @@ type EntrySetRecord = {
   assistance_type: string | null;
   assistance_detail: string | null;
   quality: string | null;
+  completed: boolean | null;
   entry_set_segments: Array<{
     method_name: string;
     reps: number | string | null;
@@ -162,6 +163,12 @@ function describeSets(sets: EntrySetRecord[] | null | undefined) {
   const parts: string[] = [];
   const individualSets = sets.length > 1;
   const setCount = individualSets ? sets.length : toNum(set.set_number);
+  const completedSets = sets.filter((item) => item.completed !== false);
+  const durationValues = completedSets.flatMap((item) => {
+    const duration = toNum(item.duration_seconds);
+    return duration != null && duration > 0 ? [duration] : [];
+  });
+  const isHold = durationValues.length > 0 && sets.every((item) => (toNum(item.reps) ?? 0) <= 0);
   const workRows: Array<{
     method_name: string | null;
     reps: number | string | null;
@@ -183,8 +190,17 @@ function describeSets(sets: EntrySetRecord[] | null | undefined) {
     const value = toNum(item.weight);
     return value == null || (max != null && max >= value) ? max : value;
   }, null);
-  const duration = toNum(set.duration_seconds);
-  if (setCount != null && setCount > 0) parts.push(`${compactNumber(setCount)} sets`);
+  const aggregateAttempts = !individualSets && setCount != null && setCount > 1 ? setCount : 1;
+  const attemptCount = individualSets ? completedSets.length : aggregateAttempts;
+  const totalHoldSeconds =
+    durationValues.reduce((total, value) => total + value, 0) *
+    (individualSets ? 1 : aggregateAttempts);
+  const bestHoldSeconds = durationValues.length ? Math.max(...durationValues) : null;
+  if (isHold && attemptCount > 0) {
+    parts.push(`${compactNumber(attemptCount)} ${attemptCount === 1 ? "attempt" : "attempts"}`);
+  } else if (setCount != null && setCount > 0) {
+    parts.push(`${compactNumber(setCount)} sets`);
+  }
   if (reps != null && reps > 0) parts.push(`${compactNumber(reps)} reps`);
   const partialReps = workRows.reduce(
     (total, item) =>
@@ -195,7 +211,8 @@ function describeSets(sets: EntrySetRecord[] | null | undefined) {
   if (weight != null && weight > 0) parts.push(`${compactNumber(weight)}kg max`);
   const methodName = sets.flatMap((item) => item.entry_set_segments ?? [])[0]?.method_name;
   if (methodName) parts.push(methodName);
-  if (duration != null && duration > 0) parts.push(`${compactNumber(duration)}s`);
+  if (totalHoldSeconds > 0) parts.push(`${compactNumber(totalHoldSeconds)}s total hold`);
+  if (bestHoldSeconds != null) parts.push(`${compactNumber(bestHoldSeconds)}s best`);
   return parts.join(" · ");
 }
 
@@ -316,7 +333,7 @@ export async function getTimelineDataClient(): Promise<TimelineData> {
   const [sessions, oneRmRows, bodyweightRows] = await Promise.all([
     supabasePublicSelect<SessionRecord>("sessions", {
       select:
-        "id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name),training_locations(name,kind),session_entries(id,entry_kind,name,progression_level,completed,notes,source_sheet,activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,entry_set_segments(method_name,reps,weight,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
+        "id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name),training_locations(name,kind),session_entries(id,entry_kind,name,progression_level,completed,notes,source_sheet,activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,completed,entry_set_segments(method_name,reps,weight,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
       order: "session_date.desc",
       limit: 1000,
     }),

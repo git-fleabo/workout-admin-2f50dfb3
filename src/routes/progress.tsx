@@ -562,7 +562,7 @@ function buildProfileStats(
           latestValue(current, (p) => p.feel),
           "/5",
         ),
-        detail: "Most recent entry",
+        detail: "1 restricted · 5 free",
       },
     ];
   }
@@ -2034,7 +2034,7 @@ function ProfileCharts({
         })}
         {trend({
           title: "Feel",
-          subtitle: "Self-reported movement feel from 1 to 5",
+          subtitle: "1 restricted, 3 normal, 5 free and comfortable",
           name: "Feel",
           read: (point) => point.feel,
           format: (value) => `${value}/5`,
@@ -2118,11 +2118,11 @@ function ProfileCharts({
 }
 
 function setSummary(point: ExerciseSessionPoint) {
-  return point.sets
+  const work = point.sets
     .map((set) => {
       if (set.aggregateSets != null) {
         if (set.durationSeconds != null) {
-          return `${set.aggregateSets} sets · ${formatSeconds(set.durationSeconds)} each${set.weight != null ? ` @ ${set.weight}kg` : ""}${set.rpe != null ? ` · RPE ${set.rpe}` : ""}`;
+          return `${set.aggregateSets} attempts · ${formatSeconds(set.durationSeconds)} each · ${formatSeconds(set.durationSeconds * set.aggregateSets)} total${set.weight != null ? ` @ ${set.weight}kg` : ""}${set.rpe != null ? ` · RPE ${set.rpe}` : ""}`;
         }
         return `${set.aggregateSets} sets · ${set.reps ?? "—"} total${set.weight != null ? ` @ ${set.weight}kg` : ""}${set.rpe != null ? ` · RPE ${set.rpe}` : ""}`;
       }
@@ -2134,6 +2134,14 @@ function setSummary(point: ExerciseSessionPoint) {
       return "Recorded set";
     })
     .join(" · ");
+  const assistance = Array.from(
+    new Set(
+      point.sets
+        .map((set) => [set.assistanceType, set.assistanceDetail].filter(Boolean).join(" · "))
+        .filter(Boolean),
+    ),
+  ).join(" / ");
+  return [work, assistance ? `Assistance: ${assistance}` : ""].filter(Boolean).join(" · ");
 }
 
 function profileSessionSummary(point: ExerciseSessionPoint, profile: MetricProfile) {

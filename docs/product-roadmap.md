@@ -109,6 +109,7 @@ Goal: make Progress the main large-screen decision tool.
 - A concise mobile summary focused on the next decision. — implemented
 - Isometric and loaded-hold views use best-hold seconds, weekly accumulated hold time, and per-set duration history instead of strength-only 1RM and kg-volume measures. — implemented
 - Every stable tracking mode now has a purpose-built Progress view: reps/RPE, pace/distance, time, rounds/density, carry load/distance, mobility distance/hold/feel, power height/jumps, and climbing time/problems/grade context. Exact-history columns and summaries change with the same profile. — implemented
+- Hold attempts now round-trip with progression/assistance metadata and are totalled consistently in workout review, History, session detail, and Progress; flexibility feel is a validated integer scale with a shared 1/3/5 interpretation. — implemented
 
 Progress signals should combine performance, volume, effort, missed targets, training frequency, and consecutive hard weeks. Wording should explain the evidence and remain cautious: continue, consider progressing, hold, or consider a lighter week.
 
