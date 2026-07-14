@@ -96,6 +96,7 @@ Goal: make startup answer “What am I doing today?” instead of presenting an 
 
 - Show an explainable history-based recommendation when no saved Next Workout exists. — implemented
 - Let Home/Gym be changed on Today and carry that choice into the full Plan editor. — implemented
+- Rotate one configurable small daily practice independently of the main workout, with stable per-day selection, completion, weekday eligibility, weighting, and repeat-gap controls. — implemented
 
 ## Phase 3: Exercise Progress Workspace — implemented
 

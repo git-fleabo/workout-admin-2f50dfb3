@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RotationRouteImport } from './routes/rotation'
 import { Route as ProgressRouteImport } from './routes/progress'
 import { Route as PlanRouteImport } from './routes/plan'
 import { Route as MethodsRouteImport } from './routes/methods'
@@ -19,6 +20,11 @@ import { Route as GoalsRouteImport } from './routes/goals'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 
+const RotationRoute = RotationRouteImport.update({
+  id: '/rotation',
+  path: '/rotation',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProgressRoute = ProgressRouteImport.update({
   id: '/progress',
   path: '/progress',
@@ -75,6 +81,7 @@ export interface FileRoutesByFullPath {
   '/methods': typeof MethodsRoute
   '/plan': typeof PlanRoute
   '/progress': typeof ProgressRoute
+  '/rotation': typeof RotationRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -86,6 +93,7 @@ export interface FileRoutesByTo {
   '/methods': typeof MethodsRoute
   '/plan': typeof PlanRoute
   '/progress': typeof ProgressRoute
+  '/rotation': typeof RotationRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -98,6 +106,7 @@ export interface FileRoutesById {
   '/methods': typeof MethodsRoute
   '/plan': typeof PlanRoute
   '/progress': typeof ProgressRoute
+  '/rotation': typeof RotationRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -111,6 +120,7 @@ export interface FileRouteTypes {
     | '/methods'
     | '/plan'
     | '/progress'
+    | '/rotation'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -122,6 +132,7 @@ export interface FileRouteTypes {
     | '/methods'
     | '/plan'
     | '/progress'
+    | '/rotation'
   id:
     | '__root__'
     | '/'
@@ -133,6 +144,7 @@ export interface FileRouteTypes {
     | '/methods'
     | '/plan'
     | '/progress'
+    | '/rotation'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -145,10 +157,18 @@ export interface RootRouteChildren {
   MethodsRoute: typeof MethodsRoute
   PlanRoute: typeof PlanRoute
   ProgressRoute: typeof ProgressRoute
+  RotationRoute: typeof RotationRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/rotation': {
+      id: '/rotation'
+      path: '/rotation'
+      fullPath: '/rotation'
+      preLoaderRoute: typeof RotationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/progress': {
       id: '/progress'
       path: '/progress'
@@ -225,6 +245,7 @@ const rootRouteChildren: RootRouteChildren = {
   MethodsRoute: MethodsRoute,
   PlanRoute: PlanRoute,
   ProgressRoute: ProgressRoute,
+  RotationRoute: RotationRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

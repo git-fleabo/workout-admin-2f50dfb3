@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
@@ -13,6 +13,8 @@ import {
   MapPin,
   Play,
   RotateCcw,
+  Settings2,
+  Shuffle,
   Sparkles,
   X,
 } from "lucide-react";
@@ -33,6 +35,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatUKDate, todayISO } from "@/lib/date";
 import { getLibraryClient, getRecentLogsClient } from "@/lib/supabase-log.browser";
+import {
+  getTodayDailyRotationClient,
+  setDailyRotationCompletedClient,
+} from "@/lib/supabase-daily-rotation.browser";
 import {
   getNextSuggestedWorkoutsClient,
   saveWorkoutPlanClient,
@@ -151,6 +157,20 @@ function TodayPage() {
     queryFn: getLibraryClient,
     staleTime: 5 * 60_000,
   });
+  const today = todayISO();
+  const dailyRotation = useQuery({
+    queryKey: ["daily-rotation-today", today],
+    queryFn: () => getTodayDailyRotationClient(today),
+  });
+  const dailyRotationMutation = useMutation({
+    mutationFn: ({ assignmentId, completed }: { assignmentId: string; completed: boolean }) =>
+      setDailyRotationCompletedClient(assignmentId, completed),
+    onSuccess: (_, variables) => {
+      toast.success(variables.completed ? "Daily practice complete" : "Practice reopened");
+      queryClient.invalidateQueries({ queryKey: ["daily-rotation-today", today] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   useEffect(() => {
     setDraft(readWorkoutDraftSummary(window.localStorage.getItem(workoutSessionDraftKey())));
@@ -180,8 +200,6 @@ function TodayPage() {
     return { home: buildFor("home"), gym: buildFor("gym") };
   }, [library.data?.exercises, recent.data?.recent]);
   const recommendation = recommendations[recommendationLocation];
-  const today = todayISO();
-
   useEffect(() => {
     if (!recommendations.gym && recommendations.home) setRecommendationLocation("home");
   }, [recommendations.gym, recommendations.home]);
@@ -318,6 +336,104 @@ function TodayPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">Daily practice</h2>
+          <p className="text-xs text-muted-foreground">
+            One small movement selected from your rotation for today.
+          </p>
+        </div>
+        {dailyRotation.isLoading ? (
+          <LoadingRow label="Choosing today's practice…" />
+        ) : dailyRotation.error ? (
+          <ErrorCard label="Today's daily practice could not be loaded." />
+        ) : dailyRotation.data?.rotation ? (
+          <Card
+            className={
+              dailyRotation.data.rotation.completedAt
+                ? "border-emerald-400/35 bg-emerald-400/[0.06]"
+                : "border-violet-400/35 bg-violet-400/[0.06]"
+            }
+          >
+            <CardContent className="p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 gap-3">
+                  {dailyRotation.data.rotation.completedAt ? (
+                    <CircleCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
+                  ) : (
+                    <Shuffle className="mt-0.5 h-5 w-5 shrink-0 text-violet-300" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold">{dailyRotation.data.rotation.item.name}</p>
+                      {dailyRotation.data.rotation.item.target ? (
+                        <Badge variant="outline" className="border-violet-400/30 text-violet-100">
+                          {dailyRotation.data.rotation.item.target}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    {dailyRotation.data.rotation.item.cue ? (
+                      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                        {dailyRotation.data.rotation.item.cue}
+                      </p>
+                    ) : null}
+                    {dailyRotation.data.rotation.completedAt ? (
+                      <p className="mt-2 text-[11px] font-medium text-emerald-300">Done today</p>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
+                  <Button
+                    variant={dailyRotation.data.rotation.completedAt ? "outline" : "default"}
+                    onClick={() =>
+                      dailyRotationMutation.mutate({
+                        assignmentId: dailyRotation.data.rotation!.assignmentId,
+                        completed: !dailyRotation.data.rotation!.completedAt,
+                      })
+                    }
+                    disabled={dailyRotationMutation.isPending}
+                  >
+                    {dailyRotationMutation.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <CircleCheck className="mr-2 h-4 w-4" />
+                    )}
+                    {dailyRotation.data.rotation.completedAt ? "Undo" : "Done today"}
+                  </Button>
+                  <Button asChild variant="outline">
+                    <Link to="/rotation">
+                      <Settings2 className="mr-2 h-4 w-4" /> Manage
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium">
+                  {dailyRotation.data?.hasConfiguredItems
+                    ? "No daily practice scheduled today"
+                    : "Set up your daily rotation"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {dailyRotation.data?.hasConfiguredItems
+                    ? "Your active items are paused or set for other days."
+                    : "Add movements such as one-arm hangs, handstands or mobility drills."}
+                </p>
+              </div>
+              <Button asChild variant="outline" className="shrink-0">
+                <Link to="/rotation">
+                  <Settings2 className="mr-2 h-4 w-4" /> Configure
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </section>
 
       <section className="space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

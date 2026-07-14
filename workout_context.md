@@ -155,6 +155,7 @@ Important data files:
 - `docs/product-roadmap.md`: product redesign roadmap organised around Plan, Train, Review, and Adjust; Phase 1 is the unified logger.
 - `supabase/schema.sql`: local schema snapshot, may not always reflect every live data tweak.
 - `supabase/migrations/20260713100036_add_training_locations.sql`: tracked Home/Gym training-location schema, session foreign key, RLS, grants, and initial location seed.
+- `supabase/migrations/20260714150600_add_daily_rotation.sql`: configurable daily-practice pool, persisted per-date assignments, completion state, RLS, grants, and indexes.
 - `supabase/approved_logging_library_updates.sql`: idempotent data update script for approved library/logging changes.
 - `supabase/percentage_strength_blocks.sql`: idempotent seed script for reusable Percentage Strength Blocks, currently Operator Style Strength Block and Fighter Style Strength Block.
 - `supabase/program_template_read_policies.sql`: idempotent RLS policy script allowing authenticated users to read reusable template rows from `programs`, `program_workouts`, and `program_workout_entries`.
@@ -854,6 +855,12 @@ The app now starts at `/`, which is a compact Today launch screen rather than re
 
 When no saved Next Workout exists, Today builds a normal-readiness Home or Gym recommendation with the same transparent history and progression rules as Plan. It filters movements by their Library location availability, uses explicit location history where available, explains any locationless-history fallback, shows the source pattern and each movement's proposed target/reason, and lets the user either start immediately or carry the selected location into Plan for readiness, basis, movement, and set editing. Starting immediately saves the recommendation as an accepted suggested workout before loading the unified logger, so normal completion linking remains intact.
 
+Today also has a separate `Daily practice` card for small movements that should rotate independently of the main workout. `/rotation` manages the pool. Each item has a name, free-text daily target, cue, relative selection weight from 1–5, eligible weekdays, minimum repeat gap from 0–30 days, and active/paused state. The app makes a deterministic weighted pick from eligible items and persists one assignment per person/date, so refreshing does not change the movement. If every item is inside its repeat gap, it falls back to the eligible weekday pool rather than leaving the day empty. The Today card can mark the assignment done or undo it; completion does not create a workout session or affect training history.
+
+### Daily rotation
+
+`daily_rotation_items` stores the person-owned configurable pool. `daily_rotation_assignments` stores the selected item and optional completion timestamp for a date, with a unique `(person_id, assigned_date)` constraint. Both tables have RLS enabled, authenticated CRUD grants, and managed-person policies for all four operations. Assignment insert/update policies also require the referenced item to belong to the same person. The live migration and policy/grant audit were completed on 2026-07-14. Supabase security advisors reported no new daily-rotation issue; unrelated existing advisor notices remain.
+
 Climbing:
 
 - Type: `Climbing`
@@ -1063,6 +1070,7 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - `src/lib/planned-actual.ts`: pure planned-set versus actual-set comparison and status rules.
 - `src/lib/progress-decision.ts`: explainable exercise-level continue/progress/hold/lighter decision rules.
 - `src/lib/supabase-public.ts`: Supabase Auth/session and REST helpers.
+- `src/lib/supabase-daily-rotation.browser.ts`: daily rotation CRUD, eligible-day/repeat-gap filtering, stable weighted selection, assignment persistence, and completion toggling.
 - `src/lib/supabase-people.browser.ts`: current person/profile helpers.
 - `src/lib/supabase-dashboard.browser.ts`: dashboard data loading and aggregation.
 - `src/lib/supabase-log.browser.ts`: workout/climbing/1RM/bodyweight log data functions.
@@ -1079,6 +1087,7 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - `src/lib/workout-local-state.ts`: account-scoped draft/favourite/completed keys and compact Today summaries.
 - `src/lib/supabase-timeline.browser.ts`: combined History tab data.
 - `src/routes/index.tsx`: compact Today startup and workout launch route.
+- `src/routes/rotation.tsx`: daily rotation item management and per-item selection settings.
 - `src/routes/dashboard.tsx`: dashboard route at `/dashboard`.
 - `src/routes/log.tsx`: log screen route.
 - `src/routes/plan.tsx`: next-workout planner, readiness choices, and editable suggested sets.
