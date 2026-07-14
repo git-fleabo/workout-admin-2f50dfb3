@@ -408,7 +408,7 @@ function WeekCalendar({ data }: { data: Data }) {
       </div>
 
       <Dialog open={openDay != null} onOpenChange={(v: boolean) => !v && setOpenDate(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-hidden">
           {openDay && (
             <>
               <DialogHeader>
@@ -424,40 +424,41 @@ function WeekCalendar({ data }: { data: Data }) {
               {openDay.entries.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nothing logged for this day.</p>
               ) : (
-                <ul className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+                <ul className="max-h-[68vh] space-y-3 overflow-y-auto pr-1">
                   {openDay.entries.map((e, i) => (
                     <li
                       key={`${e.exercise}-${i}`}
-                      className="rounded-md border border-border/60 bg-secondary/20 p-3"
+                      className="rounded-lg border border-border/60 bg-secondary/20 p-3.5"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium">{e.exercise}</p>
                           <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                            {e.kind === "climb" ? "Climbing" : "Workout"}
-                            {!e.counts && e.kind === "workout" ? " · no credit" : ""}
+                            {e.activityLabel}
+                            {!e.counts && e.activityLabel !== "Climbing" ? " · no credit" : ""}
                           </p>
                         </div>
-                        {e.minutes != null && (
-                          <span className="shrink-0 text-xs text-muted-foreground">
-                            {Math.round(e.minutes)} min
-                          </span>
-                        )}
                       </div>
-                      <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
-                        {e.sets != null && <Detail label="Sets" value={`${e.sets}`} />}
-                        {e.reps != null && (
-                          <Detail
-                            label={e.kind === "climb" ? "Boulders" : "Total reps"}
-                            value={`${e.reps}`}
-                          />
-                        )}
-                        {e.weight != null && <Detail label="Weight" value={`${e.weight} kg`} />}
-                        {e.volume != null && (
-                          <Detail label="Volume" value={`${Math.round(e.volume)} kg`} />
-                        )}
-                      </dl>
-                      {e.notes && <p className="mt-2 text-xs text-muted-foreground">{e.notes}</p>}
+                      {e.details.length ? (
+                        <dl className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+                          {e.details.map((detail) => (
+                            <Detail
+                              key={`${detail.label}-${detail.value}`}
+                              label={detail.label}
+                              value={detail.value}
+                            />
+                          ))}
+                        </dl>
+                      ) : (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          No performance details were recorded.
+                        </p>
+                      )}
+                      {e.notes && (
+                        <p className="mt-3 border-t border-border/50 pt-2 text-xs text-muted-foreground">
+                          {e.notes}
+                        </p>
+                      )}
                     </li>
                   ))}
                 </ul>

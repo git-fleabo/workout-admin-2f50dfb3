@@ -8,6 +8,7 @@ import type {
   WeekDay,
   WeekStat,
 } from "./training-types";
+import { getMovementMetricProfile, type MetricProfile } from "./movement-metrics";
 
 type ActivityTypeRef = { name: string | null } | null;
 
@@ -16,6 +17,10 @@ type EntrySetRecord = {
   reps: number | string | null;
   weight: number | string | null;
   duration_seconds: number | string | null;
+  distance: number | string | null;
+  distance_unit: string | null;
+  rpe: number | string | null;
+  rest_time: string | null;
   assistance_type: string | null;
   assistance_detail: string | null;
   quality: string | null;
@@ -37,6 +42,7 @@ type SessionEntryRecord = {
   notes: string | null;
   source_sheet: string | null;
   activity_types: ActivityTypeRef;
+  exercises: { default_metric: string | null; activity_types: ActivityTypeRef } | null;
   entry_sets: EntrySetRecord[] | null;
   entry_metrics: EntryMetricRecord[] | null;
 };
@@ -47,6 +53,8 @@ type SessionRecord = {
   title: string | null;
   completed: boolean;
   duration_minutes: number | string | null;
+  intensity: string | null;
+  rpe: number | string | null;
   source_sheet: string | null;
   activity_types: ActivityTypeRef;
   session_entries: SessionEntryRecord[] | null;
@@ -169,29 +177,197 @@ function repsPerSet(totalReps: number, sets: number) {
   return Math.ceil(totalReps / sets);
 }
 
-function entryMinutes(entry: SessionEntryRecord, session: SessionRecord) {
-  const sessionMinutes = toNum(session.duration_minutes);
-  if (Number.isFinite(sessionMinutes) && sessionMinutes > 0) return sessionMinutes;
-  const setMinutes = (entry.entry_sets ?? []).reduce((total, set) => {
-    const seconds = toNum(set.duration_seconds);
-    return total + (Number.isFinite(seconds) && seconds > 0 ? seconds / 60 : 0);
+function rounded(value: number, places = 1) {
+  const factor = 10 ** places;
+  return Math.round(value * factor) / factor;
+}
+
+function displayNumber(value: number) {
+  return Number.isInteger(value) ? String(value) : String(rounded(value));
+}
+
+function entryWorkoutType(entry: SessionEntryRecord, session: SessionRecord) {
+  return (
+    entry.activity_types?.name ??
+    entry.exercises?.activity_types?.name ??
+    session.activity_types?.name ??
+    "Workout"
+  );
+}
+
+function entryProfile(entry: SessionEntryRecord, session: SessionRecord) {
+  const metrics = entry.entry_metrics ?? [];
+  if (isClimbing(session, entry)) return "climbing";
+  if (metricNumber(metrics, "height") != null) return "power";
+  if (metricNumber(metrics, "rounds") != null) return "conditioning";
+  return getMovementMetricProfile({
+    workoutType: entryWorkoutType(entry, session),
+    movement: entry.name,
+    defaultMetric: entry.exercises?.default_metric ?? "",
+  });
+}
+
+function entryDurationMinutes(entry: SessionEntryRecord) {
+  const metrics = entry.entry_metrics ?? [];
+  const minutes = metricNumber(metrics, "duration_minutes");
+  if (minutes != null && minutes > 0) return minutes;
+  const legacyHours = metricNumber(metrics, "hours");
+  if (legacyHours != null && legacyHours > 0) return legacyHours * 60;
+  return null;
+}
+
+function workoutMinutes(session: SessionRecord, entries: SessionEntryRecord[]) {
+  const recordedSessionMinutes = toNum(session.duration_minutes);
+  if (Number.isFinite(recordedSessionMinutes) && recordedSessionMinutes > 0) {
+    return recordedSessionMinutes;
+  }
+  const entryMinutes = entries.reduce((total, entry) => {
+    const duration = entryDurationMinutes(entry);
+    return total + (duration != null ? duration : 0);
   }, 0);
-  return setMinutes;
+  if (entryMinutes > 0) return entryMinutes;
+  return entries.reduce((total, entry) => {
+    const seconds = (entry.entry_sets ?? []).reduce((setTotal, set) => {
+      const duration = toNum(set.duration_seconds);
+      return setTotal + (Number.isFinite(duration) && duration > 0 ? duration : 0);
+    }, 0);
+    return total + seconds / 60;
+  }, 0);
+}
+
+function entryDetails(entry: SessionEntryRecord, session: SessionRecord, profile: MetricProfile) {
+  const sets = entry.entry_sets ?? [];
+  const metrics = entry.entry_metrics ?? [];
+  const details: Array<{ label: string; value: string }> = [];
+  const add = (label: string, value: string | null | undefined) => {
+    if (value) details.push({ label, value });
+  };
+  const setCount = sets.length > 1 ? sets.length : toNum(sets[0]?.set_number);
+  const totalReps = sets.reduce((total, set) => {
+    const reps = toNum(set.reps);
+    return total + (Number.isFinite(reps) && reps > 0 ? reps : 0);
+  }, 0);
+  const maxWeight = sets.reduce<number | null>((max, set) => {
+    const weight = toNum(set.weight);
+    return !Number.isFinite(weight) || (max != null && max >= weight) ? max : weight;
+  }, null);
+  const bestRpe = sets.reduce<number | null>((max, set) => {
+    const rpe = toNum(set.rpe);
+    return !Number.isFinite(rpe) || (max != null && max >= rpe) ? max : rpe;
+  }, null);
+  const totalHoldSeconds = sets.reduce((total, set) => {
+    const seconds = toNum(set.duration_seconds);
+    return total + (Number.isFinite(seconds) && seconds > 0 ? seconds : 0);
+  }, 0);
+  const bestHoldSeconds = sets.reduce((max, set) => {
+    const seconds = toNum(set.duration_seconds);
+    return Number.isFinite(seconds) && seconds > max ? seconds : max;
+  }, 0);
+  const distanceSet = sets.find((set) => Number.isFinite(toNum(set.distance)));
+  const distance = distanceSet ? toNum(distanceSet.distance) : NaN;
+  const distanceValue = Number.isFinite(distance)
+    ? `${displayNumber(distance)} ${distanceSet?.distance_unit ?? ""}`.trim()
+    : null;
+  const duration =
+    entryDurationMinutes(entry) ??
+    ((profile === "climbing" || sets.length === 1) &&
+    Number.isFinite(toNum(session.duration_minutes))
+      ? toNum(session.duration_minutes)
+      : null);
+  const rpe = bestRpe ?? (Number.isFinite(toNum(session.rpe)) ? toNum(session.rpe) : null);
+  const assistance = [sets[0]?.assistance_type, sets[0]?.assistance_detail]
+    .filter((value) => value && value.toLowerCase() !== "none")
+    .join(" · ");
+
+  if (profile === "climbing") {
+    add("Duration", duration != null ? `${displayNumber(duration)} min` : null);
+    add(
+      "Problems / routes",
+      metricNumber(metrics, "boulders") != null
+        ? displayNumber(metricNumber(metrics, "boulders") ?? 0)
+        : null,
+    );
+    add("Max grade", metricText(metrics, "grade"));
+    add("Gradient", metricText(metrics, "gradient"));
+    const mode = metricText(metrics, "tracking_mode");
+    add(
+      "Tracking",
+      ["Hours", "Time only"].includes(mode)
+        ? "Time only"
+        : ["Boulders", "Boulders/Routes"].includes(mode)
+          ? "Problems / routes"
+          : mode,
+    );
+  } else if (profile === "hold" || profile === "grip") {
+    add("Attempts", setCount > 0 ? displayNumber(setCount) : null);
+    add("Total hold", totalHoldSeconds > 0 ? `${displayNumber(totalHoldSeconds)} sec` : null);
+    add("Best hold", bestHoldSeconds > 0 ? `${displayNumber(bestHoldSeconds)} sec` : null);
+    if (profile === "grip" && maxWeight != null) {
+      add("Load", maxWeight > 0 ? `${displayNumber(maxWeight)} kg` : "Bodyweight");
+    }
+    add(profile === "grip" ? "Grip style" : "Progression", entry.progression_level);
+    add(profile === "grip" ? "Load detail" : "Assistance", assistance);
+  } else if (profile === "mobility_position") {
+    add("Distance", distanceValue);
+    add("Hold", totalHoldSeconds > 0 ? `${displayNumber(totalHoldSeconds)} sec` : null);
+    const feel = metricNumber(metrics, "feel");
+    add("Feel", feel != null ? `${displayNumber(feel)} / 5` : null);
+  } else if (profile === "time") {
+    add("Distance", distanceValue);
+    add("Duration", duration != null ? `${displayNumber(duration)} min` : null);
+  } else if (profile === "duration") {
+    add("Duration", duration != null ? `${displayNumber(duration)} min` : null);
+  } else if (profile === "conditioning" || profile === "carry") {
+    add("Duration", duration != null ? `${displayNumber(duration)} min` : null);
+    const rounds = metricNumber(metrics, "rounds") ?? (setCount > 0 ? setCount : null);
+    add("Rounds", rounds != null ? displayNumber(rounds) : null);
+    if (profile === "carry") add("Distance", distanceValue);
+    add("Load", maxWeight != null ? `${displayNumber(maxWeight)} kg` : null);
+    add("Detail", metricText(metrics, "detail"));
+  } else if (profile === "power") {
+    add("Sets", setCount > 0 ? displayNumber(setCount) : null);
+    add("Jumps", totalReps > 0 ? displayNumber(totalReps) : null);
+    const height = metricNumber(metrics, "height");
+    add("Best height", height != null ? `${displayNumber(height)} cm` : null);
+    add("Quality", sets.find((set) => set.quality)?.quality);
+  } else {
+    add("Sets", setCount > 0 ? displayNumber(setCount) : null);
+    add("Total reps", totalReps > 0 ? displayNumber(totalReps) : null);
+    if (profile === "weighted") {
+      add("Top load", maxWeight != null ? `${displayNumber(maxWeight)} kg` : null);
+      const volume = sets.reduce((total, set) => {
+        const reps = toNum(set.reps);
+        const weight = toNum(set.weight);
+        return total + (Number.isFinite(reps) && Number.isFinite(weight) ? reps * weight : 0);
+      }, 0);
+      add("Volume", volume > 0 ? `${displayNumber(volume)} kg` : null);
+    } else {
+      add("Progression", entry.progression_level);
+      add("Assistance", assistance);
+    }
+  }
+
+  if (profile !== "mobility_position") add("RPE", rpe != null ? displayNumber(rpe) : null);
+  add("Intensity", session.intensity);
+  return details;
 }
 
 function isClimbing(session: SessionRecord, entry?: SessionEntryRecord) {
-  const labels = [
-    session.source_sheet,
-    session.activity_types?.name,
-    session.title,
+  const entryLabels = [
     entry?.entry_kind,
     entry?.activity_types?.name,
+    entry?.exercises?.activity_types?.name,
     entry?.name,
   ]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
-  return labels.includes("climb") || labels.includes("boulder");
+  if (entryLabels) return entryLabels.includes("climb") || entryLabels.includes("boulder");
+  const sessionLabels = [session.source_sheet, session.activity_types?.name, session.title]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return sessionLabels.includes("climb") || sessionLabels.includes("boulder");
 }
 
 function countsAsWorkout(entries: SessionEntryRecord[]) {
@@ -262,7 +438,7 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
   const [sessions, oneRM, bodyweightRows, goalRows] = await Promise.all([
     supabasePublicSelect<SessionRecord>("sessions", {
       select:
-        "id,session_date,title,completed,duration_minutes,source_sheet,activity_types(name),session_entries(id,entry_kind,name,progression_level,completed,notes,source_sheet,activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,assistance_type,assistance_detail,quality),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
+        "id,session_date,title,completed,duration_minutes,intensity,rpe,source_sheet,activity_types(name),session_entries(id,entry_kind,name,progression_level,completed,notes,source_sheet,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,rest_time,assistance_type,assistance_detail,quality),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
       order: "session_date.asc",
       limit: 1000,
     }),
@@ -380,16 +556,16 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
     const monthStart = startOfMonthUTC(date);
     const monthISO = toISODateString(monthStart);
     const entries = session.session_entries?.filter((entry) => entry.completed) ?? [];
-    const climbing = isClimbing(session, entries[0]);
+    const climbing = entries.length > 0 && entries.every((entry) => isClimbing(session, entry));
 
     if (climbing) {
       const primary = entries[0];
-      const metrics = primary?.entry_metrics ?? [];
-      const hours =
-        metricNumber(metrics, "hours") ??
-        (Number.isFinite(toNum(session.duration_minutes))
-          ? toNum(session.duration_minutes) / 60
-          : 0);
+      const recordedSessionMinutes = toNum(session.duration_minutes);
+      const climbingMinutes =
+        Number.isFinite(recordedSessionMinutes) && recordedSessionMinutes > 0
+          ? recordedSessionMinutes
+          : entries.reduce((total, entry) => total + (entryDurationMinutes(entry) ?? 0), 0);
+      const hours = climbingMinutes / 60;
       const hoursSafe = Number.isFinite(hours) ? hours : 0;
       totalClimbHours += hoursSafe;
       totalClimbSessions += 1;
@@ -405,124 +581,100 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
       if (monthStart.getTime() === thisMonthStart.getTime()) {
         climbingHoursThisMonth += hoursSafe;
         climbingSessionsThisMonth += 1;
-        bouldersThisMonth += metricNumber(metrics, "boulders") ?? 0;
+        bouldersThisMonth += entries.reduce(
+          (total, entry) => total + (metricNumber(entry.entry_metrics, "boulders") ?? 0),
+          0,
+        );
       }
 
       if (weekStart.getTime() === thisWeekStart.getTime()) {
         activeDaysThisWeek.add(dateISO);
         const day = weekDayByISO.get(dateISO);
         if (day) {
-          const name = session.title ?? primary?.name ?? "Climbing";
-          if (!day.exercises.includes(name)) day.exercises.push(name);
           const minutes = hoursSafe * 60;
           day.minutes += minutes;
-          day.entries.push({
-            kind: "climb",
-            exercise: name,
-            sets: null,
-            reps: metricNumber(metrics, "boulders"),
-            weight: null,
-            volume: null,
-            minutes: minutes || null,
-            completed: true,
-            counts: false,
-            notes: metricText(metrics, "grade") ? `Grade ${metricText(metrics, "grade")}` : "",
-          });
+          for (const entry of entries) {
+            if (!day.exercises.includes(entry.name)) day.exercises.push(entry.name);
+            day.entries.push({
+              exercise: entry.name,
+              activityLabel: "Climbing",
+              details: entryDetails(entry, session, entryProfile(entry, session)),
+              completed: true,
+              counts: false,
+              notes: entry.notes ?? "",
+            });
+          }
         }
       }
 
       if (!latestClimb || dateISO > latestClimb.date) {
         latestClimb = {
           date: dateISO,
-          grade: metricText(metrics, "grade"),
-          name: session.title ?? primary?.name ?? "Climbing",
+          grade:
+            entries.map((entry) => metricText(entry.entry_metrics, "grade")).find(Boolean) ?? "",
+          name: primary?.name ?? session.title ?? "Climbing",
         };
       }
       continue;
     }
 
-    for (const entry of entries) {
-      const counts = countsAsWorkout(entries);
-      const minutes = entryMinutes(entry, session);
-      const minutesSafe = Number.isFinite(minutes) ? minutes : 0;
+    const counts = countsAsWorkout(entries);
+    const minutes = workoutMinutes(session, entries);
+    const minutesSafe = Number.isFinite(minutes) ? minutes : 0;
+    if (counts) {
+      if (!countedWorkoutDates.has(dateISO)) {
+        countedWorkoutDates.add(dateISO);
+        totalWorkouts += 1;
+      }
+      totalMinutes += minutesSafe;
+      if (!firstWorkoutDate || date < firstWorkoutDate) firstWorkoutDate = date;
 
-      if (counts) {
-        if (!countedWorkoutDates.has(dateISO)) {
-          countedWorkoutDates.add(dateISO);
-          totalWorkouts += 1;
-        }
-        totalMinutes += minutesSafe;
-        if (!firstWorkoutDate || date < firstWorkoutDate) firstWorkoutDate = date;
+      const week = weekBuckets.get(toISODateString(weekStart));
+      const weekCountKey = `${toISODateString(weekStart)}:${dateISO}`;
+      if (week && !countedWeekWorkoutDates.has(weekCountKey)) {
+        countedWeekWorkoutDates.add(weekCountKey);
+        week.workouts += 1;
+      }
+      if (week) week.minutes += minutesSafe;
 
-        const week = weekBuckets.get(toISODateString(weekStart));
-        const weekCountKey = `${toISODateString(weekStart)}:${dateISO}`;
-        if (week && !countedWeekWorkoutDates.has(weekCountKey)) {
-          countedWeekWorkoutDates.add(weekCountKey);
-          week.workouts += 1;
+      if (weekStart.getTime() === thisWeekStart.getTime()) {
+        if (!countedThisWeekWorkoutDates.has(dateISO)) {
+          countedThisWeekWorkoutDates.add(dateISO);
+          workoutsThisWeek += 1;
         }
-        if (week) {
-          week.minutes += minutesSafe;
-        }
-
-        if (weekStart.getTime() === thisWeekStart.getTime()) {
-          if (!countedThisWeekWorkoutDates.has(dateISO)) {
-            countedThisWeekWorkoutDates.add(dateISO);
-            workoutsThisWeek += 1;
-          }
-          minutesThisWeek += minutesSafe;
-          activeDaysThisWeek.add(dateISO);
-          const day = weekDayByISO.get(dateISO);
-          if (day) {
-            day.workouts = 1;
-            day.minutes += minutesSafe;
+        minutesThisWeek += minutesSafe;
+        activeDaysThisWeek.add(dateISO);
+        const day = weekDayByISO.get(dateISO);
+        if (day) {
+          day.workouts = 1;
+          day.minutes += minutesSafe;
+          for (const entry of entries) {
             if (!day.exercises.includes(entry.name)) day.exercises.push(entry.name);
-            const firstSet = entry.entry_sets?.[0];
-            const setRows = entry.entry_sets ?? [];
-            const individualSets = setRows.length > 1;
-            const setCount = individualSets ? setRows.length : toNum(firstSet?.set_number);
-            const totalReps = individualSets
-              ? setRows.reduce((total, set) => total + (toNum(set.reps) ?? 0), 0)
-              : toNum(firstSet?.reps);
-            const maxWeight = setRows.reduce<number | null>((max, set) => {
-              const value = toNum(set.weight);
-              return value == null || (max != null && max >= value) ? max : value;
-            }, null);
-            const volume = setRows.reduce((total, set) => {
-              const reps = toNum(set.reps);
-              const weight = toNum(set.weight);
-              return total + (reps != null && weight != null ? reps * weight : 0);
-            }, 0);
+            const profile = entryProfile(entry, session);
             day.entries.push({
-              kind: "workout",
               exercise: entry.name,
-              sets:
-                Number.isFinite(setCount) && setCount > 0
-                  ? setCount
-                  : entry.entry_sets?.length || null,
-              reps: Number.isFinite(totalReps) ? totalReps : null,
-              weight: maxWeight,
-              volume: volume > 0 ? volume : null,
-              minutes: minutesSafe || null,
+              activityLabel: entryWorkoutType(entry, session),
+              details: entryDetails(entry, session, profile),
               completed: true,
               counts,
               notes: entry.notes ?? "",
             });
           }
         }
-
-        const monthRow = monthRows.get(monthISO);
-        const monthCountKey = `${monthISO}:${dateISO}`;
-        if (monthRow && !countedMonthWorkoutDates.has(monthCountKey)) {
-          countedMonthWorkoutDates.add(monthCountKey);
-          monthRow.workouts += 1;
-        }
-        if (monthRow) {
-          monthRow.minutes += minutesSafe;
-        }
       }
 
+      const monthRow = monthRows.get(monthISO);
+      const monthCountKey = `${monthISO}:${dateISO}`;
+      if (monthRow && !countedMonthWorkoutDates.has(monthCountKey)) {
+        countedMonthWorkoutDates.add(monthCountKey);
+        monthRow.workouts += 1;
+      }
+      if (monthRow) monthRow.minutes += minutesSafe;
+    }
+
+    for (const entry of entries) {
       const entryKind = (entry.entry_kind ?? "").trim();
-      const workoutType = entry.activity_types?.name ?? session.activity_types?.name ?? "";
+      const workoutType = entryWorkoutType(entry, session);
       if (
         entryKind === "Skill" ||
         entryKind === "Legacy Skill" ||

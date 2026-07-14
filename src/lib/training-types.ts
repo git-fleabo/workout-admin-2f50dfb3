@@ -55,13 +55,9 @@ export type PRItem = {
 };
 
 export type WeekDayEntry = {
-  kind: "workout" | "climb";
   exercise: string;
-  sets: number | null;
-  reps: number | null;
-  weight: number | null;
-  volume: number | null;
-  minutes: number | null;
+  activityLabel: string;
+  details: Array<{ label: string; value: string }>;
   completed: boolean;
   counts: boolean;
   notes: string;
