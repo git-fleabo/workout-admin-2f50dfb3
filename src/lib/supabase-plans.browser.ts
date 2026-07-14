@@ -12,8 +12,7 @@ import type {
   WorkoutPlanMethodBlock,
   WorkoutPlanMovement,
 } from "./workout-plan";
-
-type SuggestedWorkoutStatus = "pending" | "accepted" | "completed" | "skipped" | "archived";
+import type { SuggestedWorkoutStatus } from "./workout-lifecycle";
 
 type SuggestedSetRow = {
   id: string;
@@ -54,9 +53,37 @@ type SuggestedWorkoutRow = {
   readiness: PlannerReadiness | null;
   status: SuggestedWorkoutStatus;
   created_at: string;
+  updated_at?: string;
+  suggested_for?: string | null;
+  completed_session_id?: string | null;
   training_locations: { kind: string | null; name: string | null } | null;
   suggested_workout_entries: SuggestedEntryRow[] | null;
   suggested_workout_method_blocks: SuggestedMethodBlockRow[] | null;
+};
+
+export type WorkoutLifecycleRecord = {
+  id: string;
+  title: string;
+  status: SuggestedWorkoutStatus;
+  createdAt: string;
+  updatedAt: string;
+  suggestedFor: string | null;
+  completedSessionId: string | null;
+  locationKind: "home" | "gym" | null;
+  locationName: string | null;
+  movements: string[];
+};
+
+type WorkoutLifecycleRow = {
+  id: string;
+  title: string;
+  status: SuggestedWorkoutStatus;
+  created_at: string;
+  updated_at: string;
+  suggested_for: string | null;
+  completed_session_id: string | null;
+  training_locations: { kind: string | null; name: string | null } | null;
+  suggested_workout_entries: Array<{ id: string; name: string; order_index: number }> | null;
 };
 
 type SuggestedMethodBlockRow = {
@@ -389,6 +416,34 @@ export async function getNextSuggestedWorkoutsClient() {
   });
 }
 
+export async function getWorkoutLifecycleClient(limit = 12): Promise<WorkoutLifecycleRecord[]> {
+  const person = await requirePerson();
+  const rows = await supabasePublicSelect<WorkoutLifecycleRow>("suggested_workouts", {
+    select:
+      "id,title,status,created_at,updated_at,suggested_for,completed_session_id,training_locations(kind,name),suggested_workout_entries(id,name,order_index)",
+    person_id: `eq.${person.id}`,
+    order: "updated_at.desc",
+    limit,
+  });
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    suggestedFor: row.suggested_for,
+    completedSessionId: row.completed_session_id,
+    locationKind:
+      row.training_locations?.kind === "home" || row.training_locations?.kind === "gym"
+        ? row.training_locations.kind
+        : null,
+    locationName: row.training_locations?.name ?? null,
+    movements: [...(row.suggested_workout_entries ?? [])]
+      .sort((left, right) => left.order_index - right.order_index)
+      .map((entry) => entry.name),
+  }));
+}
+
 export async function getRecentWorkoutMethodBlocksClient(
   sessionIds: string[],
 ): Promise<RecentWorkoutMethodBlock[]> {
@@ -425,7 +480,7 @@ export async function getRecentWorkoutMethodBlocksClient(
 
 export async function updateSuggestedWorkoutStatusClient(
   id: string,
-  status: "accepted" | "skipped" | "archived",
+  status: "pending" | "accepted" | "skipped" | "archived",
 ) {
   await supabasePublicUpdate("suggested_workouts", { id: `eq.${id}` }, { status });
   return { ok: true };

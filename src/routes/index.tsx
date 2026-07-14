@@ -33,6 +33,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { WorkoutLifecycleBadge } from "@/components/workout-lifecycle-badge";
 import { formatUKDate, todayISO } from "@/lib/date";
 import { getLibraryClient, getRecentLogsClient } from "@/lib/supabase-log.browser";
 import {
@@ -59,6 +60,7 @@ import {
   type PlannerLocation,
   type WorkoutPlanMovement,
 } from "@/lib/workout-plan";
+import { workoutPlanLifecycleState } from "@/lib/workout-lifecycle";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -289,7 +291,10 @@ function TodayPage() {
             <div className="flex gap-3">
               <RotateCcw className="mt-0.5 h-5 w-5 shrink-0 text-violet-300" />
               <div>
-                <p className="font-semibold">Resume {draft.title || "workout"}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold">Resume {draft.title || "workout"}</p>
+                  <WorkoutLifecycleBadge state="in_progress" />
+                </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {draft.movements.length
                     ? `${draft.movements.length} movements · ${draft.movements.join(", ")}`
@@ -323,7 +328,10 @@ function TodayPage() {
             <div className="flex gap-3">
               <CircleCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
               <div>
-                <p className="font-semibold">Today&apos;s workout is complete</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold">Today&apos;s workout is complete</p>
+                  <WorkoutLifecycleBadge state="completed" />
+                </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {completed.movements.length} movements · Finished at{" "}
                   {formatTime(completed.savedAt)}
@@ -483,6 +491,13 @@ function TodayPage() {
                         <Badge variant="outline" className="capitalize">
                           <MapPin className="mr-1 h-3 w-3" /> {plan.locationKind}
                         </Badge>
+                        <WorkoutLifecycleBadge
+                          state={workoutPlanLifecycleState(
+                            plan.status,
+                            plan.suggestedWorkoutId,
+                            draft?.loadedSuggestionId,
+                          )}
+                        />
                       </div>
                       <p className="mt-2 text-xs text-muted-foreground">
                         {plan.movements.length} movements ·{" "}

@@ -1053,8 +1053,12 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
   sequence. Progress reported `Method matched` and displayed both planned and actual method names. The
   live table returned two segments through RLS with authenticated `select`/`insert` but no
   `update`/`delete`; all temporary plan/session rows and their segments were then removed.
-- Phase 5 is complete. Phase 6 should begin by auditing the planned, draft, completed, skipped, and
-  archived workout states and defining one visible session-lifecycle model.
+- Phase 5 is complete. The first Phase 6 slice now defines and exposes one workout lifecycle across
+  Today, Plan, Log, and History: Planned, Ready, In progress, Completed, Skipped, and Archived. Plans
+  and completed sessions remain in Supabase, while In progress truthfully reflects the account-scoped
+  browser draft on the current device. Plan includes recent lifecycle activity, and deleting a linked
+  completed session archives its plan first so completed plans cannot be left without a session.
+- `src/lib/database.types.ts` contains types generated from the live Supabase schema on 2026-07-14.
 
 ## Key Files
 
@@ -1244,16 +1248,15 @@ Recommended next work, in order:
 8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
 9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-11. Start Phase 6 by auditing planned, draft, completed, skipped, and archived workout states and defining one visible session-lifecycle model.
-12. Audit climbing inside the unified logger before the next climbing-entry iteration. The current movement picker can select climbing movements, but the specialised hours/routes/grade/gradient controls still live in the unused legacy single-entry form. The 2026-07-09 Bouldering and 2026-07-11 Ropes/Belay rows were corrected from 75 hours/4,500 minutes to 1.25 hours/75 minutes; make the chosen duration unit explicit and guarded in the unified flow.
-13. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
-14. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
-15. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
-16. Build a simple admin-only user management flow before inviting friends: create person, link auth user, select app profile, select/deselect exercises.
+11. Phase 6 lifecycle audit and first visible lifecycle model — implemented across Today, Plan, Log, and History.
+12. Build the Phase 6 People & Access administration slice before inviting friends: create/edit people, link an auth user, assign an app profile, and route exercise selection through the existing per-person Library controls.
+13. Audit climbing inside the unified logger before the next climbing-entry iteration. The current movement picker can select climbing movements, but the specialised hours/routes/grade/gradient controls still live in the unused legacy single-entry form. The 2026-07-09 Bouldering and 2026-07-11 Ropes/Belay rows were corrected from 75 hours/4,500 minutes to 1.25 hours/75 minutes; make the chosen duration unit explicit and guarded in the unified flow.
+14. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
+15. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
+16. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
 17. Tighten the profile-claim bootstrap now that Noam's account is linked.
-18. Start implementing programme assignment and suggested workout UI on top of the seeded Percentage Strength Blocks.
-19. Consider generating and saving TypeScript types from Supabase once schema/data shape stabilizes.
-20. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
+18. Start implementing programme assignment UI on top of the seeded Percentage Strength Blocks.
+19. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
 
 ## Future Stage: iPhone App
 

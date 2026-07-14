@@ -24,10 +24,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { WeeklyPlanOverview } from "@/components/weekly-plan-overview";
 import { WeeklyRecoveryCard } from "@/components/weekly-recovery-card";
+import { WorkoutLifecyclePanel } from "@/components/workout-lifecycle-panel";
 import { formatUKDate, todayISO } from "@/lib/date";
 import { getLibraryClient, getRecentLogsClient } from "@/lib/supabase-log.browser";
 import {
   getRecentWorkoutMethodBlocksClient,
+  getWorkoutLifecycleClient,
   saveWorkoutPlanClient,
 } from "@/lib/supabase-plans.browser";
 import { getSupabaseSession } from "@/lib/supabase-public";
@@ -55,6 +57,7 @@ import {
   type WorkoutPlanSet,
 } from "@/lib/workout-plan";
 import { cn } from "@/lib/utils";
+import { readWorkoutDraftSummary, workoutSessionDraftKey } from "@/lib/workout-local-state";
 
 export const Route = createFileRoute("/plan")({
   head: () => ({
@@ -145,6 +148,16 @@ function PlanPage() {
     queryFn: () => getWeeklyLoadHistoryClient(90),
     staleTime: 60_000,
   });
+  const lifecycle = useQuery({
+    queryKey: ["workout-lifecycle"],
+    queryFn: () => getWorkoutLifecycleClient(12),
+    staleTime: 30_000,
+  });
+  const [activeDraftPlanId] = useState(
+    () =>
+      readWorkoutDraftSummary(window.localStorage.getItem(workoutSessionDraftKey()))
+        ?.loadedSuggestionId ?? null,
+  );
   const recentSessionIds = useMemo(
     () => Array.from(new Set((history.data?.recent ?? []).map((log) => log.id).filter(Boolean))),
     [history.data?.recent],
@@ -380,6 +393,7 @@ function PlanPage() {
     },
     onSuccess: (draft, status) => {
       queryClient.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
+      queryClient.invalidateQueries({ queryKey: ["workout-lifecycle"] });
       if (status === "accepted") {
         window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(draft));
         navigate({ to: "/log" });
@@ -400,6 +414,13 @@ function PlanPage() {
           See the coming week, then turn a recent pattern into your next workout.
         </p>
       </header>
+
+      <WorkoutLifecyclePanel
+        records={lifecycle.data ?? []}
+        activeDraftPlanId={activeDraftPlanId}
+        loading={lifecycle.isLoading}
+        error={Boolean(lifecycle.error)}
+      />
 
       {!history.isLoading && !library.isLoading && !history.error && !library.error ? (
         <WeeklyPlanOverview

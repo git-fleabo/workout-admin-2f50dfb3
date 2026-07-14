@@ -1053,7 +1053,44 @@ export async function replaceWorkoutSessionClient(
 
 export async function deleteSessionClient(id: string) {
   if (!id) throw new Error("Missing session id.");
-  await supabasePublicDelete("sessions", { id: `eq.${id}` });
+  const person = await requirePerson();
+  const linkedPlans = await supabasePublicSelect<{ id: string }>("suggested_workouts", {
+    select: "id",
+    person_id: `eq.${person.id}`,
+    completed_session_id: `eq.${id}`,
+  });
+  if (linkedPlans.length) {
+    const updated = await supabasePublicUpdate<{ id: string }>(
+      "suggested_workouts",
+      { person_id: `eq.${person.id}`, completed_session_id: `eq.${id}` },
+      { status: "archived", completed_session_id: null },
+    );
+    const updatedIds = new Set(updated.map((row) => row.id));
+    if (linkedPlans.some((plan) => !updatedIds.has(plan.id))) {
+      throw new Error("The linked workout plan could not be archived, so nothing was deleted.");
+    }
+  }
+  try {
+    const deleted = await supabasePublicDelete<{ id: string }>("sessions", {
+      id: `eq.${id}`,
+      person_id: `eq.${person.id}`,
+    });
+    if (!deleted.some((session) => session.id === id)) {
+      throw new Error("The workout session was not deleted.");
+    }
+  } catch (error) {
+    if (linkedPlans.length) {
+      await supabasePublicUpdate(
+        "suggested_workouts",
+        {
+          id: `in.(${linkedPlans.map((plan) => plan.id).join(",")})`,
+          person_id: `eq.${person.id}`,
+        },
+        { status: "completed", completed_session_id: id },
+      ).catch(() => undefined);
+    }
+    throw error;
+  }
   return { ok: true };
 }
 

@@ -18,6 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { WorkoutLifecycleBadge } from "@/components/workout-lifecycle-badge";
 import {
   Dialog,
   DialogContent,
@@ -170,6 +171,7 @@ function HistoryPage() {
       qc.invalidateQueries({ queryKey: ["recent-workouts"] });
       qc.invalidateQueries({ queryKey: ["recent-climbs"] });
       qc.invalidateQueries({ queryKey: ["exercise-history"] });
+      qc.invalidateQueries({ queryKey: ["workout-lifecycle"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -348,6 +350,9 @@ function HistoryPage() {
                             {entry.isPr && (
                               <Badge className="h-5 bg-amber-500 text-black">PR</Badge>
                             )}
+                            {entry.kind === "workout" ? (
+                              <WorkoutLifecycleBadge state="completed" />
+                            ) : null}
                           </div>
                           <p className="mt-0.5 text-xs text-muted-foreground">{entry.subtitle}</p>
                           {entry.details.length > 0 && (

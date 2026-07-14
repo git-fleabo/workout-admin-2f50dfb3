@@ -29,6 +29,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { WorkoutLifecycleBadge } from "@/components/workout-lifecycle-badge";
 import {
   Select,
   SelectContent,
@@ -102,6 +103,7 @@ import {
   type RecentWorkoutLog,
   type WorkoutPlanDraft,
 } from "@/lib/workout-plan";
+import { workoutPlanLifecycleState } from "@/lib/workout-lifecycle";
 import {
   listTrainingMethodsClient,
   type TrainingMethod,
@@ -1472,6 +1474,7 @@ export function FullWorkoutForm() {
     onSuccess: (plan) => {
       loadPlanIntoForm(plan);
       qc.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
+      qc.invalidateQueries({ queryKey: ["workout-lifecycle"] });
       toast.message("Workout plan loaded", {
         description: "Review the targets, adjust anything you like, then save as normal.",
       });
@@ -1483,6 +1486,7 @@ export function FullWorkoutForm() {
     mutationFn: (id: string) => updateSuggestedWorkoutStatusClient(id, "skipped"),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
+      qc.invalidateQueries({ queryKey: ["workout-lifecycle"] });
       toast.message("Workout plan skipped");
     },
     onError: (error: Error) => toast.error(error.message),
@@ -1884,6 +1888,7 @@ export function FullWorkoutForm() {
         try {
           await completeSuggestedWorkoutClient(loadedSuggestionId, result.sessionId);
           qc.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
+          qc.invalidateQueries({ queryKey: ["workout-lifecycle"] });
         } catch {
           toast.warning("Workout saved, but the plan could not be marked complete.");
         }
@@ -2002,7 +2007,10 @@ export function FullWorkoutForm() {
           <div className="flex items-start gap-3">
             <CircleCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
             <div>
-              <p className="font-semibold">Today&apos;s workout is saved</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-semibold">Today&apos;s workout is saved</p>
+                <WorkoutLifecycleBadge state="completed" />
+              </div>
               <p className="text-xs text-muted-foreground">
                 {lastCompletedWorkout.form.entries.filter((entry) => entry.exercise).length}{" "}
                 movements · Finished at{" "}
@@ -2039,6 +2047,7 @@ export function FullWorkoutForm() {
                       <Badge variant="outline" className="text-[10px] capitalize">
                         {plan.locationKind}
                       </Badge>
+                      <WorkoutLifecycleBadge state={workoutPlanLifecycleState(plan.status)} />
                       {plan.readiness ? (
                         <Badge variant="outline" className="text-[10px] capitalize">
                           {plan.readiness}
@@ -2083,9 +2092,12 @@ export function FullWorkoutForm() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold">Your workout</h2>
-            <p className="text-xs text-muted-foreground">
-              Choose where, then log one movement or add the whole session.
-            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <p className="text-xs text-muted-foreground">
+                Choose where, then log one movement or add the whole session.
+              </p>
+              {hasDraftContent ? <WorkoutLifecycleBadge state="in_progress" /> : null}
+            </div>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
             <Badge variant="outline" className="gap-1 border-border text-muted-foreground">

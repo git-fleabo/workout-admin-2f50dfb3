@@ -223,12 +223,21 @@ and completed method names alongside the existing load, reps, set, and volume co
 
 ## Phase 6: Data and Administration Refinement
 
-- Converge planned, draft, completed, skipped, and archived work into a clearer session lifecycle where practical.
+- Converge planned, draft, completed, skipped, and archived work into a clearer session lifecycle where practical. — first lifecycle slice implemented
 - Maintain stable exercise IDs and treat display-name changes as aliases/renames.
-- Keep movement metric profiles explicit and reusable.
+- Keep movement metric profiles explicit and reusable. — implemented across Library, Log, History, and Progress
 - Add People & Access before opening the app to friends or clients.
-- Generate Supabase TypeScript types when the schema settles.
+- Generate Supabase TypeScript types when the schema settles. — initial live-schema types generated
 - Revisit native packaging only after the web workflow is stable.
+
+The first Phase 6 slice defines one visible lifecycle without prematurely storing partial sessions in
+Supabase. Saved plans are `Planned` or `Ready`; loading one into the autosaved local composer makes it
+`In progress` on that device; finishing creates the completed Supabase session and marks the linked
+plan `Completed`. `Skipped` remains an explicit choice and `Archived` means a plan is no longer active.
+The same labels now appear on Today, Plan, Log, and History, while Plan includes a recent lifecycle
+view. Deleting a completed session archives its linked plan before removing the session, preventing a
+false completed state with no completed-session link. Browser drafts remain local until a genuine
+cross-device requirement justifies a server-side draft status.
 
 ## What We Keep
 
@@ -248,8 +257,8 @@ while completed history stays separate. A Recovery decision combines recent and 
 exercise-level high-effort decline, and the adjusted coming week. It can keep the normal plan, make the
 next workout lighter, or apply a week-local deload mode while retaining editable days and targets.
 
-Phase 5 is complete. The Training Methods library, all three advanced-method logging families,
-completed-session review, saved-plan and recent-repeat round trips, method-aware Progress, and
-planned-versus-completed method adherence are live. The next implementation phase is Phase 6, starting
-with an audit of planned, draft, completed, skipped, and archived workout states so the app can expose
-one clear session lifecycle before further administration work.
+Phase 5 is complete. Phase 6 is underway: the lifecycle audit and first visible lifecycle release are
+complete, movement metric profiles are already shared across the core surfaces, and current live-schema
+TypeScript definitions are checked into the app. The next Phase 6 administration slice is People &
+Access before the app is opened to friends or clients. The specialised climbing controls remain the
+next logger-specific refinement outside that administration work.

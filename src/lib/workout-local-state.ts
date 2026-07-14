@@ -27,6 +27,8 @@ export type WorkoutLocalSummary = {
   date: string;
   title: string;
   movements: string[];
+  loadedSuggestionId: string | null;
+  editingSessionId: string | null;
 };
 
 function readSummary(value: string | null, completedOnly: boolean): WorkoutLocalSummary | null {
@@ -36,6 +38,8 @@ function readSummary(value: string | null, completedOnly: boolean): WorkoutLocal
       version?: unknown;
       savedAt?: unknown;
       sessionId?: unknown;
+      loadedSuggestionId?: unknown;
+      editingSessionId?: unknown;
       form?: {
         date?: unknown;
         title?: unknown;
@@ -61,6 +65,10 @@ function readSummary(value: string | null, completedOnly: boolean): WorkoutLocal
       date: stored.form.date,
       title: stored.form.title,
       movements,
+      loadedSuggestionId:
+        typeof stored.loadedSuggestionId === "string" ? stored.loadedSuggestionId : null,
+      editingSessionId:
+        typeof stored.editingSessionId === "string" ? stored.editingSessionId : null,
     };
   } catch {
     return null;
