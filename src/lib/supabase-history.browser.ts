@@ -13,7 +13,10 @@ type EntrySetRecord = {
   reps: number | string | null;
   weight: number | string | null;
   duration_seconds: number | string | null;
+  distance: number | string | null;
+  distance_unit: string | null;
   rpe: number | string | null;
+  quality: string | null;
   completed: boolean | null;
   entry_set_segments?: Array<{
     training_method_id: string;
@@ -40,6 +43,12 @@ type SessionEntryRecord = {
     } | null;
   } | null;
   entry_sets: EntrySetRecord[] | null;
+  entry_metrics: Array<{
+    metric_key: string;
+    metric_value: number | string | null;
+    metric_text: string | null;
+    metric_unit: string | null;
+  }> | null;
 };
 
 type EntryMethodBlockRecord = {
@@ -276,6 +285,28 @@ function repsPerSet(totalReps: number, sets: number) {
   return Math.ceil(totalReps / sets);
 }
 
+function metricNumber(row: SessionEntryRecord, key: string) {
+  const value = row.entry_metrics?.find((metric) => metric.metric_key === key)?.metric_value;
+  const number = toNumber(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function metricText(row: SessionEntryRecord, key: string) {
+  const value = row.entry_metrics?.find((metric) => metric.metric_key === key)?.metric_text;
+  return value?.trim() || null;
+}
+
+function distanceInKm(value: number, unit: string | null) {
+  const normalized = unit?.trim().toLowerCase();
+  if (normalized === "km") return value;
+  if (normalized === "m") return value / 1000;
+  if (normalized === "yd" || normalized === "yard" || normalized === "yards") {
+    return value * 0.0009144;
+  }
+  if (normalized === "cm") return value / 100_000;
+  return value;
+}
+
 function blankPoint(row: SessionEntryRecord): ExerciseSessionPoint {
   return {
     sessionId: row.sessions?.id ?? row.id,
@@ -288,6 +319,16 @@ function blankPoint(row: SessionEntryRecord): ExerciseSessionPoint {
     totalVolume: 0,
     maxWeight: null,
     totalDuration: 0,
+    activityDurationMinutes: 0,
+    totalDistanceKm: 0,
+    distanceUnit: null,
+    rounds: 0,
+    feel: null,
+    heightCm: null,
+    problems: 0,
+    grade: null,
+    gradient: null,
+    averageRpe: null,
     est1RM: null,
     sets: [],
   };
@@ -298,7 +339,7 @@ export async function getExerciseHistoryClient(
 ): Promise<ExerciseHistory> {
   const params: Record<string, string | number | boolean> = {
     select:
-      "id,name,completed,sessions!inner(id,session_date,source_sheet,training_locations(name,kind)),entry_sets(set_number,reps,weight,duration_seconds,rpe,completed,entry_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,range_of_motion))",
+      "id,name,completed,sessions!inner(id,session_date,source_sheet,training_locations(name,kind)),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,quality,completed,entry_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit)",
     completed: "eq.true",
     source_sheet: "eq.Workout Log",
     "sessions.source_sheet": "eq.Workout Log",
@@ -348,6 +389,25 @@ export async function getExerciseHistoryClient(
     point.sessions += 1;
     totalRows += 1;
 
+    const durationMinutes = metricNumber(row, "duration_minutes");
+    const durationHours = metricNumber(row, "hours");
+    const activityDuration = durationMinutes ?? (durationHours != null ? durationHours * 60 : null);
+    const rounds = metricNumber(row, "rounds");
+    const feel = metricNumber(row, "feel");
+    const height = metricNumber(row, "height");
+    const problems = metricNumber(row, "boulders");
+    if (activityDuration != null && activityDuration > 0) {
+      point.activityDurationMinutes += activityDuration;
+    }
+    if (rounds != null && rounds > 0) point.rounds += rounds;
+    if (feel != null) point.feel = feel;
+    if (height != null && (point.heightCm == null || height > point.heightCm)) {
+      point.heightCm = height;
+    }
+    if (problems != null && problems > 0) point.problems += problems;
+    point.grade = metricText(row, "grade") ?? point.grade;
+    point.gradient = metricText(row, "gradient") ?? point.gradient;
+
     for (const membership of blockMethodsByEntry.get(row.id) ?? []) {
       const method = membership.session_method_blocks;
       if (!method) continue;
@@ -370,6 +430,12 @@ export async function getExerciseHistoryClient(
         !individualSets && setsKnown ? Math.max(1, Math.round(toNumber(set.set_number))) : null;
       if (durationMinutes > 0) anyDuration = true;
       point.totalDuration += durationMinutes * (aggregateSets ?? 1);
+      const distance = toNumber(set.distance);
+      const distanceN = Number.isFinite(distance) && distance > 0 ? distance : null;
+      if (distanceN != null) {
+        point.totalDistanceKm += distanceInKm(distanceN, set.distance_unit) * (aggregateSets ?? 1);
+        point.distanceUnit = set.distance_unit ?? point.distanceUnit;
+      }
 
       const workSegments = set.entry_set_segments?.length
         ? [...set.entry_set_segments].sort(
@@ -404,6 +470,9 @@ export async function getExerciseHistoryClient(
           weight: weightN,
           durationSeconds:
             Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds : null,
+          distance: distanceN,
+          distanceUnit: set.distance_unit,
+          quality: set.quality,
           rpe: Number.isFinite(rpe) && rpe > 0 ? rpe : null,
           completed: set.completed !== false,
           aggregateSets: segmentIndex === 0 ? aggregateSets : null,
@@ -443,6 +512,12 @@ export async function getExerciseHistoryClient(
     );
     point.totalVolume = Math.round(point.totalVolume);
     point.totalDuration = Math.round(point.totalDuration * 10) / 10;
+    point.activityDurationMinutes = Math.round(point.activityDurationMinutes * 10) / 10;
+    point.totalDistanceKm = Math.round(point.totalDistanceKm * 1000) / 1000;
+    const rpes = point.sets.flatMap((set) => (set.rpe != null ? [set.rpe] : []));
+    point.averageRpe = rpes.length
+      ? Math.round((rpes.reduce((total, rpe) => total + rpe, 0) / rpes.length) * 10) / 10
+      : null;
     if (point.est1RM != null) point.est1RM = Math.round(point.est1RM * 10) / 10;
   }
 

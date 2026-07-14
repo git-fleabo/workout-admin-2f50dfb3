@@ -97,6 +97,16 @@ export type ExerciseSessionPoint = {
   totalVolume: number;
   maxWeight: number | null;
   totalDuration: number;
+  activityDurationMinutes: number;
+  totalDistanceKm: number;
+  distanceUnit: string | null;
+  rounds: number;
+  feel: number | null;
+  heightCm: number | null;
+  problems: number;
+  grade: string | null;
+  gradient: string | null;
+  averageRpe: number | null;
   est1RM: number | null;
   sets: ExerciseSetPoint[];
 };
@@ -113,6 +123,9 @@ export type ExerciseSetPoint = {
   reps: number | null;
   weight: number | null;
   durationSeconds: number | null;
+  distance: number | null;
+  distanceUnit: string | null;
+  quality: string | null;
   rpe: number | null;
   completed: boolean;
   aggregateSets: number | null;

@@ -9,6 +9,8 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
@@ -64,7 +66,7 @@ import type {
   PlannedActualStatus,
 } from "@/lib/planned-actual";
 import { getLibraryClient } from "@/lib/supabase-log.browser";
-import { getMovementMetricProfile } from "@/lib/movement-metrics";
+import { getMovementMetricProfile, type MetricProfile } from "@/lib/movement-metrics";
 import type { ExerciseMethodUse, ExerciseSessionPoint, LibraryRow } from "@/lib/training-types";
 import { cn } from "@/lib/utils";
 
@@ -151,6 +153,90 @@ function totalHoldSeconds(points: ExerciseSessionPoint[]) {
   );
 }
 
+function bestSetReps(points: ExerciseSessionPoint[]) {
+  return points.reduce<number | null>((best, point) => {
+    const pointBest = point.sets.reduce<number | null>((setBest, set) => {
+      if (set.reps == null) return setBest;
+      const value =
+        set.aggregateSets && set.aggregateSets > 1 ? set.reps / set.aggregateSets : set.reps;
+      return setBest == null || value > setBest ? value : setBest;
+    }, null);
+    return pointBest != null && (best == null || pointBest > best) ? pointBest : best;
+  }, null);
+}
+
+function totalActivityMinutes(points: ExerciseSessionPoint[]) {
+  return points.reduce((total, point) => total + activityMinutes(point), 0);
+}
+
+function activityMinutes(point: ExerciseSessionPoint) {
+  return point.activityDurationMinutes > 0 ? point.activityDurationMinutes : point.totalDuration;
+}
+
+function totalRounds(points: ExerciseSessionPoint[]) {
+  return points.reduce((total, point) => total + point.rounds, 0);
+}
+
+function totalProblems(points: ExerciseSessionPoint[]) {
+  return points.reduce((total, point) => total + point.problems, 0);
+}
+
+function averageRpe(points: ExerciseSessionPoint[]) {
+  const values = points.flatMap((point) => (point.averageRpe != null ? [point.averageRpe] : []));
+  return values.length
+    ? Math.round((values.reduce((total, value) => total + value, 0) / values.length) * 10) / 10
+    : null;
+}
+
+function bestHeight(points: ExerciseSessionPoint[]) {
+  return points.reduce<number | null>(
+    (best, point) =>
+      point.heightCm != null && (best == null || point.heightCm > best) ? point.heightCm : best,
+    null,
+  );
+}
+
+function totalDistanceKm(points: ExerciseSessionPoint[]) {
+  return points.reduce((total, point) => total + point.totalDistanceKm, 0);
+}
+
+function paceMinutesPerKm(point: ExerciseSessionPoint) {
+  return point.totalDistanceKm > 0 && activityMinutes(point) > 0
+    ? activityMinutes(point) / point.totalDistanceKm
+    : null;
+}
+
+function densityRoundsPerMinute(point: ExerciseSessionPoint) {
+  return point.rounds > 0 && activityMinutes(point) > 0
+    ? point.rounds / activityMinutes(point)
+    : null;
+}
+
+function formatNumber(value: number | null, suffix = "") {
+  if (value == null) return "—";
+  const formatted = Number.isInteger(value) ? String(value) : value.toFixed(1);
+  return `${formatted}${suffix}`;
+}
+
+function formatMinutes(value: number | null) {
+  return value != null && value > 0 ? formatNumber(value, " min") : "—";
+}
+
+function formatDistance(valueKm: number | null) {
+  if (valueKm == null || valueKm <= 0) return "—";
+  return valueKm >= 1
+    ? `${valueKm.toFixed(valueKm >= 10 ? 1 : 2)} km`
+    : `${Math.round(valueKm * 1000)} m`;
+}
+
+function formatPace(value: number | null) {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const totalSeconds = Math.round(value * 60);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}/km`;
+}
+
 function matchesMethod(point: ExerciseSessionPoint, method: MethodFilter) {
   if (method === "all") return true;
   if (method === "straight") return point.methods.length === 0;
@@ -215,6 +301,341 @@ function formatChange(value: number | null) {
   return `${value > 0 ? "+" : ""}${value}% vs prior period`;
 }
 
+type ProfileStat = {
+  icon: "gauge" | "scale" | "trend";
+  label: string;
+  value: string;
+  detail: string;
+  change?: number | null;
+  changeDirection?: "up" | "down";
+};
+
+function maxValue(
+  points: ExerciseSessionPoint[],
+  read: (point: ExerciseSessionPoint) => number | null,
+) {
+  return points.reduce<number | null>((best, point) => {
+    const value = read(point);
+    return value != null && (best == null || value > best) ? value : best;
+  }, null);
+}
+
+function latestValue<T>(
+  points: ExerciseSessionPoint[],
+  read: (point: ExerciseSessionPoint) => T | null,
+) {
+  return (
+    [...points]
+      .reverse()
+      .map(read)
+      .find((value) => value != null) ?? null
+  );
+}
+
+function buildProfileStats(
+  profile: MetricProfile,
+  current: ExerciseSessionPoint[],
+  previous: ExerciseSessionPoint[],
+  weeks: number,
+): ProfileStat[] {
+  const averageWeekly = (total: number) => total / Math.max(1, weeks);
+  const change = (currentValue: number | null, previousValue: number | null) =>
+    percentageChange(currentValue, previousValue);
+  const weeklyChange = (currentTotal: number, previousTotal: number) =>
+    change(averageWeekly(currentTotal), previous.length ? averageWeekly(previousTotal) : null);
+  const latest = current[current.length - 1];
+
+  if (profile === "weighted") {
+    const best = bestPerformance(current);
+    return [
+      {
+        icon: "scale",
+        label: "Top weight",
+        value: formatKg(maxValue(current, (p) => p.maxWeight)),
+        detail: "Heaviest working set",
+      },
+      {
+        icon: "gauge",
+        label: "Best est. 1RM",
+        value: formatKg(best, 1),
+        detail: formatChange(change(best, bestPerformance(previous))),
+        change: change(best, bestPerformance(previous)),
+      },
+      {
+        icon: "trend",
+        label: "Avg weekly volume",
+        value: formatKg(Math.round(averageWeekly(totalVolume(current)))),
+        detail: formatChange(weeklyChange(totalVolume(current), totalVolume(previous))),
+        change: weeklyChange(totalVolume(current), totalVolume(previous)),
+      },
+    ];
+  }
+  if (profile === "reps") {
+    const best = bestSetReps(current);
+    return [
+      {
+        icon: "gauge",
+        label: "Best set",
+        value: formatNumber(best, " reps"),
+        detail: formatChange(change(best, bestSetReps(previous))),
+        change: change(best, bestSetReps(previous)),
+      },
+      {
+        icon: "trend",
+        label: "Avg weekly reps",
+        value: formatNumber(
+          Math.round(averageWeekly(current.reduce((total, p) => total + p.totalReps, 0))),
+        ),
+        detail: formatChange(
+          weeklyChange(
+            current.reduce((total, p) => total + p.totalReps, 0),
+            previous.reduce((total, p) => total + p.totalReps, 0),
+          ),
+        ),
+        change: weeklyChange(
+          current.reduce((total, p) => total + p.totalReps, 0),
+          previous.reduce((total, p) => total + p.totalReps, 0),
+        ),
+      },
+      {
+        icon: "scale",
+        label: "Average RPE",
+        value: formatNumber(averageRpe(current)),
+        detail: "Across recorded sets",
+      },
+    ];
+  }
+  if (profile === "hold" || profile === "grip") {
+    const best = bestHold(current);
+    return [
+      {
+        icon: "gauge",
+        label: "Best hold",
+        value: formatSeconds(best),
+        detail: formatChange(change(best, bestHold(previous))),
+        change: change(best, bestHold(previous)),
+      },
+      {
+        icon: "trend",
+        label: "Avg weekly hold",
+        value: formatSeconds(averageWeekly(totalHoldSeconds(current))),
+        detail: formatChange(weeklyChange(totalHoldSeconds(current), totalHoldSeconds(previous))),
+        change: weeklyChange(totalHoldSeconds(current), totalHoldSeconds(previous)),
+      },
+      profile === "grip"
+        ? {
+            icon: "scale",
+            label: "Top load",
+            value: formatKg(maxValue(current, (p) => p.maxWeight)),
+            detail: "Heaviest loaded hold",
+          }
+        : {
+            icon: "scale",
+            label: "Total hold time",
+            value: formatSeconds(totalHoldSeconds(current)),
+            detail: "Selected period",
+          },
+    ];
+  }
+  if (profile === "time") {
+    const bestPace = current.reduce<number | null>((best, point) => {
+      const pace = paceMinutesPerKm(point);
+      return pace != null && (best == null || pace < best) ? pace : best;
+    }, null);
+    const previousPace = previous.reduce<number | null>((best, point) => {
+      const pace = paceMinutesPerKm(point);
+      return pace != null && (best == null || pace < best) ? pace : best;
+    }, null);
+    return [
+      {
+        icon: "gauge",
+        label: "Best pace",
+        value: formatPace(bestPace),
+        detail: formatChange(change(bestPace, previousPace)),
+        change: change(bestPace, previousPace),
+        changeDirection: "down",
+      },
+      {
+        icon: "trend",
+        label: "Total distance",
+        value: formatDistance(totalDistanceKm(current)),
+        detail: "Selected period",
+      },
+      {
+        icon: "scale",
+        label: "Total time",
+        value: formatMinutes(totalActivityMinutes(current)),
+        detail: "Selected period",
+      },
+    ];
+  }
+  if (profile === "duration") {
+    const latestWithDuration = [...current].reverse().find((point) => activityMinutes(point) > 0);
+    return [
+      {
+        icon: "gauge",
+        label: "Latest duration",
+        value: formatMinutes(latestWithDuration ? activityMinutes(latestWithDuration) : null),
+        detail: latestWithDuration ? formatUKDate(latestWithDuration.date) : "No recorded duration",
+      },
+      {
+        icon: "trend",
+        label: "Avg weekly time",
+        value: formatMinutes(averageWeekly(totalActivityMinutes(current))),
+        detail: formatChange(
+          weeklyChange(totalActivityMinutes(current), totalActivityMinutes(previous)),
+        ),
+        change: weeklyChange(totalActivityMinutes(current), totalActivityMinutes(previous)),
+      },
+      {
+        icon: "scale",
+        label: "Average RPE",
+        value: formatNumber(averageRpe(current)),
+        detail: "Across recorded sessions",
+      },
+    ];
+  }
+  if (profile === "conditioning") {
+    return [
+      {
+        icon: "gauge",
+        label: "Best density",
+        value: formatNumber(maxValue(current, densityRoundsPerMinute), " rounds/min"),
+        detail: "Rounds divided by minutes",
+      },
+      {
+        icon: "trend",
+        label: "Total rounds",
+        value: formatNumber(totalRounds(current)),
+        detail: "Selected period",
+      },
+      {
+        icon: "scale",
+        label: "Total time",
+        value: formatMinutes(totalActivityMinutes(current)),
+        detail: "Selected period",
+      },
+    ];
+  }
+  if (profile === "carry") {
+    return [
+      {
+        icon: "scale",
+        label: "Top load",
+        value: formatKg(maxValue(current, (p) => p.maxWeight)),
+        detail: "Heaviest carry",
+      },
+      {
+        icon: "trend",
+        label: "Total distance",
+        value: formatDistance(totalDistanceKm(current)),
+        detail: "All recorded rounds",
+      },
+      {
+        icon: "gauge",
+        label: "Total time",
+        value: formatMinutes(totalActivityMinutes(current)),
+        detail: "Selected period",
+      },
+    ];
+  }
+  if (profile === "mobility_position") {
+    const latestDistance = latest?.sets.find((set) => set.distance != null)?.distance ?? null;
+    const latestUnit = latest?.sets.find((set) => set.distance != null)?.distanceUnit ?? "cm";
+    return [
+      {
+        icon: "gauge",
+        label: "Latest position",
+        value: formatNumber(latestDistance, latestDistance == null ? "" : ` ${latestUnit}`),
+        detail: latest ? formatUKDate(latest.date) : "No sessions",
+      },
+      {
+        icon: "trend",
+        label: "Best hold",
+        value: formatSeconds(bestHold(current)),
+        detail: "Longest position hold",
+      },
+      {
+        icon: "scale",
+        label: "Latest feel",
+        value: formatNumber(
+          latestValue(current, (p) => p.feel),
+          "/5",
+        ),
+        detail: "Most recent entry",
+      },
+    ];
+  }
+  if (profile === "power") {
+    const height = bestHeight(current);
+    return [
+      {
+        icon: "gauge",
+        label: "Best height",
+        value: formatNumber(height, " cm"),
+        detail: formatChange(change(height, bestHeight(previous))),
+        change: change(height, bestHeight(previous)),
+      },
+      {
+        icon: "trend",
+        label: "Total jumps",
+        value: formatNumber(current.reduce((total, p) => total + p.totalReps, 0)),
+        detail: "Selected period",
+      },
+      {
+        icon: "scale",
+        label: "Average RPE",
+        value: formatNumber(averageRpe(current)),
+        detail: "Across recorded sessions",
+      },
+    ];
+  }
+  if (profile === "climbing") {
+    return [
+      {
+        icon: "gauge",
+        label: "Latest grade",
+        value: latestValue(current, (p) => p.grade) ?? "—",
+        detail: latestValue(current, (p) => p.gradient)
+          ? `${latestValue(current, (p) => p.gradient)} board`
+          : "Most recently reported session grade",
+      },
+      {
+        icon: "trend",
+        label: "Problems / routes",
+        value: formatNumber(totalProblems(current)),
+        detail: "Selected period",
+      },
+      {
+        icon: "scale",
+        label: "Total time",
+        value: formatMinutes(totalActivityMinutes(current)),
+        detail: "Selected period",
+      },
+    ];
+  }
+  return [
+    {
+      icon: "trend",
+      label: "Total distance",
+      value: formatDistance(totalDistanceKm(current)),
+      detail: "Selected period",
+    },
+    {
+      icon: "scale",
+      label: "Top load",
+      value: formatKg(maxValue(current, (p) => p.maxWeight)),
+      detail: "Heaviest recorded effort",
+    },
+    {
+      icon: "gauge",
+      label: "Total time",
+      value: formatMinutes(totalActivityMinutes(current)),
+      detail: "Selected period",
+    },
+  ];
+}
+
 function ProgressPage() {
   const library = useQuery({
     queryKey: ["progress-library"],
@@ -266,7 +687,6 @@ function ProgressPage() {
         defaultMetric: exercise.metric,
       })
     : "weighted";
-  const isHoldProfile = metricProfile === "hold" || metricProfile === "grip";
   const history = useQuery({
     queryKey: ["exercise-progress", exercise?.id],
     queryFn: () => getExerciseHistoryClient({ id: exercise?.id, name: exercise?.name ?? "" }),
@@ -300,6 +720,9 @@ function ProgressPage() {
     }
   }, [methodFilter, methodOptions]);
 
+  const activeMethodFilter =
+    metricProfile === "weighted" || metricProfile === "reps" ? methodFilter : "all";
+
   const analysis = useMemo(() => {
     const locationPoints = (history.data?.points ?? []).filter(
       (point) => location === "all" || point.locationKind === location,
@@ -310,7 +733,7 @@ function ProgressPage() {
     const periodPoints = locationPoints.filter(
       (point) => windowMs == null || dateTime(point.date) >= now - windowMs,
     );
-    const current = periodPoints.filter((point) => matchesMethod(point, methodFilter));
+    const current = periodPoints.filter((point) => matchesMethod(point, activeMethodFilter));
     const previous =
       windowMs == null
         ? []
@@ -319,7 +742,7 @@ function ProgressPage() {
             return (
               time >= now - 2 * windowMs &&
               time < now - windowMs &&
-              matchesMethod(point, methodFilter)
+              matchesMethod(point, activeMethodFilter)
             );
           });
     const weeks =
@@ -341,16 +764,6 @@ function ProgressPage() {
       averageWeeklyVolume,
       previous.length ? priorAverageVolume : null,
     );
-    const currentBestHold = bestHold(current);
-    const previousBestHold = bestHold(previous);
-    const holdChange = percentageChange(currentBestHold, previousBestHold);
-    const averageWeeklyHold = totalHoldSeconds(current) / weeks;
-    const priorAverageHold = totalHoldSeconds(previous) / priorWeeks;
-    const holdVolumeChange = percentageChange(
-      averageWeeklyHold,
-      previous.length ? priorAverageHold : null,
-    );
-
     const weeklyMap = new Map<string, number>();
     for (const point of current) {
       const week = mondayISO(point.date);
@@ -376,14 +789,11 @@ function ProgressPage() {
     return {
       current,
       previous,
+      weeks,
       currentBest,
       performanceChange,
       volumeChange,
       averageWeeklyVolume: Math.round(averageWeeklyVolume),
-      currentBestHold,
-      holdChange,
-      averageWeeklyHold: Math.round(averageWeeklyHold * 10) / 10,
-      holdVolumeChange,
       maxWeight: current.reduce<number | null>(
         (max, point) =>
           point.maxWeight != null && (max == null || point.maxWeight > max) ? point.maxWeight : max,
@@ -393,7 +803,12 @@ function ProgressPage() {
       weeklyHold,
       methodBreakdown: methodBreakdown(periodPoints),
     };
-  }, [history.data, location, methodFilter, period]);
+  }, [activeMethodFilter, history.data, location, period]);
+
+  const profileStats = useMemo(
+    () => buildProfileStats(metricProfile, analysis.current, analysis.previous, analysis.weeks),
+    [analysis, metricProfile],
+  );
 
   const decision = useMemo(() => {
     return buildProgressDecision({
@@ -411,10 +826,10 @@ function ProgressPage() {
       return (
         (location === "all" || comparison.locationKind === location) &&
         (windowMs == null || dateTime(comparison.date) >= now - windowMs) &&
-        (methodFilter === "all" || Boolean(point && matchesMethod(point, methodFilter)))
+        (activeMethodFilter === "all" || Boolean(point && matchesMethod(point, activeMethodFilter)))
       );
     });
-  }, [history.data?.points, location, methodFilter, period, plannedActual.data]);
+  }, [activeMethodFilter, history.data?.points, location, period, plannedActual.data]);
 
   return (
     <div className="space-y-6">
@@ -422,7 +837,7 @@ function ProgressPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Exercise Progress</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Compare load, strength, volume and training method before deciding what to do next.
+            Charts and history adapt to how the selected exercise is tracked.
           </p>
         </div>
         <ExercisePicker exercises={locationExercises} value={exerciseId} onChange={setExerciseId} />
@@ -466,33 +881,35 @@ function ProgressPage() {
         </div>
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <Layers3 className="h-3.5 w-3.5" />
-          Training method
+      {metricProfile === "weighted" || metricProfile === "reps" ? (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <Layers3 className="h-3.5 w-3.5" />
+            Training method
+          </div>
+          <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-secondary/40 p-1">
+            {[
+              { key: "all", label: "All methods" },
+              { key: "straight", label: "Straight sets" },
+              ...methodOptions,
+            ].map((method) => (
+              <button
+                key={method.key}
+                type="button"
+                onClick={() => setMethodFilter(method.key)}
+                className={cn(
+                  "whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition",
+                  methodFilter === method.key
+                    ? "bg-card text-foreground shadow"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {method.label}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-secondary/40 p-1">
-          {[
-            { key: "all", label: "All methods" },
-            { key: "straight", label: "Straight sets" },
-            ...methodOptions,
-          ].map((method) => (
-            <button
-              key={method.key}
-              type="button"
-              onClick={() => setMethodFilter(method.key)}
-              className={cn(
-                "whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition",
-                methodFilter === method.key
-                  ? "bg-card text-foreground shadow"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {method.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      ) : null}
 
       {library.isLoading ||
       loggedExercises.isLoading ||
@@ -525,7 +942,7 @@ function ProgressPage() {
         </Card>
       ) : (
         <>
-          {!isHoldProfile ? (
+          {metricProfile === "weighted" ? (
             <DecisionCard decision={decision} exerciseName={exercise?.name ?? "This exercise"} />
           ) : null}
 
@@ -536,62 +953,32 @@ function ProgressPage() {
               value={String(analysis.current.length)}
               detail={location === "all" ? "All locations" : location}
             />
-            {isHoldProfile ? (
-              <>
-                <StatCard
-                  icon={<Gauge className="h-4 w-4" />}
-                  label="Best hold"
-                  value={formatSeconds(analysis.currentBestHold)}
-                  detail={formatChange(analysis.holdChange)}
-                  change={analysis.holdChange}
-                />
-                <StatCard
-                  icon={<TrendingUp className="h-4 w-4" />}
-                  label="Avg weekly hold time"
-                  value={formatSeconds(analysis.averageWeeklyHold)}
-                  detail={formatChange(analysis.holdVolumeChange)}
-                  change={analysis.holdVolumeChange}
-                />
-                <StatCard
-                  icon={<Scale className="h-4 w-4" />}
-                  label={metricProfile === "grip" ? "Top load" : "Total hold time"}
-                  value={
-                    metricProfile === "grip"
-                      ? formatKg(analysis.maxWeight)
-                      : formatSeconds(totalHoldSeconds(analysis.current))
-                  }
-                  detail={metricProfile === "grip" ? "Heaviest loaded hold" : "Selected period"}
-                />
-              </>
-            ) : (
-              <>
-                <StatCard
-                  icon={<Scale className="h-4 w-4" />}
-                  label="Top weight"
-                  value={formatKg(analysis.maxWeight)}
-                  detail="Heaviest working set"
-                />
-                <StatCard
-                  icon={<Gauge className="h-4 w-4" />}
-                  label="Best est. 1RM"
-                  value={formatKg(analysis.currentBest, 1)}
-                  detail={formatChange(analysis.performanceChange)}
-                  change={analysis.performanceChange}
-                />
-                <StatCard
-                  icon={<TrendingUp className="h-4 w-4" />}
-                  label="Avg weekly volume"
-                  value={formatKg(analysis.averageWeeklyVolume)}
-                  detail={formatChange(analysis.volumeChange)}
-                  change={analysis.volumeChange}
-                />
-              </>
-            )}
+            {profileStats.map((stat) => (
+              <StatCard
+                key={stat.label}
+                icon={
+                  stat.icon === "scale" ? (
+                    <Scale className="h-4 w-4" />
+                  ) : stat.icon === "trend" ? (
+                    <TrendingUp className="h-4 w-4" />
+                  ) : (
+                    <Gauge className="h-4 w-4" />
+                  )
+                }
+                label={stat.label}
+                value={stat.value}
+                detail={stat.detail}
+                change={stat.change}
+                changeDirection={stat.changeDirection}
+              />
+            ))}
           </section>
 
-          {!isHoldProfile ? <MethodComparison summaries={analysis.methodBreakdown} /> : null}
+          {metricProfile === "weighted" || metricProfile === "reps" ? (
+            <MethodComparison summaries={analysis.methodBreakdown} />
+          ) : null}
 
-          {!isHoldProfile ? (
+          {metricProfile === "weighted" || metricProfile === "reps" ? (
             <PlannedActualHistory
               comparisons={visibleComparisons}
               isLoading={plannedActual.isLoading}
@@ -600,30 +987,18 @@ function ProgressPage() {
             />
           ) : null}
 
-          <section className="grid gap-4 xl:grid-cols-2">
-            {isHoldProfile ? (
-              <>
-                <HoldPerformanceChart
-                  points={analysis.current}
-                  onSelectSession={setSelectedSessionId}
-                />
-                <HoldVolumeChart data={analysis.weeklyHold} />
-              </>
-            ) : (
-              <>
-                <PerformanceChart
-                  points={analysis.current}
-                  onSelectSession={setSelectedSessionId}
-                />
-                <VolumeChart data={analysis.weeklyVolume} />
-              </>
-            )}
-          </section>
+          <ProfileCharts
+            profile={metricProfile}
+            points={analysis.current}
+            weeklyVolume={analysis.weeklyVolume}
+            weeklyHold={analysis.weeklyHold}
+            onSelectSession={setSelectedSessionId}
+          />
 
           <SetHistory
             points={analysis.current}
             onSelectSession={setSelectedSessionId}
-            isHoldProfile={isHoldProfile}
+            profile={metricProfile}
           />
         </>
       )}
@@ -1022,12 +1397,14 @@ function StatCard({
   value,
   detail,
   change,
+  changeDirection = "up",
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   detail: string;
   change?: number | null;
+  changeDirection?: "up" | "down";
 }) {
   return (
     <Card>
@@ -1040,8 +1417,14 @@ function StatCard({
         <p
           className={cn(
             "mt-1 truncate text-[11px] text-muted-foreground",
-            change != null && change > 0 && "text-emerald-400",
-            change != null && change < 0 && "text-amber-400",
+            change != null &&
+              ((changeDirection === "up" && change > 0) ||
+                (changeDirection === "down" && change < 0)) &&
+              "text-emerald-400",
+            change != null &&
+              ((changeDirection === "up" && change < 0) ||
+                (changeDirection === "down" && change > 0)) &&
+              "text-amber-400",
           )}
         >
           {detail}
@@ -1282,6 +1665,458 @@ function HoldVolumeChart({ data }: { data: { week: string; label: string; second
   );
 }
 
+function MetricTrendChart({
+  points,
+  title,
+  subtitle,
+  name,
+  unit,
+  read,
+  format,
+  onSelectSession,
+}: {
+  points: ExerciseSessionPoint[];
+  title: string;
+  subtitle: string;
+  name: string;
+  unit?: string;
+  read: (point: ExerciseSessionPoint) => number | null;
+  format?: (value: number) => string;
+  onSelectSession: (sessionId: string) => void;
+}) {
+  const data = points.map((point) => ({
+    label: formatUKDateShort(point.date),
+    value: read(point),
+    sessionId: point.sessionId,
+  }));
+  return (
+    <ChartCard title={title} subtitle={subtitle}>
+      <ResponsiveContainer width="100%" height={260}>
+        <LineChart
+          data={data}
+          margin={{ top: 12, right: 12, left: -12, bottom: 0 }}
+          onClick={(state) => {
+            const payload = state?.activePayload?.[0]?.payload as
+              | { sessionId?: string }
+              | undefined;
+            if (payload?.sessionId) onSelectSession(payload.sessionId);
+          }}
+          className="cursor-pointer"
+        >
+          <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="label"
+            stroke="var(--color-muted-foreground)"
+            fontSize={10}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            unit={unit}
+            stroke="var(--color-muted-foreground)"
+            fontSize={10}
+            tickLine={false}
+            axisLine={false}
+          />
+          <Tooltip
+            contentStyle={tooltipStyle}
+            formatter={(value: number) => [format ? format(value) : `${value}${unit ?? ""}`, name]}
+          />
+          <Line
+            type="monotone"
+            dataKey="value"
+            name={name}
+            stroke="var(--color-chart-2)"
+            strokeWidth={2}
+            dot={{ r: 3 }}
+            connectNulls
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </ChartCard>
+  );
+}
+
+function WeeklyMetricChart({
+  points,
+  title,
+  subtitle,
+  name,
+  unit,
+  read,
+  format,
+}: {
+  points: ExerciseSessionPoint[];
+  title: string;
+  subtitle: string;
+  name: string;
+  unit?: string;
+  read: (point: ExerciseSessionPoint) => number;
+  format?: (value: number) => string;
+}) {
+  const weeks = new Map<string, number>();
+  for (const point of points) {
+    const week = mondayISO(point.date);
+    weeks.set(week, (weeks.get(week) ?? 0) + read(point));
+  }
+  const data = Array.from(weeks, ([week, value]) => ({
+    week,
+    label: formatUKDateShort(week),
+    value: Math.round(value * 100) / 100,
+  })).sort((a, b) => a.week.localeCompare(b.week));
+  return (
+    <ChartCard title={title} subtitle={subtitle}>
+      <ResponsiveContainer width="100%" height={260}>
+        <BarChart data={data} margin={{ top: 12, right: 12, left: -6, bottom: 0 }}>
+          <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="label"
+            stroke="var(--color-muted-foreground)"
+            fontSize={10}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            unit={unit}
+            stroke="var(--color-muted-foreground)"
+            fontSize={10}
+            tickLine={false}
+            axisLine={false}
+          />
+          <Tooltip
+            contentStyle={tooltipStyle}
+            formatter={(value: number) => [format ? format(value) : `${value}${unit ?? ""}`, name]}
+          />
+          <Bar dataKey="value" name={name} fill="var(--color-chart-3)" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </ChartCard>
+  );
+}
+
+function LoadRelationshipChart({
+  points,
+  mode,
+}: {
+  points: ExerciseSessionPoint[];
+  mode: "hold" | "distance";
+}) {
+  const data = points.flatMap((point) =>
+    point.sets.flatMap((set) => {
+      const outcome = mode === "hold" ? set.durationSeconds : set.distance;
+      return set.weight != null && outcome != null
+        ? [{ load: set.weight, outcome, date: formatUKDateShort(point.date) }]
+        : [];
+    }),
+  );
+  const outcomeLabel = mode === "hold" ? "Hold (sec)" : "Distance";
+  return (
+    <ChartCard
+      title={mode === "hold" ? "Load versus hold" : "Load versus distance"}
+      subtitle="Each dot is a completed set; use it to see the load/performance trade-off"
+    >
+      {data.length ? (
+        <ResponsiveContainer width="100%" height={260}>
+          <ScatterChart margin={{ top: 12, right: 12, left: -6, bottom: 0 }}>
+            <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
+            <XAxis
+              type="number"
+              dataKey="load"
+              name="Load"
+              unit="kg"
+              stroke="var(--color-muted-foreground)"
+              fontSize={10}
+              tickLine={false}
+            />
+            <YAxis
+              type="number"
+              dataKey="outcome"
+              name={outcomeLabel}
+              unit={mode === "hold" ? "s" : undefined}
+              stroke="var(--color-muted-foreground)"
+              fontSize={10}
+              tickLine={false}
+            />
+            <Tooltip contentStyle={tooltipStyle} cursor={{ strokeDasharray: "3 3" }} />
+            <Scatter data={data} fill="var(--color-chart-4)" />
+          </ScatterChart>
+        </ResponsiveContainer>
+      ) : (
+        <div className="flex h-[260px] items-center justify-center text-xs text-muted-foreground">
+          Log load and {mode === "hold" ? "hold duration" : "distance"} together to build this view.
+        </div>
+      )}
+    </ChartCard>
+  );
+}
+
+function ProfileCharts({
+  profile,
+  points,
+  weeklyVolume,
+  weeklyHold,
+  onSelectSession,
+}: {
+  profile: MetricProfile;
+  points: ExerciseSessionPoint[];
+  weeklyVolume: { week: string; label: string; volume: number }[];
+  weeklyHold: { week: string; label: string; seconds: number }[];
+  onSelectSession: (sessionId: string) => void;
+}) {
+  const trend = (
+    props: Omit<React.ComponentProps<typeof MetricTrendChart>, "points" | "onSelectSession">,
+  ) => <MetricTrendChart points={points} onSelectSession={onSelectSession} {...props} />;
+  const weekly = (props: Omit<React.ComponentProps<typeof WeeklyMetricChart>, "points">) => (
+    <WeeklyMetricChart points={points} {...props} />
+  );
+  let charts: React.ReactNode;
+  if (profile === "weighted") {
+    charts = (
+      <>
+        <PerformanceChart points={points} onSelectSession={onSelectSession} />
+        <VolumeChart data={weeklyVolume} />
+      </>
+    );
+  } else if (profile === "reps") {
+    charts = (
+      <>
+        {trend({
+          title: "Best set",
+          subtitle: "Highest completed set reps in each session",
+          name: "Best set",
+          unit: " reps",
+          read: (point) => bestSetReps([point]),
+        })}
+        {weekly({
+          title: "Weekly reps",
+          subtitle: "All completed reps accumulated by training week",
+          name: "Reps",
+          unit: "",
+          read: (point) => point.totalReps,
+        })}
+        {trend({
+          title: "Effort",
+          subtitle: "Average recorded set RPE for each session",
+          name: "RPE",
+          read: (point) => point.averageRpe,
+        })}
+      </>
+    );
+  } else if (profile === "hold" || profile === "grip") {
+    charts = (
+      <>
+        <HoldPerformanceChart points={points} onSelectSession={onSelectSession} />
+        <HoldVolumeChart data={weeklyHold} />
+        {profile === "grip" ? <LoadRelationshipChart points={points} mode="hold" /> : null}
+      </>
+    );
+  } else if (profile === "time") {
+    charts = (
+      <>
+        {trend({
+          title: "Pace",
+          subtitle: "Minutes per kilometre; lower is faster",
+          name: "Pace",
+          read: paceMinutesPerKm,
+          format: formatPace,
+        })}
+        {trend({
+          title: "Session distance",
+          subtitle: "Distance completed in each session",
+          name: "Distance",
+          unit: "km",
+          read: (point) => point.totalDistanceKm || null,
+          format: formatDistance,
+        })}
+        {weekly({
+          title: "Weekly distance",
+          subtitle: "Total normalized distance by training week",
+          name: "Distance",
+          unit: "km",
+          read: (point) => point.totalDistanceKm,
+          format: formatDistance,
+        })}
+      </>
+    );
+  } else if (profile === "duration") {
+    charts = (
+      <>
+        {trend({
+          title: "Session duration",
+          subtitle: "Recorded minutes for each session",
+          name: "Duration",
+          unit: " min",
+          read: (point) => activityMinutes(point) || null,
+          format: formatMinutes,
+        })}
+        {weekly({
+          title: "Weekly time",
+          subtitle: "Total recorded minutes by training week",
+          name: "Minutes",
+          unit: " min",
+          read: activityMinutes,
+          format: formatMinutes,
+        })}
+        {trend({
+          title: "Effort",
+          subtitle: "Average recorded RPE over time",
+          name: "RPE",
+          read: (point) => point.averageRpe,
+        })}
+      </>
+    );
+  } else if (profile === "conditioning") {
+    charts = (
+      <>
+        {trend({
+          title: "Work density",
+          subtitle: "Completed rounds per minute",
+          name: "Rounds/min",
+          read: densityRoundsPerMinute,
+          format: (value) => `${value.toFixed(2)} rounds/min`,
+        })}
+        {weekly({
+          title: "Weekly rounds",
+          subtitle: "Total completed rounds by training week",
+          name: "Rounds",
+          read: (point) => point.rounds,
+        })}
+        {trend({
+          title: "Session duration",
+          subtitle: "Time spent on each conditioning session",
+          name: "Duration",
+          unit: " min",
+          read: (point) => activityMinutes(point) || null,
+          format: formatMinutes,
+        })}
+      </>
+    );
+  } else if (profile === "carry") {
+    charts = (
+      <>
+        {trend({
+          title: "Top load",
+          subtitle: "Heaviest load recorded in each session",
+          name: "Load",
+          unit: "kg",
+          read: (point) => point.maxWeight,
+          format: (value) => formatKg(value),
+        })}
+        {trend({
+          title: "Session distance",
+          subtitle: "Total normalized carry distance",
+          name: "Distance",
+          unit: "km",
+          read: (point) => point.totalDistanceKm || null,
+          format: formatDistance,
+        })}
+        <LoadRelationshipChart points={points} mode="distance" />
+      </>
+    );
+  } else if (profile === "mobility_position") {
+    charts = (
+      <>
+        {trend({
+          title: "Position distance",
+          subtitle: "Recorded range or distance; interpret direction for the selected movement",
+          name: "Distance",
+          unit: "cm",
+          read: (point) => point.sets.find((set) => set.distance != null)?.distance ?? null,
+          format: (value) => `${value} cm`,
+        })}
+        {trend({
+          title: "Position hold",
+          subtitle: "Longest hold recorded in each session",
+          name: "Hold",
+          unit: "s",
+          read: (point) => bestHold([point]),
+          format: (value) => formatSeconds(value),
+        })}
+        {trend({
+          title: "Feel",
+          subtitle: "Self-reported movement feel from 1 to 5",
+          name: "Feel",
+          read: (point) => point.feel,
+          format: (value) => `${value}/5`,
+        })}
+      </>
+    );
+  } else if (profile === "power") {
+    charts = (
+      <>
+        {trend({
+          title: "Best height",
+          subtitle:
+            "Highest recorded jump in each session; the trend also shows session-to-session consistency",
+          name: "Height",
+          unit: "cm",
+          read: (point) => point.heightCm,
+          format: (value) => `${value} cm`,
+        })}
+        {weekly({
+          title: "Weekly jumps",
+          subtitle: "Total recorded jumps by training week",
+          name: "Jumps",
+          read: (point) => point.totalReps,
+        })}
+        {trend({
+          title: "Effort",
+          subtitle: "Average recorded RPE for each session",
+          name: "RPE",
+          read: (point) => point.averageRpe,
+        })}
+      </>
+    );
+  } else if (profile === "climbing") {
+    charts = (
+      <>
+        {trend({
+          title: "Session duration",
+          subtitle: "Minutes climbed in each session",
+          name: "Duration",
+          unit: " min",
+          read: (point) => activityMinutes(point) || null,
+          format: formatMinutes,
+        })}
+        {trend({
+          title: "Problems / routes",
+          subtitle: "Completed problems or routes per session",
+          name: "Problems / routes",
+          read: (point) => point.problems || null,
+        })}
+        {trend({
+          title: "Effort",
+          subtitle: "Average recorded RPE over time",
+          name: "RPE",
+          read: (point) => point.averageRpe,
+        })}
+      </>
+    );
+  } else {
+    charts = (
+      <>
+        {trend({
+          title: "Session duration",
+          subtitle: "Recorded minutes for each session",
+          name: "Duration",
+          unit: " min",
+          read: (point) => activityMinutes(point) || null,
+          format: formatMinutes,
+        })}
+        {weekly({
+          title: "Weekly time",
+          subtitle: "Total recorded minutes by training week",
+          name: "Minutes",
+          unit: " min",
+          read: activityMinutes,
+          format: formatMinutes,
+        })}
+      </>
+    );
+  }
+  return <section className="grid gap-4 xl:grid-cols-2">{charts}</section>;
+}
+
 function setSummary(point: ExerciseSessionPoint) {
   return point.sets
     .map((set) => {
@@ -1301,22 +2136,98 @@ function setSummary(point: ExerciseSessionPoint) {
     .join(" · ");
 }
 
+function profileSessionSummary(point: ExerciseSessionPoint, profile: MetricProfile) {
+  if (profile === "weighted" || profile === "reps" || profile === "hold" || profile === "grip") {
+    return setSummary(point) || "No set detail";
+  }
+  if (profile === "time") {
+    return `${formatDistance(point.totalDistanceKm)} · ${formatMinutes(activityMinutes(point))} · ${formatPace(paceMinutesPerKm(point))}`;
+  }
+  if (profile === "duration")
+    return `${formatMinutes(activityMinutes(point))} · RPE ${point.averageRpe ?? "—"}`;
+  if (profile === "conditioning") {
+    return `${formatNumber(point.rounds, " rounds")} · ${formatMinutes(activityMinutes(point))} · ${formatNumber(densityRoundsPerMinute(point), " rounds/min")}`;
+  }
+  if (profile === "carry") {
+    return `${formatDistance(point.totalDistanceKm)} · ${formatKg(point.maxWeight)} · ${formatMinutes(activityMinutes(point))}`;
+  }
+  if (profile === "mobility_position") {
+    const position = point.sets.find((set) => set.distance != null);
+    return `${formatNumber(position?.distance ?? null, position?.distanceUnit ? ` ${position.distanceUnit}` : "")} · ${formatSeconds(bestHold([point]))} hold · ${formatNumber(point.feel, "/5")} feel`;
+  }
+  if (profile === "power") {
+    return `${formatNumber(point.heightCm, " cm")} · ${formatNumber(point.totalReps, " jumps")} · RPE ${point.averageRpe ?? "—"}`;
+  }
+  if (profile === "climbing") {
+    return `${formatMinutes(activityMinutes(point))} · ${formatNumber(point.problems, " problems/routes")} · ${point.grade ?? "No grade"}${point.gradient ? ` @ ${point.gradient}` : ""}`;
+  }
+  return setSummary(point) || "Recorded session";
+}
+
+function historyMetricLabels(profile: MetricProfile): [string, string] {
+  if (profile === "weighted") return ["Volume", "Est. 1RM"];
+  if (profile === "reps") return ["Total reps", "Best set"];
+  if (profile === "hold") return ["Total hold", "Best hold"];
+  if (profile === "grip") return ["Best hold", "Top load"];
+  if (profile === "time") return ["Distance", "Pace"];
+  if (profile === "duration") return ["Duration", "RPE"];
+  if (profile === "conditioning") return ["Rounds", "Density"];
+  if (profile === "carry") return ["Distance", "Top load"];
+  if (profile === "mobility_position") return ["Hold", "Feel"];
+  if (profile === "power") return ["Height", "Jumps"];
+  if (profile === "climbing") return ["Problems/routes", "Duration"];
+  return ["Duration", "RPE"];
+}
+
+function historyMetricValues(
+  point: ExerciseSessionPoint,
+  profile: MetricProfile,
+): [string, string] {
+  if (profile === "weighted") {
+    return [`${Math.round(point.totalVolume).toLocaleString()} kg`, formatKg(point.est1RM, 1)];
+  }
+  if (profile === "reps")
+    return [formatNumber(point.totalReps), formatNumber(bestSetReps([point]))];
+  if (profile === "hold")
+    return [formatSeconds(totalHoldSeconds([point])), formatSeconds(bestHold([point]))];
+  if (profile === "grip") return [formatSeconds(bestHold([point])), formatKg(point.maxWeight)];
+  if (profile === "time")
+    return [formatDistance(point.totalDistanceKm), formatPace(paceMinutesPerKm(point))];
+  if (profile === "duration")
+    return [formatMinutes(activityMinutes(point)), formatNumber(point.averageRpe)];
+  if (profile === "conditioning")
+    return [formatNumber(point.rounds), formatNumber(densityRoundsPerMinute(point))];
+  if (profile === "carry")
+    return [formatDistance(point.totalDistanceKm), formatKg(point.maxWeight)];
+  if (profile === "mobility_position")
+    return [formatSeconds(bestHold([point])), formatNumber(point.feel, "/5")];
+  if (profile === "power")
+    return [formatNumber(point.heightCm, " cm"), formatNumber(point.totalReps)];
+  if (profile === "climbing")
+    return [formatNumber(point.problems), formatMinutes(activityMinutes(point))];
+  return [formatMinutes(activityMinutes(point)), formatNumber(point.averageRpe)];
+}
+
 function SetHistory({
   points,
   onSelectSession,
-  isHoldProfile,
+  profile,
 }: {
   points: ExerciseSessionPoint[];
   onSelectSession: (sessionId: string) => void;
-  isHoldProfile: boolean;
+  profile: MetricProfile;
 }) {
   const recent = [...points].reverse();
+  const [primaryLabel, secondaryLabel] = historyMetricLabels(profile);
+  const showMethods = profile === "weighted" || profile === "reps";
   return (
     <Card>
       <CardHeader className="p-4 pb-2">
         <CardTitle className="text-sm">Exact session history</CardTitle>
         <p className="text-xs text-muted-foreground">
-          New logs show each set; older aggregate logs remain labelled as totals.
+          {profile === "weighted" || profile === "reps" || profile === "hold" || profile === "grip"
+            ? "New logs show each set; older aggregate logs remain labelled as totals."
+            : "Session detail and comparison columns follow this exercise's tracking mode."}
         </p>
       </CardHeader>
       <CardContent className="p-0 sm:p-4 sm:pt-0">
@@ -1334,14 +2245,15 @@ function SetHistory({
                   {point.locationName ?? "Location not logged"}
                 </span>
               </div>
-              <div className="mt-2">
-                <MethodBadges methods={point.methods} />
-              </div>
-              <p className="mt-2 text-sm">{setSummary(point) || "No set detail"}</p>
+              {showMethods ? (
+                <div className="mt-2">
+                  <MethodBadges methods={point.methods} />
+                </div>
+              ) : null}
+              <p className="mt-2 text-sm">{profileSessionSummary(point, profile)}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {isHoldProfile
-                  ? `${formatSeconds(totalHoldSeconds([point]))} total · ${formatSeconds(bestHold([point]))} best`
-                  : `${Math.round(point.totalVolume).toLocaleString()} kg volume · ${formatKg(point.est1RM, 1)} est. 1RM`}
+                {primaryLabel}: {historyMetricValues(point, profile)[0]} · {secondaryLabel}:{" "}
+                {historyMetricValues(point, profile)[1]}
               </p>
             </button>
           ))}
@@ -1352,14 +2264,10 @@ function SetHistory({
               <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Location</TableHead>
-                <TableHead>Method</TableHead>
-                <TableHead>Sets</TableHead>
-                <TableHead className="text-right">
-                  {isHoldProfile ? "Total hold" : "Volume"}
-                </TableHead>
-                <TableHead className="text-right">
-                  {isHoldProfile ? "Best hold" : "Est. 1RM"}
-                </TableHead>
+                {showMethods ? <TableHead>Method</TableHead> : null}
+                <TableHead>Session detail</TableHead>
+                <TableHead className="text-right">{primaryLabel}</TableHead>
+                <TableHead className="text-right">{secondaryLabel}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1383,17 +2291,17 @@ function SetHistory({
                   <TableCell className="capitalize text-muted-foreground">
                     {point.locationName ?? "—"}
                   </TableCell>
-                  <TableCell>
-                    <MethodBadges methods={point.methods} />
-                  </TableCell>
-                  <TableCell>{setSummary(point) || "—"}</TableCell>
+                  {showMethods ? (
+                    <TableCell>
+                      <MethodBadges methods={point.methods} />
+                    </TableCell>
+                  ) : null}
+                  <TableCell>{profileSessionSummary(point, profile)}</TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {isHoldProfile
-                      ? formatSeconds(totalHoldSeconds([point]))
-                      : `${Math.round(point.totalVolume).toLocaleString()} kg`}
+                    {historyMetricValues(point, profile)[0]}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {isHoldProfile ? formatSeconds(bestHold([point])) : formatKg(point.est1RM, 1)}
+                    {historyMetricValues(point, profile)[1]}
                   </TableCell>
                 </TableRow>
               ))}
