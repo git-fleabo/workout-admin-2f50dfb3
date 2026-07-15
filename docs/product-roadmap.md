@@ -31,14 +31,16 @@ This is a product redesign, not a ground-up technical rewrite. Keep the existing
 - **Today:** next workout, resume draft, repeat recent session, or start empty.
 - **Log:** one unified session composer.
 - **Progress:** concise exercise status and recent trend.
-- **More:** History, Library, Goals, PRs, 1RM, and administration.
+- **More:** History, PRs, 1RM, and the Manage area.
+- **Manage:** Exercise Library, Training Methods, Daily Rotation, Goals, and future administration.
 
 ### Larger screens
 
 - Persistent navigation with Today, Log, Progress, Plan, and History.
 - Wider exercise-progress workspace with charts and exact set history together.
 - Planning views that can compare recent sessions and the coming week.
-- Library and administration remain efficient dense-data screens.
+- Manage is the entry point for Library, Methods, Daily Rotation, Goals, and future administration;
+  the underlying pages remain efficient dense-data screens.
 
 ## Phase 1: One Unified Workout Logger
 

@@ -2,12 +2,10 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { type ReactNode } from "react";
 import {
   Activity,
-  BookOpen,
   ChartNoAxesCombined,
   ClipboardList,
   Dumbbell,
   History,
-  Layers3,
   LogOut,
   Settings as SettingsIcon,
   ShieldCheck,
@@ -24,6 +22,7 @@ type NavItem = {
   icon: ReactNode;
   activeClass: string;
   iconClass: string;
+  relatedPaths?: string[];
 };
 
 const NAV: NavItem[] = [
@@ -63,20 +62,6 @@ const NAV: NavItem[] = [
     iconClass: "text-cyan-400",
   },
   {
-    to: "/library",
-    label: "Library",
-    icon: <BookOpen className="h-4 w-4" />,
-    activeClass: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300 shadow",
-    iconClass: "text-emerald-400",
-  },
-  {
-    to: "/methods",
-    label: "Methods",
-    icon: <Layers3 className="h-4 w-4" />,
-    activeClass: "border-indigo-500/40 bg-indigo-500/10 text-indigo-300 shadow",
-    iconClass: "text-indigo-400",
-  },
-  {
     to: "/history",
     label: "History",
     icon: <History className="h-4 w-4" />,
@@ -84,11 +69,12 @@ const NAV: NavItem[] = [
     iconClass: "text-rose-400",
   },
   {
-    to: "/goals",
-    label: "Goals",
+    to: "/manage",
+    label: "Manage",
     icon: <SettingsIcon className="h-4 w-4" />,
     activeClass: "border-amber-500/40 bg-amber-500/10 text-amber-300 shadow",
     iconClass: "text-amber-400",
+    relatedPaths: ["/library", "/methods", "/rotation", "/goals"],
   },
 ];
 
@@ -128,7 +114,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
         <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-3 pb-3 sm:px-5">
           {NAV.map((item) => {
             const active =
-              pathname === item.to || (item.to !== "/" && pathname.startsWith(`${item.to}/`));
+              pathname === item.to ||
+              (item.to !== "/" && pathname.startsWith(`${item.to}/`)) ||
+              item.relatedPaths?.some(
+                (path) => pathname === path || pathname.startsWith(`${path}/`),
+              );
             return (
               <Link
                 key={item.to}

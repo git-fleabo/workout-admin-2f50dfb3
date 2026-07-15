@@ -801,6 +801,18 @@ Programme-template decision:
 
 ## App Behavior And Screens
 
+### Manage
+
+`/manage` is the administration landing page. The primary navigation stays focused on everyday
+training and review, while Manage links to Exercise Library, Training Methods, Daily Rotation, and
+Goals. Those existing routes remain stable and make Manage appear active while open. The landing page
+also reserves clearly non-interactive planned homes for Programme Templates, Training Locations,
+Preferences, and People & Access; these placeholders do not imply that the features are implemented.
+
+Daily actions remain close to the training flow: Today still shows and completes the selected daily
+practice, while Manage owns its rotation configuration. Goals are configured in Manage, but future
+quick check-ins can still surface in Today or review views.
+
 ### Dashboard
 
 The dashboard reads from Supabase and shows weekly training, climbing, strength, monthly summaries, recent PRs, and long-term trend data.

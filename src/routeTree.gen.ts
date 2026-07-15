@@ -13,6 +13,7 @@ import { Route as RotationRouteImport } from './routes/rotation'
 import { Route as ProgressRouteImport } from './routes/progress'
 import { Route as PlanRouteImport } from './routes/plan'
 import { Route as MethodsRouteImport } from './routes/methods'
+import { Route as ManageRouteImport } from './routes/manage'
 import { Route as LogRouteImport } from './routes/log'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as HistoryRouteImport } from './routes/history'
@@ -38,6 +39,11 @@ const PlanRoute = PlanRouteImport.update({
 const MethodsRoute = MethodsRouteImport.update({
   id: '/methods',
   path: '/methods',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManageRoute = ManageRouteImport.update({
+  id: '/manage',
+  path: '/manage',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LogRoute = LogRouteImport.update({
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/history': typeof HistoryRoute
   '/library': typeof LibraryRoute
   '/log': typeof LogRoute
+  '/manage': typeof ManageRoute
   '/methods': typeof MethodsRoute
   '/plan': typeof PlanRoute
   '/progress': typeof ProgressRoute
@@ -90,6 +97,7 @@ export interface FileRoutesByTo {
   '/history': typeof HistoryRoute
   '/library': typeof LibraryRoute
   '/log': typeof LogRoute
+  '/manage': typeof ManageRoute
   '/methods': typeof MethodsRoute
   '/plan': typeof PlanRoute
   '/progress': typeof ProgressRoute
@@ -103,6 +111,7 @@ export interface FileRoutesById {
   '/history': typeof HistoryRoute
   '/library': typeof LibraryRoute
   '/log': typeof LogRoute
+  '/manage': typeof ManageRoute
   '/methods': typeof MethodsRoute
   '/plan': typeof PlanRoute
   '/progress': typeof ProgressRoute
@@ -117,6 +126,7 @@ export interface FileRouteTypes {
     | '/history'
     | '/library'
     | '/log'
+    | '/manage'
     | '/methods'
     | '/plan'
     | '/progress'
@@ -129,6 +139,7 @@ export interface FileRouteTypes {
     | '/history'
     | '/library'
     | '/log'
+    | '/manage'
     | '/methods'
     | '/plan'
     | '/progress'
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/history'
     | '/library'
     | '/log'
+    | '/manage'
     | '/methods'
     | '/plan'
     | '/progress'
@@ -154,6 +166,7 @@ export interface RootRouteChildren {
   HistoryRoute: typeof HistoryRoute
   LibraryRoute: typeof LibraryRoute
   LogRoute: typeof LogRoute
+  ManageRoute: typeof ManageRoute
   MethodsRoute: typeof MethodsRoute
   PlanRoute: typeof PlanRoute
   ProgressRoute: typeof ProgressRoute
@@ -188,6 +201,13 @@ declare module '@tanstack/react-router' {
       path: '/methods'
       fullPath: '/methods'
       preLoaderRoute: typeof MethodsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manage': {
+      id: '/manage'
+      path: '/manage'
+      fullPath: '/manage'
+      preLoaderRoute: typeof ManageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/log': {
@@ -242,6 +262,7 @@ const rootRouteChildren: RootRouteChildren = {
   HistoryRoute: HistoryRoute,
   LibraryRoute: LibraryRoute,
   LogRoute: LogRoute,
+  ManageRoute: ManageRoute,
   MethodsRoute: MethodsRoute,
   PlanRoute: PlanRoute,
   ProgressRoute: ProgressRoute,
