@@ -271,6 +271,43 @@ function withTypeDefaults(form: typeof BLANK, workoutType: string, config: Libra
   };
 }
 
+function workoutTypeChipClass(workoutType: string) {
+  const normalized = workoutType.toLowerCase();
+  if (normalized.includes("strength")) {
+    return "border-rose-400/25 bg-rose-400/10 text-rose-200";
+  }
+  if (normalized.includes("climb")) {
+    return "border-amber-400/25 bg-amber-400/10 text-amber-200";
+  }
+  if (
+    normalized.includes("cardio") ||
+    normalized.includes("run") ||
+    normalized.includes("conditioning")
+  ) {
+    return "border-sky-400/25 bg-sky-400/10 text-sky-200";
+  }
+  if (normalized.includes("skill") || normalized.includes("calisthenics")) {
+    return "border-primary/25 bg-primary/10 text-primary";
+  }
+  if (normalized.includes("mobility") || normalized.includes("yoga")) {
+    return "border-violet-400/25 bg-violet-400/10 text-violet-200";
+  }
+  return "border-border bg-secondary text-secondary-foreground";
+}
+
+function focusChipClass(focusArea: string) {
+  const normalized = focusArea.toLowerCase();
+  if (normalized.includes("push")) return "border-rose-400/20 bg-rose-400/[0.06] text-rose-200";
+  if (normalized.includes("pull")) return "border-sky-400/20 bg-sky-400/[0.06] text-sky-200";
+  if (normalized.includes("leg") || normalized.includes("lower")) {
+    return "border-amber-400/20 bg-amber-400/[0.06] text-amber-200";
+  }
+  if (normalized.includes("mobility") || normalized.includes("flex")) {
+    return "border-violet-400/20 bg-violet-400/[0.06] text-violet-200";
+  }
+  return "border-border bg-secondary/50 text-muted-foreground";
+}
+
 function LibraryPage() {
   const qc = useQueryClient();
 
@@ -305,6 +342,7 @@ function LibraryPage() {
       );
     });
   }, [list.data, locationFilter, search, typeFilter]);
+  const filtersActive = Boolean(search.trim() || typeFilter || locationFilter);
 
   const addMutation = useMutation({
     mutationFn: (fields: typeof BLANK) => addExerciseClient(fields, effectivePersonId || undefined),
@@ -452,6 +490,12 @@ function LibraryPage() {
         </Button>
       </div>
 
+      {filtersActive && (
+        <p className="-mt-2 text-xs text-muted-foreground">
+          {filtered.length} movement{filtered.length !== 1 ? "s" : ""}
+        </p>
+      )}
+
       <div>
         {list.isLoading ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -494,7 +538,7 @@ function LibraryPage() {
                 <Fragment key={ex.row}>
                   <Card
                     onClick={() => setSelected(isSelected ? null : ex)}
-                    className={`flex cursor-pointer flex-col items-start gap-3 border-border bg-card p-3 transition hover:border-primary/50 sm:flex-row ${
+                    className={`group flex cursor-pointer flex-col items-start gap-3 border-border bg-card p-3 transition hover:border-primary/50 sm:flex-row ${
                       isSelected ? "border-primary/70 ring-1 ring-primary/40" : ""
                     }`}
                   >
@@ -502,8 +546,17 @@ function LibraryPage() {
                       <div className="flex flex-wrap items-baseline gap-2">
                         <p className="font-medium">{ex.name}</p>
                         {ex.workoutType && (
-                          <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] uppercase tracking-wider text-secondary-foreground">
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${workoutTypeChipClass(ex.workoutType)}`}
+                          >
                             {ex.workoutType}
+                          </span>
+                        )}
+                        {ex.focusArea && (
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${focusChipClass(ex.focusArea)}`}
+                          >
+                            {ex.focusArea}
                           </span>
                         )}
                         <span className="rounded-full border border-sky-400/20 bg-sky-400/[0.06] px-2 py-0.5 text-[10px] uppercase tracking-wider text-sky-300">
@@ -595,25 +648,27 @@ function LibraryPage() {
                         <Activity className="h-4 w-4" />
                         {isSelected ? "Hide" : "History"}
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setEditor({ mode: "edit", row: ex })}
-                        aria-label="Edit"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      {ex.active && (
+                      <div className="flex items-center gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setPendingDelete(ex)}
-                          aria-label="Delete"
-                          className="text-destructive hover:text-destructive"
+                          onClick={() => setEditor({ mode: "edit", row: ex })}
+                          aria-label="Edit"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Pencil className="h-4 w-4" />
                         </Button>
-                      )}
+                        {ex.active && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setPendingDelete(ex)}
+                            aria-label="Delete"
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </Card>
                   {isSelected && (

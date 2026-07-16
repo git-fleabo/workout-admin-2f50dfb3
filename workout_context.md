@@ -1,6 +1,6 @@
 # Workout App Context
 
-Last updated: 2026-07-14
+Last updated: 2026-07-16
 
 This file is the handoff document for the Training Tracker workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
 
@@ -866,6 +866,12 @@ The dashboard should remain focused. Weekly workout and weekly active-minute goa
 
 The dashboard has a manual refresh button. Use this to force a fresh Supabase read without needing a browser hard refresh.
 
+Dashboard presentation now uses three semantic accent families: primary lime for general training
+and trends, amber for climbing/minutes/PR context, and rose for strength. Weekly workout and minute
+goals use compact progress rings, the weekly snapshot uses a thicker labelled gradient bar, calendar
+days use credited/climbing/rest dots with future days faded, monthly workout counts include relative
+mini bars, and recent PR values render as compact pills.
+
 ### Log
 
 The log screen supports:
@@ -969,6 +975,10 @@ The library reads from Supabase. It supports:
 
 History tiles in the library were made visually distinct from exercise tiles.
 
+Filtered Library views show their movement count. Movement cards use colour-coded type and focus
+chips, while edit/delete controls stay visible on touch layouts and become hover/focus actions on
+larger screens so the always-used location, enable, and history controls remain accessible.
+
 ### Goals
 
 Goals read/write Supabase. The Goals tab has a lightweight checklist flow:
@@ -990,6 +1000,10 @@ Goals read/write Supabase. The Goals tab has a lightweight checklist flow:
 - show recent check-ins
 - remove mistaken check-ins
 - archive or pause goals without deleting them permanently
+
+Goal cards use their existing real Supabase-backed progress bars. Their icon treatment is also
+period-aware: weekly goals use primary lime, monthly goals amber, quarter/year goals violet, and
+long-term/static goals stay muted. Period headings remain human-readable and capitalized.
 
 Check-ins are stored in `goal_checkins`.
 

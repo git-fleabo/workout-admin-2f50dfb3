@@ -433,7 +433,7 @@ function GoalsPage() {
                 <section key={period} className="space-y-2">
                   <div className="flex items-center justify-between px-1">
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {PERIOD_LABELS[period] ?? period}
+                      {formatPeriodLabel(period)}
                     </h3>
                     <span className="text-[11px] text-muted-foreground">
                       {periodItems.length} {periodItems.length === 1 ? "goal" : "goals"}
@@ -561,7 +561,12 @@ function GoalCard({
     <Card className="overflow-hidden border-border bg-card">
       <div className="space-y-4 p-4">
         <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
+          <span
+            className={cn(
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border",
+              goalPeriodIconClass(goal.period),
+            )}
+          >
             <GoalTypeIcon type={goal.goalType} />
           </span>
           <div className="min-w-0 flex-1">
@@ -1149,6 +1154,20 @@ function GoalTypeIcon({ type }: { type: GoalType }) {
   if (type === "duration") return <CalendarDays className="h-4 w-4" />;
   if (type === "milestone") return <Flag className="h-4 w-4" />;
   return <Target className="h-4 w-4" />;
+}
+
+function formatPeriodLabel(period: string) {
+  return PERIOD_LABELS[period] ?? `${period.charAt(0).toUpperCase()}${period.slice(1)}`;
+}
+
+function goalPeriodIconClass(period: string) {
+  const normalized = period.toLowerCase();
+  if (normalized === "week") return "border-primary/25 bg-primary/10 text-primary";
+  if (normalized === "month") return "border-amber-400/25 bg-amber-400/10 text-amber-200";
+  if (normalized === "quarter" || normalized === "year") {
+    return "border-violet-400/25 bg-violet-400/10 text-violet-200";
+  }
+  return "border-border bg-secondary text-muted-foreground";
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

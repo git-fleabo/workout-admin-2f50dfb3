@@ -20,8 +20,6 @@ type NavItem = {
   to: string;
   label: string;
   icon: ReactNode;
-  activeClass: string;
-  iconClass: string;
   relatedPaths?: string[];
 };
 
@@ -30,50 +28,36 @@ const NAV: NavItem[] = [
     to: "/",
     label: "Today",
     icon: <Sun className="h-4 w-4" />,
-    activeClass: "border-amber-500/40 bg-amber-500/10 text-amber-300 shadow",
-    iconClass: "text-amber-400",
   },
   {
     to: "/dashboard",
     label: "Dashboard",
     icon: <Activity className="h-4 w-4" />,
-    activeClass: "border-sky-500/40 bg-sky-500/10 text-sky-300 shadow",
-    iconClass: "text-sky-400",
   },
   {
     to: "/log",
     label: "Log",
     icon: <Dumbbell className="h-4 w-4" />,
-    activeClass: "border-violet-500/40 bg-violet-500/10 text-violet-300 shadow",
-    iconClass: "text-violet-400",
   },
   {
     to: "/plan",
     label: "Plan",
     icon: <ClipboardList className="h-4 w-4" />,
-    activeClass: "border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-300 shadow",
-    iconClass: "text-fuchsia-400",
   },
   {
     to: "/progress",
     label: "Progress",
     icon: <ChartNoAxesCombined className="h-4 w-4" />,
-    activeClass: "border-cyan-500/40 bg-cyan-500/10 text-cyan-300 shadow",
-    iconClass: "text-cyan-400",
   },
   {
     to: "/history",
     label: "History",
     icon: <History className="h-4 w-4" />,
-    activeClass: "border-rose-500/40 bg-rose-500/10 text-rose-300 shadow",
-    iconClass: "text-rose-400",
   },
   {
     to: "/manage",
     label: "Manage",
     icon: <SettingsIcon className="h-4 w-4" />,
-    activeClass: "border-amber-500/40 bg-amber-500/10 text-amber-300 shadow",
-    iconClass: "text-amber-400",
     relatedPaths: ["/library", "/methods", "/rotation", "/goals", "/locations", "/programmes"],
   },
 ];
@@ -125,11 +109,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 to={item.to}
                 className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-1.5 text-xs font-medium transition sm:text-sm ${
                   active
-                    ? item.activeClass
+                    ? "border-primary/40 bg-primary/10 text-primary shadow"
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <span className={active ? item.iconClass : ""}>{item.icon}</span>
+                <span className={active ? "text-primary" : ""}>{item.icon}</span>
                 {item.label}
               </Link>
             );

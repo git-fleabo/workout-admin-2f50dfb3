@@ -44,7 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatUKDate, formatUKDateShort } from "@/lib/date";
+import { formatUKDate, formatUKDateShort, todayISO } from "@/lib/date";
 import { getDashboardDataClient, type DashboardData } from "@/lib/supabase-dashboard.browser";
 
 export const Route = createFileRoute("/dashboard")({
@@ -95,6 +95,10 @@ function DashboardPage() {
   const weekStartLabel = formatUKDate(data.thisWeekStart);
   const bwDelta = data.trend.bodyweightDelta;
   const TrendIcon = bwDelta == null ? Activity : bwDelta < 0 ? TrendingDown : TrendingUp;
+  const weeklyGoal = data.goals?.weeklyWorkouts ?? DEFAULT_WEEKLY_GOAL;
+  const minuteGoal = data.goals?.weeklyMinutes ?? DEFAULT_MINUTE_GOAL;
+  const weeklyGoalPct = percentage(data.kpis.workoutsThisWeek, weeklyGoal);
+  const minuteGoalPct = percentage(data.kpis.minutesThisWeek, minuteGoal);
 
   return (
     <div className="space-y-4">
@@ -132,28 +136,30 @@ function DashboardPage() {
           icon={<CalendarRange className="h-3.5 w-3.5" />}
           label="Week starting"
           value={formatUKDateShort(data.thisWeekStart)}
-          accent="cyan"
+          accent="primary"
         />
         <StatusTile
           icon={<Target className="h-3.5 w-3.5" />}
           label="Weekly goal"
-          value={`${data.kpis.workoutsThisWeek}/${data.goals?.weeklyWorkouts ?? DEFAULT_WEEKLY_GOAL}`}
+          value={`${data.kpis.workoutsThisWeek}/${weeklyGoal}`}
           hint="workouts"
-          accent="sky"
+          accent="primary"
+          progressPct={weeklyGoalPct}
         />
         <StatusTile
           icon={<Clock className="h-3.5 w-3.5" />}
           label="Minute goal"
-          value={`${Math.round(data.kpis.minutesThisWeek || 0)}/${data.goals?.weeklyMinutes ?? DEFAULT_MINUTE_GOAL}`}
+          value={`${Math.round(data.kpis.minutesThisWeek || 0)}/${minuteGoal}`}
           hint="min"
           accent="amber"
+          progressPct={minuteGoalPct}
         />
         <StatusTile
           icon={<TrendIcon className="h-3.5 w-3.5" />}
           label="Trend since start"
           value={bwDelta == null ? "—" : `${bwDelta > 0 ? "+" : ""}${bwDelta}kg`}
           hint={`${data.trend.weeksTraining || 0}w training`}
-          accent="violet"
+          accent="primary"
         />
       </section>
 
@@ -192,67 +198,32 @@ function DashboardPage() {
 
 /* ---------------- Panels ---------------- */
 
-type Accent = "sky" | "emerald" | "amber" | "violet" | "rose" | "cyan" | "lime";
+type Accent = "primary" | "amber" | "rose";
 
 const ACCENTS: Record<
   Accent,
-  { card: string; icon: string; title: string; bar: string; tile: string; tileIcon: string }
+  { card: string; icon: string; title: string; tile: string; tileIcon: string }
 > = {
-  sky: {
-    card: "border-sky-500/30 bg-gradient-to-br from-sky-500/[0.07] to-transparent",
-    icon: "text-sky-400",
-    title: "text-sky-200",
-    bar: "bg-sky-400",
-    tile: "border-sky-500/30 bg-sky-500/[0.06]",
-    tileIcon: "text-sky-400",
-  },
-  emerald: {
-    card: "border-emerald-500/30 bg-gradient-to-br from-emerald-500/[0.07] to-transparent",
-    icon: "text-emerald-400",
-    title: "text-emerald-200",
-    bar: "bg-emerald-400",
-    tile: "border-emerald-500/30 bg-emerald-500/[0.06]",
-    tileIcon: "text-emerald-400",
+  primary: {
+    card: "border-primary/30 bg-gradient-to-br from-primary/[0.07] to-transparent",
+    icon: "text-primary",
+    title: "text-primary",
+    tile: "border-primary/30 bg-primary/[0.06]",
+    tileIcon: "text-primary",
   },
   amber: {
     card: "border-amber-500/30 bg-gradient-to-br from-amber-500/[0.07] to-transparent",
     icon: "text-amber-400",
     title: "text-amber-200",
-    bar: "bg-amber-400",
     tile: "border-amber-500/30 bg-amber-500/[0.06]",
     tileIcon: "text-amber-400",
-  },
-  violet: {
-    card: "border-violet-500/30 bg-gradient-to-br from-violet-500/[0.07] to-transparent",
-    icon: "text-violet-400",
-    title: "text-violet-200",
-    bar: "bg-violet-400",
-    tile: "border-violet-500/30 bg-violet-500/[0.06]",
-    tileIcon: "text-violet-400",
   },
   rose: {
     card: "border-rose-500/30 bg-gradient-to-br from-rose-500/[0.07] to-transparent",
     icon: "text-rose-400",
     title: "text-rose-200",
-    bar: "bg-rose-400",
     tile: "border-rose-500/30 bg-rose-500/[0.06]",
     tileIcon: "text-rose-400",
-  },
-  cyan: {
-    card: "border-cyan-500/30 bg-gradient-to-br from-cyan-500/[0.07] to-transparent",
-    icon: "text-cyan-400",
-    title: "text-cyan-200",
-    bar: "bg-cyan-400",
-    tile: "border-cyan-500/30 bg-cyan-500/[0.06]",
-    tileIcon: "text-cyan-400",
-  },
-  lime: {
-    card: "border-lime-500/30 bg-gradient-to-br from-lime-500/[0.07] to-transparent",
-    icon: "text-lime-400",
-    title: "text-lime-200",
-    bar: "bg-lime-400",
-    tile: "border-lime-500/30 bg-lime-500/[0.06]",
-    tileIcon: "text-lime-400",
   },
 };
 
@@ -290,12 +261,14 @@ function StatusTile({
   value,
   hint,
   accent,
+  progressPct,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   hint?: string;
   accent?: Accent;
+  progressPct?: number;
 }) {
   const a = accent ? ACCENTS[accent] : null;
   return (
@@ -308,19 +281,64 @@ function StatusTile({
         {icon}
         <span className="truncate">{label}</span>
       </div>
-      <div className="mt-1 flex items-baseline gap-1.5">
-        <p className="text-lg font-semibold leading-none">{value}</p>
-        {hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}
-      </div>
+      {progressPct == null ? (
+        <div className="mt-1 flex items-baseline gap-1.5">
+          <p className="text-lg font-semibold leading-none">{value}</p>
+          {hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}
+        </div>
+      ) : (
+        <div className="mt-1.5 flex items-center gap-2.5">
+          <ProgressRing pct={progressPct} />
+          <div className="min-w-0">
+            <p className="text-base font-semibold leading-none">{value}</p>
+            {hint && <span className="mt-1 block text-[11px] text-muted-foreground">{hint}</span>}
+          </div>
+        </div>
+      )}
     </Card>
+  );
+}
+
+function ProgressRing({ pct }: { pct: number }) {
+  const radius = 18;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - pct / 100);
+
+  return (
+    <div className="relative h-11 w-11 shrink-0">
+      <svg className="h-11 w-11 -rotate-90" viewBox="0 0 44 44" aria-hidden="true">
+        <circle
+          cx="22"
+          cy="22"
+          r={radius}
+          fill="none"
+          stroke="var(--color-secondary)"
+          strokeWidth="3.5"
+        />
+        <circle
+          cx="22"
+          cy="22"
+          r={radius}
+          fill="none"
+          stroke="var(--color-primary)"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+        />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-primary">
+        {pct}%
+      </span>
+    </div>
   );
 }
 
 function WeeklySnapshot({ data }: { data: Data }) {
   const weeklyGoal = data.goals?.weeklyWorkouts ?? DEFAULT_WEEKLY_GOAL;
-  const pct = Math.min(100, Math.round(((data.kpis.workoutsThisWeek || 0) / weeklyGoal) * 100));
+  const pct = percentage(data.kpis.workoutsThisWeek || 0, weeklyGoal);
   return (
-    <Panel title="Weekly Snapshot" icon={<Activity className="h-4 w-4" />} accent="sky">
+    <Panel title="Weekly Snapshot" icon={<Activity className="h-4 w-4" />} accent="primary">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <Stat label="Workouts" value={data.kpis.workoutsThisWeek.toString()} />
         <Stat label="Minutes" value={fmt(Math.round(data.kpis.minutesThisWeek || 0))} />
@@ -329,11 +347,16 @@ function WeeklySnapshot({ data }: { data: Data }) {
       </dl>
       <div className="mt-3 space-y-1">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>Progress</span>
+          <span>
+            {data.kpis.workoutsThisWeek} of {weeklyGoal} workouts
+          </span>
           <span>{pct}%</span>
         </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-          <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+        <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary">
+          <div
+            className="h-full rounded-full shadow-[0_0_10px_oklch(0.86_0.19_130/0.4)] transition-all"
+            style={{ width: `${pct}%`, backgroundImage: "var(--gradient-primary)" }}
+          />
         </div>
       </div>
     </Panel>
@@ -352,13 +375,17 @@ function Stat({ label, value }: { label: string; value: string }) {
 function WeekCalendar({ data }: { data: Data }) {
   const [openDate, setOpenDate] = React.useState<string | null>(null);
   const openDay = openDate ? (data.weekDays.find((d) => d.date === openDate) ?? null) : null;
+  const today = todayISO();
 
   return (
-    <Panel title="This Week" icon={<CalendarRange className="h-4 w-4" />} accent="cyan">
+    <Panel title="This Week" icon={<CalendarRange className="h-4 w-4" />} accent="primary">
       <div className="grid grid-cols-7 gap-1.5">
         {data.weekDays.map((d) => {
           const credited = d.workouts > 0;
           const logged = d.exercises.length > 0;
+          const climbingOnly =
+            !credited && d.entries.some((entry) => entry.activityLabel === "Climbing");
+          const future = d.date > today;
           const interactive = logged || credited;
           return (
             <button
@@ -368,12 +395,21 @@ function WeekCalendar({ data }: { data: Data }) {
               disabled={!interactive}
               className={`flex min-h-[110px] flex-col rounded-md border p-2 text-center transition ${
                 d.isToday ? "border-primary/60 bg-primary/5" : "border-border bg-secondary/20"
-              } ${interactive ? "cursor-pointer hover:border-primary/50 hover:bg-primary/5" : "cursor-default opacity-80"}`}
+              } ${interactive ? "cursor-pointer hover:border-primary/50 hover:bg-primary/5" : "cursor-default"} ${
+                future ? "opacity-40" : ""
+              }`}
             >
               <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 {d.label}
               </div>
-              <div className="mt-0.5 text-sm font-semibold">{Number(d.date.slice(8, 10))}</div>
+              <div className="mt-0.5 text-lg font-bold leading-none">
+                {Number(d.date.slice(8, 10))}
+              </div>
+              <div
+                className={`mx-auto mt-1 h-2 w-2 rounded-full ${
+                  credited ? "bg-primary" : climbingOnly ? "bg-amber-400" : "bg-border"
+                }`}
+              />
               <div
                 className={`mt-1 text-[11px] font-medium ${
                   credited ? "text-primary" : "text-muted-foreground"
@@ -397,11 +433,6 @@ function WeekCalendar({ data }: { data: Data }) {
                   )}
                 </ul>
               )}
-              <div
-                className={`mx-auto mt-auto h-1 w-6 rounded-full ${
-                  credited ? "bg-primary" : "bg-border"
-                }`}
-              />
             </button>
           );
         })}
@@ -483,7 +514,7 @@ function Detail({ label, value }: { label: string; value: string }) {
 function ClimbingSummary({ data }: { data: Data }) {
   const c = data.climbing;
   return (
-    <Panel title="Climbing Summary" icon={<Mountain className="h-4 w-4" />} accent="emerald">
+    <Panel title="Climbing Summary" icon={<Mountain className="h-4 w-4" />} accent="amber">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
         <Stat label="Sessions" value={fmt(c.sessionsThisMonth)} />
         <Stat label="Hours" value={fmt(c.hoursThisMonth, "h")} />
@@ -544,8 +575,10 @@ function StrengthSnapshot({ data }: { data: Data }) {
 }
 
 function MonthlySummary({ data }: { data: Data }) {
+  const maxWorkouts = Math.max(1, ...data.monthlySummary.map((month) => month.workouts || 0));
+
   return (
-    <Panel title="Monthly Summary" icon={<CalendarRange className="h-4 w-4" />} accent="violet">
+    <Panel title="Monthly Summary" icon={<CalendarRange className="h-4 w-4" />} accent="primary">
       <Table>
         <TableHeader>
           <TableRow>
@@ -560,7 +593,19 @@ function MonthlySummary({ data }: { data: Data }) {
           {data.monthlySummary.map((m) => (
             <TableRow key={m.monthStart}>
               <TableCell className="py-1.5 font-medium">{m.label}</TableCell>
-              <TableCell className="py-1.5 text-right">{m.workouts || "—"}</TableCell>
+              <TableCell className="py-1.5">
+                <div className="flex min-w-24 items-center gap-2">
+                  <div className="h-1.5 min-w-12 flex-1 overflow-hidden rounded-full bg-secondary">
+                    <div
+                      className="h-full rounded-full bg-primary"
+                      style={{
+                        width: `${Math.min(100, ((m.workouts || 0) / maxWorkouts) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="w-5 text-right">{m.workouts || "—"}</span>
+                </div>
+              </TableCell>
               <TableCell className="py-1.5 text-right">
                 {m.minutes ? Math.round(m.minutes) : "—"}
               </TableCell>
@@ -602,7 +647,9 @@ function RecentPRs({ data }: { data: Data }) {
                 )}
               </span>
               <span className="min-w-0 flex-1 truncate text-sm">{pr.title}</span>
-              <span className="shrink-0 text-sm font-semibold text-primary">{pr.value}</span>
+              <span className="shrink-0 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                {pr.value}
+              </span>
               <span className="shrink-0 text-[11px] text-muted-foreground">
                 {pr.date ? formatUKDateShort(pr.date) : ""}
               </span>
@@ -616,7 +663,7 @@ function RecentPRs({ data }: { data: Data }) {
 
 function TrendChart({ data }: { data: Data }) {
   return (
-    <Panel title="Trend Since Start" icon={<TrendingUp className="h-4 w-4" />} accent="lime">
+    <Panel title="Trend Since Start" icon={<TrendingUp className="h-4 w-4" />} accent="primary">
       {data.workoutsByWeek.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">No workout data yet.</p>
       ) : (
@@ -670,7 +717,7 @@ function TrendChart({ data }: { data: Data }) {
 function TrendSummary({ data }: { data: Data }) {
   const t = data.trend;
   return (
-    <Panel title="Lifetime Totals" icon={<Scale className="h-4 w-4" />} accent="cyan">
+    <Panel title="Lifetime Totals" icon={<Scale className="h-4 w-4" />} accent="primary">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <Stat
           label="Started"
@@ -692,4 +739,9 @@ function TrendSummary({ data }: { data: Data }) {
       </dl>
     </Panel>
   );
+}
+
+function percentage(value: number, target: number) {
+  if (!Number.isFinite(target) || target <= 0) return 0;
+  return Math.min(100, Math.max(0, Math.round((value / target) * 100)));
 }

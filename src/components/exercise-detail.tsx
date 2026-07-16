@@ -138,7 +138,7 @@ export function ExerciseDetail({
                     className={cn(
                       "rounded-md border px-2.5 py-1 text-xs font-medium transition",
                       metric === k
-                        ? "border-primary bg-primary/10 text-primary"
+                        ? "border-primary bg-primary/10 text-primary shadow-[inset_0_-2px_0_var(--color-primary)]"
                         : "border-border bg-secondary/40 text-muted-foreground hover:text-foreground",
                       !enabled && "cursor-not-allowed opacity-40",
                     )}
@@ -155,20 +155,12 @@ export function ExerciseDetail({
                   No data for {METRIC_LABEL[metric]}.
                 </p>
               ) : (
-                <ResponsiveContainer width="100%" height={200}>
+                <ResponsiveContainer width="100%" height={240}>
                   <AreaChart data={chartData}>
                     <defs>
                       <linearGradient id="exFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop
-                          offset="0%"
-                          stopColor="var(--color-chart-1)"
-                          stopOpacity={0.5}
-                        />
-                        <stop
-                          offset="100%"
-                          stopColor="var(--color-chart-1)"
-                          stopOpacity={0}
-                        />
+                        <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0.5} />
+                        <stop offset="100%" stopColor="var(--color-chart-1)" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid
@@ -223,11 +215,7 @@ export function ExerciseDetail({
   );
 }
 
-function StatGrid({
-  data,
-}: {
-  data: ExerciseHistory;
-}) {
+function StatGrid({ data }: { data: ExerciseHistory }) {
   const fmt = (n: number | null, unit = "") =>
     n == null ? "—" : `${Math.round(n * 10) / 10}${unit}`;
   const change = data.stats.fourWeekChange;
@@ -238,9 +226,7 @@ function StatGrid({
       <Stat label="Best est. 1RM" value={fmt(data.stats.best1RM, "kg")} />
       <Stat
         label="4-week change"
-        value={
-          change == null ? "—" : `${change > 0 ? "+" : ""}${change}%`
-        }
+        value={change == null ? "—" : `${change > 0 ? "+" : ""}${change}%`}
       />
     </dl>
   );
@@ -257,11 +243,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function HistoryList({
-  data,
-}: {
-  data: ExerciseHistory;
-}) {
+function HistoryList({ data }: { data: ExerciseHistory }) {
   const rows = [...data.points].reverse().slice(0, 12);
   return (
     <div className="rounded-md border border-sky-400/20 bg-sky-400/[0.05] p-3">
@@ -274,9 +256,7 @@ function HistoryList({
             key={p.date}
             className="flex items-center gap-2 rounded-md border border-sky-400/15 bg-background/35 px-2.5 py-1.5 text-xs"
           >
-            <span className="w-16 shrink-0 font-medium">
-              {formatUKDateShort(p.date)}
-            </span>
+            <span className="w-16 shrink-0 font-medium">{formatUKDateShort(p.date)}</span>
             <span className="flex-1 truncate text-muted-foreground">
               {[
                 p.maxWeight != null ? `${p.maxWeight}kg max` : null,
