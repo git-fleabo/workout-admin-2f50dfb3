@@ -269,5 +269,6 @@ the only user; revisit it only when a second account is genuinely planned. Progr
 be assigned to a managed person with Library movement mappings and training maxes. Today exposes the
 next programme session as a separate optional card, calculates rounded working weights, and advances
 the assignment only after the linked workout is completed. Ignoring an assignment leaves all existing
-workflows unchanged. Future programme work can focus on adherence/history review and additional
+workflows unchanged. Assignments can use only the required first Strength lift or add any of the
+optional later lifts. Future programme work can focus on adherence/history review and additional
 method-specific prescription renderers rather than changing the core workout flow.

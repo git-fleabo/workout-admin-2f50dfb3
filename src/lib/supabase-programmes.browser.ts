@@ -412,6 +412,7 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
     for (const entry of workout.entries) {
       const mapping = entry.slotKey ? mappingBySlot.get(entry.slotKey) : null;
       if (!mapping?.exerciseId) {
+        if (entry.isOptional) continue;
         invalid = true;
         break;
       }

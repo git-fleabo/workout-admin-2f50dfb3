@@ -522,15 +522,22 @@ function AssignmentList({
 }
 
 type SlotSetup = { exerciseId: string; trainingMax: string };
+type ProgrammeSlot = { key: string; label: string; isOptional: boolean };
 
 function programmeSlots(template: ProgrammeTemplate) {
-  const labels = new Map<string, string>();
+  const slots = new Map<string, ProgrammeSlot>();
   for (const workout of template.workouts) {
     for (const entry of workout.entries) {
-      if (entry.slotKey && !labels.has(entry.slotKey)) labels.set(entry.slotKey, entry.name);
+      if (!entry.slotKey) continue;
+      const existing = slots.get(entry.slotKey);
+      slots.set(entry.slotKey, {
+        key: entry.slotKey,
+        label: existing?.label ?? entry.name,
+        isOptional: (existing?.isOptional ?? true) && entry.isOptional,
+      });
     }
   }
-  return Array.from(labels, ([key, label]) => ({ key, label }));
+  return Array.from(slots.values());
 }
 
 function ProgrammeSetupDialog({
@@ -559,7 +566,11 @@ function ProgrammeSetupDialog({
   }, [library.data?.selectedPersonId, personId]);
 
   const enabledExercises = useMemo(
-    () => (library.data?.items ?? []).filter((item) => item.active && item.enabled),
+    () =>
+      (library.data?.items ?? []).filter(
+        (item) =>
+          item.active && item.enabled && item.workoutType.trim().toLowerCase() === "strength",
+      ),
     [library.data?.items],
   );
   const selectedIds = slots.map((slot) => slotSetup[slot.key]?.exerciseId).filter(Boolean);
@@ -569,7 +580,7 @@ function ProgrammeSetupDialog({
     slots.length > 0 &&
     slots.every((slot) => {
       const setup = slotSetup[slot.key];
-      if (!setup?.exerciseId) return false;
+      if (!setup?.exerciseId) return slot.isOptional;
       if (!methodSetup?.trainingMax?.required) return true;
       return Number(setup.trainingMax) >= methodSetup.trainingMax.minimum;
     }) &&
@@ -605,15 +616,18 @@ function ProgrammeSetupDialog({
       status,
       startedOn,
       notes,
-      exercises: slots.map((slot) => {
+      exercises: slots.flatMap((slot) => {
         const setup = slotSetup[slot.key];
+        if (!setup?.exerciseId) return [];
         const exercise = enabledExercises.find((item) => item.id === setup.exerciseId);
-        return {
-          slotKey: slot.key,
-          exerciseId: setup.exerciseId,
-          exerciseName: exercise?.name ?? slot.label,
-          trainingMax: methodSetup?.trainingMax ? Number(setup.trainingMax) : null,
-        };
+        return [
+          {
+            slotKey: slot.key,
+            exerciseId: setup.exerciseId,
+            exerciseName: exercise?.name ?? slot.label,
+            trainingMax: methodSetup?.trainingMax ? Number(setup.trainingMax) : null,
+          },
+        ];
       }),
     });
   }
@@ -624,7 +638,7 @@ function ProgrammeSetupDialog({
         <DialogHeader>
           <DialogTitle>Set up {template.name}</DialogTitle>
           <DialogDescription>
-            Choose who is training, then map each programme slot to one enabled Library movement.
+            Choose who is training and map the first lift. Additional lifts are optional.
           </DialogDescription>
         </DialogHeader>
 
@@ -678,8 +692,8 @@ function ProgrammeSetupDialog({
             <h3 className="text-sm font-semibold">Movement mappings</h3>
             <p className="text-xs text-muted-foreground">
               {methodSetup?.trainingMax
-                ? `${methodSetup.label} templates use a ${methodSetup.trainingMax.label.toLowerCase()} in ${methodSetup.trainingMax.unit} for every movement slot.`
-                : "Map each programme slot to an enabled Library movement."}
+                ? `Choose enabled Strength movements. Each selected lift needs a ${methodSetup.trainingMax.label.toLowerCase()} in ${methodSetup.trainingMax.unit}.`
+                : "Choose enabled Strength movements. Only the first lift is required."}
             </p>
           </div>
           {library.isLoading ? (
@@ -688,7 +702,8 @@ function ProgrammeSetupDialog({
             </div>
           ) : !enabledExercises.length ? (
             <Card className="border-dashed p-4 text-sm text-muted-foreground">
-              This person has no enabled Library movements. Enable movements in Library first.
+              This person has no enabled Strength movements. Enable Strength movements in Library
+              first.
             </Card>
           ) : (
             slots.map((slot) => (
@@ -697,15 +712,30 @@ function ProgrammeSetupDialog({
                 className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-[1fr_150px]"
               >
                 <div className="space-y-2">
-                  <Label htmlFor={`slot-${slot.key}`}>{slot.label}</Label>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor={`slot-${slot.key}`}>{slot.label}</Label>
+                    <Badge variant={slot.isOptional ? "secondary" : "outline"}>
+                      {slot.isOptional ? "Optional" : "Required"}
+                    </Badge>
+                  </div>
                   <Select
                     value={slotSetup[slot.key]?.exerciseId ?? ""}
-                    onValueChange={(value) => updateSlot(slot.key, { exerciseId: value })}
+                    onValueChange={(value) =>
+                      updateSlot(
+                        slot.key,
+                        value === "not_included"
+                          ? { exerciseId: "", trainingMax: "" }
+                          : { exerciseId: value },
+                      )
+                    }
                   >
                     <SelectTrigger id={`slot-${slot.key}`}>
                       <SelectValue placeholder="Choose Library movement" />
                     </SelectTrigger>
                     <SelectContent>
+                      {slot.isOptional ? (
+                        <SelectItem value="not_included">Not included</SelectItem>
+                      ) : null}
                       {enabledExercises.map((exercise) => (
                         <SelectItem key={exercise.id} value={exercise.id}>
                           {exercise.name}
@@ -726,6 +756,7 @@ function ProgrammeSetupDialog({
                       step={methodSetup.trainingMax.step}
                       inputMode="decimal"
                       value={slotSetup[slot.key]?.trainingMax ?? ""}
+                      disabled={!slotSetup[slot.key]?.exerciseId}
                       onChange={(event) =>
                         updateSlot(slot.key, { trainingMax: event.target.value })
                       }

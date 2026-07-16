@@ -908,6 +908,9 @@ or empty logging. It previews the exact rounded sets/reps/load and only creates 
 `suggested_workout` after `Start programme session` is pressed. Home/Gym choices are limited to a
 location shared by every mapped Library movement. Programme suggestions are deduplicated independently
 from normal location-based plans, and creating a programme suggestion never archives another plan.
+Programme setup only offers enabled Strength movements. Main Lift 1 is required for both Percentage
+Strength templates; every later lift is optional, so an assignment can generate single-lift sessions.
+Mapped optional lifts remain part of the prescription, while omitted optional lifts are skipped.
 The unified logger remains fully editable. On successful completion,
 `complete_suggested_workout(uuid, uuid)` atomically links the completed session and advances
 `program_assignments.current_workout_index`; the final session marks the assignment complete. The RPC
@@ -1029,7 +1032,7 @@ The top-level Plan workspace builds an editable next-workout draft from recent c
 
 Top-level History tab includes:
 
-- Week / Month / Quarter controls
+- Week / Month / Quarter / Year controls
 - previous/next period navigation
 - filters for All, Workouts, Climb, 1RM, Bodyweight
 - summary tiles

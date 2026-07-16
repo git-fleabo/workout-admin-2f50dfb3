@@ -22,7 +22,7 @@ inserted as (
   )
   select
     'Operator Style Strength Block',
-    'Six-week, three-days-per-week percentage strength template with three main lift slots per session.',
+    'Six-week, three-days-per-week percentage strength template with one required lift and two optional lifts per session.',
     true,
     'percentage_strength',
     6,
@@ -40,7 +40,7 @@ target_program as (
   limit 1
 )
 update public.programs p
-set description = 'Six-week, three-days-per-week percentage strength template with three main lift slots per session.',
+set description = 'Six-week, three-days-per-week percentage strength template with one required lift and two optional lifts per session.',
     is_template = true,
     method_type = 'percentage_strength',
     duration_weeks = 6,
@@ -119,10 +119,10 @@ slots as (
   select *
   from (
     values
-      ('main_lift_1', 'Main Lift 1', 1),
-      ('main_lift_2', 'Main Lift 2', 2),
-      ('main_lift_3', 'Main Lift 3', 3)
-  ) as s(slot_key, name, order_index)
+      ('main_lift_1', 'Main Lift 1', 1, false),
+      ('main_lift_2', 'Main Lift 2', 2, true),
+      ('main_lift_3', 'Main Lift 3', 3, true)
+  ) as s(slot_key, name, order_index, is_optional)
 ),
 desired as (
   select
@@ -134,7 +134,8 @@ desired as (
     prescription.max_sets,
     prescription.min_reps,
     prescription.max_reps,
-    prescription.intensity_percent
+    prescription.intensity_percent,
+    slots.is_optional
   from target_program
   join public.program_workouts pw on pw.program_id = target_program.id
   join prescription on prescription.week_number = pw.week_number
@@ -150,6 +151,7 @@ set name = desired.name,
     intensity_percent = desired.intensity_percent,
     percent_base = 'training_max',
     rounding_increment = 2.5,
+    is_optional = desired.is_optional,
     updated_at = now()
 from desired
 where e.program_workout_id = desired.program_workout_id
@@ -178,10 +180,10 @@ slots as (
   select *
   from (
     values
-      ('main_lift_1', 'Main Lift 1', 1),
-      ('main_lift_2', 'Main Lift 2', 2),
-      ('main_lift_3', 'Main Lift 3', 3)
-  ) as s(slot_key, name, order_index)
+      ('main_lift_1', 'Main Lift 1', 1, false),
+      ('main_lift_2', 'Main Lift 2', 2, true),
+      ('main_lift_3', 'Main Lift 3', 3, true)
+  ) as s(slot_key, name, order_index, is_optional)
 ),
 desired as (
   select
@@ -193,7 +195,8 @@ desired as (
     prescription.max_sets,
     prescription.min_reps,
     prescription.max_reps,
-    prescription.intensity_percent
+    prescription.intensity_percent,
+    slots.is_optional
   from target_program
   join public.program_workouts pw on pw.program_id = target_program.id
   join prescription on prescription.week_number = pw.week_number
@@ -210,7 +213,8 @@ insert into public.program_workout_entries (
   max_reps,
   intensity_percent,
   percent_base,
-  rounding_increment
+  rounding_increment,
+  is_optional
 )
 select
   desired.program_workout_id,
@@ -223,7 +227,8 @@ select
   desired.max_reps,
   desired.intensity_percent,
   'training_max',
-  2.5
+  2.5,
+  desired.is_optional
 from desired
 where not exists (
   select 1

@@ -10,13 +10,13 @@ with desired_programs as (
     values
       (
         'Operator Style Strength Block',
-        'Six-week, three-days-per-week percentage strength template with three main lift slots per session.',
+        'Six-week, three-days-per-week percentage strength template with one required lift and two optional lifts per session.',
         6,
         3
       ),
       (
         'Fighter Style Strength Block',
-        'Six-week, two-days-per-week percentage strength template with an optional fourth main lift slot.',
+        'Six-week, two-days-per-week percentage strength template with one required lift and three optional lifts per session.',
         6,
         2
       )
@@ -150,11 +150,11 @@ slots as (
   from (
     values
       ('Operator Style Strength Block', 'main_lift_1', 'Main Lift 1', 1, false),
-      ('Operator Style Strength Block', 'main_lift_2', 'Main Lift 2', 2, false),
-      ('Operator Style Strength Block', 'main_lift_3', 'Main Lift 3', 3, false),
+      ('Operator Style Strength Block', 'main_lift_2', 'Main Lift 2', 2, true),
+      ('Operator Style Strength Block', 'main_lift_3', 'Main Lift 3', 3, true),
       ('Fighter Style Strength Block', 'main_lift_1', 'Main Lift 1', 1, false),
-      ('Fighter Style Strength Block', 'main_lift_2', 'Main Lift 2', 2, false),
-      ('Fighter Style Strength Block', 'main_lift_3', 'Main Lift 3', 3, false),
+      ('Fighter Style Strength Block', 'main_lift_2', 'Main Lift 2', 2, true),
+      ('Fighter Style Strength Block', 'main_lift_3', 'Main Lift 3', 3, true),
       ('Fighter Style Strength Block', 'main_lift_4', 'Main Lift 4', 4, true)
   ) as s(program_name, slot_key, name, order_index, is_optional)
 ),
@@ -227,11 +227,11 @@ slots as (
   from (
     values
       ('Operator Style Strength Block', 'main_lift_1', 'Main Lift 1', 1, false),
-      ('Operator Style Strength Block', 'main_lift_2', 'Main Lift 2', 2, false),
-      ('Operator Style Strength Block', 'main_lift_3', 'Main Lift 3', 3, false),
+      ('Operator Style Strength Block', 'main_lift_2', 'Main Lift 2', 2, true),
+      ('Operator Style Strength Block', 'main_lift_3', 'Main Lift 3', 3, true),
       ('Fighter Style Strength Block', 'main_lift_1', 'Main Lift 1', 1, false),
-      ('Fighter Style Strength Block', 'main_lift_2', 'Main Lift 2', 2, false),
-      ('Fighter Style Strength Block', 'main_lift_3', 'Main Lift 3', 3, false),
+      ('Fighter Style Strength Block', 'main_lift_2', 'Main Lift 2', 2, true),
+      ('Fighter Style Strength Block', 'main_lift_3', 'Main Lift 3', 3, true),
       ('Fighter Style Strength Block', 'main_lift_4', 'Main Lift 4', 4, true)
   ) as s(program_name, slot_key, name, order_index, is_optional)
 ),

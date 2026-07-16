@@ -44,20 +44,21 @@ export const Route = createFileRoute("/history")({
       {
         name: "description",
         content:
-          "Browse workout, climbing, strength and bodyweight history by week, month or quarter.",
+          "Browse workout, climbing, strength and bodyweight history by week, month, quarter or year.",
       },
     ],
   }),
   component: HistoryPage,
 });
 
-type PeriodMode = "week" | "month" | "quarter";
+type PeriodMode = "week" | "month" | "quarter" | "year";
 type KindFilter = "all" | TimelineKind;
 
 const PERIODS: { value: PeriodMode; label: string }[] = [
   { value: "week", label: "Week" },
   { value: "month", label: "Month" },
   { value: "quarter", label: "Quarter" },
+  { value: "year", label: "Year" },
 ];
 
 const FILTERS: { value: KindFilter; label: string }[] = [
@@ -83,6 +84,7 @@ function startOfWeek(date: Date) {
 function startOfPeriod(anchor: Date, mode: PeriodMode) {
   if (mode === "week") return startOfWeek(anchor);
   if (mode === "month") return new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1));
+  if (mode === "year") return new Date(Date.UTC(anchor.getUTCFullYear(), 0, 1));
   const quarterMonth = Math.floor(anchor.getUTCMonth() / 3) * 3;
   return new Date(Date.UTC(anchor.getUTCFullYear(), quarterMonth, 1));
 }
@@ -92,6 +94,7 @@ function addPeriod(anchor: Date, mode: PeriodMode, amount: number) {
   if (mode === "week") d.setUTCDate(d.getUTCDate() + amount * 7);
   if (mode === "month") d.setUTCMonth(d.getUTCMonth() + amount);
   if (mode === "quarter") d.setUTCMonth(d.getUTCMonth() + amount * 3);
+  if (mode === "year") d.setUTCFullYear(d.getUTCFullYear() + amount);
   return startOfPeriod(d, mode);
 }
 
@@ -114,6 +117,7 @@ function periodLabel(start: Date, mode: PeriodMode) {
     const quarter = Math.floor(start.getUTCMonth() / 3) + 1;
     return `Q${quarter} ${start.getUTCFullYear()}`;
   }
+  if (mode === "year") return String(start.getUTCFullYear());
   return `${formatUKDateShort(toISODate(start))} - ${formatUKDateShort(toISODate(end))}`;
 }
 
