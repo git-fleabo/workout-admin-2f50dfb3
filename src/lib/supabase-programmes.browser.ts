@@ -4,7 +4,9 @@ import {
   supabasePublicSelect,
   supabasePublicUpdate,
 } from "./supabase-public";
+import { getProgrammeMethodSetup } from "./programme-methods";
 import { getCurrentPerson } from "./supabase-people.browser";
+import type { PlannerLocation, WorkoutPlanDraft, WorkoutPlanMovement } from "./workout-plan";
 
 export type ProgrammeTemplateEntry = {
   id: string;
@@ -89,6 +91,21 @@ export type ProgrammeAssignmentInput = {
   }>;
 };
 
+export type ProgrammeWorkoutOffer = {
+  assignmentId: string;
+  programWorkoutId: string;
+  programmeName: string;
+  workoutName: string;
+  workoutNumber: number;
+  totalWorkouts: number;
+  weekNumber: number | null;
+  sessionNumber: number | null;
+  methodType: string;
+  basis: string;
+  movements: WorkoutPlanMovement[];
+  exerciseIds: string[];
+};
+
 type ProgrammeRecord = {
   id: string;
   name: string;
@@ -155,6 +172,12 @@ type ProgrammeAssignmentRecord = {
   notes: string | null;
   created_at: string;
   program_assignment_exercises?: ProgrammeAssignmentExerciseRecord[] | null;
+};
+
+type LinkedSuggestedWorkoutRecord = {
+  id: string;
+  program_assignment_id: string | null;
+  program_workout_id: string | null;
 };
 
 function numberOrNull(value: number | string | null) {
@@ -337,5 +360,193 @@ export async function setProgrammeAssignmentStatusClient(
     { status },
   );
   if (!rows[0]) throw new Error("The programme assignment was not updated.");
+  if (status === "paused" || status === "archived") {
+    await supabasePublicUpdate(
+      "suggested_workouts",
+      {
+        program_assignment_id: `eq.${id}`,
+        status: "in.(pending,accepted)",
+      },
+      { status: "archived" },
+    );
+  }
   return mapAssignment(rows[0]);
+}
+
+export async function getCurrentProgrammeWorkoutOffersClient(): Promise<ProgrammeWorkoutOffer[]> {
+  const currentPerson = await getCurrentPerson();
+  if (!currentPerson) throw new Error("Connect your training profile first.");
+  const [templates, assignments, linkedWorkouts] = await Promise.all([
+    listProgrammeTemplatesClient(),
+    listProgrammeAssignmentsClient(),
+    supabasePublicSelect<LinkedSuggestedWorkoutRecord>("suggested_workouts", {
+      select: "id,program_assignment_id,program_workout_id",
+      person_id: `eq.${currentPerson.id}`,
+      program_assignment_id: "not.is.null",
+      status: "in.(pending,accepted)",
+    }),
+  ]);
+  const linkedKeys = new Set(
+    linkedWorkouts.map((workout) =>
+      [workout.program_assignment_id, workout.program_workout_id].join(":"),
+    ),
+  );
+  const templateById = new Map(templates.map((template) => [template.id, template]));
+  const offers: ProgrammeWorkoutOffer[] = [];
+
+  for (const assignment of assignments) {
+    if (assignment.personId !== currentPerson.id || assignment.status !== "active") continue;
+    const template = templateById.get(assignment.programId);
+    const workout = template?.workouts[assignment.currentWorkoutIndex];
+    const method = getProgrammeMethodSetup(template?.methodType ?? null);
+    if (!template || !workout || !method || !template.methodType) continue;
+    if (linkedKeys.has(`${assignment.id}:${workout.id}`)) continue;
+
+    const mappingBySlot = new Map(
+      assignment.exercises.map((exercise) => [exercise.slotKey, exercise]),
+    );
+    const exerciseIds: string[] = [];
+    const movements: WorkoutPlanMovement[] = [];
+    let invalid = false;
+
+    for (const entry of workout.entries) {
+      const mapping = entry.slotKey ? mappingBySlot.get(entry.slotKey) : null;
+      if (!mapping?.exerciseId) {
+        invalid = true;
+        break;
+      }
+      const setRows = method.buildSetRows({
+        minimumSets: entry.minSets,
+        maximumSets: entry.maxSets,
+        minimumReps: entry.minReps,
+        maximumReps: entry.maxReps,
+        setChoice: template.defaultSetChoice,
+        intensityPercent: entry.intensityPercent,
+        trainingMax: mapping.trainingMax,
+        roundingIncrement: entry.roundingIncrement ?? template.roundingIncrement,
+      });
+      if (!setRows.length) {
+        invalid = true;
+        break;
+      }
+      exerciseIds.push(mapping.exerciseId);
+      movements.push({
+        exercise: mapping.exerciseName,
+        workoutType: method.workoutType,
+        sourceDate: "",
+        reason: [
+          entry.intensityPercent != null && mapping.trainingMax != null
+            ? `${entry.intensityPercent}% of ${mapping.trainingMax} kg training max.`
+            : null,
+          entry.isOptional ? "Optional movement." : null,
+          entry.notes,
+        ]
+          .filter(Boolean)
+          .join(" "),
+        setRows,
+      });
+    }
+    if (invalid || !movements.length) continue;
+
+    const sequenceLabel = [
+      workout.weekNumber ? `Week ${workout.weekNumber}` : null,
+      workout.sessionNumber ? `Session ${workout.sessionNumber}` : workout.name,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    offers.push({
+      assignmentId: assignment.id,
+      programWorkoutId: workout.id,
+      programmeName: template.name,
+      workoutName: workout.name,
+      workoutNumber: assignment.currentWorkoutIndex + 1,
+      totalWorkouts: template.workouts.length,
+      weekNumber: workout.weekNumber,
+      sessionNumber: workout.sessionNumber,
+      methodType: template.methodType,
+      basis: `${sequenceLabel}. Loads are calculated from this assignment's training maxes and rounded to the template increment.`,
+      movements,
+      exerciseIds,
+    });
+  }
+
+  return offers;
+}
+
+export async function startProgrammeWorkoutClient(
+  assignmentId: string,
+  locationKind: PlannerLocation,
+): Promise<WorkoutPlanDraft> {
+  const currentPerson = await getCurrentPerson();
+  if (!currentPerson) throw new Error("Connect your training profile first.");
+  const offer = (await getCurrentProgrammeWorkoutOffersClient()).find(
+    (candidate) => candidate.assignmentId === assignmentId,
+  );
+  if (!offer) {
+    throw new Error("This programme session is no longer available. Refresh Today to continue.");
+  }
+  const locations = await supabasePublicSelect<{ id: string }>("training_locations", {
+    select: "id",
+    person_id: `eq.${currentPerson.id}`,
+    kind: `eq.${locationKind}`,
+    is_active: "eq.true",
+    limit: 1,
+  });
+  const location = locations[0];
+  if (!location) throw new Error(`Add or restore a ${locationKind} training location first.`);
+
+  const title = `${offer.programmeName} · ${offer.workoutName}`;
+  const inserted = await supabasePublicInsert<{ id: string }>("suggested_workouts", {
+    person_id: currentPerson.id,
+    program_assignment_id: offer.assignmentId,
+    program_workout_id: offer.programWorkoutId,
+    training_location_id: location.id,
+    suggested_for: new Date().toISOString().slice(0, 10),
+    status: "accepted",
+    title,
+    basis: offer.basis,
+  });
+  const workout = inserted[0];
+  if (!workout) throw new Error("The programme session was not started.");
+
+  try {
+    for (const [movementIndex, movement] of offer.movements.entries()) {
+      const entries = await supabasePublicInsert<{ id: string }>("suggested_workout_entries", {
+        suggested_workout_id: workout.id,
+        exercise_id: offer.exerciseIds[movementIndex],
+        name: movement.exercise,
+        workout_type: movement.workoutType,
+        order_index: movementIndex,
+        reason: movement.reason,
+      });
+      const entry = entries[0];
+      if (!entry) throw new Error(`${movement.exercise} was not added to the programme session.`);
+      await supabasePublicInsert(
+        "suggested_workout_sets",
+        movement.setRows.map((set, setIndex) => ({
+          suggested_workout_entry_id: entry.id,
+          set_number: setIndex + 1,
+          reps: Number(set.reps),
+          weight: Number(set.weight),
+          rpe: null,
+          completed: true,
+        })),
+      );
+    }
+  } catch (error) {
+    await supabasePublicDelete("suggested_workouts", { id: `eq.${workout.id}` }).catch(
+      () => undefined,
+    );
+    throw error;
+  }
+
+  return {
+    version: 1,
+    suggestedWorkoutId: workout.id,
+    title,
+    locationKind,
+    basis: offer.basis,
+    movements: offer.movements,
+    methodBlocks: [],
+  };
 }

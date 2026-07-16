@@ -2539,7 +2539,14 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      complete_suggested_workout: {
+        Args: { p_session_id: string; p_workout_id: string };
+        Returns: {
+          assignment_status: string;
+          current_workout_index: number;
+          program_assignment_id: string;
+        }[];
+      };
     };
     Enums: {
       [_ in never]: never;

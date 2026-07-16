@@ -797,7 +797,8 @@ Programme-template decision:
 - Fighter is 2 sessions/week and better for clients who need more room for conditioning, sport, running, climbing, or other training.
 - This extends the existing `programs`, `program_workouts`, `program_workout_entries`, and `program_assignments` model, with a new `program_assignment_exercises` table for slot-to-exercise mappings.
 - No new app or database is being created.
-- Programme assignment setup now uses these tables; workout generation, progression, and logging behaviour remain deferred.
+- Programme assignment setup and opt-in session generation now use these tables. Merely assigning or
+  ignoring a programme has no effect on Today, Plan, Log, or existing saved workouts.
 - A live 2026-07-16 audit confirmed both seeded templates and their 30 workouts / 102 entries are
   present. Template read policies are active, and `program_assignment_exercises` has managed-person
   CRUD policies. Managed-person SELECT/INSERT/UPDATE/DELETE policies were added to
@@ -831,12 +832,14 @@ managed-person RLS policies and requires no schema change.
 expandable week-by-week prescription. Its assignment wizard selects a managed person, start date and
 initial status, then maps every programme slot to a distinct enabled Library movement with its training
 max. Active and paused assignments appear above the template browser and can be paused, resumed, or
-archived. Templates remain read only, and this iteration does not yet calculate working weights, add
-sessions to Today/Plan, or advance `current_workout_index`.
+archived. Templates remain read only. Pausing or archiving also archives any uncompleted linked
+programme suggestion so it no longer appears as Ready.
 
 Programme methodologies are dispatched through `programs.method_type`. Shared programme structure,
 assignment lifecycle, and slot mappings remain methodology-neutral; `src/lib/programme-methods.ts`
-currently registers the Percentage Strength assignment fields. A future methodology should add a
+currently registers the Percentage Strength assignment fields and prescription builder. It calculates
+working weights from the assignment training max and template intensity, rounds to the configured
+increment, and uses the template's minimum/maximum set choice. A future methodology should add a
 registry entry and its method-specific setup/prescription renderer, using additive configuration only
 when the existing generic set, rep, load, duration, RPE, rest, and notes fields are insufficient.
 
@@ -898,6 +901,18 @@ The app now starts at `/`, which is a compact Today launch screen rather than re
 When no saved Next Workout exists, Today builds a normal-readiness Home or Gym recommendation with the same transparent history and progression rules as Plan. It filters movements by their Library location availability, uses explicit location history where available, explains any locationless-history fallback, shows the source pattern and each movement's proposed target/reason, and lets the user either start immediately or carry the selected location into Plan for readiness, basis, movement, and set editing. Starting immediately saves the recommendation as an accepted suggested workout before loading the unified logger, so normal completion linking remains intact.
 
 Today also has a separate `Daily practice` card for small movements that should rotate independently of the main workout. `/rotation` manages the pool. Each item has a name, free-text daily target, cue, relative selection weight from 1–5, eligible weekdays, minimum repeat gap from 0–30 days, and active/paused state. The app makes a deterministic weighted pick from eligible items and persists one assignment per person/date, so refreshing does not change the movement. If every item is inside its repeat gap, it falls back to the eligible weekday pool rather than leaving the day empty. The Today card can mark the assignment done or undo it; completion does not create a workout session or affect training history.
+
+An active programme adds a separate `Programme session` card to Today. This card is explicitly
+optional and does not replace or suppress saved Next Workouts, recommendations, recent-workout repeat,
+or empty logging. It previews the exact rounded sets/reps/load and only creates an accepted
+`suggested_workout` after `Start programme session` is pressed. Home/Gym choices are limited to a
+location shared by every mapped Library movement. Programme suggestions are deduplicated independently
+from normal location-based plans, and creating a programme suggestion never archives another plan.
+The unified logger remains fully editable. On successful completion,
+`complete_suggested_workout(uuid, uuid)` atomically links the completed session and advances
+`program_assignments.current_workout_index`; the final session marks the assignment complete. The RPC
+is security-invoker, uses existing managed-person RLS, validates that the completed session belongs to
+the same person, rejects an out-of-order template workout, and is idempotent for the same session.
 
 ### Daily rotation
 
@@ -1302,9 +1317,9 @@ Recommended next work, in order:
 14. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 15. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
 16. Tighten the profile-claim bootstrap now that Noam's account is linked.
-17. Programme assignment setup on top of the seeded Percentage Strength Blocks — implemented. Next,
-    generate the current assignment session for Today/Plan, calculate rounded working weights, and
-    advance the assignment only when the linked workout is completed.
+17. Programme assignment setup and voluntary execution on top of the seeded Percentage Strength
+    Blocks — implemented. Today previews the next exact prescription, explicit Start persists it
+    without replacing normal workflows, and linked completion advances the assignment atomically.
 18. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
 19. Only when a second user is planned, build People & Access: create/edit people, link an auth user, assign an app profile, and route exercise selection through the existing per-person Library controls.
 

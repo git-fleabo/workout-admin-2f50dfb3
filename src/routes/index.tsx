@@ -9,6 +9,7 @@ import {
   Dumbbell,
   History,
   Home,
+  Layers3,
   Loader2,
   MapPin,
   Play,
@@ -45,6 +46,11 @@ import {
   saveWorkoutPlanClient,
   updateSuggestedWorkoutStatusClient,
 } from "@/lib/supabase-plans.browser";
+import {
+  getCurrentProgrammeWorkoutOffersClient,
+  startProgrammeWorkoutClient,
+  type ProgrammeWorkoutOffer,
+} from "@/lib/supabase-programmes.browser";
 import {
   lastCompletedWorkoutKey,
   readCompletedWorkoutSummary,
@@ -137,18 +143,37 @@ function groupRecentSessions(
     });
 }
 
+function availableProgrammeLocations(
+  offer: ProgrammeWorkoutOffer,
+  exercises: Awaited<ReturnType<typeof getLibraryClient>>["exercises"],
+) {
+  const byId = new Map(exercises.map((exercise) => [exercise.id, exercise]));
+  return (["home", "gym"] as PlannerLocation[]).filter((location) =>
+    offer.exerciseIds.every((exerciseId) => {
+      const exercise = byId.get(exerciseId);
+      return exercise && (exercise.locationScope === "both" || exercise.locationScope === location);
+    }),
+  );
+}
+
 function TodayPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<WorkoutLocalSummary | null>(null);
   const [completed, setCompleted] = useState<WorkoutLocalSummary | null>(null);
   const [startingPlanId, setStartingPlanId] = useState<string | null>(null);
+  const [startingProgrammeId, setStartingProgrammeId] = useState<string | null>(null);
+  const [programmeLocations, setProgrammeLocations] = useState<Record<string, PlannerLocation>>({});
   const [recommendationLocation, setRecommendationLocation] = useState<PlannerLocation>("gym");
   const [startingRecommendation, setStartingRecommendation] = useState(false);
   const [discardDraftOpen, setDiscardDraftOpen] = useState(false);
   const plans = useQuery({
     queryKey: ["next-suggested-workouts"],
     queryFn: getNextSuggestedWorkoutsClient,
+  });
+  const programmeOffers = useQuery({
+    queryKey: ["programme-workout-offers"],
+    queryFn: getCurrentProgrammeWorkoutOffersClient,
   });
   const recent = useQuery({
     queryKey: ["recent-workouts", 300],
@@ -230,6 +255,30 @@ function TodayPage() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "The workout could not be started.");
       setStartingPlanId(null);
+    }
+  };
+
+  const startProgramme = async (offer: ProgrammeWorkoutOffer, location: PlannerLocation) => {
+    if (draft) {
+      toast.message("Resume or discard your draft first", {
+        description: "Your unfinished workout is being kept safe.",
+      });
+      return;
+    }
+    setStartingProgrammeId(offer.assignmentId);
+    try {
+      const saved = await startProgrammeWorkoutClient(offer.assignmentId, location);
+      window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(saved));
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["programme-workout-offers"] }),
+        queryClient.invalidateQueries({ queryKey: ["next-suggested-workouts"] }),
+      ]);
+      await navigate({ to: "/log" });
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "The programme session could not be started.",
+      );
+      setStartingProgrammeId(null);
     }
   };
 
@@ -443,6 +492,127 @@ function TodayPage() {
         )}
       </section>
 
+      {programmeOffers.error ? (
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-base font-semibold">Programme session</h2>
+            <p className="text-xs text-muted-foreground">
+              Optional guidance from your active block.
+            </p>
+          </div>
+          <ErrorCard label="The active programme session could not be loaded." />
+        </section>
+      ) : programmeOffers.data?.length ? (
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-base font-semibold">Programme session</h2>
+            <p className="text-xs text-muted-foreground">
+              Completely optional. It advances only after you start and complete this linked
+              workout.
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {programmeOffers.data.map((offer) => {
+              const availableLocations = availableProgrammeLocations(
+                offer,
+                library.data?.exercises ?? [],
+              );
+              const selectedLocation =
+                programmeLocations[offer.assignmentId] ??
+                (availableLocations.includes("gym") ? "gym" : availableLocations[0]);
+              return (
+                <Card
+                  key={offer.assignmentId}
+                  className="border-fuchsia-400/30 bg-fuchsia-400/[0.05]"
+                >
+                  <CardContent className="p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold">{offer.programmeName}</p>
+                          <Badge variant="outline">Optional</Badge>
+                          <Badge variant="secondary">
+                            {offer.workoutNumber}/{offer.totalWorkouts}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {offer.weekNumber ? `Week ${offer.weekNumber} · ` : ""}
+                          {offer.sessionNumber
+                            ? `Session ${offer.sessionNumber}`
+                            : offer.workoutName}
+                        </p>
+                      </div>
+                      <Layers3 className="h-5 w-5 shrink-0 text-fuchsia-300" />
+                    </div>
+
+                    <div className="mt-4 divide-y divide-border rounded-lg border border-border bg-background/30">
+                      {offer.movements.map((movement) => (
+                        <div
+                          key={movement.exercise}
+                          className="flex items-baseline justify-between gap-3 p-3"
+                        >
+                          <p className="text-sm font-medium">{movement.exercise}</p>
+                          <p className="text-right text-[11px] text-foreground/75">
+                            {targetSummary(movement)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {availableLocations.length ? (
+                      <div className="mt-4 grid grid-cols-2 gap-1 rounded-lg border border-border bg-secondary/30 p-1">
+                        {availableLocations.map((location) => (
+                          <button
+                            key={location}
+                            type="button"
+                            onClick={() =>
+                              setProgrammeLocations((current) => ({
+                                ...current,
+                                [offer.assignmentId]: location,
+                              }))
+                            }
+                            className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium capitalize transition ${
+                              selectedLocation === location
+                                ? "bg-card text-foreground shadow"
+                                : "text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            {location === "home" ? (
+                              <Home className="h-3.5 w-3.5" />
+                            ) : (
+                              <Building2 className="h-3.5 w-3.5" />
+                            )}
+                            {location}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-4 text-xs text-destructive">
+                        These mapped movements do not share an enabled Home or Gym location. Update
+                        their Library locations before starting.
+                      </p>
+                    )}
+
+                    <Button
+                      className="mt-3 w-full"
+                      onClick={() => selectedLocation && startProgramme(offer, selectedLocation)}
+                      disabled={!selectedLocation || Boolean(startingProgrammeId)}
+                    >
+                      {startingProgrammeId === offer.assignmentId ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Play className="mr-2 h-4 w-4" />
+                      )}
+                      {draft ? "Resume draft first" : "Start programme session"}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
       <section className="space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -488,6 +658,9 @@ function TodayPage() {
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-semibold">{plan.title}</p>
+                        {plan.programAssignmentId ? (
+                          <Badge variant="secondary">Programme</Badge>
+                        ) : null}
                         <Badge variant="outline" className="capitalize">
                           <MapPin className="mr-1 h-3 w-3" /> {plan.locationKind}
                         </Badge>

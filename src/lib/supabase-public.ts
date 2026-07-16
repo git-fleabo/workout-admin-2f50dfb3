@@ -68,7 +68,11 @@ export function getSupabaseRecoveryTokenFromUrl() {
 
 export function clearSupabaseRecoveryUrl() {
   if (typeof window === "undefined") return;
-  window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
+  window.history.replaceState(
+    null,
+    document.title,
+    window.location.pathname + window.location.search,
+  );
 }
 
 async function authRequest<T>(path: string, body: Record<string, unknown>) {
@@ -203,10 +207,7 @@ async function restRequest<T>(
   return res.json() as Promise<T>;
 }
 
-export function supabasePublicSelect<T>(
-  table: string,
-  params?: Record<string, QueryValue>,
-) {
+export function supabasePublicSelect<T>(table: string, params?: Record<string, QueryValue>) {
   return restRequest<T[]>(table, { method: "GET" }, params);
 }
 
@@ -235,9 +236,13 @@ export function supabasePublicUpdate<T>(
   );
 }
 
-export function supabasePublicDelete<T>(
-  table: string,
-  params: Record<string, QueryValue>,
-) {
+export function supabasePublicDelete<T>(table: string, params: Record<string, QueryValue>) {
   return restRequest<T[]>(table, { method: "DELETE" }, params);
+}
+
+export function supabasePublicRpc<T>(functionName: string, body: Record<string, unknown>) {
+  return restRequest<T>(`rpc/${functionName}`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }

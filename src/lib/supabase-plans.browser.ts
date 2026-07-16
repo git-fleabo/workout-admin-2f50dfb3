@@ -2,6 +2,7 @@ import { getCurrentPerson } from "./supabase-people.browser";
 import {
   supabasePublicDelete,
   supabasePublicInsert,
+  supabasePublicRpc,
   supabasePublicSelect,
   supabasePublicUpdate,
 } from "./supabase-public";
@@ -56,6 +57,8 @@ type SuggestedWorkoutRow = {
   updated_at?: string;
   suggested_for?: string | null;
   completed_session_id?: string | null;
+  program_assignment_id: string | null;
+  program_workout_id: string | null;
   training_locations: { kind: string | null; name: string | null } | null;
   suggested_workout_entries: SuggestedEntryRow[] | null;
   suggested_workout_method_blocks: SuggestedMethodBlockRow[] | null;
@@ -130,6 +133,8 @@ export type SavedWorkoutPlan = WorkoutPlanDraft & {
   readiness: PlannerReadiness | null;
   status: SuggestedWorkoutStatus;
   createdAt: string;
+  programAssignmentId: string | null;
+  programWorkoutId: string | null;
 };
 
 const toNumber = (value: string) => {
@@ -246,6 +251,8 @@ function planFromRow(row: SuggestedWorkoutRow): SavedWorkoutPlan | null {
     readiness: row.readiness,
     status: row.status,
     createdAt: row.created_at,
+    programAssignmentId: row.program_assignment_id,
+    programWorkoutId: row.program_workout_id,
   };
 }
 
@@ -383,6 +390,7 @@ export async function saveWorkoutPlanClient({
       {
         person_id: `eq.${person.id}`,
         training_location_id: `eq.${location.id}`,
+        program_assignment_id: "is.null",
         status: "in.(pending,accepted)",
         id: `neq.${workout.id}`,
       },
@@ -402,7 +410,7 @@ export async function getNextSuggestedWorkoutsClient() {
   const person = await requirePerson();
   const rows = await supabasePublicSelect<SuggestedWorkoutRow>("suggested_workouts", {
     select:
-      "id,title,basis,readiness,status,created_at,training_locations(kind,name),suggested_workout_entries(id,name,workout_type,order_index,source_date,reason,suggested_workout_sets(id,set_number,reps,weight,rpe,completed,suggested_workout_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion,config))),suggested_workout_method_blocks(id,training_method_id,method_name,family,order_index,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,block_duration_seconds,work_interval_seconds,rest_interval_seconds,config,suggested_workout_method_block_entries(suggested_workout_entry_id,sequence_index))",
+      "id,title,basis,readiness,status,created_at,program_assignment_id,program_workout_id,training_locations(kind,name),suggested_workout_entries(id,name,workout_type,order_index,source_date,reason,suggested_workout_sets(id,set_number,reps,weight,rpe,completed,suggested_workout_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion,config))),suggested_workout_method_blocks(id,training_method_id,method_name,family,order_index,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,block_duration_seconds,work_interval_seconds,rest_interval_seconds,config,suggested_workout_method_block_entries(suggested_workout_entry_id,sequence_index))",
     status: "in.(pending,accepted)",
     person_id: `eq.${person.id}`,
     order: "created_at.desc",
@@ -411,8 +419,11 @@ export async function getNextSuggestedWorkoutsClient() {
   const plans = rows.map(planFromRow).filter((plan): plan is SavedWorkoutPlan => plan != null);
   const seen = new Set<string>();
   return plans.filter((plan) => {
-    if (seen.has(plan.locationKind)) return false;
-    seen.add(plan.locationKind);
+    const key = plan.programAssignmentId
+      ? `programme:${plan.programAssignmentId}`
+      : `location:${plan.locationKind}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
     return true;
   });
 }
@@ -488,10 +499,9 @@ export async function updateSuggestedWorkoutStatusClient(
 }
 
 export async function completeSuggestedWorkoutClient(id: string, sessionId: string) {
-  await supabasePublicUpdate(
-    "suggested_workouts",
-    { id: `eq.${id}` },
-    { status: "completed", completed_session_id: sessionId },
-  );
+  await supabasePublicRpc("complete_suggested_workout", {
+    p_workout_id: id,
+    p_session_id: sessionId,
+  });
   return { ok: true };
 }

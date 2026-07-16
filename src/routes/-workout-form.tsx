@@ -1896,6 +1896,8 @@ export function FullWorkoutForm() {
           await completeSuggestedWorkoutClient(loadedSuggestionId, result.sessionId);
           qc.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
           qc.invalidateQueries({ queryKey: ["workout-lifecycle"] });
+          qc.invalidateQueries({ queryKey: ["programme-workout-offers"] });
+          qc.invalidateQueries({ queryKey: ["programme-assignments"] });
         } catch {
           toast.warning("Workout saved, but the plan could not be marked complete.");
         }

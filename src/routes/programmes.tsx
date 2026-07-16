@@ -170,6 +170,8 @@ function ProgrammeTemplatesPage() {
             : "Programme resumed",
       );
       void queryClient.invalidateQueries({ queryKey: ["programme-assignments"] });
+      void queryClient.invalidateQueries({ queryKey: ["programme-workout-offers"] });
+      void queryClient.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
