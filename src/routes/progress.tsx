@@ -70,7 +70,13 @@ import { getMovementMetricProfile, type MetricProfile } from "@/lib/movement-met
 import type { ExerciseMethodUse, ExerciseSessionPoint, LibraryRow } from "@/lib/training-types";
 import { cn } from "@/lib/utils";
 
+type ProgressSearch = {
+  exercise?: string;
+};
+
 export const Route = createFileRoute("/progress")({
+  validateSearch: (search: Record<string, unknown>): ProgressSearch =>
+    typeof search.exercise === "string" ? { exercise: search.exercise } : {},
   head: () => ({
     meta: [
       { title: "Exercise Progress · Training Tracker" },
@@ -637,6 +643,7 @@ function buildProfileStats(
 }
 
 function ProgressPage() {
+  const search = Route.useSearch();
   const library = useQuery({
     queryKey: ["progress-library"],
     queryFn: getLibraryClient,
@@ -652,9 +659,11 @@ function ProgressPage() {
     const loggedNames = new Set(loggedExercises.data?.names ?? []);
     return ((library.data?.exercises ?? []) as ExerciseOption[]).filter(
       (exercise) =>
-        loggedIds.has(exercise.id) || loggedNames.has(exercise.name.trim().toLowerCase()),
+        exercise.id === search.exercise ||
+        loggedIds.has(exercise.id) ||
+        loggedNames.has(exercise.name.trim().toLowerCase()),
     );
-  }, [library.data?.exercises, loggedExercises.data]);
+  }, [library.data?.exercises, loggedExercises.data, search.exercise]);
   const [exerciseId, setExerciseId] = useState("");
   const [period, setPeriod] = useState<Period>(8);
   const [location, setLocation] = useState<LocationFilter>("all");
@@ -673,11 +682,12 @@ function ProgressPage() {
 
   useEffect(() => {
     if (locationExercises.some((exercise) => exercise.id === exerciseId)) return;
+    const requested = locationExercises.find((exercise) => exercise.id === search.exercise);
     const bench = locationExercises.find(
       (exercise) => exercise.name.toLowerCase() === "bench press",
     );
-    setExerciseId((bench ?? locationExercises[0])?.id ?? "");
-  }, [exerciseId, locationExercises]);
+    setExerciseId((requested ?? bench ?? locationExercises[0])?.id ?? "");
+  }, [exerciseId, locationExercises, search.exercise]);
 
   const exercise = exercises.find((item) => item.id === exerciseId) ?? null;
   const metricProfile = exercise

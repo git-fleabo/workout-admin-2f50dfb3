@@ -14,12 +14,42 @@ export type GoalRow = {
   id: string;
   row: number;
   goal: string;
+  goalType: GoalType;
+  status: GoalStatus;
+  exerciseId: string;
+  trackingMode: string;
+  goalMetric: GoalMetric | "";
+  targetValue: number | null;
+  targetUnit: string;
+  startingValue: number | null;
+  deadline: string;
   metric: string;
   target: string;
   period: string;
   notes: string;
   checkins: GoalCheckin[];
 };
+
+export type GoalType = "legacy" | "consistency" | "performance" | "duration" | "milestone";
+
+export type GoalStatus = "active" | "paused" | "complete" | "archived";
+
+export type GoalMetric =
+  | "sessions"
+  | "active_days"
+  | "minutes"
+  | "checkins"
+  | "max_weight"
+  | "estimated_1rm"
+  | "reps"
+  | "hold_seconds"
+  | "duration_minutes"
+  | "distance_km"
+  | "distance_m"
+  | "rounds"
+  | "height_cm"
+  | "problems"
+  | "completed";
 
 export type GoalCheckin = {
   id: string;

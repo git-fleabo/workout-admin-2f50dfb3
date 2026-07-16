@@ -156,6 +156,7 @@ Important data files:
 - `supabase/schema.sql`: local schema snapshot, may not always reflect every live data tweak.
 - `supabase/migrations/20260713100036_add_training_locations.sql`: tracked Home/Gym training-location schema, session foreign key, RLS, grants, and initial location seed.
 - `supabase/migrations/20260714150600_add_daily_rotation.sql`: configurable daily-practice pool, persisted per-date assignments, completion state, RLS, grants, and indexes.
+- `supabase/migrations/20260716072606_add_structured_goals.sql`: additive structured-goal fields for goal type, linked exercise, canonical measurement, numeric target/unit, starting value, and deadline.
 - `supabase/approved_logging_library_updates.sql`: idempotent data update script for approved library/logging changes.
 - `supabase/percentage_strength_blocks.sql`: idempotent seed script for reusable Percentage Strength Blocks, currently Operator Style Strength Block and Fighter Style Strength Block.
 - `supabase/program_template_read_policies.sql`: idempotent RLS policy script allowing authenticated users to read reusable template rows from `programs`, `program_workouts`, and `program_workout_entries`.
@@ -612,6 +613,14 @@ Key columns:
 - `id uuid primary key`
 - `person_id uuid -> people.id`
 - `goal text`
+- `goal_type text`, one of `legacy`, `consistency`, `performance`, `duration`, `milestone`
+- `exercise_id uuid -> exercises.id nullable`
+- `tracking_mode text nullable`
+- `goal_metric text nullable`, a stable measurement key such as `sessions`, `max_weight`, `hold_seconds`, or `distance_km`
+- `target_value numeric nullable`
+- `target_unit text nullable`
+- `starting_value numeric nullable`
+- `deadline date nullable`
 - `metric text nullable`
 - `target text nullable`
 - `period text nullable`
@@ -964,11 +973,24 @@ History tiles in the library were made visually distinct from exercise tiles.
 
 Goals read/write Supabase. The Goals tab has a lightweight checklist flow:
 
-- mark goal off for today
+- active, paused, completed, and archived status views
+- current-week/month/quarter/year check-in counts and progress for consistency/general goals
+- period grouping labelled This week, This month, This quarter, This year, and Long-term
+- structured goal creation for consistency, performance, duration, and milestone goals
+- exercise links whose measurement defaults follow the Library movement tracking profile
+- direct links from exercise goals into the matching exercise on Progress
+- mark active goals off for today
 - show recent check-ins
 - remove mistaken check-ins
+- archive or pause goals without deleting them permanently
 
 Check-ins are stored in `goal_checkins`.
+
+Existing imported goals remain `goal_type = 'legacy'` and retain their original free-text
+target/metric fields. New structured goals also mirror their numeric target and unit into the legacy
+`target` and `metric` columns so Dashboard weekly-workout/minute goal parsing remains compatible.
+Automatic exercise-history progress is intentionally deferred; this iteration stores the canonical
+measurement needed for that future calculation.
 
 ### Progress
 
@@ -1179,6 +1201,7 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - `supabase/migrations/20260713142913_add_training_methods.sql`: applied and tracked training-method definitions, per-person settings, system seed data, indexes, grants, and RLS.
 - `supabase/migrations/20260713212133_add_eccentrics_pyramid_negatives_methods.sql`: adds Eccentrics, Pyramid, and Negatives as idempotent system set-method definitions.
 - `supabase/migrations/20260714061929_normalize_exercise_tracking_modes.sql`: normalizes existing exercise metrics into the eleven stable tracking-mode keys used by the Library dropdown and logger.
+- `supabase/migrations/20260716072606_add_structured_goals.sql`: adds backward-compatible structured goal fields and the linked-exercise index/foreign key.
 - `supabase/migrations/20260713173700_add_suggested_workout_method_blocks.sql`: applied and tracked method blocks and ordered movement memberships for persistent plans.
 - `supabase/migrations/20260713173800_add_suggested_workout_set_segments.sql`: applied and tracked within-exercise method segments for persistent plans.
 - `docs/product-roadmap.md`: staged product redesign roadmap; Phase 5 advanced-method logging, planning, round trips, Progress, and adherence review are complete.

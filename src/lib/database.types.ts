@@ -555,7 +555,11 @@ export type Database = {
       goals: {
         Row: {
           created_at: string;
+          deadline: string | null;
+          exercise_id: string | null;
           goal: string;
+          goal_metric: string | null;
+          goal_type: string;
           id: string;
           metric: string | null;
           notes: string | null;
@@ -563,13 +567,21 @@ export type Database = {
           person_id: string;
           source_row: number | null;
           source_sheet: string | null;
+          starting_value: number | null;
           status: string;
           target: string | null;
+          target_unit: string | null;
+          target_value: number | null;
+          tracking_mode: string | null;
           updated_at: string;
         };
         Insert: {
           created_at?: string;
+          deadline?: string | null;
+          exercise_id?: string | null;
           goal: string;
+          goal_metric?: string | null;
+          goal_type?: string;
           id?: string;
           metric?: string | null;
           notes?: string | null;
@@ -577,13 +589,21 @@ export type Database = {
           person_id: string;
           source_row?: number | null;
           source_sheet?: string | null;
+          starting_value?: number | null;
           status?: string;
           target?: string | null;
+          target_unit?: string | null;
+          target_value?: number | null;
+          tracking_mode?: string | null;
           updated_at?: string;
         };
         Update: {
           created_at?: string;
+          deadline?: string | null;
+          exercise_id?: string | null;
           goal?: string;
+          goal_metric?: string | null;
+          goal_type?: string;
           id?: string;
           metric?: string | null;
           notes?: string | null;
@@ -591,11 +611,22 @@ export type Database = {
           person_id?: string;
           source_row?: number | null;
           source_sheet?: string | null;
+          starting_value?: number | null;
           status?: string;
           target?: string | null;
+          target_unit?: string | null;
+          target_value?: number | null;
+          tracking_mode?: string | null;
           updated_at?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "goals_exercise_id_fkey";
+            columns: ["exercise_id"];
+            isOneToOne: false;
+            referencedRelation: "exercises";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "goals_person_id_fkey";
             columns: ["person_id"];

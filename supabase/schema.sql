@@ -331,6 +331,35 @@ create table if not exists public.goals (
   id uuid primary key default gen_random_uuid(),
   person_id uuid not null references public.people(id) on delete cascade,
   goal text not null,
+  goal_type text not null default 'legacy'
+    check (goal_type in ('legacy', 'consistency', 'performance', 'duration', 'milestone')),
+  exercise_id uuid references public.exercises(id) on delete set null,
+  tracking_mode text,
+  goal_metric text
+    check (
+      goal_metric is null
+      or goal_metric in (
+        'sessions',
+        'active_days',
+        'minutes',
+        'checkins',
+        'max_weight',
+        'estimated_1rm',
+        'reps',
+        'hold_seconds',
+        'duration_minutes',
+        'distance_km',
+        'distance_m',
+        'rounds',
+        'height_cm',
+        'problems',
+        'completed'
+      )
+    ),
+  target_value numeric check (target_value is null or target_value > 0),
+  target_unit text,
+  starting_value numeric,
+  deadline date,
   metric text,
   target text,
   period text,
@@ -766,6 +795,10 @@ create index if not exists bodyweight_logs_person_date_idx
 
 create index if not exists goals_person_status_idx
   on public.goals (person_id, status);
+
+create index if not exists goals_exercise_id_idx
+  on public.goals (exercise_id)
+  where exercise_id is not null;
 
 create index if not exists goal_checkins_person_date_idx
   on public.goal_checkins (person_id, checked_date desc);

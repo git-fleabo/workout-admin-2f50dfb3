@@ -5,13 +5,22 @@ import {
   supabasePublicUpdate,
 } from "./supabase-public";
 import { getCurrentPerson, claimNoamProfile } from "./supabase-people.browser";
-import type { GoalRow } from "./training-types";
+import type { GoalMetric, GoalRow, GoalStatus, GoalType } from "./training-types";
 
 type GoalRecord = {
   id: string;
   person_id: string;
   source_row: number | null;
   goal: string;
+  goal_type: GoalType;
+  status: GoalStatus;
+  exercise_id: string | null;
+  tracking_mode: string | null;
+  goal_metric: GoalMetric | null;
+  target_value: number | string | null;
+  target_unit: string | null;
+  starting_value: number | string | null;
+  deadline: string | null;
   metric: string | null;
   target: string | null;
   period: string | null;
@@ -27,21 +36,28 @@ type GoalCheckinRecord = {
   created_at: string;
 };
 
-export type GoalFields = Omit<GoalRow, "id" | "row" | "checkins">;
+export type GoalFields = Omit<GoalRow, "id" | "row" | "checkins" | "status">;
 export { claimNoamProfile };
+
+function numericOrNull(value: number | string | null) {
+  if (value == null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 export async function listGoalsClient() {
   const person = await getCurrentPerson();
   if (!person) return { needsProfileClaim: true as const, items: [] as GoalRow[] };
   const [rows, checkins] = await Promise.all([
     supabasePublicSelect<GoalRecord>("goals", {
-      select: "id,person_id,source_row,goal,metric,target,period,notes",
+      select:
+        "id,person_id,source_row,goal,goal_type,status,exercise_id,tracking_mode,goal_metric,target_value,target_unit,starting_value,deadline,metric,target,period,notes",
       order: "source_row.asc",
     }),
     supabasePublicSelect<GoalCheckinRecord>("goal_checkins", {
       select: "id,goal_id,checked_date,note,created_at",
       order: "checked_date.desc",
-      limit: 500,
+      limit: 2000,
     }),
   ]);
   const checkinsByGoal = new Map<string, GoalCheckinRecord[]>();
@@ -56,13 +72,21 @@ export async function listGoalsClient() {
       id: r.id,
       row: r.source_row ?? 0,
       goal: r.goal,
+      goalType: r.goal_type ?? "legacy",
+      status: r.status ?? "active",
+      exerciseId: r.exercise_id ?? "",
+      trackingMode: r.tracking_mode ?? "",
+      goalMetric: (r.goal_metric ?? "") as GoalMetric | "",
+      targetValue: numericOrNull(r.target_value),
+      targetUnit: r.target_unit ?? "",
+      startingValue: numericOrNull(r.starting_value),
+      deadline: r.deadline ?? "",
       metric: r.metric ?? "",
       target: r.target ?? "",
       period: r.period ?? "",
       notes: r.notes ?? "",
       checkins: (checkinsByGoal.get(r.id) ?? [])
         .sort((a, b) => b.checked_date.localeCompare(a.checked_date))
-        .slice(0, 8)
         .map((checkin) => ({
           id: checkin.id,
           date: checkin.checked_date,
@@ -94,6 +118,14 @@ export async function addGoalClient(fields: GoalFields) {
   const inserted = await supabasePublicInsert<GoalMutationRecord>("goals", {
     person_id: person.id,
     goal: fields.goal,
+    goal_type: fields.goalType,
+    exercise_id: fields.exerciseId || null,
+    tracking_mode: fields.trackingMode || null,
+    goal_metric: fields.goalMetric || null,
+    target_value: fields.targetValue,
+    target_unit: fields.targetUnit || null,
+    starting_value: fields.startingValue,
+    deadline: fields.deadline || null,
     metric: fields.metric,
     target: fields.target,
     period: fields.period,
@@ -105,12 +137,20 @@ export async function addGoalClient(fields: GoalFields) {
   return { ok: true, row: inserted[0]?.source_row ?? row };
 }
 
-export async function updateGoalClient(row: number, fields: GoalFields) {
+export async function updateGoalClient(id: string, fields: GoalFields) {
   await supabasePublicUpdate<GoalMutationRecord>(
     "goals",
-    { source_sheet: "eq.Goals", source_row: `eq.${row}` },
+    { id: `eq.${id}` },
     {
       goal: fields.goal,
+      goal_type: fields.goalType,
+      exercise_id: fields.exerciseId || null,
+      tracking_mode: fields.trackingMode || null,
+      goal_metric: fields.goalMetric || null,
+      target_value: fields.targetValue,
+      target_unit: fields.targetUnit || null,
+      starting_value: fields.startingValue,
+      deadline: fields.deadline || null,
       metric: fields.metric,
       target: fields.target,
       period: fields.period,
@@ -120,11 +160,13 @@ export async function updateGoalClient(row: number, fields: GoalFields) {
   return { ok: true };
 }
 
-export async function deleteGoalClient(row: number) {
-  await supabasePublicDelete<GoalMutationRecord>("goals", {
-    source_sheet: "eq.Goals",
-    source_row: `eq.${row}`,
-  });
+export async function updateGoalStatusClient(id: string, status: GoalStatus) {
+  await supabasePublicUpdate<GoalMutationRecord>("goals", { id: `eq.${id}` }, { status });
+  return { ok: true };
+}
+
+export async function deleteGoalClient(id: string) {
+  await supabasePublicDelete<GoalMutationRecord>("goals", { id: `eq.${id}` });
   return { ok: true };
 }
 
