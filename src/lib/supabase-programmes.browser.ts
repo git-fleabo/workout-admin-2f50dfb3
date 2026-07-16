@@ -1,4 +1,10 @@
-import { supabasePublicSelect } from "./supabase-public";
+import {
+  supabasePublicDelete,
+  supabasePublicInsert,
+  supabasePublicSelect,
+  supabasePublicUpdate,
+} from "./supabase-public";
+import { getCurrentPerson } from "./supabase-people.browser";
 
 export type ProgrammeTemplateEntry = {
   id: string;
@@ -46,6 +52,43 @@ export type ProgrammeTemplate = {
   workouts: ProgrammeTemplateWorkout[];
 };
 
+export type ProgrammeAssignmentStatus = "active" | "paused" | "complete" | "archived";
+
+export type ProgrammeAssignmentExercise = {
+  id: string;
+  slotKey: string;
+  exerciseId: string | null;
+  exerciseName: string;
+  trainingMax: number | null;
+};
+
+export type ProgrammeAssignment = {
+  id: string;
+  programId: string;
+  personId: string;
+  status: ProgrammeAssignmentStatus;
+  currentWorkoutIndex: number;
+  startedOn: string | null;
+  completedOn: string | null;
+  notes: string | null;
+  createdAt: string;
+  exercises: ProgrammeAssignmentExercise[];
+};
+
+export type ProgrammeAssignmentInput = {
+  programId: string;
+  personId: string;
+  status: "active" | "paused";
+  startedOn: string;
+  notes: string;
+  exercises: Array<{
+    slotKey: string;
+    exerciseId: string;
+    exerciseName: string;
+    trainingMax: number | null;
+  }>;
+};
+
 type ProgrammeRecord = {
   id: string;
   name: string;
@@ -90,6 +133,28 @@ type ProgrammeEntryRecord = {
   rpe: string | null;
   rest: string | null;
   notes: string | null;
+};
+
+type ProgrammeAssignmentExerciseRecord = {
+  id: string;
+  slot_key: string;
+  exercise_id: string | null;
+  exercise_name: string;
+  training_max: number | string | null;
+};
+
+type ProgrammeAssignmentRecord = {
+  id: string;
+  program_id: string;
+  person_id: string;
+  assigned_by_person_id: string | null;
+  status: ProgrammeAssignmentStatus;
+  current_workout_index: number;
+  started_on: string | null;
+  completed_on: string | null;
+  notes: string | null;
+  created_at: string;
+  program_assignment_exercises?: ProgrammeAssignmentExerciseRecord[] | null;
 };
 
 function numberOrNull(value: number | string | null) {
@@ -176,4 +241,101 @@ export async function listProgrammeTemplatesClient(): Promise<ProgrammeTemplate[
       (left, right) => left.sequenceIndex - right.sequenceIndex,
     ),
   }));
+}
+
+function mapAssignment(row: ProgrammeAssignmentRecord): ProgrammeAssignment {
+  return {
+    id: row.id,
+    programId: row.program_id,
+    personId: row.person_id,
+    status: row.status,
+    currentWorkoutIndex: row.current_workout_index,
+    startedOn: row.started_on,
+    completedOn: row.completed_on,
+    notes: row.notes,
+    createdAt: row.created_at,
+    exercises: (row.program_assignment_exercises ?? [])
+      .map((exercise) => ({
+        id: exercise.id,
+        slotKey: exercise.slot_key,
+        exerciseId: exercise.exercise_id,
+        exerciseName: exercise.exercise_name,
+        trainingMax: numberOrNull(exercise.training_max),
+      }))
+      .sort((left, right) => left.slotKey.localeCompare(right.slotKey)),
+  };
+}
+
+export async function listProgrammeAssignmentsClient(): Promise<ProgrammeAssignment[]> {
+  const rows = await supabasePublicSelect<ProgrammeAssignmentRecord>("program_assignments", {
+    select:
+      "id,program_id,person_id,assigned_by_person_id,status,current_workout_index,started_on,completed_on,notes,created_at,program_assignment_exercises(id,slot_key,exercise_id,exercise_name,training_max)",
+    status: "in.(active,paused)",
+    order: "created_at.desc",
+  });
+  return rows.map(mapAssignment);
+}
+
+export async function createProgrammeAssignmentClient(input: ProgrammeAssignmentInput) {
+  const currentPerson = await getCurrentPerson();
+  if (!currentPerson) throw new Error("Connect your training profile first.");
+  if (!input.exercises.length) throw new Error("Map the programme exercises first.");
+
+  const existing = await supabasePublicSelect<Pick<ProgrammeAssignmentRecord, "id">>(
+    "program_assignments",
+    {
+      select: "id",
+      program_id: `eq.${input.programId}`,
+      person_id: `eq.${input.personId}`,
+      status: "in.(active,paused)",
+      limit: 1,
+    },
+  );
+  if (existing[0]) throw new Error("This person already has an active or paused assignment.");
+
+  const inserted = await supabasePublicInsert<ProgrammeAssignmentRecord>("program_assignments", {
+    program_id: input.programId,
+    person_id: input.personId,
+    assigned_by_person_id: currentPerson.id,
+    status: input.status,
+    current_workout_index: 0,
+    started_on: input.startedOn || null,
+    notes: input.notes.trim() || null,
+  });
+  const assignment = inserted[0];
+  if (!assignment) throw new Error("The programme assignment was not created.");
+
+  try {
+    await supabasePublicInsert<ProgrammeAssignmentExerciseRecord>(
+      "program_assignment_exercises",
+      input.exercises.map((exercise) => ({
+        program_assignment_id: assignment.id,
+        slot_key: exercise.slotKey,
+        exercise_id: exercise.exerciseId,
+        exercise_name: exercise.exerciseName,
+        training_max: exercise.trainingMax,
+      })),
+    );
+  } catch (error) {
+    await supabasePublicDelete<ProgrammeAssignmentRecord>("program_assignments", {
+      id: `eq.${assignment.id}`,
+      person_id: `eq.${input.personId}`,
+    }).catch(() => undefined);
+    throw error;
+  }
+
+  return assignment.id;
+}
+
+export async function setProgrammeAssignmentStatusClient(
+  id: string,
+  status: "active" | "paused" | "archived",
+) {
+  const rows = await supabasePublicUpdate<ProgrammeAssignmentRecord>(
+    "program_assignments",
+    { id: `eq.${id}` },
+    { status },
+  );
+  if (!rows[0]) throw new Error("The programme assignment was not updated.");
+  return mapAssignment(rows[0]);
 }

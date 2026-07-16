@@ -797,11 +797,12 @@ Programme-template decision:
 - Fighter is 2 sessions/week and better for clients who need more room for conditioning, sport, running, climbing, or other training.
 - This extends the existing `programs`, `program_workouts`, `program_workout_entries`, and `program_assignments` model, with a new `program_assignment_exercises` table for slot-to-exercise mappings.
 - No new app or database is being created.
-- UI and workout logging behaviour changes are intentionally deferred; the current app should behave exactly as before until a future UI iteration uses these tables.
+- Programme assignment setup now uses these tables; workout generation, progression, and logging behaviour remain deferred.
 - A live 2026-07-16 audit confirmed both seeded templates and their 30 workouts / 102 entries are
   present. Template read policies are active, and `program_assignment_exercises` has managed-person
-  CRUD policies. `program_assignments` has RLS enabled but no policies, so managed-person assignment
-  policies must be added before an assignment UI can safely create or progress active programmes.
+  CRUD policies. Managed-person SELECT/INSERT/UPDATE/DELETE policies were added to
+  `program_assignments` on 2026-07-16, resolving the live `rls_enabled_no_policy` advisor warning for
+  that table. Insert/update additionally require the selected programme to be a protected template.
 
 ## App Behavior And Screens
 
@@ -825,13 +826,19 @@ from archival and keeps an existing core location's kind stable. `Other` locatio
 the unified logger without applying Home/Gym exercise filtering. The page uses the table's existing
 managed-person RLS policies and requires no schema change.
 
-`/programmes` is the first read-only Programme Templates iteration. It reads the protected template
-rows from `programs`, `program_workouts`, and `program_workout_entries`, lets the user compare Operator
-and Fighter cadence, and exposes an expandable week-by-week prescription down to each session's
-exercise slot, set range, rep range, percentage of training max, rounding rule, and notes. Operator is
-selected first by default because it is the current three-session reference block. The page does not
-create `program_assignments`, map exercise slots, calculate working weights, or change Today/Plan/Log;
-those remain explicit later iterations.
+`/programmes` reads the protected template rows from `programs`, `program_workouts`, and
+`program_workout_entries`, lets the user compare Operator and Fighter cadence, and exposes an
+expandable week-by-week prescription. Its assignment wizard selects a managed person, start date and
+initial status, then maps every programme slot to a distinct enabled Library movement with its training
+max. Active and paused assignments appear above the template browser and can be paused, resumed, or
+archived. Templates remain read only, and this iteration does not yet calculate working weights, add
+sessions to Today/Plan, or advance `current_workout_index`.
+
+Programme methodologies are dispatched through `programs.method_type`. Shared programme structure,
+assignment lifecycle, and slot mappings remain methodology-neutral; `src/lib/programme-methods.ts`
+currently registers the Percentage Strength assignment fields. A future methodology should add a
+registry entry and its method-specific setup/prescription renderer, using additive configuration only
+when the existing generic set, rep, load, duration, RPE, rest, and notes fields are insufficient.
 
 ### Dashboard
 
@@ -1295,7 +1302,9 @@ Recommended next work, in order:
 14. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
 15. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
 16. Tighten the profile-claim bootstrap now that Noam's account is linked.
-17. Start implementing programme assignment UI on top of the seeded Percentage Strength Blocks.
+17. Programme assignment setup on top of the seeded Percentage Strength Blocks — implemented. Next,
+    generate the current assignment session for Today/Plan, calculate rounded working weights, and
+    advance the assignment only when the linked workout is completed.
 18. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
 19. Only when a second user is planned, build People & Access: create/edit people, link an auth user, assign an app profile, and route exercise selection through the existing per-person Library controls.
 

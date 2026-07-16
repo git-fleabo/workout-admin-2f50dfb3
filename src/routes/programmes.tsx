@@ -1,15 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Archive,
   CalendarRange,
   Dumbbell,
   Gauge,
   Layers3,
   Loader2,
+  Pause,
+  Play,
+  Plus,
   ShieldCheck,
   Target,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 
 import {
   Accordion,
@@ -18,9 +23,36 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { listLibraryClient } from "@/lib/supabase-library.browser";
+import { listManagedPeopleClient, type PersonRecord } from "@/lib/supabase-people.browser";
+import { getProgrammeMethodSetup } from "@/lib/programme-methods";
+import {
+  createProgrammeAssignmentClient,
+  listProgrammeAssignmentsClient,
   listProgrammeTemplatesClient,
+  setProgrammeAssignmentStatusClient,
+  type ProgrammeAssignment,
+  type ProgrammeAssignmentInput,
   type ProgrammeTemplate,
   type ProgrammeTemplateEntry,
   type ProgrammeTemplateWorkout,
@@ -110,11 +142,37 @@ function weekIntensity(workouts: ProgrammeTemplateWorkout[]) {
 }
 
 function ProgrammeTemplatesPage() {
+  const queryClient = useQueryClient();
   const templates = useQuery({
     queryKey: ["programme-templates"],
     queryFn: listProgrammeTemplatesClient,
   });
+  const assignments = useQuery({
+    queryKey: ["programme-assignments"],
+    queryFn: listProgrammeAssignmentsClient,
+  });
+  const people = useQuery({
+    queryKey: ["managed-people"],
+    queryFn: listManagedPeopleClient,
+  });
   const [selectedId, setSelectedId] = useState("");
+  const [setupTemplate, setSetupTemplate] = useState<ProgrammeTemplate | null>(null);
+
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: "active" | "paused" | "archived" }) =>
+      setProgrammeAssignmentStatusClient(id, status),
+    onSuccess: (_, variables) => {
+      toast.success(
+        variables.status === "archived"
+          ? "Programme archived"
+          : variables.status === "paused"
+            ? "Programme paused"
+            : "Programme resumed",
+      );
+      void queryClient.invalidateQueries({ queryKey: ["programme-assignments"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   useEffect(() => {
     if (selectedId && templates.data?.some((template) => template.id === selectedId)) return;
@@ -135,11 +193,20 @@ function ProgrammeTemplatesPage() {
         </div>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">Programme templates</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-          Review the reusable strength blocks stored in the training database. Templates define the
-          sequence and prescription; choosing exercises and starting a block will come in the next
-          iteration.
+          Review reusable training blocks, map their movement slots to a person’s Library, and start
+          or pause an assignment without changing the protected template.
         </p>
       </header>
+
+      <AssignmentList
+        assignments={assignments.data ?? []}
+        templates={templates.data ?? []}
+        people={people.data ?? []}
+        loading={assignments.isLoading}
+        error={assignments.error instanceof Error ? assignments.error : null}
+        changing={statusMutation.isPending}
+        onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
+      />
 
       {templates.isLoading ? (
         <div className="flex items-center justify-center py-20 text-sm text-muted-foreground">
@@ -232,7 +299,16 @@ function ProgrammeTemplatesPage() {
                         {selected.description ?? "Reusable percentage-based strength block."}
                       </p>
                     </div>
-                    <Badge variant="secondary">{titleCase(selected.methodType)}</Badge>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary">{titleCase(selected.methodType)}</Badge>
+                      <Button
+                        size="sm"
+                        onClick={() => setSetupTemplate(selected)}
+                        disabled={!getProgrammeMethodSetup(selected.methodType)}
+                      >
+                        <Plus className="mr-1.5 h-4 w-4" /> Set up programme
+                      </Button>
+                    </div>
                   </div>
                 </div>
                 <CardContent className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -267,8 +343,9 @@ function ProgrammeTemplatesPage() {
                 <CardContent className="flex gap-3 p-4 text-sm text-muted-foreground">
                   <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
                   <p>
-                    This view reads protected system templates only. It does not create an active
-                    programme, change your current Plan, or calculate working weights yet.
+                    Templates remain protected and read only. A programme assignment stores the
+                    person, start date, movement mappings, and training maxes. It does not add
+                    sessions to Today or Plan, or advance the programme yet.
                   </p>
                 </CardContent>
               </Card>
@@ -310,7 +387,379 @@ function ProgrammeTemplatesPage() {
           ) : null}
         </>
       )}
+
+      {setupTemplate ? (
+        <ProgrammeSetupDialog
+          template={setupTemplate}
+          onClose={() => setSetupTemplate(null)}
+          onCreated={() => {
+            setSetupTemplate(null);
+            void queryClient.invalidateQueries({ queryKey: ["programme-assignments"] });
+          }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function AssignmentList({
+  assignments,
+  templates,
+  people,
+  loading,
+  error,
+  changing,
+  onStatusChange,
+}: {
+  assignments: ProgrammeAssignment[];
+  templates: ProgrammeTemplate[];
+  people: PersonRecord[];
+  loading: boolean;
+  error: Error | null;
+  changing: boolean;
+  onStatusChange: (id: string, status: "active" | "paused" | "archived") => void;
+}) {
+  if (loading) return null;
+  const templateById = new Map(templates.map((template) => [template.id, template]));
+  const personById = new Map(people.map((person) => [person.id, person]));
+
+  return (
+    <section className="space-y-3" aria-labelledby="assigned-programmes-heading">
+      <div>
+        <h2 id="assigned-programmes-heading" className="text-lg font-semibold">
+          Assigned programmes
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Active and paused blocks. Archived assignments leave this working list.
+        </p>
+      </div>
+      {error ? (
+        <Card className="border-destructive/35 p-5 text-sm text-destructive">
+          Assigned programmes could not be loaded: {error.message}
+        </Card>
+      ) : !assignments.length ? (
+        <Card className="border-dashed p-5 text-sm text-muted-foreground">
+          No programme is assigned yet. Choose a template below to set up the first one.
+        </Card>
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {assignments.map((assignment) => {
+            const template = templateById.get(assignment.programId);
+            return (
+              <Card key={assignment.id} className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold">{template?.name ?? "Programme"}</h3>
+                      <Badge variant={assignment.status === "active" ? "default" : "secondary"}>
+                        {titleCase(assignment.status)}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {personById.get(assignment.personId)?.display_name ?? "Managed person"} ·
+                      Started {assignment.startedOn ?? "not set"} · Next session{" "}
+                      {assignment.currentWorkoutIndex + 1}
+                    </p>
+                  </div>
+                  <div className="flex gap-1">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title={
+                        assignment.status === "active" ? "Pause programme" : "Resume programme"
+                      }
+                      aria-label={
+                        assignment.status === "active" ? "Pause programme" : "Resume programme"
+                      }
+                      disabled={changing}
+                      onClick={() =>
+                        onStatusChange(
+                          assignment.id,
+                          assignment.status === "active" ? "paused" : "active",
+                        )
+                      }
+                    >
+                      {assignment.status === "active" ? (
+                        <Pause className="h-4 w-4" />
+                      ) : (
+                        <Play className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title="Archive programme"
+                      aria-label="Archive programme"
+                      disabled={changing}
+                      onClick={() => onStatusChange(assignment.id, "archived")}
+                    >
+                      <Archive className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {assignment.exercises.map((exercise) => (
+                    <div key={exercise.id} className="rounded-md border border-border px-3 py-2">
+                      <p className="text-xs text-muted-foreground">{titleCase(exercise.slotKey)}</p>
+                      <p className="text-sm font-medium">{exercise.exerciseName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {exercise.trainingMax != null
+                          ? `${exercise.trainingMax} kg training max`
+                          : "No training max"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+type SlotSetup = { exerciseId: string; trainingMax: string };
+
+function programmeSlots(template: ProgrammeTemplate) {
+  const labels = new Map<string, string>();
+  for (const workout of template.workouts) {
+    for (const entry of workout.entries) {
+      if (entry.slotKey && !labels.has(entry.slotKey)) labels.set(entry.slotKey, entry.name);
+    }
+  }
+  return Array.from(labels, ([key, label]) => ({ key, label }));
+}
+
+function ProgrammeSetupDialog({
+  template,
+  onClose,
+  onCreated,
+}: {
+  template: ProgrammeTemplate;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const slots = useMemo(() => programmeSlots(template), [template]);
+  const methodSetup = getProgrammeMethodSetup(template.methodType);
+  const [personId, setPersonId] = useState("");
+  const [startedOn, setStartedOn] = useState(() => new Date().toISOString().slice(0, 10));
+  const [status, setStatus] = useState<"active" | "paused">("active");
+  const [notes, setNotes] = useState("");
+  const [slotSetup, setSlotSetup] = useState<Record<string, SlotSetup>>({});
+  const library = useQuery({
+    queryKey: ["programme-assignment-library", personId || "current"],
+    queryFn: () => listLibraryClient(personId || undefined),
+  });
+
+  useEffect(() => {
+    if (!personId && library.data?.selectedPersonId) setPersonId(library.data.selectedPersonId);
+  }, [library.data?.selectedPersonId, personId]);
+
+  const enabledExercises = useMemo(
+    () => (library.data?.items ?? []).filter((item) => item.active && item.enabled),
+    [library.data?.items],
+  );
+  const selectedIds = slots.map((slot) => slotSetup[slot.key]?.exerciseId).filter(Boolean);
+  const duplicateExercise = new Set(selectedIds).size !== selectedIds.length;
+  const isComplete =
+    Boolean(personId && startedOn) &&
+    slots.length > 0 &&
+    slots.every((slot) => {
+      const setup = slotSetup[slot.key];
+      if (!setup?.exerciseId) return false;
+      if (!methodSetup?.trainingMax?.required) return true;
+      return Number(setup.trainingMax) >= methodSetup.trainingMax.minimum;
+    }) &&
+    !duplicateExercise;
+
+  const createMutation = useMutation({
+    mutationFn: (input: ProgrammeAssignmentInput) => createProgrammeAssignmentClient(input),
+    onSuccess: () => {
+      toast.success(`${template.name} assigned`);
+      onCreated();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  function updateSlot(slotKey: string, patch: Partial<SlotSetup>) {
+    setSlotSetup((current) => {
+      const existing = current[slotKey];
+      return {
+        ...current,
+        [slotKey]: {
+          exerciseId: patch.exerciseId ?? existing?.exerciseId ?? "",
+          trainingMax: patch.trainingMax ?? existing?.trainingMax ?? "",
+        },
+      };
+    });
+  }
+
+  function submit() {
+    if (!isComplete) return;
+    createMutation.mutate({
+      programId: template.id,
+      personId,
+      status,
+      startedOn,
+      notes,
+      exercises: slots.map((slot) => {
+        const setup = slotSetup[slot.key];
+        const exercise = enabledExercises.find((item) => item.id === setup.exerciseId);
+        return {
+          slotKey: slot.key,
+          exerciseId: setup.exerciseId,
+          exerciseName: exercise?.name ?? slot.label,
+          trainingMax: methodSetup?.trainingMax ? Number(setup.trainingMax) : null,
+        };
+      }),
+    });
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Set up {template.name}</DialogTitle>
+          <DialogDescription>
+            Choose who is training, then map each programme slot to one enabled Library movement.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4 py-2 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="programme-person">Person</Label>
+            <Select
+              value={personId}
+              onValueChange={(value) => {
+                setPersonId(value);
+                setSlotSetup({});
+              }}
+            >
+              <SelectTrigger id="programme-person">
+                <SelectValue placeholder="Choose person" />
+              </SelectTrigger>
+              <SelectContent>
+                {(library.data?.people ?? []).map((person) => (
+                  <SelectItem key={person.id} value={person.id}>
+                    {person.display_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="programme-start-date">Start date</Label>
+            <Input
+              id="programme-start-date"
+              type="date"
+              value={startedOn}
+              onChange={(event) => setStartedOn(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="programme-status">Initial status</Label>
+            <Select value={status} onValueChange={(value: "active" | "paused") => setStatus(value)}>
+              <SelectTrigger id="programme-status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="paused">Paused</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold">Movement mappings</h3>
+            <p className="text-xs text-muted-foreground">
+              {methodSetup?.trainingMax
+                ? `${methodSetup.label} templates use a ${methodSetup.trainingMax.label.toLowerCase()} in ${methodSetup.trainingMax.unit} for every movement slot.`
+                : "Map each programme slot to an enabled Library movement."}
+            </p>
+          </div>
+          {library.isLoading ? (
+            <div className="flex items-center py-5 text-sm text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading Library…
+            </div>
+          ) : !enabledExercises.length ? (
+            <Card className="border-dashed p-4 text-sm text-muted-foreground">
+              This person has no enabled Library movements. Enable movements in Library first.
+            </Card>
+          ) : (
+            slots.map((slot) => (
+              <div
+                key={slot.key}
+                className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-[1fr_150px]"
+              >
+                <div className="space-y-2">
+                  <Label htmlFor={`slot-${slot.key}`}>{slot.label}</Label>
+                  <Select
+                    value={slotSetup[slot.key]?.exerciseId ?? ""}
+                    onValueChange={(value) => updateSlot(slot.key, { exerciseId: value })}
+                  >
+                    <SelectTrigger id={`slot-${slot.key}`}>
+                      <SelectValue placeholder="Choose Library movement" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {enabledExercises.map((exercise) => (
+                        <SelectItem key={exercise.id} value={exercise.id}>
+                          {exercise.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {methodSetup?.trainingMax ? (
+                  <div className="space-y-2">
+                    <Label htmlFor={`training-max-${slot.key}`}>
+                      {methodSetup.trainingMax.label} ({methodSetup.trainingMax.unit})
+                    </Label>
+                    <Input
+                      id={`training-max-${slot.key}`}
+                      type="number"
+                      min={methodSetup.trainingMax.minimum}
+                      step={methodSetup.trainingMax.step}
+                      inputMode="decimal"
+                      value={slotSetup[slot.key]?.trainingMax ?? ""}
+                      onChange={(event) =>
+                        updateSlot(slot.key, { trainingMax: event.target.value })
+                      }
+                      placeholder="e.g. 100"
+                    />
+                  </div>
+                ) : null}
+              </div>
+            ))
+          )}
+          {duplicateExercise ? (
+            <p className="text-xs text-destructive">Choose a different movement for each slot.</p>
+          ) : null}
+        </div>
+
+        <div className="space-y-2 pt-2">
+          <Label htmlFor="programme-notes">Notes (optional)</Label>
+          <Textarea
+            id="programme-notes"
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            placeholder="Context for this block…"
+          />
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={!isComplete || createMutation.isPending}>
+            {createMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Create assignment
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

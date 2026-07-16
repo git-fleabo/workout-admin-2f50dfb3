@@ -801,6 +801,7 @@ grant insert, update on public.activity_types to authenticated;
 grant insert, update on public.exercises to authenticated;
 grant insert, update, delete on public.person_exercises to authenticated;
 grant insert, update, delete on public.training_locations to authenticated;
+grant insert, update, delete on public.program_assignments to authenticated;
 grant insert on public.sessions to authenticated;
 grant insert on public.session_entries to authenticated;
 grant insert on public.entry_sets to authenticated;
@@ -1238,6 +1239,47 @@ create policy program_workout_entries_select_template_authenticated
         and p.is_template = true
     )
   );
+
+create policy program_assignments_select_managed
+  on public.program_assignments
+  for select
+  to authenticated
+  using (app_private.person_is_accessible(person_id));
+
+create policy program_assignments_insert_managed
+  on public.program_assignments
+  for insert
+  to authenticated
+  with check (
+    app_private.person_is_accessible(person_id)
+    and exists (
+      select 1
+      from public.programs p
+      where p.id = program_id
+        and p.is_template = true
+    )
+  );
+
+create policy program_assignments_update_managed
+  on public.program_assignments
+  for update
+  to authenticated
+  using (app_private.person_is_accessible(person_id))
+  with check (
+    app_private.person_is_accessible(person_id)
+    and exists (
+      select 1
+      from public.programs p
+      where p.id = program_id
+        and p.is_template = true
+    )
+  );
+
+create policy program_assignments_delete_managed
+  on public.program_assignments
+  for delete
+  to authenticated
+  using (app_private.person_is_accessible(person_id));
 
 create policy program_assignment_exercises_select_managed
   on public.program_assignment_exercises

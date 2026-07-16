@@ -232,6 +232,7 @@ and completed method names alongside the existing load, reps, set, and volume co
 - Keep movement metric profiles explicit and reusable. — implemented across Library, Log, History, and Progress
 - Add People & Access only when preparing to add a second user. — explicitly deferred while the app remains single-user
 - Generate Supabase TypeScript types when the schema settles. — initial live-schema types generated
+- Turn reusable programme templates into person-specific assignments. — first assignment/setup slice implemented
 - Revisit native packaging only after the web workflow is stable.
 
 The first Phase 6 slice defines one visible lifecycle without prematurely storing partial sessions in
@@ -264,5 +265,7 @@ next workout lighter, or apply a week-local deload mode while retaining editable
 Phase 5 is complete. Phase 6 is underway: the lifecycle audit and first visible lifecycle release are
 complete, movement metric profiles are already shared across the core surfaces, and current live-schema
 TypeScript definitions are checked into the app. People & Access is deliberately deferred while Noam is
-the only user; revisit it only when a second account is genuinely planned. The next active product work
-is the specialised climbing-controls audit inside the unified logger.
+the only user; revisit it only when a second account is genuinely planned. Programme templates can now
+be assigned to a managed person with Library movement mappings and training maxes. The next programme
+slice is session generation: calculate the current prescription, surface it in Today/Plan, and advance
+the assignment only after the linked workout is completed.
