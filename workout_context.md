@@ -156,7 +156,7 @@ Important data files:
 - `supabase/schema.sql`: local schema snapshot, may not always reflect every live data tweak.
 - `supabase/migrations/20260713100036_add_training_locations.sql`: tracked Home/Gym training-location schema, session foreign key, RLS, grants, and initial location seed.
 - `supabase/migrations/20260714150600_add_daily_rotation.sql`: configurable daily-practice pool, persisted per-date assignments, completion state, RLS, grants, and indexes.
-- `supabase/migrations/20260716072606_add_structured_goals.sql`: additive structured-goal fields for goal type, linked exercise, canonical measurement, numeric target/unit, starting value, and deadline.
+- `supabase/migrations/20260716072606_add_structured_goals.sql`: applied additive structured-goal fields for goal type, linked exercise, canonical measurement, numeric target/unit, starting value, and deadline.
 - `supabase/approved_logging_library_updates.sql`: idempotent data update script for approved library/logging changes.
 - `supabase/percentage_strength_blocks.sql`: idempotent seed script for reusable Percentage Strength Blocks, currently Operator Style Strength Block and Fighter Style Strength Block.
 - `supabase/program_template_read_policies.sql`: idempotent RLS policy script allowing authenticated users to read reusable template rows from `programs`, `program_workouts`, and `program_workout_entries`.
@@ -992,6 +992,13 @@ target/metric fields. New structured goals also mirror their numeric target and 
 Automatic exercise-history progress is intentionally deferred; this iteration stores the canonical
 measurement needed for that future calculation.
 
+Migration `20260716072606_add_structured_goals` was applied to the shared Training Admin project on
+2026-07-16 through a linked single-file SQL execution because the checkout's older migration history
+does not align one-to-one with the live history. The exact migration version was then recorded as
+applied. Verification confirmed all eight columns, four constraints, the partial exercise index,
+five preserved active legacy goals, enabled RLS, and authenticated table grants. Database advisors
+reported no new schema issue; the existing leaked-password-protection Auth warning remains.
+
 ### Progress
 
 The top-level Progress workspace is designed to be especially useful on larger screens while retaining a stacked mobile layout. It includes:
@@ -1201,7 +1208,7 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - `supabase/migrations/20260713142913_add_training_methods.sql`: applied and tracked training-method definitions, per-person settings, system seed data, indexes, grants, and RLS.
 - `supabase/migrations/20260713212133_add_eccentrics_pyramid_negatives_methods.sql`: adds Eccentrics, Pyramid, and Negatives as idempotent system set-method definitions.
 - `supabase/migrations/20260714061929_normalize_exercise_tracking_modes.sql`: normalizes existing exercise metrics into the eleven stable tracking-mode keys used by the Library dropdown and logger.
-- `supabase/migrations/20260716072606_add_structured_goals.sql`: adds backward-compatible structured goal fields and the linked-exercise index/foreign key.
+- `supabase/migrations/20260716072606_add_structured_goals.sql`: applied backward-compatible structured goal fields and the linked-exercise index/foreign key.
 - `supabase/migrations/20260713173700_add_suggested_workout_method_blocks.sql`: applied and tracked method blocks and ordered movement memberships for persistent plans.
 - `supabase/migrations/20260713173800_add_suggested_workout_set_segments.sql`: applied and tracked within-exercise method segments for persistent plans.
 - `docs/product-roadmap.md`: staged product redesign roadmap; Phase 5 advanced-method logging, planning, round trips, Progress, and adherence review are complete.
