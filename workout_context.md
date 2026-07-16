@@ -808,10 +808,10 @@ Programme-template decision:
 ### Manage
 
 `/manage` is the administration landing page. The primary navigation stays focused on everyday
-training and review, while Manage links to Exercise Library, Training Methods, Daily Rotation, Goals,
-and Training Locations. Those existing routes remain stable and make Manage appear active while open.
-The landing page also reserves clearly non-interactive planned homes for Programme Templates,
-Preferences, and People & Access; these placeholders do not imply that the features are implemented.
+training and review, while Manage links to Exercise Library, Training Methods, Programme Templates,
+Daily Rotation, Goals, and Training Locations. Those existing routes remain stable and make Manage
+appear active while open. The landing page also reserves clearly non-interactive planned homes for
+Preferences and People & Access; these placeholders do not imply that the features are implemented.
 
 Daily actions remain close to the training flow: Today still shows and completes the selected daily
 practice, while Manage owns its rotation configuration. Goals are configured in Manage, but future
@@ -824,6 +824,14 @@ workout selection while completed sessions retain their location relationship an
 from archival and keeps an existing core location's kind stable. `Other` locations are available in
 the unified logger without applying Home/Gym exercise filtering. The page uses the table's existing
 managed-person RLS policies and requires no schema change.
+
+`/programmes` is the first read-only Programme Templates iteration. It reads the protected template
+rows from `programs`, `program_workouts`, and `program_workout_entries`, lets the user compare Operator
+and Fighter cadence, and exposes an expandable week-by-week prescription down to each session's
+exercise slot, set range, rep range, percentage of training max, rounding rule, and notes. Operator is
+selected first by default because it is the current three-session reference block. The page does not
+create `program_assignments`, map exercise slots, calculate working weights, or change Today/Plan/Log;
+those remain explicit later iterations.
 
 ### Dashboard
 

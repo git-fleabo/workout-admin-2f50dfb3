@@ -32,16 +32,17 @@ This is a product redesign, not a ground-up technical rewrite. Keep the existing
 - **Log:** one unified session composer.
 - **Progress:** concise exercise status and recent trend.
 - **More:** History, PRs, 1RM, and the Manage area.
-- **Manage:** Exercise Library, Training Methods, Daily Rotation, Goals, Training Locations, and
-  future administration.
+- **Manage:** Exercise Library, Training Methods, Programme Templates, Daily Rotation, Goals,
+  Training Locations, and future administration.
 
 ### Larger screens
 
 - Persistent navigation with Today, Log, Progress, Plan, and History.
 - Wider exercise-progress workspace with charts and exact set history together.
 - Planning views that can compare recent sessions and the coming week.
-- Manage is the entry point for Library, Methods, Daily Rotation, Goals, Training Locations, and
-  future administration; the underlying pages remain efficient dense-data screens.
+- Manage is the entry point for Library, Methods, Programme Templates, Daily Rotation, Goals,
+  Training Locations, and future administration; the underlying pages remain efficient dense-data
+  screens.
 
 ## Phase 1: One Unified Workout Logger
 

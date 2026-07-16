@@ -74,7 +74,7 @@ const NAV: NavItem[] = [
     icon: <SettingsIcon className="h-4 w-4" />,
     activeClass: "border-amber-500/40 bg-amber-500/10 text-amber-300 shadow",
     iconClass: "text-amber-400",
-    relatedPaths: ["/library", "/methods", "/rotation", "/goals", "/locations"],
+    relatedPaths: ["/library", "/methods", "/rotation", "/goals", "/locations", "/programmes"],
   },
 ];
 
