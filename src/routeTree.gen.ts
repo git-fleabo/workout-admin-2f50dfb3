@@ -15,6 +15,7 @@ import { Route as PlanRouteImport } from './routes/plan'
 import { Route as MethodsRouteImport } from './routes/methods'
 import { Route as ManageRouteImport } from './routes/manage'
 import { Route as LogRouteImport } from './routes/log'
+import { Route as LocationsRouteImport } from './routes/locations'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as GoalsRouteImport } from './routes/goals'
@@ -51,6 +52,11 @@ const LogRoute = LogRouteImport.update({
   path: '/log',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LocationsRoute = LocationsRouteImport.update({
+  id: '/locations',
+  path: '/locations',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LibraryRoute = LibraryRouteImport.update({
   id: '/library',
   path: '/library',
@@ -83,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/goals': typeof GoalsRoute
   '/history': typeof HistoryRoute
   '/library': typeof LibraryRoute
+  '/locations': typeof LocationsRoute
   '/log': typeof LogRoute
   '/manage': typeof ManageRoute
   '/methods': typeof MethodsRoute
@@ -96,6 +103,7 @@ export interface FileRoutesByTo {
   '/goals': typeof GoalsRoute
   '/history': typeof HistoryRoute
   '/library': typeof LibraryRoute
+  '/locations': typeof LocationsRoute
   '/log': typeof LogRoute
   '/manage': typeof ManageRoute
   '/methods': typeof MethodsRoute
@@ -110,6 +118,7 @@ export interface FileRoutesById {
   '/goals': typeof GoalsRoute
   '/history': typeof HistoryRoute
   '/library': typeof LibraryRoute
+  '/locations': typeof LocationsRoute
   '/log': typeof LogRoute
   '/manage': typeof ManageRoute
   '/methods': typeof MethodsRoute
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
     | '/goals'
     | '/history'
     | '/library'
+    | '/locations'
     | '/log'
     | '/manage'
     | '/methods'
@@ -138,6 +148,7 @@ export interface FileRouteTypes {
     | '/goals'
     | '/history'
     | '/library'
+    | '/locations'
     | '/log'
     | '/manage'
     | '/methods'
@@ -151,6 +162,7 @@ export interface FileRouteTypes {
     | '/goals'
     | '/history'
     | '/library'
+    | '/locations'
     | '/log'
     | '/manage'
     | '/methods'
@@ -165,6 +177,7 @@ export interface RootRouteChildren {
   GoalsRoute: typeof GoalsRoute
   HistoryRoute: typeof HistoryRoute
   LibraryRoute: typeof LibraryRoute
+  LocationsRoute: typeof LocationsRoute
   LogRoute: typeof LogRoute
   ManageRoute: typeof ManageRoute
   MethodsRoute: typeof MethodsRoute
@@ -217,6 +230,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LogRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/locations': {
+      id: '/locations'
+      path: '/locations'
+      fullPath: '/locations'
+      preLoaderRoute: typeof LocationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/library': {
       id: '/library'
       path: '/library'
@@ -261,6 +281,7 @@ const rootRouteChildren: RootRouteChildren = {
   GoalsRoute: GoalsRoute,
   HistoryRoute: HistoryRoute,
   LibraryRoute: LibraryRoute,
+  LocationsRoute: LocationsRoute,
   LogRoute: LogRoute,
   ManageRoute: ManageRoute,
   MethodsRoute: MethodsRoute,

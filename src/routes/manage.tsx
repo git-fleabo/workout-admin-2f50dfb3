@@ -21,7 +21,8 @@ export const Route = createFileRoute("/manage")({
       { title: "Manage · Training Tracker" },
       {
         name: "description",
-        content: "Manage the exercise library, training methods, daily rotation and goals.",
+        content:
+          "Manage the exercise library, training methods, daily rotation, goals and locations.",
       },
     ],
   }),
@@ -31,7 +32,7 @@ export const Route = createFileRoute("/manage")({
 type ManageLink = {
   title: string;
   description: string;
-  to: "/library" | "/methods" | "/rotation" | "/goals";
+  to: "/library" | "/methods" | "/rotation" | "/goals" | "/locations";
   icon: typeof BookOpen;
   accent: string;
 };
@@ -71,6 +72,13 @@ const TRAINING_SETUP: ManageLink[] = [
     icon: Target,
     accent: "text-amber-300 bg-amber-400/10 border-amber-400/20",
   },
+  {
+    title: "Training Locations",
+    description: "Manage Home, Gym and other places available when logging training.",
+    to: "/locations",
+    icon: MapPin,
+    accent: "text-sky-300 bg-sky-400/10 border-sky-400/20",
+  },
 ];
 
 const PLANNED: PlannedItem[] = [
@@ -78,11 +86,6 @@ const PLANNED: PlannedItem[] = [
     title: "Programme Templates",
     description: "Reusable strength blocks and programme structures.",
     icon: Dumbbell,
-  },
-  {
-    title: "Training Locations",
-    description: "Manage Home, Gym and future training contexts.",
-    icon: MapPin,
   },
   {
     title: "Preferences",

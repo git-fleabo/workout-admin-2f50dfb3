@@ -798,20 +798,32 @@ Programme-template decision:
 - This extends the existing `programs`, `program_workouts`, `program_workout_entries`, and `program_assignments` model, with a new `program_assignment_exercises` table for slot-to-exercise mappings.
 - No new app or database is being created.
 - UI and workout logging behaviour changes are intentionally deferred; the current app should behave exactly as before until a future UI iteration uses these tables.
+- A live 2026-07-16 audit confirmed both seeded templates and their 30 workouts / 102 entries are
+  present. Template read policies are active, and `program_assignment_exercises` has managed-person
+  CRUD policies. `program_assignments` has RLS enabled but no policies, so managed-person assignment
+  policies must be added before an assignment UI can safely create or progress active programmes.
 
 ## App Behavior And Screens
 
 ### Manage
 
 `/manage` is the administration landing page. The primary navigation stays focused on everyday
-training and review, while Manage links to Exercise Library, Training Methods, Daily Rotation, and
-Goals. Those existing routes remain stable and make Manage appear active while open. The landing page
-also reserves clearly non-interactive planned homes for Programme Templates, Training Locations,
+training and review, while Manage links to Exercise Library, Training Methods, Daily Rotation, Goals,
+and Training Locations. Those existing routes remain stable and make Manage appear active while open.
+The landing page also reserves clearly non-interactive planned homes for Programme Templates,
 Preferences, and People & Access; these placeholders do not imply that the features are implemented.
 
 Daily actions remain close to the training flow: Today still shows and completes the selected daily
 practice, while Manage owns its rotation configuration. Goals are configured in Manage, but future
 quick check-ins can still surface in Today or review views.
+
+`/locations` manages the existing person-owned `training_locations` rows. It can add places, rename
+them, and archive or restore them. Archiving is non-destructive: inactive locations disappear from new
+workout selection while completed sessions retain their location relationship and name. `Home` and
+`Gym` remain the two core planning contexts, so the UI protects the last active location of each kind
+from archival and keeps an existing core location's kind stable. `Other` locations are available in
+the unified logger without applying Home/Gym exercise filtering. The page uses the table's existing
+managed-person RLS policies and requires no schema change.
 
 ### Dashboard
 

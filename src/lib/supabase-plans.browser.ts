@@ -263,10 +263,11 @@ export async function saveWorkoutPlanClient({
     select: "id",
     person_id: `eq.${person.id}`,
     kind: `eq.${draft.locationKind}`,
+    is_active: "eq.true",
     limit: 1,
   });
   const location = locations[0];
-  if (!location) throw new Error(`Add a ${draft.locationKind} training location first.`);
+  if (!location) throw new Error(`Add or restore a ${draft.locationKind} training location first.`);
 
   const inserted = await supabasePublicInsert<{ id: string }>("suggested_workouts", {
     person_id: person.id,
