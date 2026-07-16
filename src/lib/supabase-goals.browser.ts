@@ -5,6 +5,7 @@ import {
   supabasePublicUpdate,
 } from "./supabase-public";
 import { getCurrentPerson, claimNoamProfile } from "./supabase-people.browser";
+import type { GoalActivitySession } from "./goal-progress";
 import type { GoalMetric, GoalRow, GoalStatus, GoalType } from "./training-types";
 
 type GoalRecord = {
@@ -34,6 +35,20 @@ type GoalCheckinRecord = {
   checked_date: string;
   note: string | null;
   created_at: string;
+};
+type GoalSessionRecord = {
+  id: string;
+  session_date: string;
+  duration_minutes: number | string | null;
+  session_entries: Array<{
+    completed: boolean;
+    entry_sets: Array<{ duration_seconds: number | string | null }> | null;
+    entry_metrics: Array<{
+      metric_key: string;
+      metric_value: number | string | null;
+      metric_text: string | null;
+    }> | null;
+  }> | null;
 };
 
 export type GoalFields = Omit<GoalRow, "id" | "row" | "checkins" | "status">;
@@ -184,4 +199,62 @@ export async function deleteGoalCheckinClient(id: string) {
   if (!id) throw new Error("Missing check-in id.");
   await supabasePublicDelete<GoalCheckinRecord>("goal_checkins", { id: `eq.${id}` });
   return { ok: true };
+}
+
+export async function getGoalActivityClient(): Promise<GoalActivitySession[]> {
+  await requirePerson();
+  const sessions = await supabasePublicSelect<GoalSessionRecord>("sessions", {
+    select:
+      "id,session_date,duration_minutes,session_entries(completed,entry_sets(duration_seconds),entry_metrics(metric_key,metric_value,metric_text))",
+    completed: "eq.true",
+    order: "session_date.asc",
+    limit: 2000,
+  });
+  return sessions
+    .map((session) => {
+      const entries = session.session_entries?.filter((entry) => entry.completed) ?? [];
+      if (!entries.length) return null;
+      return {
+        id: session.id,
+        date: session.session_date,
+        minutes: goalSessionMinutes(session.duration_minutes, entries),
+      };
+    })
+    .filter((session): session is GoalActivitySession => session != null);
+}
+
+function goalSessionMinutes(
+  sessionMinutes: number | string | null,
+  entries: NonNullable<GoalSessionRecord["session_entries"]>,
+) {
+  const recorded = finitePositive(sessionMinutes);
+  if (recorded != null) return recorded;
+
+  const metricMinutes = entries.reduce((total, entry) => {
+    const minutes = entry.entry_metrics?.find((metric) => metric.metric_key === "duration_minutes");
+    const hours = entry.entry_metrics?.find((metric) => metric.metric_key === "hours");
+    return (
+      total +
+      (finitePositive(minutes?.metric_value ?? minutes?.metric_text) ??
+        (finitePositive(hours?.metric_value ?? hours?.metric_text) ?? 0) * 60)
+    );
+  }, 0);
+  if (metricMinutes > 0) return metricMinutes;
+
+  return (
+    entries.reduce(
+      (total, entry) =>
+        total +
+        (entry.entry_sets ?? []).reduce(
+          (setTotal, set) => setTotal + (finitePositive(set.duration_seconds) ?? 0),
+          0,
+        ),
+      0,
+    ) / 60
+  );
+}
+
+function finitePositive(value: number | string | null | undefined) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }

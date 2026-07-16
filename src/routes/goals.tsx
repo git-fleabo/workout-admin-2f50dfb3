@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Archive,
@@ -63,6 +63,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { calculateGoalProgress, type GoalProgress } from "@/lib/goal-progress";
 import {
   getGoalMetricOptions,
   goalMetricLabel,
@@ -77,13 +78,16 @@ import {
   claimNoamProfile,
   deleteGoalCheckinClient,
   deleteGoalClient,
+  getGoalActivityClient,
   listGoalsClient,
   updateGoalClient,
   updateGoalStatusClient,
   type GoalFields,
 } from "@/lib/supabase-goals.browser";
+import { getExerciseHistoryClient } from "@/lib/supabase-history.browser";
 import { getLibraryClient } from "@/lib/supabase-log.browser";
 import type { GoalMetric, GoalRow, GoalStatus, GoalType, LibraryRow } from "@/lib/training-types";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/goals")({
   head: () => ({
@@ -158,6 +162,11 @@ function GoalsPage() {
     queryFn: getLibraryClient,
     staleTime: 5 * 60_000,
   });
+  const activity = useQuery({
+    queryKey: ["goal-activity"],
+    queryFn: getGoalActivityClient,
+    staleTime: 60_000,
+  });
 
   const [editor, setEditor] = useState<EditorState>({ mode: "closed" });
   const [pendingDelete, setPendingDelete] = useState<GoalRow | null>(null);
@@ -170,9 +179,72 @@ function GoalsPage() {
     () => new Map(exercises.map((exercise) => [exercise.id, exercise])),
     [exercises],
   );
+  const items = useMemo(() => list.data?.items ?? [], [list.data?.items]);
+  const linkedExercises = useMemo(() => {
+    const linked = new Map<string, GoalExercise>();
+    for (const goal of items) {
+      if (!goal.exerciseId || (goal.goalType !== "performance" && goal.goalType !== "duration")) {
+        continue;
+      }
+      const exercise = exerciseById.get(goal.exerciseId);
+      if (exercise) linked.set(exercise.id, exercise);
+    }
+    return Array.from(linked.values());
+  }, [exerciseById, items]);
+  const historyQueries = useQueries({
+    queries: linkedExercises.map((exercise) => ({
+      queryKey: ["goal-exercise-progress", exercise.id],
+      queryFn: () => getExerciseHistoryClient({ id: exercise.id, name: exercise.name }),
+      staleTime: 60_000,
+    })),
+  });
+  const historyByExerciseId = useMemo(
+    () =>
+      new Map(
+        linkedExercises.flatMap((exercise, index) => {
+          const history = historyQueries[index]?.data;
+          return history ? [[exercise.id, history] as const] : [];
+        }),
+      ),
+    [historyQueries, linkedExercises],
+  );
+  const loadingHistoryIds = useMemo(
+    () =>
+      new Set(
+        linkedExercises
+          .filter((_, index) => historyQueries[index]?.isLoading)
+          .map((exercise) => exercise.id),
+      ),
+    [historyQueries, linkedExercises],
+  );
+  const failedHistoryIds = useMemo(
+    () =>
+      new Set(
+        linkedExercises
+          .filter((_, index) => historyQueries[index]?.isError)
+          .map((exercise) => exercise.id),
+      ),
+    [historyQueries, linkedExercises],
+  );
+  const goalProgressById = useMemo(
+    () =>
+      new Map(
+        items.map((goal) => [
+          goal.id,
+          calculateGoalProgress({
+            goal,
+            activitySessions: activity.data,
+            exerciseHistory: historyByExerciseId.get(goal.exerciseId),
+          }),
+        ]),
+      ),
+    [activity.data, historyByExerciseId, items],
+  );
 
   const refreshGoalViews = () => {
     qc.invalidateQueries({ queryKey: ["goals"] });
+    qc.invalidateQueries({ queryKey: ["goal-activity"] });
+    qc.invalidateQueries({ queryKey: ["goal-exercise-progress"] });
     qc.invalidateQueries({ queryKey: ["dashboard"] });
   };
 
@@ -252,7 +324,6 @@ function GoalsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const items = useMemo(() => list.data?.items ?? [], [list.data?.items]);
   const counts = useMemo(
     () =>
       STATUS_TABS.reduce(
@@ -284,7 +355,7 @@ function GoalsPage() {
         <div>
           <h2 className="text-lg font-semibold">Goals</h2>
           <p className="text-xs text-muted-foreground">
-            Structured targets, current-period check-ins and exercise links
+            Automatic progress from completed workouts, with manual check-ins where needed
           </p>
         </div>
         <Button
@@ -374,6 +445,15 @@ function GoalsPage() {
                         key={goal.id}
                         goal={goal}
                         exercise={exerciseById.get(goal.exerciseId)}
+                        progress={goalProgressById.get(goal.id)}
+                        progressLoading={
+                          activity.isLoading ||
+                          (Boolean(goal.exerciseId) && loadingHistoryIds.has(goal.exerciseId))
+                        }
+                        progressError={
+                          (goal.goalType === "consistency" && activity.isError) ||
+                          (Boolean(goal.exerciseId) && failedHistoryIds.has(goal.exerciseId))
+                        }
                         onEdit={() => setEditor({ mode: "edit", row: goal })}
                         onDelete={() => setPendingDelete(goal)}
                         onStatus={(status) => statusMutation.mutate({ id: goal.id, status })}
@@ -439,6 +519,9 @@ function GoalsPage() {
 function GoalCard({
   goal,
   exercise,
+  progress,
+  progressLoading,
+  progressError,
   onEdit,
   onDelete,
   onStatus,
@@ -450,6 +533,9 @@ function GoalCard({
 }: {
   goal: GoalRow;
   exercise?: GoalExercise;
+  progress?: GoalProgress;
+  progressLoading: boolean;
+  progressError: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onStatus: (status: GoalStatus) => void;
@@ -460,22 +546,16 @@ function GoalCard({
   statusPending: boolean;
 }) {
   const todayCheckin = goal.checkins.find((checkin) => checkin.date === todayISO());
-  const currentCheckins = goal.checkins.filter((checkin) =>
-    dateFallsInCurrentPeriod(checkin.date, goal.period),
-  );
-  const targetValue = goal.targetValue ?? parsePositiveNumber(goal.target);
   const unit = goal.targetUnit || goal.metric || "check-ins";
-  const usesCheckinProgress = goalUsesCheckinProgress(goal);
-  const percentage =
-    usesCheckinProgress && targetValue
-      ? Math.min(100, Math.round((currentCheckins.length / targetValue) * 100))
-      : null;
   const targetLabel =
     goal.goalType === "milestone"
       ? "Complete"
-      : targetValue
-        ? `${formatNumber(targetValue)} ${unit}`.trim()
+      : progress?.target
+        ? formatGoalValue(progress.target, unit)
         : [goal.target, goal.metric].filter(Boolean).join(" ") || "No target";
+  const currentLabel =
+    progress?.value != null ? formatGoalValue(progress.value, unit) : progressLoading ? "…" : "—";
+  const manualProgress = progress && !progress.automatic;
 
   return (
     <Card className="overflow-hidden border-border bg-card">
@@ -492,6 +572,14 @@ function GoalCard({
                   <Badge variant="outline" className="px-1.5 py-0 font-medium">
                     {goalTypeLabel(goal.goalType)}
                   </Badge>
+                  {progress?.automatic && (
+                    <Badge
+                      variant="secondary"
+                      className="border-transparent px-1.5 py-0 font-medium"
+                    >
+                      Automatic
+                    </Badge>
+                  )}
                   {exercise && (
                     <span className="inline-flex items-center gap-1">
                       <Dumbbell className="h-3 w-3" />
@@ -521,37 +609,50 @@ function GoalCard({
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                {goal.goalMetric ? goalMetricLabel(goal.goalMetric) : "Target"}
+                Current{" "}
+                {goal.goalMetric ? goalMetricLabel(goal.goalMetric).toLowerCase() : "progress"}
               </p>
-              <p className="mt-0.5 text-lg font-semibold text-primary">{targetLabel}</p>
+              <p className="mt-0.5 text-lg font-semibold text-primary">{currentLabel}</p>
             </div>
             <div className="text-right">
               <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Check-ins
+                Target
               </p>
-              <p className="mt-0.5 font-semibold">
-                {currentCheckins.length}
-                {usesCheckinProgress && targetValue ? ` / ${formatNumber(targetValue)}` : ""}
-              </p>
+              <p className="mt-0.5 font-semibold">{targetLabel}</p>
             </div>
           </div>
-          {percentage != null && (
+          {progress?.percentage != null && (
             <div className="mt-3 space-y-1.5">
               <div className="h-2 overflow-hidden rounded-full bg-secondary">
                 <div
-                  className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${percentage}%` }}
+                  className={cn(
+                    "h-full rounded-full transition-all",
+                    progress.reached ? "bg-emerald-500" : "bg-primary",
+                  )}
+                  style={{ width: `${progress.percentage}%` }}
                 />
               </div>
               <div className="flex justify-between text-[11px] text-muted-foreground">
-                <span>{currentPeriodCaption(goal.period)}</span>
                 <span>
-                  {percentage >= 100
-                    ? "Target reached"
-                    : `${formatNumber(Math.max(0, (targetValue ?? 0) - currentCheckins.length))} remaining`}
+                  {progress.sourceLabel}
+                  {progress.measuredAt ? ` · ${formatUKDateShort(progress.measuredAt)}` : ""}
                 </span>
+                <span>{progress.reached ? "Target reached" : `${progress.percentage}%`}</span>
               </div>
             </div>
+          )}
+          {progressError ? (
+            <p className="mt-2 text-[11px] text-destructive">
+              Automatic progress could not be loaded. Refresh and try again.
+            </p>
+          ) : (
+            !progressLoading &&
+            progress?.automatic &&
+            progress.value == null && (
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                No matching completed workout history yet.
+              </p>
+            )
           )}
         </div>
 
@@ -561,7 +662,7 @@ function GoalCard({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-t border-border/70 bg-secondary/15 px-4 py-3">
-        {goal.status === "active" && goal.goalType === "milestone" ? (
+        {goal.status === "active" && (goal.goalType === "milestone" || progress?.reached) ? (
           <Button
             type="button"
             size="sm"
@@ -574,9 +675,9 @@ function GoalCard({
             ) : (
               <Trophy className="mr-1 h-3.5 w-3.5" />
             )}
-            Complete goal
+            {progress?.reached ? "Mark complete" : "Complete goal"}
           </Button>
-        ) : goal.status === "active" ? (
+        ) : goal.status === "active" && manualProgress ? (
           <Button
             type="button"
             size="sm"
@@ -602,33 +703,43 @@ function GoalCard({
           </Button>
         )}
 
-        <div className="ml-auto flex min-w-0 flex-wrap justify-end gap-1.5">
-          {goal.checkins.slice(0, 3).map((checkin) => {
-            const removing = deletingCheckinId === checkin.id;
-            return (
-              <span
-                key={checkin.id}
-                className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2 text-[11px] text-muted-foreground"
-              >
-                {formatUKDateShort(checkin.date)}
-                <button
-                  type="button"
-                  onClick={() => onDeleteCheckin(checkin.id)}
-                  disabled={removing}
-                  className="text-muted-foreground hover:text-destructive"
-                  aria-label={`Remove ${formatUKDateShort(checkin.date)} check-in`}
-                  title="Remove check-in"
+        {progress?.automatic && !exercise && (
+          <Button variant="ghost" size="sm" className="h-8" asChild>
+            <Link to="/history">
+              View workouts <ExternalLink className="ml-1 h-3.5 w-3.5" />
+            </Link>
+          </Button>
+        )}
+
+        {manualProgress && (
+          <div className="ml-auto flex min-w-0 flex-wrap justify-end gap-1.5">
+            {goal.checkins.slice(0, 3).map((checkin) => {
+              const removing = deletingCheckinId === checkin.id;
+              return (
+                <span
+                  key={checkin.id}
+                  className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2 text-[11px] text-muted-foreground"
                 >
-                  {removing ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <X className="h-3 w-3" />
-                  )}
-                </button>
-              </span>
-            );
-          })}
-        </div>
+                  {formatUKDateShort(checkin.date)}
+                  <button
+                    type="button"
+                    onClick={() => onDeleteCheckin(checkin.id)}
+                    disabled={removing}
+                    className="text-muted-foreground hover:text-destructive"
+                    aria-label={`Remove ${formatUKDateShort(checkin.date)} check-in`}
+                    title="Remove check-in"
+                  >
+                    {removing ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <X className="h-3 w-3" />
+                    )}
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        )}
       </div>
     </Card>
   );
@@ -948,7 +1059,7 @@ function GoalEditorDialog({
                   <Input
                     value={form.startingValue}
                     onChange={(event) => update("startingValue", event.target.value)}
-                    placeholder="Useful for future automatic progress"
+                    placeholder="Used as the progress-bar baseline"
                     inputMode="decimal"
                   />
                 </Field>
@@ -1066,62 +1177,10 @@ function formatNumber(value: number) {
   return Number.isInteger(value) ? String(value) : String(Math.round(value * 100) / 100);
 }
 
-function dateFallsInCurrentPeriod(date: string, period: string) {
-  const current = new Date(`${todayISO()}T00:00:00`);
-  const candidate = new Date(`${date}T00:00:00`);
-  const normalizedPeriod = period.toLowerCase();
-
-  if (normalizedPeriod === "week") {
-    const day = current.getDay() || 7;
-    const start = new Date(current);
-    start.setDate(current.getDate() - day + 1);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 7);
-    return candidate >= start && candidate < end;
-  }
-  if (normalizedPeriod === "month") {
-    return (
-      candidate.getFullYear() === current.getFullYear() &&
-      candidate.getMonth() === current.getMonth()
-    );
-  }
-  if (normalizedPeriod === "quarter") {
-    return (
-      candidate.getFullYear() === current.getFullYear() &&
-      Math.floor(candidate.getMonth() / 3) === Math.floor(current.getMonth() / 3)
-    );
-  }
-  if (normalizedPeriod === "year") {
-    return candidate.getFullYear() === current.getFullYear();
-  }
-  return true;
-}
-
-function currentPeriodCaption(period: string) {
-  const normalizedPeriod = period.toLowerCase();
-  if (normalizedPeriod === "week") return "Current week";
-  if (normalizedPeriod === "month") return "Current month";
-  if (normalizedPeriod === "quarter") return "Current quarter";
-  if (normalizedPeriod === "year") return "Current year";
-  return "All check-ins";
-}
-
-function goalUsesCheckinProgress(goal: GoalRow) {
-  if (goal.goalType === "consistency") {
-    return (
-      goal.goalMetric === "sessions" ||
-      goal.goalMetric === "active_days" ||
-      goal.goalMetric === "checkins"
-    );
-  }
-  if (goal.goalType !== "legacy") return false;
-  const metric = `${goal.goal} ${goal.metric}`.toLowerCase();
-  return (
-    metric.includes("workout") ||
-    metric.includes("session") ||
-    metric.includes("check") ||
-    metric.includes("day")
-  );
+function formatGoalValue(value: number, unit: string) {
+  const formatted =
+    unit === "kg" || unit === "km" ? String(Math.round(value * 10) / 10) : formatNumber(value);
+  return `${formatted} ${unit}`.trim();
 }
 
 function useResetOnChange<T>(dependency: T, reset: () => void) {

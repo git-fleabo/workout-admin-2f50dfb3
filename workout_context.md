@@ -979,6 +979,13 @@ Goals read/write Supabase. The Goals tab has a lightweight checklist flow:
 - structured goal creation for consistency, performance, duration, and milestone goals
 - exercise links whose measurement defaults follow the Library movement tracking profile
 - direct links from exercise goals into the matching exercise on Progress
+- automatic current-period progress for completed sessions, active days, and active minutes
+- automatic exercise-history progress for top load, estimated 1RM, reps, hold time, duration,
+  distance, rounds, height, and completed climbing problems
+- best-performance dates and automatic/manual source labels on each progress card
+- starting-value-aware progress bars for performance and duration goals
+- an explicit Mark complete action when measured progress reaches the target; goal status is never
+  changed silently
 - mark active goals off for today
 - show recent check-ins
 - remove mistaken check-ins
@@ -987,10 +994,17 @@ Goals read/write Supabase. The Goals tab has a lightweight checklist flow:
 Check-ins are stored in `goal_checkins`.
 
 Existing imported goals remain `goal_type = 'legacy'` and retain their original free-text
-target/metric fields. New structured goals also mirror their numeric target and unit into the legacy
-`target` and `metric` columns so Dashboard weekly-workout/minute goal parsing remains compatible.
-Automatic exercise-history progress is intentionally deferred; this iteration stores the canonical
-measurement needed for that future calculation.
+target/metric fields and manual check-in behavior. New structured goals also mirror their numeric
+target and unit into the legacy `target` and `metric` columns so Dashboard weekly-workout/minute goal
+parsing remains compatible.
+
+Automatic consistency progress reads completed sessions that contain at least one completed entry.
+Session minutes prefer the saved session duration, then entry duration metrics, then timed-set
+seconds. Exercise goals reuse the same enriched exercise history as Progress and evaluate the best
+matching single-session result inside the goal's current week/month/quarter/year, or across all
+history for long-term goals. A configured starting value changes the progress-bar baseline but does
+not replace the measured current value. Reaching a target exposes Mark complete but does not
+silently update the goal lifecycle.
 
 Migration `20260716072606_add_structured_goals` was applied to the shared Training Admin project on
 2026-07-16 through a linked single-file SQL execution because the checkout's older migration history
