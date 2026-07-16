@@ -1107,7 +1107,7 @@ export function WorkoutForm({
           style={{ backgroundImage: "var(--gradient-primary)", color: "var(--primary-foreground)" }}
         >
           {mutate.isPending || checkingDuplicate ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
+            <Loader2 className="mr-1.5 h-5 w-5 animate-spin" />
           ) : (
             <>
               <Plus className="mr-1 h-5 w-5" /> Log workout
@@ -1189,6 +1189,335 @@ export function WorkoutForm({
   );
 }
 
+type ClimbFormState = {
+  date: string;
+  movement: string;
+  durationHours: string;
+  durationMinutes: string;
+  problemsOrRoutes: string;
+  grade: string;
+  gradient: string;
+  rpe: string;
+  notes: string;
+};
+
+const blankClimbForm = (): ClimbFormState => ({
+  date: today(),
+  movement: "Bouldering Session",
+  durationHours: "",
+  durationMinutes: "",
+  problemsOrRoutes: "",
+  grade: "",
+  gradient: "",
+  rpe: "",
+  notes: "",
+});
+
+function wholeNumberOrZero(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return 0;
+  if (!/^\d+$/.test(trimmed)) return null;
+  const number = Number(trimmed);
+  return Number.isSafeInteger(number) ? number : null;
+}
+
+function climbDurationInMinutes(hours: string, minutes: string) {
+  const parsedHours = wholeNumberOrZero(hours);
+  const parsedMinutes = wholeNumberOrZero(minutes);
+  if (parsedHours == null || parsedMinutes == null || parsedMinutes > 59) return null;
+  return parsedHours * 60 + parsedMinutes;
+}
+
+function climbMovementLabel(movement: string) {
+  if (movement === "Bouldering Session") return "Bouldering";
+  if (movement === "Ropes/Belay") return "Ropes";
+  return movement;
+}
+
+function climbCountLabel(movement: string) {
+  if (movement === "Bouldering Session" || movement === "Kilter") return "Problems";
+  if (movement === "Ropes/Belay") return "Routes";
+  return "Problems / routes";
+}
+
+export function ClimbForm() {
+  const qc = useQueryClient();
+  const [form, setForm] = useState<ClimbFormState>(() => blankClimbForm());
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+  const totalMinutes = climbDurationInMinutes(form.durationHours, form.durationMinutes);
+  const trackingMode = form.problemsOrRoutes.trim() ? "Problems / routes" : "Time only";
+  const climbingIssue =
+    totalMinutes == null
+      ? "Use whole hours and minutes, with minutes between 0 and 59."
+      : climbingMetricIssue({
+          minutes: String(totalMinutes),
+          trackingMode,
+          problemsOrRoutes: form.problemsOrRoutes,
+        });
+  const rpe = Number(form.rpe);
+  const rpeIssue =
+    form.rpe.trim() && (!Number.isFinite(rpe) || rpe < 1 || rpe > 10)
+      ? "RPE must be between 1 and 10."
+      : null;
+  const validationIssue = climbingIssue ?? rpeIssue;
+  const hasStartedMetrics = Boolean(
+    form.durationHours || form.durationMinutes || form.problemsOrRoutes || form.rpe,
+  );
+
+  const update = <K extends keyof ClimbFormState>(key: K, value: ClimbFormState[K]) =>
+    setForm((current) => ({ ...current, [key]: value }));
+
+  const mutate = useMutation({
+    mutationFn: () => {
+      const duration = String(totalMinutes ?? "");
+      return addWorkoutSessionClient({
+        date: form.date,
+        title: form.movement,
+        trainingLocationId: "",
+        duration,
+        intensity: "",
+        rpe: form.rpe,
+        completed: true,
+        notes: form.notes,
+        entries: [
+          {
+            ...blank(CLIMBING_WORKOUT_TYPE),
+            exercise: form.movement,
+            workoutType: CLIMBING_WORKOUT_TYPE,
+            entryKind: CLIMBING_WORKOUT_TYPE,
+            duration,
+            rpe: form.rpe,
+            notes: form.notes,
+            climbingTrackingMode: trackingMode,
+            climbingBoulders: form.problemsOrRoutes,
+            climbingMaxGrade: form.grade,
+            climbingGradient: supportsClimbingGradient(form.movement) ? form.gradient : "",
+          },
+        ],
+        methodBlocks: [],
+      });
+    },
+    onSuccess: () => {
+      toast.success("Climb logged", {
+        description: `${climbMovementLabel(form.movement)} · ${totalMinutes} minutes`,
+      });
+      setForm(blankClimbForm());
+      setDuplicateOpen(false);
+      qc.invalidateQueries({ queryKey: ["recent-workouts"] });
+      qc.invalidateQueries({ queryKey: ["recent-climbs"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["timeline"] });
+      qc.invalidateQueries({ queryKey: ["exercise-history"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const canSubmit = Boolean(form.date && form.movement && !validationIssue && !mutate.isPending);
+
+  const submit = async (skipDuplicateCheck = false) => {
+    if (!canSubmit || checkingDuplicate) return;
+    if (!skipDuplicateCheck) {
+      setCheckingDuplicate(true);
+      try {
+        const [unifiedDuplicate, legacyDuplicate] = await Promise.all([
+          findDuplicateLogClient({
+            date: form.date,
+            title: form.movement,
+            sourceSheet: "Workout Log",
+          }),
+          findDuplicateLogClient({
+            date: form.date,
+            title: form.movement,
+            sourceSheet: "Climbing Log",
+          }),
+        ]);
+        if (unifiedDuplicate || legacyDuplicate) {
+          setDuplicateOpen(true);
+          return;
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not check for duplicates.");
+        return;
+      } finally {
+        setCheckingDuplicate(false);
+      }
+    }
+    mutate.mutate();
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="space-y-5 border-border bg-card p-4 sm:p-5">
+        <div>
+          <h2 className="text-base font-semibold">Log a climb</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Record the useful session details without building a workout.
+          </p>
+        </div>
+
+        <Field label="What did you climb?">
+          <div className="grid grid-cols-2 gap-2">
+            {CLIMBING_MOVEMENTS.map((movement) => (
+              <Button
+                key={movement}
+                type="button"
+                variant={form.movement === movement ? "secondary" : "outline"}
+                className="h-11"
+                onClick={() => {
+                  update("movement", movement);
+                  if (!supportsClimbingGradient(movement)) update("gradient", "");
+                }}
+              >
+                {climbMovementLabel(movement)}
+              </Button>
+            ))}
+          </div>
+        </Field>
+
+        <Field label="Duration">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="relative">
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={12}
+                step={1}
+                className="h-12 pr-14 text-lg"
+                value={form.durationHours}
+                onChange={(event) => update("durationHours", event.target.value)}
+                placeholder="1"
+                aria-label="Climbing duration hours"
+              />
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">
+                hours
+              </span>
+            </div>
+            <div className="relative">
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={59}
+                step={1}
+                className="h-12 pr-16 text-lg"
+                value={form.durationMinutes}
+                onChange={(event) => update("durationMinutes", event.target.value)}
+                placeholder="15"
+                aria-label="Climbing duration minutes"
+              />
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">
+                minutes
+              </span>
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground">Required · maximum 12 hours.</p>
+        </Field>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={`${climbCountLabel(form.movement)} (optional)`}>
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              step={1}
+              value={form.problemsOrRoutes}
+              onChange={(event) => update("problemsOrRoutes", event.target.value)}
+              placeholder="Leave blank for time only"
+            />
+          </Field>
+          <Field label="Max grade (optional)">
+            <Input
+              value={form.grade}
+              onChange={(event) => update("grade", event.target.value)}
+              placeholder="V5, 6b+, 7A..."
+            />
+          </Field>
+        </div>
+
+        <div
+          className={`grid gap-3 ${supportsClimbingGradient(form.movement) ? "grid-cols-2" : ""}`}
+        >
+          {supportsClimbingGradient(form.movement) ? (
+            <Field label="Gradient (optional)">
+              <SimpleSelect
+                value={form.gradient}
+                onChange={(value) => update("gradient", value)}
+                options={BOARD_GRADIENTS}
+              />
+            </Field>
+          ) : null}
+          <Field label="RPE (optional)">
+            <Input
+              type="number"
+              inputMode="decimal"
+              min={1}
+              max={10}
+              step={0.5}
+              value={form.rpe}
+              onChange={(event) => update("rpe", event.target.value)}
+              placeholder="1–10"
+            />
+          </Field>
+        </div>
+
+        <details className="rounded-lg border border-border bg-secondary/20 px-3 py-2">
+          <summary className="cursor-pointer text-sm font-medium">More details</summary>
+          <div className="mt-4 space-y-4">
+            <Field label="Date">
+              <DateInput value={form.date} onChange={(value) => update("date", value)} />
+            </Field>
+            <Field label="Notes">
+              <Textarea
+                rows={3}
+                value={form.notes}
+                onChange={(event) => update("notes", event.target.value)}
+                placeholder="Projects, attempts, how it felt..."
+              />
+            </Field>
+          </div>
+        </details>
+
+        {hasStartedMetrics && validationIssue ? (
+          <p className="text-xs font-medium text-destructive">{validationIssue}</p>
+        ) : null}
+
+        <Button
+          type="button"
+          onClick={() => submit()}
+          disabled={!canSubmit || checkingDuplicate}
+          className="h-12 w-full text-base font-semibold"
+          style={{ backgroundImage: "var(--gradient-primary)", color: "var(--primary-foreground)" }}
+        >
+          {mutate.isPending || checkingDuplicate ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <CircleCheck className="mr-1.5 h-5 w-5" />
+          )}
+          {checkingDuplicate ? "Checking…" : mutate.isPending ? "Logging climb…" : "Log climb"}
+        </Button>
+      </Card>
+
+      <AlertDialog open={duplicateOpen} onOpenChange={setDuplicateOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Already logged today</AlertDialogTitle>
+            <AlertDialogDescription>
+              {form.movement} already has an entry on {formatUKDate(form.date)}. Log another one
+              anyway?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => submit(true)}>Log another</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 export function FullWorkoutForm() {
   const qc = useQueryClient();
   const draftStorageKey = useMemo(workoutSessionDraftKey, []);
@@ -1231,32 +1560,40 @@ export function FullWorkoutForm() {
   });
   const allLibraryExercises =
     lib.data?.exercises && lib.data.exercises.length > 0 ? lib.data.exercises : FALLBACK_MOVEMENTS;
+  const workoutLibraryExercises = useMemo(
+    () => allLibraryExercises.filter((exercise) => exercise.workoutType !== CLIMBING_WORKOUT_TYPE),
+    [allLibraryExercises],
+  );
+  const recentWorkoutLogs = useMemo(
+    () => (recent.data?.recent ?? []).filter((item) => item.workoutType !== CLIMBING_WORKOUT_TYPE),
+    [recent.data?.recent],
+  );
   const selectedLocationKind = locations.data?.find(
     (location) => location.id === form.trainingLocationId,
   )?.kind;
   const libraryExercises = useMemo(
     () =>
       selectedLocationKind === "home" || selectedLocationKind === "gym"
-        ? allLibraryExercises.filter(
+        ? workoutLibraryExercises.filter(
             (exercise) =>
               !("locationScope" in exercise) ||
               exercise.locationScope === "both" ||
               exercise.locationScope === selectedLocationKind,
           )
-        : allLibraryExercises,
-    [allLibraryExercises, selectedLocationKind],
+        : workoutLibraryExercises,
+    [selectedLocationKind, workoutLibraryExercises],
   );
   const recentExerciseNames = useMemo(() => {
-    const completed = (recent.data?.recent ?? []).filter((item) => item.completed && item.exercise);
+    const completed = recentWorkoutLogs.filter((item) => item.completed && item.exercise);
     const locationMatches = selectedLocationKind
       ? completed.filter((item) => item.trainingLocation?.kind === selectedLocationKind)
       : completed;
     const source = locationMatches.length > 0 ? locationMatches : completed;
     return Array.from(new Set(source.map((item) => item.exercise))).slice(0, 10);
-  }, [recent.data?.recent, selectedLocationKind]);
+  }, [recentWorkoutLogs, selectedLocationKind]);
   const recentSessionTemplates = useMemo(
-    () => buildRecentSessionTemplates(recent.data?.recent ?? [], selectedLocationKind),
-    [recent.data?.recent, selectedLocationKind],
+    () => buildRecentSessionTemplates(recentWorkoutLogs, selectedLocationKind),
+    [recentWorkoutLogs, selectedLocationKind],
   );
   const exerciseGroupMethods = useMemo(
     () =>
@@ -1428,7 +1765,7 @@ export function FullWorkoutForm() {
     const repeatSessionId = window.localStorage.getItem(WORKOUT_REPEAT_SESSION_KEY);
     if (repeatSessionId) {
       if (!recent.data || !locations.data?.length) return;
-      const session = buildRecentSessionTemplates(recent.data.recent).find(
+      const session = buildRecentSessionTemplates(recentWorkoutLogs).find(
         (item) => item.id === repeatSessionId,
       );
       window.localStorage.removeItem(WORKOUT_REPEAT_SESSION_KEY);
@@ -1452,7 +1789,14 @@ export function FullWorkoutForm() {
       }
     }
     setInitialFormLoaded(true);
-  }, [draftStorageKey, initialFormLoaded, loadPlanIntoForm, locations.data, recent.data]);
+  }, [
+    draftStorageKey,
+    initialFormLoaded,
+    loadPlanIntoForm,
+    locations.data,
+    recent.data,
+    recentWorkoutLogs,
+  ]);
 
   useEffect(() => {
     if (!initialFormLoaded) return;
@@ -1757,11 +2101,11 @@ export function FullWorkoutForm() {
 
   const previousWorkoutFor = (exerciseName: string) => {
     if (!exerciseName) return undefined;
-    const matches = recent.data?.recent.filter(
+    const matches = recentWorkoutLogs.filter(
       (item) => item.completed && item.exercise.toLowerCase() === exerciseName.trim().toLowerCase(),
     );
     return (
-      matches?.find((item) => item.trainingLocation?.kind === selectedLocationKind) ?? matches?.[0]
+      matches.find((item) => item.trainingLocation?.kind === selectedLocationKind) ?? matches[0]
     );
   };
 

@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Award, Dumbbell, Trophy } from "lucide-react";
+import { Award, Dumbbell, Mountain, Trophy } from "lucide-react";
 
-import { FullWorkoutForm } from "./-workout-form";
+import { ClimbForm, FullWorkoutForm } from "./-workout-form";
 import { OneRMForm } from "./-onerm-form";
 import { PRsView } from "./-prs-view";
 
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/log")({
   component: LogPage,
 });
 
-type Mode = "log" | "onerm" | "prs";
+type Mode = "log" | "climb" | "onerm" | "prs";
 function LogPage() {
   const [mode, setMode] = useState<Mode>("log");
 
@@ -28,9 +28,7 @@ function LogPage() {
       <header className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Log Training</h1>
-          <p className="text-sm text-muted-foreground">
-            Log one movement or a whole session in the same workout.
-          </p>
+          <p className="text-sm text-muted-foreground">Log a workout, climb or strength test.</p>
         </div>
       </header>
 
@@ -38,6 +36,7 @@ function LogPage() {
 
       <div className="mx-auto max-w-xl space-y-4">
         {mode === "log" && <FullWorkoutForm key="log-session" />}
+        {mode === "climb" && <ClimbForm />}
         {mode === "onerm" && <OneRMForm />}
         {mode === "prs" && <PRsView />}
       </div>
@@ -49,9 +48,15 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
   const tabs: { id: Mode; label: string; icon: React.ReactNode; color: string }[] = [
     {
       id: "log",
-      label: "Log",
+      label: "Workout",
       icon: <Dumbbell className="h-4 w-4" />,
       color: "oklch(0.72 0.14 220)",
+    },
+    {
+      id: "climb",
+      label: "Climb",
+      icon: <Mountain className="h-4 w-4" />,
+      color: "oklch(0.76 0.14 75)",
     },
     {
       id: "onerm",
@@ -63,7 +68,7 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
   ];
 
   return (
-    <div className="grid grid-cols-3 gap-1 rounded-xl border border-border bg-secondary/40 p-1">
+    <div className="grid grid-cols-4 gap-1 rounded-xl border border-border bg-secondary/40 p-1">
       {tabs.map((t) => {
         const active = mode === t.id;
         return (

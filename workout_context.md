@@ -877,9 +877,20 @@ mini bars, and recent PR values render as compact pills.
 The log screen supports:
 
 - workout entries
-- climbing entries from the main Log form by choosing type `Climbing`
+- climbing entries from the dedicated `Climb` mode
 - 1RM tests
 - bodyweight logs
+
+Climbing now has a dedicated `Climb` mode alongside Workout, 1RM, and PRs. It deliberately bypasses
+the workout composer: there is no Home/Gym choice, set editor, movement ordering, advanced-method
+section, completion toggle, or review dialog. The compact form uses four direct choices
+(`Bouldering`, `Ropes`, `Kilter`, and `Mix`), friendly hours/minutes inputs, an optional
+movement-aware problems/routes count, optional max grade and RPE, Kilter-only gradient, and collapsed
+date/notes. A blank count saves `Time only`; entering a count saves `Problems / routes`. The screen
+still writes through `addWorkoutSessionClient`, so it keeps canonical `duration_minutes` and the same
+session/entry/metric contract consumed by Dashboard, History, Progress, and Goals. Climbing movements
+and climb-only recent sessions are excluded from the Workout composer so they cannot accidentally
+pick up workout sets or advanced methods.
 
 1RM logging uses Epley as the fixed/default estimate formula. The formula selector is intentionally hidden from the UI, but new rows still save `formula = 'Epley'` in `one_rm_tests`.
 
