@@ -13,6 +13,7 @@ import type {
   WorkoutPlanMethodBlock,
   WorkoutPlanMovement,
 } from "./workout-plan";
+import { getTrackingModeValue, TRACKING_MODE_OPTIONS, type TrackingMode } from "./movement-metrics";
 import type { SuggestedWorkoutStatus } from "./workout-lifecycle";
 
 type SuggestedSetRow = {
@@ -20,6 +21,7 @@ type SuggestedSetRow = {
   set_number: number;
   reps: number | null;
   weight: number | null;
+  duration_seconds: number | null;
   rpe: number | null;
   completed: boolean;
   suggested_workout_set_segments: SuggestedSetSegmentRow[] | null;
@@ -44,6 +46,8 @@ type SuggestedEntryRow = {
   order_index: number;
   source_date: string | null;
   reason: string | null;
+  tracking_mode: string | null;
+  target_metrics: Record<string, unknown> | null;
   suggested_workout_sets: SuggestedSetRow[] | null;
 };
 
@@ -145,6 +149,36 @@ const toNumber = (value: string) => {
 
 const asText = (value: number | null) => (value == null ? "" : String(value));
 
+const TRACKING_MODES = new Set<string>(TRACKING_MODE_OPTIONS.map((option) => option.value));
+
+function trackingModeFromRow(entry: SuggestedEntryRow): TrackingMode {
+  if (entry.tracking_mode && TRACKING_MODES.has(entry.tracking_mode)) {
+    return entry.tracking_mode as TrackingMode;
+  }
+  return getTrackingModeValue({
+    workoutType: entry.workout_type ?? "Other",
+    movement: entry.name,
+  });
+}
+
+function metricText(metrics: Record<string, unknown> | null, key: string) {
+  const value = metrics?.[key];
+  return typeof value === "number" || typeof value === "string" ? String(value) : "";
+}
+
+function targetMetricsForSave(targets: WorkoutPlanMovement["targets"]) {
+  return {
+    ...(toNumber(targets.durationMinutes) == null
+      ? {}
+      : { duration_minutes: toNumber(targets.durationMinutes) }),
+    ...(toNumber(targets.distance) == null ? {} : { distance: toNumber(targets.distance) }),
+    ...(targets.distanceUnit.trim() ? { distance_unit: targets.distanceUnit.trim() } : {}),
+    ...(toNumber(targets.rounds) == null ? {} : { rounds: toNumber(targets.rounds) }),
+    ...(toNumber(targets.height) == null ? {} : { height: toNumber(targets.height) }),
+    ...(targets.detail.trim() ? { detail: targets.detail.trim() } : {}),
+  };
+}
+
 function methodBlockFromRow(
   block: SuggestedMethodBlockRow,
   movementIndexByEntryId: Map<string, number>,
@@ -190,11 +224,21 @@ function movementFromRow(entry: SuggestedEntryRow): WorkoutPlanMovement {
   return {
     exercise: entry.name,
     workoutType: entry.workout_type ?? "Other",
+    trackingMode: trackingModeFromRow(entry),
+    targets: {
+      durationMinutes: metricText(entry.target_metrics, "duration_minutes"),
+      distance: metricText(entry.target_metrics, "distance"),
+      distanceUnit: metricText(entry.target_metrics, "distance_unit"),
+      rounds: metricText(entry.target_metrics, "rounds"),
+      height: metricText(entry.target_metrics, "height"),
+      detail: metricText(entry.target_metrics, "detail"),
+    },
     sourceDate: entry.source_date ?? "",
     reason: entry.reason ?? "",
     setRows: sets.map((set) => ({
       reps: asText(set.reps),
       weight: asText(set.weight),
+      durationSeconds: asText(set.duration_seconds),
       rpe: asText(set.rpe),
       completed: set.completed,
       method: (() => {
@@ -298,6 +342,8 @@ export async function saveWorkoutPlanClient({
         order_index: movementIndex,
         source_date: movement.sourceDate || null,
         reason: movement.reason || null,
+        tracking_mode: movement.trackingMode,
+        target_metrics: targetMetricsForSave(movement.targets),
       });
       const entry = entries[0];
       if (!entry) throw new Error(`${movement.exercise} was not saved to the plan.`);
@@ -308,6 +354,7 @@ export async function saveWorkoutPlanClient({
           set_number: setIndex + 1,
           reps: toNumber(set.reps),
           weight: toNumber(set.weight),
+          duration_seconds: toNumber(set.durationSeconds),
           rpe: toNumber(set.rpe),
           completed: set.completed,
         });
@@ -410,7 +457,7 @@ export async function getNextSuggestedWorkoutsClient() {
   const person = await requirePerson();
   const rows = await supabasePublicSelect<SuggestedWorkoutRow>("suggested_workouts", {
     select:
-      "id,title,basis,readiness,status,created_at,program_assignment_id,program_workout_id,training_locations(kind,name),suggested_workout_entries(id,name,workout_type,order_index,source_date,reason,suggested_workout_sets(id,set_number,reps,weight,rpe,completed,suggested_workout_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion,config))),suggested_workout_method_blocks(id,training_method_id,method_name,family,order_index,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,block_duration_seconds,work_interval_seconds,rest_interval_seconds,config,suggested_workout_method_block_entries(suggested_workout_entry_id,sequence_index))",
+      "id,title,basis,readiness,status,created_at,program_assignment_id,program_workout_id,training_locations(kind,name),suggested_workout_entries(id,name,workout_type,order_index,source_date,reason,tracking_mode,target_metrics,suggested_workout_sets(id,set_number,reps,weight,duration_seconds,rpe,completed,suggested_workout_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion,config))),suggested_workout_method_blocks(id,training_method_id,method_name,family,order_index,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,block_duration_seconds,work_interval_seconds,rest_interval_seconds,config,suggested_workout_method_block_entries(suggested_workout_entry_id,sequence_index))",
     status: "in.(pending,accepted)",
     person_id: `eq.${person.id}`,
     order: "created_at.desc",

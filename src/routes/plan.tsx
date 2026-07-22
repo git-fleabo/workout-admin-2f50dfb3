@@ -33,6 +33,7 @@ import {
   saveWorkoutPlanClient,
 } from "@/lib/supabase-plans.browser";
 import { getSupabaseSession } from "@/lib/supabase-public";
+import { getMovementMetricProfile } from "@/lib/movement-metrics";
 import { getWeeklyLoadHistoryClient } from "@/lib/supabase-weekly-load.browser";
 import {
   buildWeeklyPlan,
@@ -55,6 +56,7 @@ import {
   type WorkoutPlanMovement,
   type WorkoutPlanMethodBlock,
   type WorkoutPlanSet,
+  type WorkoutPlanTargets,
 } from "@/lib/workout-plan";
 import { cn } from "@/lib/utils";
 import { readWorkoutDraftSummary, workoutSessionDraftKey } from "@/lib/workout-local-state";
@@ -227,6 +229,16 @@ function PlanPage() {
     () => getWorkoutBasisOptions(matchingLogs, location),
     [location, matchingLogs],
   );
+  const defaultMetricsByExercise = useMemo(
+    () =>
+      new Map(
+        (library.data?.exercises ?? []).map((exercise) => [
+          exercise.name.trim().toLowerCase(),
+          exercise.metric,
+        ]),
+      ),
+    [library.data?.exercises],
+  );
   const suggestion = useMemo(
     () =>
       buildWorkoutSuggestion(
@@ -235,8 +247,9 @@ function PlanPage() {
         readiness,
         basisDate,
         methodHistory.data ?? [],
+        defaultMetricsByExercise,
       ),
-    [basisDate, location, matchingLogs, methodHistory.data, readiness],
+    [basisDate, defaultMetricsByExercise, location, matchingLogs, methodHistory.data, readiness],
   );
   const [movements, setMovements] = useState<WorkoutPlanMovement[]>([]);
   const [methodBlocks, setMethodBlocks] = useState<WorkoutPlanMethodBlock[]>([]);
@@ -339,6 +352,19 @@ function PlanPage() {
       ),
     );
 
+  const updateTarget = <K extends keyof WorkoutPlanTargets>(
+    movementIndex: number,
+    key: K,
+    value: WorkoutPlanTargets[K],
+  ) =>
+    setMovements((current) =>
+      current.map((movement, index) =>
+        index === movementIndex
+          ? { ...movement, targets: { ...movement.targets, [key]: value } }
+          : movement,
+      ),
+    );
+
   const addSet = (movementIndex: number) =>
     setMovements((current) =>
       current.map((movement, index) => {
@@ -346,6 +372,7 @@ function PlanPage() {
         const previous = movement.setRows[movement.setRows.length - 1] ?? {
           reps: "",
           weight: "",
+          durationSeconds: "",
           rpe: "",
           completed: true,
         };
@@ -612,6 +639,7 @@ function PlanPage() {
                   movement={movement}
                   index={movementIndex}
                   onUpdateSet={updateSet}
+                  onUpdateTarget={updateTarget}
                   onRemoveSet={removeSet}
                   onAddSet={addSet}
                   onRemoveMovement={() => removeMovement(movementIndex)}
@@ -783,6 +811,7 @@ function MovementPlanCard({
   movement,
   index,
   onUpdateSet,
+  onUpdateTarget,
   onRemoveSet,
   onAddSet,
   onRemoveMovement,
@@ -795,11 +824,23 @@ function MovementPlanCard({
     key: K,
     value: WorkoutPlanSet[K],
   ) => void;
+  onUpdateTarget: <K extends keyof WorkoutPlanTargets>(
+    movementIndex: number,
+    key: K,
+    value: WorkoutPlanTargets[K],
+  ) => void;
   onRemoveSet: (movementIndex: number, setIndex: number) => void;
   onAddSet: (movementIndex: number) => void;
   onRemoveMovement: () => void;
 }) {
-  const usesWeight = movement.setRows.some((set) => set.weight !== "");
+  const profile = getMovementMetricProfile({
+    workoutType: movement.workoutType,
+    movement: movement.exercise,
+    defaultMetric: movement.trackingMode,
+  });
+  const usesWeight = profile === "weighted" || profile === "grip";
+  const usesDuration = profile === "hold" || profile === "grip";
+  const showsSetRows = ["weighted", "reps", "hold", "grip", "power"].includes(profile);
   return (
     <Card>
       <CardHeader className="p-4 pb-2">
@@ -836,58 +877,167 @@ function MovementPlanCard({
             )}
           </div>
         ) : null}
-        <div className="space-y-1.5">
-          <div
-            className={cn(
-              "grid items-center gap-2 px-1 text-[10px] uppercase tracking-wider text-muted-foreground",
-              usesWeight ? "grid-cols-[24px_1fr_1fr_32px]" : "grid-cols-[24px_1fr_32px]",
-            )}
-          >
-            <span>Set</span>
-            {usesWeight && <span>kg</span>}
-            <span>Reps</span>
-            <span />
-          </div>
-          {movement.setRows.map((set, setIndex) => (
+        <MovementTargetFields
+          movement={movement}
+          index={index}
+          profile={profile}
+          onUpdateTarget={onUpdateTarget}
+          onUpdateSet={onUpdateSet}
+        />
+        {showsSetRows ? (
+          <div className="space-y-1.5">
             <div
-              key={setIndex}
               className={cn(
-                "grid items-center gap-2",
+                "grid items-center gap-2 px-1 text-[10px] uppercase tracking-wider text-muted-foreground",
                 usesWeight ? "grid-cols-[24px_1fr_1fr_32px]" : "grid-cols-[24px_1fr_32px]",
               )}
             >
-              <span className="text-center text-xs text-muted-foreground">{setIndex + 1}</span>
-              {usesWeight && (
-                <Input
-                  inputMode="decimal"
-                  aria-label={`${movement.exercise} set ${setIndex + 1} weight`}
-                  value={set.weight}
-                  onChange={(event) => onUpdateSet(index, setIndex, "weight", event.target.value)}
-                />
-              )}
-              <Input
-                inputMode="numeric"
-                aria-label={`${movement.exercise} set ${setIndex + 1} reps`}
-                value={set.reps}
-                onChange={(event) => onUpdateSet(index, setIndex, "reps", event.target.value)}
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                disabled={movement.setRows.length === 1}
-                onClick={() => onRemoveSet(index, setIndex)}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span className="sr-only">Remove set {setIndex + 1}</span>
-              </Button>
+              <span>Set</span>
+              {usesWeight && <span>kg</span>}
+              <span>{usesDuration ? "Seconds" : "Reps"}</span>
+              <span />
             </div>
-          ))}
-        </div>
-        <Button variant="ghost" size="sm" className="w-full" onClick={() => onAddSet(index)}>
-          <Plus className="mr-1 h-3.5 w-3.5" /> Add set
-        </Button>
+            {movement.setRows.map((set, setIndex) => (
+              <div
+                key={setIndex}
+                className={cn(
+                  "grid items-center gap-2",
+                  usesWeight ? "grid-cols-[24px_1fr_1fr_32px]" : "grid-cols-[24px_1fr_32px]",
+                )}
+              >
+                <span className="text-center text-xs text-muted-foreground">{setIndex + 1}</span>
+                {usesWeight && (
+                  <Input
+                    inputMode="decimal"
+                    aria-label={`${movement.exercise} set ${setIndex + 1} weight`}
+                    value={set.weight}
+                    onChange={(event) => onUpdateSet(index, setIndex, "weight", event.target.value)}
+                  />
+                )}
+                <Input
+                  inputMode="numeric"
+                  aria-label={`${movement.exercise} set ${setIndex + 1} ${usesDuration ? "seconds" : "reps"}`}
+                  value={usesDuration ? set.durationSeconds : set.reps}
+                  onChange={(event) =>
+                    usesDuration
+                      ? onUpdateSet(index, setIndex, "durationSeconds", event.target.value)
+                      : onUpdateSet(index, setIndex, "reps", event.target.value)
+                  }
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={movement.setRows.length === 1}
+                  onClick={() => onRemoveSet(index, setIndex)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span className="sr-only">Remove set {setIndex + 1}</span>
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {showsSetRows ? (
+          <Button variant="ghost" size="sm" className="w-full" onClick={() => onAddSet(index)}>
+            <Plus className="mr-1 h-3.5 w-3.5" /> Add set
+          </Button>
+        ) : null}
       </CardContent>
     </Card>
   );
+}
+
+function MovementTargetFields({
+  movement,
+  index,
+  profile,
+  onUpdateTarget,
+  onUpdateSet,
+}: {
+  movement: WorkoutPlanMovement;
+  index: number;
+  profile: ReturnType<typeof getMovementMetricProfile>;
+  onUpdateTarget: <K extends keyof WorkoutPlanTargets>(
+    movementIndex: number,
+    key: K,
+    value: WorkoutPlanTargets[K],
+  ) => void;
+  onUpdateSet: <K extends keyof WorkoutPlanSet>(
+    movementIndex: number,
+    setIndex: number,
+    key: K,
+    value: WorkoutPlanSet[K],
+  ) => void;
+}) {
+  const firstSet = movement.setRows[0];
+  const fields: React.ReactNode[] = [];
+  const addTarget = (
+    key: keyof WorkoutPlanTargets,
+    label: string,
+    inputMode: "numeric" | "decimal" | "text" = "decimal",
+  ) =>
+    fields.push(
+      <label
+        key={key}
+        className="space-y-1 text-[10px] uppercase tracking-wider text-muted-foreground"
+      >
+        <span>{label}</span>
+        <Input
+          inputMode={inputMode}
+          value={movement.targets[key]}
+          onChange={(event) => onUpdateTarget(index, key, event.target.value)}
+          className="normal-case tracking-normal text-foreground"
+        />
+      </label>,
+    );
+
+  if (["time", "duration", "carry", "conditioning", "climbing"].includes(profile)) {
+    addTarget("durationMinutes", "Minutes", "numeric");
+  }
+  if (["time", "carry", "mobility_position"].includes(profile)) {
+    addTarget("distance", profile === "mobility_position" ? "Distance (cm)" : "Distance");
+  }
+  if (["time", "carry"].includes(profile)) addTarget("distanceUnit", "Unit", "text");
+  if (profile === "conditioning" || profile === "carry") {
+    addTarget("rounds", "Rounds", "numeric");
+  }
+  if (profile === "power") addTarget("height", "Height (cm)");
+  if (["duration", "conditioning", "climbing"].includes(profile)) {
+    addTarget("detail", "Detail", "text");
+  }
+  if (profile === "mobility_position") {
+    fields.push(
+      <label
+        key="hold"
+        className="space-y-1 text-[10px] uppercase tracking-wider text-muted-foreground"
+      >
+        <span>Hold (sec)</span>
+        <Input
+          inputMode="decimal"
+          value={firstSet?.durationSeconds ?? ""}
+          onChange={(event) => onUpdateSet(index, 0, "durationSeconds", event.target.value)}
+          className="normal-case tracking-normal text-foreground"
+        />
+      </label>,
+    );
+  }
+  if (profile === "carry" || profile === "conditioning") {
+    fields.push(
+      <label
+        key="load"
+        className="space-y-1 text-[10px] uppercase tracking-wider text-muted-foreground"
+      >
+        <span>Load (kg)</span>
+        <Input
+          inputMode="decimal"
+          value={firstSet?.weight ?? ""}
+          onChange={(event) => onUpdateSet(index, 0, "weight", event.target.value)}
+          className="normal-case tracking-normal text-foreground"
+        />
+      </label>,
+    );
+  }
+
+  return fields.length ? <div className="grid gap-2 sm:grid-cols-3">{fields}</div> : null;
 }

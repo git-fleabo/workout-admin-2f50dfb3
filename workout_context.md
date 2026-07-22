@@ -785,7 +785,12 @@ Key columns:
 - `notes text nullable`
 - timestamps
 
-`suggested_workout_entries` stores ordered movement names, workout types, source dates, and plain-language progression reasons. `suggested_workout_sets` stores ordered reps, weight, RPE, and completion targets for each entry.
+`suggested_workout_entries` stores ordered movement names, workout types, source dates, plain-language
+progression reasons, a canonical `tracking_mode`, and a structured `target_metrics` object for
+movement-level duration, distance/unit, rounds, height, and detail. `suggested_workout_sets` stores
+ordered reps, weight, per-set `duration_seconds`, RPE, and completion targets for each entry. Existing
+plans without the newer fields remain readable through tracking-mode inference and empty-target
+defaults.
 
 `suggested_workout_method_blocks` stores an ordered exercise-group or timed/density method snapshot for
 a plan, including rounds, rest, duration, intervals, and structured configuration.
@@ -1239,7 +1244,9 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - `src/lib/supabase-log.browser.ts`: workout/climbing/1RM/bodyweight log data functions.
 - `src/lib/supabase-plans.browser.ts`: save/load/status/completion helpers for persistent workout plans.
 - `src/lib/supabase-weekly-load.browser.ts`: profile-scoped non-strength session classification for weekly load inference.
-- `src/lib/workout-plan.ts`: transparent history grouping, pattern detection, progression rules, plan-draft validation, and Today-to-Plan location handoff.
+- `src/lib/workout-plan.ts`: transparent history grouping, pattern detection, progression rules,
+  tracking-mode-aware targets, backward-compatible plan-draft validation, and Today-to-Plan location
+  handoff.
 - `src/lib/weekly-plan.ts`: pure expected-day, confidence, rotation, progression, repeated-high-effort, other-load, and adjustment-validation logic for the weekly Plan overview.
 - `src/lib/weekly-recovery.ts`: pure combined-load, effort, performance-decline, and deload-decision rules.
 - `src/lib/supabase-training-methods.browser.ts`: profile-scoped system/custom training-method reads and settings CRUD.
@@ -1254,7 +1261,8 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - `src/routes/dashboard.tsx`: dashboard route at `/dashboard`.
 - `src/routes/weekly-review.tsx`: weekly training review and evidence-backed next actions at `/weekly-review`.
 - `src/routes/log.tsx`: log screen route.
-- `src/routes/plan.tsx`: next-workout planner, readiness choices, and editable suggested sets.
+- `src/routes/plan.tsx`: next-workout planner, readiness choices, editable suggested sets, and
+  tracking-mode-specific duration, hold, distance, rounds, carry, mobility, and power targets.
 - `src/routes/methods.tsx`: advanced training-method settings library, family filters, defaults, visibility, duplication, and custom CRUD.
 - `src/routes/progress.tsx`: exercise-specific progress analysis, charts, period/location filters, and set history.
 - `src/routes/-workout-form.tsx`: shared workout/climbing log form and metric-field UI.
@@ -1276,6 +1284,8 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - `supabase/migrations/20260716072606_add_structured_goals.sql`: applied backward-compatible structured goal fields and the linked-exercise index/foreign key.
 - `supabase/migrations/20260713173700_add_suggested_workout_method_blocks.sql`: applied and tracked method blocks and ordered movement memberships for persistent plans.
 - `supabase/migrations/20260713173800_add_suggested_workout_set_segments.sql`: applied and tracked within-exercise method segments for persistent plans.
+- `supabase/migrations/20260722212241_add_type_aware_workout_plan_targets.sql`: adds canonical tracking
+  modes and structured movement targets to saved plan entries plus per-set planned duration seconds.
 - `docs/product-roadmap.md`: staged product redesign roadmap; Phase 5 advanced-method logging, planning, round trips, Progress, and adherence review are complete.
 - `supabase/approved_logging_library_updates.sql`: reusable SQL for approved data-library changes.
 - `workout_context.md`: this handoff file; keep it current.

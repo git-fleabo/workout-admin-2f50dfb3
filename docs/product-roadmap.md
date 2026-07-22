@@ -252,7 +252,7 @@ uses the normal plan, logger, completion, History, and Progress contracts.
 1. Add structured circuit metadata to every movement: availability, primary movement pattern,
    difficulty, impact, dose unit/range, and whether the dose applies per side. — implemented
 2. Extend saved workout targets beyond reps/weight so duration, holds, distance, rounds, and other
-   tracking-mode targets survive Plan → Log round trips.
+   tracking-mode targets survive Plan → Log round trips. — implemented
 3. Build a deterministic generator with duration budgeting, equipment/location eligibility,
    movement-balance rules, intensity/readiness filtering, and visible selection reasons.
 4. Add a Circuit Builder flow to Plan for duration, location/equipment, focus, intensity, exclusions,
@@ -261,11 +261,14 @@ uses the normal plan, logger, completion, History, and Progress contracts.
 6. Verify execution and review, expand the movement catalogue deliberately, and add optional timer
    polish without making live timer use mandatory.
 
-The metadata foundation is the first delivered slice. Library cards and filters expose circuit
-availability, while the movement editor controls the exact structured values. Initial values are
-seeded conservatively: aggregate sessions and classes are excluded; atomic movements remain available;
-and clearly circuit-friendly movements are preferred. Later generator releases should consume these
-fields directly rather than infer suitability from movement names.
+The first two foundations are now delivered. Library cards and filters expose circuit availability,
+while the movement editor controls the exact structured values. Initial values are seeded
+conservatively: aggregate sessions and classes are excluded; atomic movements remain available; and
+clearly circuit-friendly movements are preferred. Saved workout entries now carry a canonical
+tracking mode plus movement-level duration, distance, unit, rounds, height, and detail targets; saved
+sets carry hold/work seconds. Plan renders the matching controls and the logger restores them. Later
+generator releases should consume these contracts directly rather than infer suitability or dose from
+movement names.
 
 ## What We Keep
 

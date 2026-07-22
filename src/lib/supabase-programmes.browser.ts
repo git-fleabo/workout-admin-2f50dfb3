@@ -434,6 +434,15 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
       movements.push({
         exercise: mapping.exerciseName,
         workoutType: method.workoutType,
+        trackingMode: "weight_reps",
+        targets: {
+          durationMinutes: "",
+          distance: "",
+          distanceUnit: "",
+          rounds: "",
+          height: "",
+          detail: "",
+        },
         sourceDate: "",
         reason: [
           entry.intensityPercent != null && mapping.trainingMax != null
@@ -444,7 +453,7 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
         ]
           .filter(Boolean)
           .join(" "),
-        setRows,
+        setRows: setRows.map((set) => ({ ...set, durationSeconds: "" })),
       });
     }
     if (invalid || !movements.length) continue;
@@ -519,6 +528,8 @@ export async function startProgrammeWorkoutClient(
         workout_type: movement.workoutType,
         order_index: movementIndex,
         reason: movement.reason,
+        tracking_mode: movement.trackingMode,
+        target_metrics: {},
       });
       const entry = entries[0];
       if (!entry) throw new Error(`${movement.exercise} was not added to the programme session.`);
@@ -529,6 +540,7 @@ export async function startProgrammeWorkoutClient(
           set_number: setIndex + 1,
           reps: Number(set.reps),
           weight: Number(set.weight),
+          duration_seconds: null,
           rpe: null,
           completed: true,
         })),

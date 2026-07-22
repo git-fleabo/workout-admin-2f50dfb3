@@ -584,6 +584,14 @@ create table if not exists public.suggested_workout_entries (
   order_index integer not null default 0,
   source_date date,
   reason text,
+  tracking_mode text check (
+    tracking_mode is null or tracking_mode in (
+      'weight_reps', 'reps_only', 'hold', 'grip_hold', 'distance_time', 'duration',
+      'conditioning', 'carry', 'mobility_position', 'power', 'climbing'
+    )
+  ),
+  target_metrics jsonb not null default '{}'::jsonb
+    check (jsonb_typeof(target_metrics) = 'object'),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (suggested_workout_id, order_index)
@@ -599,6 +607,7 @@ create table if not exists public.suggested_workout_sets (
   set_number integer not null,
   reps numeric,
   weight numeric,
+  duration_seconds numeric check (duration_seconds is null or duration_seconds >= 0),
   rpe numeric,
   completed boolean not null default true,
   created_at timestamptz not null default now(),

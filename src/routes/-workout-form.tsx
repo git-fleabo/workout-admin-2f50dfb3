@@ -1700,16 +1700,32 @@ export function FullWorkoutForm() {
       const trainingLocation = locations.data?.find(
         (location) => location.kind === draft.locationKind,
       );
-      const entries = draft.movements.map((movement) => ({
-        ...blankSessionEntry(),
-        exercise: movement.exercise,
-        workoutType: movement.workoutType,
-        setRows: movement.setRows.map((set) => ({
-          ...set,
-          durationSeconds: "",
-          completed: true,
-        })),
-      }));
+      const entries = draft.movements.map((movement) => {
+        const totalReps = movement.setRows.reduce(
+          (total, set) => total + (Number(set.reps) || 0),
+          0,
+        );
+        const firstSet = movement.setRows[0];
+        return {
+          ...blankSessionEntry(),
+          exercise: movement.exercise,
+          workoutType: movement.workoutType,
+          sets: movement.targets.rounds || String(movement.setRows.length),
+          reps: totalReps ? String(totalReps) : "",
+          weight: firstSet?.weight ?? "",
+          duration: movement.targets.durationMinutes,
+          holdSeconds: firstSet?.durationSeconds ?? "",
+          distance: movement.targets.distance,
+          distanceUnit: movement.targets.distanceUnit || "cm",
+          rounds: movement.targets.rounds,
+          height: movement.targets.height,
+          detail: movement.targets.detail,
+          setRows: movement.setRows.map((set) => ({
+            ...set,
+            completed: true,
+          })),
+        };
+      });
       const methodBlocks = (draft.methodBlocks ?? [])
         .map((block) => ({
           id: newClientId("method"),

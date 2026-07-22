@@ -1,4 +1,5 @@
 import type { getRecentLogsClient, WorkoutSetMethodInput } from "./supabase-log.browser";
+import { getTrackingModeValue, type TrackingMode } from "./movement-metrics";
 
 export const WORKOUT_PLAN_DRAFT_KEY = "workout-plan-draft";
 export const WORKOUT_PLAN_LOCATION_KEY = "workout-plan-location";
@@ -10,14 +11,26 @@ export type RecentWorkoutLog = Awaited<ReturnType<typeof getRecentLogsClient>>["
 export type WorkoutPlanSet = {
   reps: string;
   weight: string;
+  durationSeconds: string;
   rpe: string;
   completed: boolean;
   method?: WorkoutSetMethodInput;
 };
 
+export type WorkoutPlanTargets = {
+  durationMinutes: string;
+  distance: string;
+  distanceUnit: string;
+  rounds: string;
+  height: string;
+  detail: string;
+};
+
 export type WorkoutPlanMovement = {
   exercise: string;
   workoutType: string;
+  trackingMode: TrackingMode;
+  targets: WorkoutPlanTargets;
   sourceDate: string;
   reason: string;
   setRows: WorkoutPlanSet[];
@@ -76,6 +89,31 @@ function roundLoad(value: number) {
   return Math.max(0, Math.round(value / 2.5) * 2.5);
 }
 
+function targetsForLog(log: RecentWorkoutLog, trackingMode: TrackingMode): WorkoutPlanTargets {
+  const targets: WorkoutPlanTargets = {
+    durationMinutes: "",
+    distance: "",
+    distanceUnit: "",
+    rounds: "",
+    height: "",
+    detail: "",
+  };
+  if (["distance_time", "duration", "conditioning", "carry", "climbing"].includes(trackingMode)) {
+    targets.durationMinutes = log.duration || "";
+  }
+  if (["distance_time", "carry", "mobility_position"].includes(trackingMode)) {
+    targets.distance = log.distance || "";
+    targets.distanceUnit = log.distanceUnit || "";
+  }
+  if (trackingMode === "conditioning") targets.rounds = log.rounds || "";
+  if (trackingMode === "carry") targets.rounds = log.rounds || log.sets || "";
+  if (trackingMode === "power") targets.height = log.height || "";
+  if (["duration", "conditioning", "climbing"].includes(trackingMode)) {
+    targets.detail = log.detail || "";
+  }
+  return targets;
+}
+
 function setRowsFor(log: RecentWorkoutLog): WorkoutPlanSet[] {
   if (log.setRows.length > 1 || log.setRows.some((set) => set.method)) {
     return log.setRows.map((set) => ({ ...set, completed: true }));
@@ -89,6 +127,7 @@ function setRowsFor(log: RecentWorkoutLog): WorkoutPlanSet[] {
   return Array.from({ length: count }, () => ({
     reps: perSetReps ?? "",
     weight: log.weight || log.setRows[0]?.weight || "",
+    durationSeconds: log.setRows[0]?.durationSeconds || log.holdSeconds || "",
     rpe: "",
     completed: true,
   }));
@@ -158,7 +197,11 @@ export function getWorkoutBasisOptions(
   }));
 }
 
-function suggestMovement(log: RecentWorkoutLog, readiness: PlannerReadiness): WorkoutPlanMovement {
+function suggestMovement(
+  log: RecentWorkoutLog,
+  readiness: PlannerReadiness,
+  defaultMetric = "",
+): WorkoutPlanMovement {
   let rows = setRowsFor(log);
   let preserveSetMethods = true;
   const weightedRows = rows.filter((set) => numberOrNull(set.weight) != null);
@@ -211,9 +254,16 @@ function suggestMovement(log: RecentWorkoutLog, readiness: PlannerReadiness): Wo
 
   if (!preserveSetMethods) rows = rows.map((set) => ({ ...set, method: undefined }));
 
+  const trackingMode = getTrackingModeValue({
+    workoutType: log.workoutType || "Other",
+    movement: log.exercise,
+    defaultMetric,
+  });
   return {
     exercise: log.exercise,
     workoutType: log.workoutType || "Other",
+    trackingMode,
+    targets: targetsForLog(log, trackingMode),
     sourceDate: log.date,
     reason,
     setRows: rows,
@@ -226,6 +276,7 @@ export function buildWorkoutSuggestion(
   readiness: PlannerReadiness,
   basisDate?: string | null,
   recentMethodBlocks: RecentWorkoutMethodBlock[] = [],
+  defaultMetricsByExercise: ReadonlyMap<string, string> = new Map(),
 ): WorkoutPlanSuggestion | null {
   const { days, fallbackUsed } = matchingTrainingDays(logs, location);
   const manuallyChosen = basisDate ? days.find((day) => day.date === basisDate) : null;
@@ -291,7 +342,13 @@ export function buildWorkoutSuggestion(
     basis: `${patternBasis}${fallbackBasis}${methodBasis}`,
     fallbackUsed,
     pattern: chosen.pattern,
-    movements: chosen.day.movements.map((movement) => suggestMovement(movement, readiness)),
+    movements: chosen.day.movements.map((movement) =>
+      suggestMovement(
+        movement,
+        readiness,
+        defaultMetricsByExercise.get(movement.exercise.trim().toLowerCase()) ?? "",
+      ),
+    ),
     methodBlocks,
   };
 }
@@ -342,7 +399,30 @@ export function readWorkoutPlanDraft(value: string | null): WorkoutPlanDraft | n
     ) {
       return null;
     }
-    return draft;
+    return {
+      ...draft,
+      movements: draft.movements.map((movement) => ({
+        ...movement,
+        trackingMode:
+          movement.trackingMode ??
+          getTrackingModeValue({
+            workoutType: movement.workoutType,
+            movement: movement.exercise,
+          }),
+        targets: {
+          durationMinutes: movement.targets?.durationMinutes ?? "",
+          distance: movement.targets?.distance ?? "",
+          distanceUnit: movement.targets?.distanceUnit ?? "",
+          rounds: movement.targets?.rounds ?? "",
+          height: movement.targets?.height ?? "",
+          detail: movement.targets?.detail ?? "",
+        },
+        setRows: movement.setRows.map((set) => ({
+          ...set,
+          durationSeconds: set.durationSeconds ?? "",
+        })),
+      })),
+    };
   } catch {
     return null;
   }

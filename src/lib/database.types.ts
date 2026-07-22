@@ -2167,6 +2167,8 @@ export type Database = {
           reason: string | null;
           source_date: string | null;
           suggested_workout_id: string;
+          target_metrics: Json;
+          tracking_mode: string | null;
           updated_at: string;
           workout_type: string | null;
         };
@@ -2179,6 +2181,8 @@ export type Database = {
           reason?: string | null;
           source_date?: string | null;
           suggested_workout_id: string;
+          target_metrics?: Json;
+          tracking_mode?: string | null;
           updated_at?: string;
           workout_type?: string | null;
         };
@@ -2191,6 +2195,8 @@ export type Database = {
           reason?: string | null;
           source_date?: string | null;
           suggested_workout_id?: string;
+          target_metrics?: Json;
+          tracking_mode?: string | null;
           updated_at?: string;
           workout_type?: string | null;
         };
@@ -2377,6 +2383,7 @@ export type Database = {
         Row: {
           completed: boolean;
           created_at: string;
+          duration_seconds: number | null;
           id: string;
           reps: number | null;
           rpe: number | null;
@@ -2388,6 +2395,7 @@ export type Database = {
         Insert: {
           completed?: boolean;
           created_at?: string;
+          duration_seconds?: number | null;
           id?: string;
           reps?: number | null;
           rpe?: number | null;
@@ -2399,6 +2407,7 @@ export type Database = {
         Update: {
           completed?: boolean;
           created_at?: string;
+          duration_seconds?: number | null;
           id?: string;
           reps?: number | null;
           rpe?: number | null;
