@@ -1,6 +1,6 @@
 # Workout App Context
 
-Last updated: 2026-07-16
+Last updated: 2026-07-22
 
 This file is the handoff document for the Training Tracker workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
 
@@ -1094,7 +1094,8 @@ Selecting a performance-chart point, exact-history row, or linked plan compariso
 
 ### Plan
 
-The top-level Plan workspace builds an editable next-workout draft from recent completed Workout Log history:
+The top-level Plan workspace builds an editable next-workout draft either from recent completed
+Workout Log history or from the movement Library's Circuit Builder:
 
 - A `Next 7 days` overview sits above the workout builder. On mobile it is a horizontally scrollable day strip; on larger screens all seven days align in one row.
 - Expected Home and Gym weekdays come only from distinct, explicitly location-labelled training days in the previous eight weeks. The UI shows the number of source days and low/medium/high confidence; it does not assign a Home cadence when no Home-labelled history exists.
@@ -1116,6 +1117,26 @@ The top-level Plan workspace builds an editable next-workout draft from recent c
 - `Based on` keeps that automatic recommendation as the default but also lets the user choose one of the six most recent matching Home/Gym training days. The choices show their date and movements, scroll horizontally on mobile, and form a compact grid on larger screens.
 - Choosing a historical day rebuilds the suggestion from that day while retaining the same readiness and progression rules; switching Home/Gym resets the choice to Recommended.
 - `Normal`, `Fresh`, and `Tired` readiness options recalculate every movement.
+- The builder can switch between `From history` and `Circuit Builder` without creating a separate
+  workout type or persistence flow.
+- Circuit Builder asks for 10-45 minutes, Home/Gym, readiness, balanced/upper/lower/core/
+  conditioning/mobility focus, gentle/moderate/hard intensity, mixed/rep-led/time-led format,
+  available equipment, high-impact/advanced exclusions, and named movements to avoid.
+- Circuit generation is deterministic for the same brief and Library state. It filters per-person
+  enabled movements by Library location first, then applies structured suitability, dose mode,
+  difficulty, impact, equipment, and exclusions. Free-text equipment is normalised only for
+  eligibility; selection and dose do not infer suitability from movement names.
+- The generator favours preferred movements and the requested focus while penalising repeated
+  movement patterns. It calculates a movement count, per-movement dose, rounds, rest between
+  movements, rest between rounds, and an estimated total duration, with warnings when the available
+  catalogue cannot closely fill the requested time.
+- Every generated movement shows its reps, seconds, metres, or rounds and a visible selection reason.
+  Tired readiness forces gentle filtering/doses; non-hard circuits exclude high-impact movements by
+  default.
+- A generated circuit is saved or started through the existing suggested-workout contract and an
+  enabled system `Circuit` method block. Starting it restores timed movement sets in the unified
+  logger instead of flattening them into aggregate duration fields. Completion therefore counts as a
+  normal workout and remains linked to History and Progress.
 - Below 5 reps, weighted work keeps the load and adds one rep per set up to 5.
 - Comfortable 5+ rep sets require a logged RPE of 8 or below before `Normal` moves load up 2.5 kg and resets the target to 3 reps. `Fresh` allows that small move without the RPE confirmation; `Tired` removes one set and reduces load by about 10%.
 - Every movement shows the source date and a plain-language reason. Suggested sets remain editable and movements can be removed.
@@ -1236,6 +1257,8 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - `src/lib/planned-actual.ts`: pure planned-set versus actual-set comparison and status rules.
 - `src/lib/progress-decision.ts`: explainable exercise-level continue/progress/hold/lighter decision rules.
 - `src/lib/circuit-metadata.ts`: circuit profile enums, labels, dose defaults, and display helpers.
+- `src/lib/circuit-generator.ts`: deterministic circuit eligibility, pattern balance, dosing,
+  duration/round budgeting, and explainable selection results.
 - `src/lib/supabase-public.ts`: Supabase Auth/session and REST helpers.
 - `src/lib/supabase-daily-rotation.browser.ts`: daily rotation CRUD, eligible-day/repeat-gap filtering, stable weighted selection, assignment persistence, and completion toggling.
 - `src/lib/supabase-people.browser.ts`: current person/profile helpers.
@@ -1434,6 +1457,9 @@ Recommended next work, in order:
     without replacing normal workflows, and linked completion advances the assignment atomically.
 18. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
 19. Only when a second user is planned, build People & Access: create/edit people, link an auth user, assign an app profile, and route exercise selection through the existing per-person Library controls.
+20. Test Circuit Builder in the deployed authenticated app across Home/Gym, bodyweight-only,
+    rep-led, and time-led briefs, then implement the editable preview controls: swap, lock,
+    regenerate, and reorder.
 
 ## Future Stage: iPhone App
 

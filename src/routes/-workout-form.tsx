@@ -2688,6 +2688,7 @@ export function FullWorkoutForm() {
             movement: entry.exercise,
             defaultMetric: selectedExercise?.metric,
           });
+          const hasPlannedTimedSets = entry.setRows.some((set) => set.durationSeconds);
           const isGrip =
             entry.entryKind === GRIP_WORKOUT_TYPE ||
             entry.workoutType === GRIP_WORKOUT_TYPE ||
@@ -2793,12 +2794,19 @@ export function FullWorkoutForm() {
                 </Badge>
               )}
               {entry.exercise &&
-              (profileUsesStandardSets(profile) || profile === "hold" || profile === "grip") ? (
+              (profileUsesStandardSets(profile) ||
+                profile === "hold" ||
+                profile === "grip" ||
+                hasPlannedTimedSets) ? (
                 <div className="space-y-3">
                   <SetRowsEditor
                     rows={entry.setRows}
                     usesLoad={profileUsesLoad(profile)}
-                    valueKind={profile === "hold" || profile === "grip" ? "duration" : "reps"}
+                    valueKind={
+                      profile === "hold" || profile === "grip" || hasPlannedTimedSets
+                        ? "duration"
+                        : "reps"
+                    }
                     setMethods={setMethods}
                     previousWorkout={
                       previousWorkout

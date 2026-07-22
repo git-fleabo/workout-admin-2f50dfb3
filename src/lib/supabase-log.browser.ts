@@ -6,6 +6,14 @@ import {
 } from "./supabase-public";
 import { claimNoamProfile, getCurrentPerson } from "./supabase-people.browser";
 import { climbingMetricIssue, supportsClimbingGradient } from "./climbing-metrics";
+import {
+  DEFAULT_CIRCUIT_METADATA,
+  type CircuitDifficulty,
+  type CircuitDoseMode,
+  type CircuitImpact,
+  type CircuitMovementPattern,
+  type CircuitSuitability,
+} from "./circuit-metadata";
 
 export const REST_OPTIONS = [
   "0–30s",
@@ -68,6 +76,14 @@ type ExerciseRecord = {
   suggested_sets: string | null;
   suggested_reps: string | null;
   notes: string | null;
+  circuit_suitability: CircuitSuitability | null;
+  circuit_pattern: CircuitMovementPattern | null;
+  circuit_difficulty: CircuitDifficulty | null;
+  circuit_impact: CircuitImpact | null;
+  circuit_dose_mode: CircuitDoseMode | null;
+  circuit_dose_min: number | string | null;
+  circuit_dose_max: number | string | null;
+  circuit_dose_per_side: boolean | null;
   activity_type_id: string | null;
   activity_types: { name: string | null } | null;
 };
@@ -460,7 +476,7 @@ export async function getLibraryClient() {
     listActivityTypes(),
     supabasePublicSelect<ExerciseRecord>("exercises", {
       select:
-        "id,focus_area,name,equipment,default_metric,suggested_sets,suggested_reps,notes,activity_type_id,activity_types(name)",
+        "id,focus_area,name,equipment,default_metric,suggested_sets,suggested_reps,notes,circuit_suitability,circuit_pattern,circuit_difficulty,circuit_impact,circuit_dose_mode,circuit_dose_min,circuit_dose_max,circuit_dose_per_side,activity_type_id,activity_types(name)",
       is_active: "eq.true",
       order: "source_row.asc,name.asc",
       limit: 1000,
@@ -494,6 +510,20 @@ export async function getLibraryClient() {
       suggestedSets: row.suggested_sets ?? "",
       suggestedReps: row.suggested_reps ?? "",
       notes: row.notes ?? "",
+      circuitSuitability: row.circuit_suitability ?? DEFAULT_CIRCUIT_METADATA.circuitSuitability,
+      circuitPattern: row.circuit_pattern ?? DEFAULT_CIRCUIT_METADATA.circuitPattern,
+      circuitDifficulty: row.circuit_difficulty ?? DEFAULT_CIRCUIT_METADATA.circuitDifficulty,
+      circuitImpact: row.circuit_impact ?? DEFAULT_CIRCUIT_METADATA.circuitImpact,
+      circuitDoseMode: row.circuit_dose_mode ?? DEFAULT_CIRCUIT_METADATA.circuitDoseMode,
+      circuitDoseMin:
+        row.circuit_dose_min == null
+          ? DEFAULT_CIRCUIT_METADATA.circuitDoseMin
+          : String(row.circuit_dose_min),
+      circuitDoseMax:
+        row.circuit_dose_max == null
+          ? DEFAULT_CIRCUIT_METADATA.circuitDoseMax
+          : String(row.circuit_dose_max),
+      circuitDosePerSide: row.circuit_dose_per_side ?? DEFAULT_CIRCUIT_METADATA.circuitDosePerSide,
       locationScope:
         personExercises.find((personExercise) => personExercise.exercise_id === row.id)
           ?.location_scope ?? "both",
