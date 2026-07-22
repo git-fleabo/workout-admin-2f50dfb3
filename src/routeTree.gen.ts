@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WeeklyReviewRouteImport } from './routes/weekly-review'
 import { Route as RotationRouteImport } from './routes/rotation'
 import { Route as ProgressRouteImport } from './routes/progress'
 import { Route as ProgrammesRouteImport } from './routes/programmes'
@@ -23,6 +24,11 @@ import { Route as GoalsRouteImport } from './routes/goals'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 
+const WeeklyReviewRoute = WeeklyReviewRouteImport.update({
+  id: '/weekly-review',
+  path: '/weekly-review',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RotationRoute = RotationRouteImport.update({
   id: '/rotation',
   path: '/rotation',
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/programmes': typeof ProgrammesRoute
   '/progress': typeof ProgressRoute
   '/rotation': typeof RotationRoute
+  '/weekly-review': typeof WeeklyReviewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/programmes': typeof ProgrammesRoute
   '/progress': typeof ProgressRoute
   '/rotation': typeof RotationRoute
+  '/weekly-review': typeof WeeklyReviewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -134,6 +142,7 @@ export interface FileRoutesById {
   '/programmes': typeof ProgrammesRoute
   '/progress': typeof ProgressRoute
   '/rotation': typeof RotationRoute
+  '/weekly-review': typeof WeeklyReviewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/programmes'
     | '/progress'
     | '/rotation'
+    | '/weekly-review'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -166,6 +176,7 @@ export interface FileRouteTypes {
     | '/programmes'
     | '/progress'
     | '/rotation'
+    | '/weekly-review'
   id:
     | '__root__'
     | '/'
@@ -181,6 +192,7 @@ export interface FileRouteTypes {
     | '/programmes'
     | '/progress'
     | '/rotation'
+    | '/weekly-review'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -197,10 +209,18 @@ export interface RootRouteChildren {
   ProgrammesRoute: typeof ProgrammesRoute
   ProgressRoute: typeof ProgressRoute
   RotationRoute: typeof RotationRoute
+  WeeklyReviewRoute: typeof WeeklyReviewRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/weekly-review': {
+      id: '/weekly-review'
+      path: '/weekly-review'
+      fullPath: '/weekly-review'
+      preLoaderRoute: typeof WeeklyReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rotation': {
       id: '/rotation'
       path: '/rotation'
@@ -309,6 +329,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProgrammesRoute: ProgrammesRoute,
   ProgressRoute: ProgressRoute,
   RotationRoute: RotationRoute,
+  WeeklyReviewRoute: WeeklyReviewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

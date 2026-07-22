@@ -33,6 +33,7 @@ const NAV: NavItem[] = [
     to: "/dashboard",
     label: "Dashboard",
     icon: <Activity className="h-4 w-4" />,
+    relatedPaths: ["/weekly-review"],
   },
   {
     to: "/log",

@@ -866,6 +866,15 @@ The dashboard should remain focused. Weekly workout and weekly active-minute goa
 
 The dashboard has a manual refresh button. Use this to force a fresh Supabase read without needing a browser hard refresh.
 
+Dashboard links to a dedicated `/weekly-review` route without adding another permanent navigation
+tab. The review treats Monday through Sunday as a week and, for the current week, compares only the
+same elapsed days from the previous week. It summarizes completed sessions, active days, minutes,
+exact segment-aware strength kg-volume, plan/programme adherence, activity and location mix, PRs, RPE
+coverage, and cautiously worded recovery signals. It always produces three evidence-labelled next
+actions. Historical weeks use the full seven-day span. The feature is read only and uses existing
+sessions, entry sets and set segments, suggested workouts, programme links, locations, and PR data;
+it does not introduce a new score, schema, or persistence model.
+
 Dashboard presentation now uses three semantic accent families: primary lime for general training
 and trends, amber for climbing/minutes/PR context, and rose for strength. Weekly workout and minute
 goals use compact progress rings, the weekly snapshot uses a thicker labelled gradient bar, calendar
@@ -1211,6 +1220,7 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - `src/lib/supabase-daily-rotation.browser.ts`: daily rotation CRUD, eligible-day/repeat-gap filtering, stable weighted selection, assignment persistence, and completion toggling.
 - `src/lib/supabase-people.browser.ts`: current person/profile helpers.
 - `src/lib/supabase-dashboard.browser.ts`: dashboard data loading and aggregation.
+- `src/lib/supabase-weekly-review.browser.ts`: read-only weekly comparison, plan adherence, PR, recovery-signal, and next-action aggregation.
 - `src/lib/supabase-log.browser.ts`: workout/climbing/1RM/bodyweight log data functions.
 - `src/lib/supabase-plans.browser.ts`: save/load/status/completion helpers for persistent workout plans.
 - `src/lib/supabase-weekly-load.browser.ts`: profile-scoped non-strength session classification for weekly load inference.
@@ -1227,6 +1237,7 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - `src/routes/index.tsx`: compact Today startup and workout launch route.
 - `src/routes/rotation.tsx`: daily rotation item management and per-item selection settings.
 - `src/routes/dashboard.tsx`: dashboard route at `/dashboard`.
+- `src/routes/weekly-review.tsx`: weekly training review and evidence-backed next actions at `/weekly-review`.
 - `src/routes/log.tsx`: log screen route.
 - `src/routes/plan.tsx`: next-workout planner, readiness choices, and editable suggested sets.
 - `src/routes/methods.tsx`: advanced training-method settings library, family filters, defaults, visibility, duplication, and custom CRUD.

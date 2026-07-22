@@ -1,6 +1,6 @@
 # Training Admin Product Roadmap
 
-Last updated: 2026-07-14
+Last updated: 2026-07-22
 
 ## Product Direction
 
@@ -255,6 +255,15 @@ cross-device requirement justifies a server-side draft status.
 - The current visual language, refined rather than replaced.
 
 ## Current Focus
+
+The review step in the training loop now has a dedicated Weekly Review reached from Dashboard. It
+compares Monday-to-Sunday training with the equivalent prior-week period, summarizes completed
+sessions, active days, minutes, exact recorded strength volume, activity/location mix, dated-plan
+adherence, new PRs, and cautiously worded recovery signals. It ends with exactly three transparent
+next actions and keeps every recommendation tied to visible evidence. Current weeks compare only the
+same elapsed days, while previous weeks use the full seven-day period. This is a read-only layer over
+the existing session, set-segment, plan, programme, location, RPE, and PR records; it adds no parallel
+workload model or schema.
 
 Phase 4 is complete. Plan now combines Home/Gym workouts with history-derived climbing, running, class,
 sport/conditioning, and recovery load. Every day can be adjusted, with account/week-local persistence,

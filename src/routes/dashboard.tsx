@@ -1,5 +1,5 @@
 import * as React from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -111,10 +111,15 @@ function DashboardPage() {
             · {data.kpis.activeDaysThisWeek} active days this week
           </p>
         </div>
-        <div className="flex items-center gap-2 text-right text-xs text-muted-foreground">
-          <span>
+        <div className="flex flex-wrap items-center justify-end gap-2 text-right text-xs text-muted-foreground">
+          <span className="hidden sm:inline">
             Week starting <span className="text-foreground">{weekStartLabel}</span>
           </span>
+          <Button asChild variant="outline" size="sm" className="h-8">
+            <Link to="/weekly-review">
+              <Sparkles className="h-3.5 w-3.5" /> Weekly review
+            </Link>
+          </Button>
           <Button
             variant="outline"
             size="sm"
