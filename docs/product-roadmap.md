@@ -259,10 +259,11 @@ uses the normal plan, logger, completion, History, and Progress contracts.
    and rep- or time-led format choices. — implemented
 5. Add an editable preview with swap, lock, regenerate, reorder, save, and start actions. — implemented
 6. Verify execution and review. — authenticated local audit completed 2026-07-22
-7. Expand the movement catalogue deliberately and add optional timer polish without making live timer
-   use mandatory.
+7. Expand the movement catalogue deliberately. — implemented with 95 additional Strength and
+   Conditioning movements on 2026-07-22
+8. Add optional timer polish without making live timer use mandatory.
 
-The first six foundations are now delivered. Library cards and filters expose circuit availability,
+The first seven foundations are now delivered. Library cards and filters expose circuit availability,
 while the movement editor controls the exact structured values. Initial values are seeded
 conservatively: aggregate sessions and classes are excluded; atomic movements remain available; and
 clearly circuit-friendly movements are preferred. Saved workout entries now carry a canonical
@@ -276,8 +277,11 @@ can now protect locked movements, offer ranked eligible swaps, regenerate only u
 exercises earlier or later, edit doses, remove movements, and then save or start the result. The
 2026-07-22 authenticated audit covered generation through completion, History, Progress, and repeat.
 It also corrected timed-interval persistence/wording, Today ordering, method metadata consistency,
-equipment metadata, and stale local completion reconciliation. The next release should concentrate on
-deliberate catalogue expansion and optional timer polish rather than adding a second persistence path.
+equipment metadata, and stale local completion reconciliation. The live catalogue now includes 55
+additional Strength and 40 additional Conditioning movements across bodyweight, bands, free weights,
+cables, machines, suspension training, cardio machines, sleds, sandbags, medicine balls, landmine,
+ropes, bags, tyres, and plates. The next release can concentrate on usage-led curation and optional
+timer polish rather than adding a second persistence path.
 
 ## What We Keep
 

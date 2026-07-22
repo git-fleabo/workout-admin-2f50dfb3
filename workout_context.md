@@ -1155,8 +1155,14 @@ Workout Log history or from the movement Library's Circuit Builder:
   on Today, and clear a stale local completion marker when its server session no longer exists.
 - Live Library equipment metadata now marks 1-Arm Hang and Hanging Leg Raise as Pull-up bar movements
   and Weighted Pull-Up as Pull-up bar / Added weight. The Home bodyweight-only audit consequently
-  reports two genuinely eligible movements instead of silently admitting those bar exercises; growing
-  that constrained catalogue remains deliberate product work rather than weakening the filter.
+  reports two genuinely eligible legacy movements instead of silently admitting those bar exercises.
+- `20260722221739_expand_strength_conditioning_catalogue.sql` then adds 95 non-duplicate atomic
+  movements: 55 Strength and 40 Conditioning. Fifty are enabled for both Home and Gym and 45 are
+  Gym-scoped. Every row has a canonical tracking mode and explicit circuit suitability, pattern,
+  difficulty, impact, dose range, and per-side flag. This expands the live no-equipment circuit pool to
+  28 movements; authenticated Library and Home bodyweight-circuit checks confirmed the new rows and a
+  balanced generated circuit using Bodyweight Squat, Diamond Push-Up, Bear Crawl, Single-Leg Glute
+  Bridge, and V-Up.
 - Below 5 reps, weighted work keeps the load and adds one rep per set up to 5.
 - Comfortable 5+ rep sets require a logged RPE of 8 or below before `Normal` moves load up 2.5 kg and resets the target to 3 reps. `Fresh` allows that small move without the RPE confirmation; `Tired` removes one set and reduces load by about 10%.
 - Every movement shows the source date and a plain-language reason. Suggested sets remain editable and movements can be removed.
@@ -1479,8 +1485,9 @@ Recommended next work, in order:
 19. Only when a second user is planned, build People & Access: create/edit people, link an auth user, assign an app profile, and route exercise selection through the existing per-person Library controls.
 20. Circuit Builder authenticated audit — completed locally on 2026-07-22 across Home/Gym,
     bodyweight-only, rep-led, time-led, lock/swap/regenerate/reorder, persistence, completion, History,
-    Progress, and repeat. Next expand the deliberately small equipment-free Home catalogue, then decide
-    whether optional live interval timers add enough value without becoming mandatory.
+    Progress, and repeat. The catalogue expansion is also complete with 95 new Strength/Conditioning
+    movements. Next decide whether optional live interval timers add enough value without becoming
+    mandatory, then curate movement defaults from real usage rather than adding volume for its own sake.
 
 ## Future Stage: iPhone App
 

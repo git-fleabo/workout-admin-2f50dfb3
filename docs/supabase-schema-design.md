@@ -122,6 +122,12 @@ Suggested columns:
 - `created_at timestamptz not null default now()`
 - `updated_at timestamptz not null default now()`
 
+The 2026-07-22 catalogue expansion adds 95 idempotently named atomic movements: 55 Strength and 40
+Conditioning. Each row includes a canonical tracking key plus complete circuit pattern, difficulty,
+impact, dose, and per-side metadata. The migration also creates enabled `person_exercises` links for
+active people, assigning portable/no-equipment movements to `both` and facility-dependent movements
+to `gym`.
+
 `exercise_tags`
 
 Useful for filtering and custom app views without duplicating exercises.
