@@ -244,6 +244,29 @@ view. Deleting a completed session archives its linked plan before removing the 
 false completed state with no completed-session link. Browser drafts remain local until a genuine
 cross-device requirement justifies a server-side draft status.
 
+## Phase 7: Circuit Builder
+
+Goal: turn the master movement library into an editable, explainable circuit generator whose output
+uses the normal plan, logger, completion, History, and Progress contracts.
+
+1. Add structured circuit metadata to every movement: availability, primary movement pattern,
+   difficulty, impact, dose unit/range, and whether the dose applies per side. — implemented
+2. Extend saved workout targets beyond reps/weight so duration, holds, distance, rounds, and other
+   tracking-mode targets survive Plan → Log round trips.
+3. Build a deterministic generator with duration budgeting, equipment/location eligibility,
+   movement-balance rules, intensity/readiness filtering, and visible selection reasons.
+4. Add a Circuit Builder flow to Plan for duration, location/equipment, focus, intensity, exclusions,
+   and rep- or time-led format choices.
+5. Add an editable preview with swap, lock, regenerate, reorder, save, and start actions.
+6. Verify execution and review, expand the movement catalogue deliberately, and add optional timer
+   polish without making live timer use mandatory.
+
+The metadata foundation is the first delivered slice. Library cards and filters expose circuit
+availability, while the movement editor controls the exact structured values. Initial values are
+seeded conservatively: aggregate sessions and classes are excluded; atomic movements remain available;
+and clearly circuit-friendly movements are preferred. Later generator releases should consume these
+fields directly rather than infer suitability from movement names.
+
 ## What We Keep
 
 - Supabase as the source of truth.

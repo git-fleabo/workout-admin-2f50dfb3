@@ -111,6 +111,12 @@ Suggested columns:
 - `default_metric text` using one of `weight_reps`, `reps_only`, `hold`, `grip_hold`, `distance_time`, `duration`, `conditioning`, `carry`, `mobility_position`, `power`, or `climbing`
 - `suggested_sets text`
 - `suggested_reps text`
+- `circuit_suitability text` using `preferred`, `available`, or `excluded`
+- `circuit_pattern text` using the builder's primary movement-pattern taxonomy
+- `circuit_difficulty text` using `beginner`, `intermediate`, or `advanced`
+- `circuit_impact text` using `low`, `moderate`, or `high`
+- `circuit_dose_mode text` using `reps`, `seconds`, `metres`, or `rounds`
+- `circuit_dose_min numeric`, `circuit_dose_max numeric`, and `circuit_dose_per_side boolean`
 - `notes text`
 - `is_active boolean not null default true`
 - `created_at timestamptz not null default now()`
@@ -386,6 +392,9 @@ Suggested columns:
 
 - Imports to `exercises`.
 - Old focus/type quirks should be normalized during import.
+- Circuit generation metadata lives on the exercise row: suitability, primary pattern, difficulty,
+  impact, dose mode/range, and per-side dosing. These are structured builder inputs, not inferred
+  presentation labels.
 
 `Settings`
 

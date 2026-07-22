@@ -56,6 +56,22 @@ import {
   type LibraryClientRow,
 } from "@/lib/supabase-library.browser";
 import { ExerciseDetail } from "@/components/exercise-detail";
+import {
+  CIRCUIT_DIFFICULTY_OPTIONS,
+  CIRCUIT_DOSE_MODE_OPTIONS,
+  CIRCUIT_IMPACT_OPTIONS,
+  CIRCUIT_MOVEMENT_PATTERN_OPTIONS,
+  CIRCUIT_SUITABILITY_OPTIONS,
+  DEFAULT_CIRCUIT_METADATA,
+  circuitDoseDefaultsForTrackingMode,
+  circuitDoseLabel,
+  circuitOptionLabel,
+  type CircuitDifficulty,
+  type CircuitDoseMode,
+  type CircuitImpact,
+  type CircuitMovementPattern,
+  type CircuitSuitability,
+} from "@/lib/circuit-metadata";
 
 export const Route = createFileRoute("/library")({
   head: () => ({
@@ -84,6 +100,7 @@ const BLANK: Omit<LibraryRow, "row"> = {
   suggestedSets: "",
   suggestedReps: "",
   notes: "",
+  ...DEFAULT_CIRCUIT_METADATA,
 };
 
 type LibraryFieldConfig = {
@@ -308,6 +325,16 @@ function focusChipClass(focusArea: string) {
   return "border-border bg-secondary/50 text-muted-foreground";
 }
 
+function circuitChipClass(suitability: CircuitSuitability) {
+  if (suitability === "preferred") {
+    return "border-emerald-400/25 bg-emerald-400/[0.08] text-emerald-200";
+  }
+  if (suitability === "excluded") {
+    return "border-border bg-secondary/40 text-muted-foreground";
+  }
+  return "border-cyan-400/20 bg-cyan-400/[0.06] text-cyan-200";
+}
+
 function LibraryPage() {
   const qc = useQueryClient();
 
@@ -321,6 +348,7 @@ function LibraryPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [locationFilter, setLocationFilter] = useState<"" | "home" | "gym">("");
+  const [circuitFilter, setCircuitFilter] = useState<"" | CircuitSuitability>("");
   const [editor, setEditor] = useState<EditorState>({ mode: "closed" });
   const [pendingDelete, setPendingDelete] = useState<LibraryClientRow | null>(null);
   const [selected, setSelected] = useState<LibraryClientRow | null>(null);
@@ -334,6 +362,7 @@ function LibraryPage() {
       if (typeFilter && i.workoutType !== typeFilter) return false;
       if (locationFilter && i.locationScope !== "both" && i.locationScope !== locationFilter)
         return false;
+      if (circuitFilter && i.circuitSuitability !== circuitFilter) return false;
       if (!q) return true;
       return (
         i.name.toLowerCase().includes(q) ||
@@ -341,8 +370,8 @@ function LibraryPage() {
         i.notes.toLowerCase().includes(q)
       );
     });
-  }, [list.data, locationFilter, search, typeFilter]);
-  const filtersActive = Boolean(search.trim() || typeFilter || locationFilter);
+  }, [circuitFilter, list.data, locationFilter, search, typeFilter]);
+  const filtersActive = Boolean(search.trim() || typeFilter || locationFilter || circuitFilter);
 
   const addMutation = useMutation({
     mutationFn: (fields: typeof BLANK) => addExerciseClient(fields, effectivePersonId || undefined),
@@ -424,6 +453,29 @@ function LibraryPage() {
             onChange={setTypeFilter}
             options={list.data?.workoutTypes ?? []}
           />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Circuit
+          </Label>
+          <Select
+            value={circuitFilter || "all"}
+            onValueChange={(value) =>
+              setCircuitFilter(value === "all" ? "" : (value as CircuitSuitability))
+            }
+          >
+            <SelectTrigger className="h-10 w-[135px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {CIRCUIT_SUITABILITY_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex flex-col gap-1">
           <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -559,6 +611,13 @@ function LibraryPage() {
                             {ex.focusArea}
                           </span>
                         )}
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${circuitChipClass(ex.circuitSuitability)}`}
+                        >
+                          {ex.circuitSuitability === "excluded"
+                            ? "No circuits"
+                            : `${circuitOptionLabel(CIRCUIT_SUITABILITY_OPTIONS, ex.circuitSuitability)} circuit`}
+                        </span>
                         <span className="rounded-full border border-sky-400/20 bg-sky-400/[0.06] px-2 py-0.5 text-[10px] uppercase tracking-wider text-sky-300">
                           {ex.locationScope === "both"
                             ? "Home + Gym"
@@ -590,6 +649,12 @@ function LibraryPage() {
                         ]
                           .filter(Boolean)
                           .join(" · ") || "—"}
+                      </p>
+                      <p className="mt-1 text-[11px] text-muted-foreground/80">
+                        {circuitOptionLabel(CIRCUIT_MOVEMENT_PATTERN_OPTIONS, ex.circuitPattern)} ·{" "}
+                        {circuitOptionLabel(CIRCUIT_DIFFICULTY_OPTIONS, ex.circuitDifficulty)} ·{" "}
+                        {circuitOptionLabel(CIRCUIT_IMPACT_OPTIONS, ex.circuitImpact)} impact ·{" "}
+                        {circuitDoseLabel(ex)}
                       </p>
                       {ex.notes && (
                         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground/90">
@@ -776,6 +841,14 @@ function ExerciseEditorDialog({
           suggestedSets: state.row.suggestedSets,
           suggestedReps: state.row.suggestedReps,
           notes: state.row.notes,
+          circuitSuitability: state.row.circuitSuitability,
+          circuitPattern: state.row.circuitPattern,
+          circuitDifficulty: state.row.circuitDifficulty,
+          circuitImpact: state.row.circuitImpact,
+          circuitDoseMode: state.row.circuitDoseMode,
+          circuitDoseMin: state.row.circuitDoseMin,
+          circuitDoseMax: state.row.circuitDoseMax,
+          circuitDosePerSide: state.row.circuitDosePerSide,
         }
       : BLANK;
 
@@ -812,11 +885,13 @@ function ExerciseEditorDialog({
     )?.profile;
     if (!nextProfile) return;
     const nextConfig = libraryConfigFor(nextProfile);
+    const circuitDose = circuitDoseDefaultsForTrackingMode(trackingMode);
     setForm((current) => ({
       ...current,
       metric: trackingMode,
       suggestedSets: String(nextConfig.defaults.suggestedSets ?? ""),
       suggestedReps: String(nextConfig.defaults.suggestedReps ?? ""),
+      ...circuitDose,
     }));
   };
 
@@ -824,7 +899,7 @@ function ExerciseEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{state.mode === "edit" ? "Edit movement" : "New movement"}</DialogTitle>
           <DialogDescription>
@@ -843,6 +918,16 @@ function ExerciseEditorDialog({
             }
             if (!form.metric) {
               toast.error("Choose a tracking mode");
+              return;
+            }
+            const doseMin = Number(form.circuitDoseMin);
+            const doseMax = Number(form.circuitDoseMax);
+            if (!Number.isFinite(doseMin) || doseMin <= 0) {
+              toast.error("Circuit dose minimum must be greater than zero");
+              return;
+            }
+            if (!Number.isFinite(doseMax) || doseMax < doseMin) {
+              toast.error("Circuit dose maximum must be at least the minimum");
               return;
             }
             onSubmit(form);
@@ -915,6 +1000,140 @@ function ExerciseEditorDialog({
                 placeholder={fieldConfig.repsPlaceholder}
               />
             </Field>
+          </div>
+          <div className="space-y-3 rounded-lg border border-cyan-400/20 bg-cyan-400/[0.04] p-3">
+            <div>
+              <p className="text-sm font-medium">Circuit builder profile</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Structured fields used to filter, balance and dose generated circuits.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Availability">
+                <Select
+                  value={form.circuitSuitability}
+                  onValueChange={(value) =>
+                    update("circuitSuitability", value as CircuitSuitability)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CIRCUIT_SUITABILITY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Pattern">
+                <Select
+                  value={form.circuitPattern}
+                  onValueChange={(value) =>
+                    update("circuitPattern", value as CircuitMovementPattern)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CIRCUIT_MOVEMENT_PATTERN_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Difficulty">
+                <Select
+                  value={form.circuitDifficulty}
+                  onValueChange={(value) => update("circuitDifficulty", value as CircuitDifficulty)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CIRCUIT_DIFFICULTY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Impact">
+                <Select
+                  value={form.circuitImpact}
+                  onValueChange={(value) => update("circuitImpact", value as CircuitImpact)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CIRCUIT_IMPACT_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+            <div className="grid grid-cols-[1fr_0.75fr_0.75fr] gap-3">
+              <Field label="Dose unit">
+                <Select
+                  value={form.circuitDoseMode}
+                  onValueChange={(value) => update("circuitDoseMode", value as CircuitDoseMode)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CIRCUIT_DOSE_MODE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Minimum">
+                <Input
+                  type="number"
+                  min="0.1"
+                  step="any"
+                  inputMode="decimal"
+                  value={form.circuitDoseMin}
+                  onChange={(event) => update("circuitDoseMin", event.target.value)}
+                />
+              </Field>
+              <Field label="Maximum">
+                <Input
+                  type="number"
+                  min="0.1"
+                  step="any"
+                  inputMode="decimal"
+                  value={form.circuitDoseMax}
+                  onChange={(event) => update("circuitDoseMax", event.target.value)}
+                />
+              </Field>
+            </div>
+            <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-background/40 px-3 py-2">
+              <span>
+                <span className="block text-sm font-medium">Dose each side</span>
+                <span className="block text-xs text-muted-foreground">
+                  Use for unilateral reps, carries or holds.
+                </span>
+              </span>
+              <Switch
+                checked={form.circuitDosePerSide}
+                onCheckedChange={(checked) => update("circuitDosePerSide", checked)}
+                aria-label="Dose each side"
+              />
+            </label>
           </div>
           <Field label="Notes">
             <Textarea

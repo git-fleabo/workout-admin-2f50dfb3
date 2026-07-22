@@ -1,4 +1,6 @@
-export type LibraryRow = {
+import type { CircuitMetadata } from "./circuit-metadata";
+
+export type LibraryRow = CircuitMetadata & {
   row: number;
   workoutType: string;
   focusArea: string;

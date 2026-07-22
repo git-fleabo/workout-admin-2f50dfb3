@@ -10,6 +10,14 @@ import {
   type PersonRecord,
 } from "./supabase-people.browser";
 import type { LibraryRow } from "./training-types";
+import {
+  DEFAULT_CIRCUIT_METADATA,
+  type CircuitDifficulty,
+  type CircuitDoseMode,
+  type CircuitImpact,
+  type CircuitMovementPattern,
+  type CircuitSuitability,
+} from "./circuit-metadata";
 
 type ActivityTypeRecord = {
   id: string;
@@ -29,6 +37,14 @@ type ExerciseRecord = {
   suggested_reps: string | null;
   notes: string | null;
   is_active: boolean;
+  circuit_suitability: CircuitSuitability;
+  circuit_pattern: CircuitMovementPattern;
+  circuit_difficulty: CircuitDifficulty;
+  circuit_impact: CircuitImpact;
+  circuit_dose_mode: CircuitDoseMode;
+  circuit_dose_min: number | string | null;
+  circuit_dose_max: number | string | null;
+  circuit_dose_per_side: boolean;
   activity_type_id: string | null;
   activity_types: { name: string | null } | null;
 };
@@ -54,6 +70,12 @@ export type LibraryClientRow = LibraryRow & {
 export type LibraryFields = Omit<LibraryRow, "row">;
 export { claimNoamProfile };
 
+function nullableNumber(value: string) {
+  if (!value.trim()) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function slugify(value: string) {
   return value
     .trim()
@@ -76,6 +98,20 @@ function mapExercise(row: ExerciseRecord, personExercise?: PersonExerciseRecord)
     suggestedSets: row.suggested_sets ?? "",
     suggestedReps: row.suggested_reps ?? "",
     notes: row.notes ?? "",
+    circuitSuitability: row.circuit_suitability ?? DEFAULT_CIRCUIT_METADATA.circuitSuitability,
+    circuitPattern: row.circuit_pattern ?? DEFAULT_CIRCUIT_METADATA.circuitPattern,
+    circuitDifficulty: row.circuit_difficulty ?? DEFAULT_CIRCUIT_METADATA.circuitDifficulty,
+    circuitImpact: row.circuit_impact ?? DEFAULT_CIRCUIT_METADATA.circuitImpact,
+    circuitDoseMode: row.circuit_dose_mode ?? DEFAULT_CIRCUIT_METADATA.circuitDoseMode,
+    circuitDoseMin:
+      row.circuit_dose_min == null
+        ? DEFAULT_CIRCUIT_METADATA.circuitDoseMin
+        : String(row.circuit_dose_min),
+    circuitDoseMax:
+      row.circuit_dose_max == null
+        ? DEFAULT_CIRCUIT_METADATA.circuitDoseMax
+        : String(row.circuit_dose_max),
+    circuitDosePerSide: row.circuit_dose_per_side ?? DEFAULT_CIRCUIT_METADATA.circuitDosePerSide,
     active: row.is_active,
     enabled: personExercise?.is_enabled ?? false,
     personExerciseId: personExercise?.id ?? null,
@@ -162,7 +198,7 @@ export async function listLibraryClient(personId?: string, includeInactive = fal
     listActivityTypes(),
     supabasePublicSelect<ExerciseRecord>("exercises", {
       select:
-        "id,source_row,focus_area,name,equipment,default_metric,suggested_sets,suggested_reps,notes,is_active,activity_type_id,activity_types(name)",
+        "id,source_row,focus_area,name,equipment,default_metric,suggested_sets,suggested_reps,notes,is_active,circuit_suitability,circuit_pattern,circuit_difficulty,circuit_impact,circuit_dose_mode,circuit_dose_min,circuit_dose_max,circuit_dose_per_side,activity_type_id,activity_types(name)",
       ...(includeInactive ? {} : { is_active: "eq.true" }),
       order: "source_row.asc",
     }),
@@ -210,6 +246,14 @@ export async function addExerciseClient(fields: LibraryFields, personId?: string
     suggested_sets: fields.suggestedSets,
     suggested_reps: fields.suggestedReps,
     notes: fields.notes,
+    circuit_suitability: fields.circuitSuitability,
+    circuit_pattern: fields.circuitPattern,
+    circuit_difficulty: fields.circuitDifficulty,
+    circuit_impact: fields.circuitImpact,
+    circuit_dose_mode: fields.circuitDoseMode,
+    circuit_dose_min: nullableNumber(fields.circuitDoseMin),
+    circuit_dose_max: nullableNumber(fields.circuitDoseMax),
+    circuit_dose_per_side: fields.circuitDosePerSide,
     source_sheet: "Exercise Library",
     source_row: sourceRow,
     is_active: true,
@@ -240,6 +284,14 @@ export async function updateExerciseClient(id: string, fields: LibraryFields) {
       suggested_sets: fields.suggestedSets,
       suggested_reps: fields.suggestedReps,
       notes: fields.notes,
+      circuit_suitability: fields.circuitSuitability,
+      circuit_pattern: fields.circuitPattern,
+      circuit_difficulty: fields.circuitDifficulty,
+      circuit_impact: fields.circuitImpact,
+      circuit_dose_mode: fields.circuitDoseMode,
+      circuit_dose_min: nullableNumber(fields.circuitDoseMin),
+      circuit_dose_max: nullableNumber(fields.circuitDoseMax),
+      circuit_dose_per_side: fields.circuitDosePerSide,
     },
   );
   return { ok: true };

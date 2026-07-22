@@ -321,7 +321,7 @@ RLS:
 
 Purpose: master exercise/movement library. One library supports Noam now and future custom apps later.
 
-Rows: 72
+Rows: 73 active in the live library as of 2026-07-22
 
 Key columns:
 
@@ -333,6 +333,11 @@ Key columns:
 - `default_metric text nullable`
 - `suggested_sets text nullable`
 - `suggested_reps text nullable`
+- `circuit_suitability text` (`preferred`, `available`, or `excluded`)
+- `circuit_pattern text`
+- `circuit_difficulty text` and `circuit_impact text`
+- `circuit_dose_mode text`, `circuit_dose_min numeric`, `circuit_dose_max numeric`
+- `circuit_dose_per_side boolean`
 - `notes text nullable`
 - `is_active boolean`
 - `source_sheet text nullable`
@@ -992,12 +997,21 @@ The library reads from Supabase. It supports:
 - an All/Home/Gym library filter that includes Both movements in either location view
 - exercise history/details
 - a `Show inactive` toggle for admin review of hidden/retired movements
+- a circuit-status filter plus structured circuit metadata on every movement: Preferred/Available/
+  Excluded suitability, primary pattern, difficulty, impact, default dose unit/range, and per-side dose
 
 History tiles in the library were made visually distinct from exercise tiles.
 
 Filtered Library views show their movement count. Movement cards use colour-coded type and focus
 chips, while edit/delete controls stay visible on touch layouts and become hover/focus actions on
 larger screens so the always-used location, enable, and history controls remain accessible.
+
+Circuit metadata is stored directly on `exercises` so Library edits remain atomic with the movement
+record and stable exercise identity. The 2026-07-22 migration seeds all existing rows conservatively:
+aggregate sessions, classes, climbing sessions, and already-composed workouts are excluded; common
+atomic circuit movements are preferred; all remaining atomic movements are available. The future
+generator must filter by per-person enabled/location scope first, then use these structured fields for
+balance and dosing instead of relying on free-text focus/equipment values or movement-name guesses.
 
 ### Goals
 
@@ -1216,6 +1230,7 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - `src/lib/movement-metrics.ts`: movement-to-metric-profile rules for logging fields.
 - `src/lib/planned-actual.ts`: pure planned-set versus actual-set comparison and status rules.
 - `src/lib/progress-decision.ts`: explainable exercise-level continue/progress/hold/lighter decision rules.
+- `src/lib/circuit-metadata.ts`: circuit profile enums, labels, dose defaults, and display helpers.
 - `src/lib/supabase-public.ts`: Supabase Auth/session and REST helpers.
 - `src/lib/supabase-daily-rotation.browser.ts`: daily rotation CRUD, eligible-day/repeat-gap filtering, stable weighted selection, assignment persistence, and completion toggling.
 - `src/lib/supabase-people.browser.ts`: current person/profile helpers.

@@ -148,13 +148,36 @@ create table if not exists public.exercises (
   default_metric text,
   suggested_sets text,
   suggested_reps text,
+  circuit_suitability text not null default 'available'
+    check (circuit_suitability in ('preferred', 'available', 'excluded')),
+  circuit_pattern text not null default 'other'
+    check (
+      circuit_pattern in (
+        'push', 'pull', 'squat', 'hinge', 'lunge', 'carry', 'core', 'locomotion',
+        'mobility', 'power', 'grip', 'full_body', 'skill', 'other'
+      )
+    ),
+  circuit_difficulty text not null default 'intermediate'
+    check (circuit_difficulty in ('beginner', 'intermediate', 'advanced')),
+  circuit_impact text not null default 'low'
+    check (circuit_impact in ('low', 'moderate', 'high')),
+  circuit_dose_mode text not null default 'reps'
+    check (circuit_dose_mode in ('reps', 'seconds', 'metres', 'rounds')),
+  circuit_dose_min numeric check (circuit_dose_min is null or circuit_dose_min > 0),
+  circuit_dose_max numeric check (circuit_dose_max is null or circuit_dose_max > 0),
+  circuit_dose_per_side boolean not null default false,
   notes text,
   is_active boolean not null default true,
   source_sheet text,
   source_row integer,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (source_sheet, source_row)
+  unique (source_sheet, source_row),
+  check (
+    circuit_dose_min is null
+    or circuit_dose_max is null
+    or circuit_dose_max >= circuit_dose_min
+  )
 );
 
 create trigger exercises_set_updated_at

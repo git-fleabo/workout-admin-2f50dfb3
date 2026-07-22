@@ -454,6 +454,14 @@ export type Database = {
       exercises: {
         Row: {
           activity_type_id: string | null;
+          circuit_difficulty: string;
+          circuit_dose_max: number | null;
+          circuit_dose_min: number | null;
+          circuit_dose_mode: string;
+          circuit_dose_per_side: boolean;
+          circuit_impact: string;
+          circuit_pattern: string;
+          circuit_suitability: string;
           created_at: string;
           default_metric: string | null;
           equipment: string | null;
@@ -470,6 +478,14 @@ export type Database = {
         };
         Insert: {
           activity_type_id?: string | null;
+          circuit_difficulty?: string;
+          circuit_dose_max?: number | null;
+          circuit_dose_min?: number | null;
+          circuit_dose_mode?: string;
+          circuit_dose_per_side?: boolean;
+          circuit_impact?: string;
+          circuit_pattern?: string;
+          circuit_suitability?: string;
           created_at?: string;
           default_metric?: string | null;
           equipment?: string | null;
@@ -486,6 +502,14 @@ export type Database = {
         };
         Update: {
           activity_type_id?: string | null;
+          circuit_difficulty?: string;
+          circuit_dose_max?: number | null;
+          circuit_dose_min?: number | null;
+          circuit_dose_mode?: string;
+          circuit_dose_per_side?: boolean;
+          circuit_impact?: string;
+          circuit_pattern?: string;
+          circuit_suitability?: string;
           created_at?: string;
           default_metric?: string | null;
           equipment?: string | null;
