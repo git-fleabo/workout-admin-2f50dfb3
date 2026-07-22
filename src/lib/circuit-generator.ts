@@ -102,6 +102,12 @@ export type CircuitBuildFailure = {
 
 export type CircuitBuildResult = CircuitBuildSuccess | CircuitBuildFailure;
 
+export type CircuitBuildOptions = {
+  requiredExerciseIds?: string[];
+  movementCount?: number;
+  variation?: number;
+};
+
 const FOCUS_PATTERNS: Record<CircuitFocus, CircuitMovementPattern[]> = {
   balanced: [],
   upper: ["push", "pull", "grip", "skill"],
@@ -261,6 +267,7 @@ function selectionScore(
   config: CircuitBuilderConfig,
   selected: CircuitCandidate[],
   selectionIndex: number,
+  variation = 0,
 ) {
   const effectiveIntensity = readinessIntensity(config);
   const samePatternCount = selected.filter(
@@ -274,7 +281,7 @@ function selectionScore(
   const focus = focusMatch(candidate.circuitPattern, config.focus) ? 26 : 0;
   const balance = candidate.circuitPattern === desiredPattern ? 18 : 0;
   const diversityPenalty = samePatternCount * 35;
-  const stableTieBreak = stableHash(`${configSeed(config)}|${candidate.id}`) % 10;
+  const stableTieBreak = stableHash(`${configSeed(config)}|${variation}|${candidate.id}`) % 10;
   return (
     suitability +
     focus +
@@ -379,6 +386,7 @@ function chooseRounds(
 export function buildCircuit(
   candidates: CircuitCandidate[],
   config: CircuitBuilderConfig,
+  options: CircuitBuildOptions = {},
 ): CircuitBuildResult {
   const durationMinutes = clamp(Math.round(config.durationMinutes), 10, 45);
   const normalizedConfig = { ...config, durationMinutes };
@@ -392,16 +400,30 @@ export function buildCircuit(
     };
   }
 
-  const requestedCount = targetMovementCount(durationMinutes);
+  const requestedCount =
+    options.movementCount == null
+      ? targetMovementCount(durationMinutes)
+      : clamp(Math.round(options.movementCount), 3, 8);
   const movementCount = Math.min(requestedCount, eligible.length);
-  const selected: CircuitCandidate[] = [];
+  const eligibleById = new Map(eligible.map((candidate) => [candidate.id, candidate]));
+  const selected = (options.requiredExerciseIds ?? [])
+    .map((id) => eligibleById.get(id))
+    .filter((candidate): candidate is CircuitCandidate => Boolean(candidate))
+    .filter((candidate, index, all) => all.findIndex((item) => item.id === candidate.id) === index)
+    .slice(0, movementCount);
   while (selected.length < movementCount) {
     const next = eligible
       .filter((candidate) => !selected.some((movement) => movement.id === candidate.id))
       .sort((left, right) => {
         const difference =
-          selectionScore(right, normalizedConfig, selected, selected.length) -
-          selectionScore(left, normalizedConfig, selected, selected.length);
+          selectionScore(
+            right,
+            normalizedConfig,
+            selected,
+            selected.length,
+            options.variation ?? 0,
+          ) -
+          selectionScore(left, normalizedConfig, selected, selected.length, options.variation ?? 0);
         return difference || left.name.localeCompare(right.name);
       })[0];
     if (!next) break;
@@ -455,4 +477,29 @@ export function buildCircuit(
     eligibleCount: eligible.length,
     warnings,
   };
+}
+
+export function getCircuitReplacementCandidates(
+  candidates: CircuitCandidate[],
+  config: CircuitBuilderConfig,
+  selectedExerciseIds: string[],
+  replacementIndex: number,
+) {
+  const durationMinutes = clamp(Math.round(config.durationMinutes), 10, 45);
+  const normalizedConfig = { ...config, durationMinutes };
+  const occupiedIds = new Set(selectedExerciseIds);
+  const selected = selectedExerciseIds
+    .filter((_, index) => index !== replacementIndex)
+    .map((id) => candidates.find((candidate) => candidate.id === id))
+    .filter((candidate): candidate is CircuitCandidate => Boolean(candidate));
+
+  return candidates
+    .filter((candidate) => isEligible(candidate, normalizedConfig))
+    .filter((candidate) => !occupiedIds.has(candidate.id))
+    .sort((left, right) => {
+      const difference =
+        selectionScore(right, normalizedConfig, selected, replacementIndex) -
+        selectionScore(left, normalizedConfig, selected, replacementIndex);
+      return difference || left.name.localeCompare(right.name);
+    });
 }

@@ -257,11 +257,11 @@ uses the normal plan, logger, completion, History, and Progress contracts.
    movement-balance rules, intensity/readiness filtering, and visible selection reasons. — implemented
 4. Add a Circuit Builder flow to Plan for duration, location/equipment, focus, intensity, exclusions,
    and rep- or time-led format choices. — implemented
-5. Add an editable preview with swap, lock, regenerate, reorder, save, and start actions.
+5. Add an editable preview with swap, lock, regenerate, reorder, save, and start actions. — implemented
 6. Verify execution and review, expand the movement catalogue deliberately, and add optional timer
    polish without making live timer use mandatory.
 
-The first four foundations are now delivered. Library cards and filters expose circuit availability,
+The first five foundations are now delivered. Library cards and filters expose circuit availability,
 while the movement editor controls the exact structured values. Initial values are seeded
 conservatively: aggregate sessions and classes are excluded; atomic movements remain available; and
 clearly circuit-friendly movements are preferred. Saved workout entries now carry a canonical
@@ -270,9 +270,11 @@ sets carry hold/work seconds. Plan renders the matching controls and the logger 
 Plan Circuit Builder now filters the enabled Library by location, equipment, structured suitability,
 format, impact, difficulty, readiness, and explicit exclusions. It then deterministically balances
 movement patterns, budgets rounds and rests against the requested duration, explains every choice,
-and saves/starts through the normal Circuit training-method and workout-plan contracts. The next
-release should concentrate on editing the generated preview rather than adding a second persistence
-path.
+and saves/starts through the normal Circuit training-method and workout-plan contracts. The preview
+can now protect locked movements, offer ranked eligible swaps, regenerate only unlocked slots, move
+exercises earlier or later, edit doses, remove movements, and then save or start the result. The next
+release should concentrate on authenticated execution/review testing, deliberate catalogue expansion,
+and optional timer polish rather than adding a second persistence path.
 
 ## What We Keep
 

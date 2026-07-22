@@ -1133,6 +1133,16 @@ Workout Log history or from the movement Library's Circuit Builder:
 - Every generated movement shows its reps, seconds, metres, or rounds and a visible selection reason.
   Tired readiness forces gentle filtering/doses; non-hard circuits exclude high-impact movements by
   default.
+- The generated preview is fully editable before persistence. Each movement can be locked against
+  replacement/removal, swapped from a ranked list that still obeys the current brief, or moved earlier
+  and later with touch-friendly arrow controls. Set/dose fields remain directly editable.
+- `Regenerate unlocked` deliberately seeks alternatives for every unlocked slot while keeping locked
+  movements in their current positions and preserving any edits made to those locked cards. If the
+  strict alternative pool is too small it falls back to a deterministic variation without dropping
+  the locks. `Reset` restores the latest generated/swapped baseline and clears locks.
+- Preview order remains the order stored in the Circuit method block. The method snapshot also records
+  the deterministic generation variation and locked-movement count; no separate circuit table or
+  persistence path is introduced.
 - A generated circuit is saved or started through the existing suggested-workout contract and an
   enabled system `Circuit` method block. Starting it restores timed movement sets in the unified
   logger instead of flattening them into aggregate duration fields. Completion therefore counts as a
@@ -1458,8 +1468,8 @@ Recommended next work, in order:
 18. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
 19. Only when a second user is planned, build People & Access: create/edit people, link an auth user, assign an app profile, and route exercise selection through the existing per-person Library controls.
 20. Test Circuit Builder in the deployed authenticated app across Home/Gym, bodyweight-only,
-    rep-led, and time-led briefs, then implement the editable preview controls: swap, lock,
-    regenerate, and reorder.
+    rep-led, and time-led briefs, including lock/swap/regenerate/reorder and completed-workout review.
+    Then decide whether optional live interval timers add enough value without becoming mandatory.
 
 ## Future Stage: iPhone App
 

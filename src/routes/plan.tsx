@@ -3,7 +3,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  ArrowDown,
   ArrowRight,
+  ArrowUp,
   BatteryLow,
   BatteryMedium,
   Building2,
@@ -12,8 +14,12 @@ import {
   Info,
   Layers3,
   Loader2,
+  Lock,
+  LockOpen,
   Plus,
+  RefreshCw,
   RotateCcw,
+  Shuffle,
   Sparkles,
   Trash2,
 } from "lucide-react";
@@ -23,6 +29,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { WeeklyPlanOverview } from "@/components/weekly-plan-overview";
 import { WeeklyRecoveryCard } from "@/components/weekly-recovery-card";
 import { WorkoutLifecyclePanel } from "@/components/workout-lifecycle-panel";
@@ -33,8 +46,10 @@ import {
   CIRCUIT_FOCUS_OPTIONS,
   CIRCUIT_FORMAT_OPTIONS,
   CIRCUIT_INTENSITY_OPTIONS,
+  getCircuitReplacementCandidates,
   type CircuitBuilderConfig,
   type CircuitBuildResult,
+  type CircuitCandidate,
   type CircuitEquipment,
   type CircuitFocus,
   type CircuitFormat,
@@ -82,7 +97,7 @@ export const Route = createFileRoute("/plan")({
       { title: "Plan Next Workout · Training Tracker" },
       {
         name: "description",
-        content: "Build a transparent next-workout suggestion from recent training history.",
+        content: "Build a transparent next workout from recent history or an editable circuit.",
       },
     ],
   }),
@@ -218,6 +233,9 @@ function PlanPage() {
   const [plannerMode, setPlannerMode] = useState<PlannerMode>("history");
   const [circuitInputs, setCircuitInputs] = useState<CircuitBuilderInputs>(DEFAULT_CIRCUIT_INPUTS);
   const [circuitBuild, setCircuitBuild] = useState<CircuitBuildResult | null>(null);
+  const [circuitMovementIds, setCircuitMovementIds] = useState<string[]>([]);
+  const [lockedCircuitIds, setLockedCircuitIds] = useState<string[]>([]);
+  const [circuitVariation, setCircuitVariation] = useState(0);
 
   useEffect(() => {
     const storedLocation = window.localStorage.getItem(WORKOUT_PLAN_LOCATION_KEY);
@@ -261,6 +279,40 @@ function PlanPage() {
         (candidate) => candidate.locationScope === "both" || candidate.locationScope === location,
       ).length,
     [circuitCandidates, location],
+  );
+  const circuitConfig = useMemo<CircuitBuilderConfig>(() => {
+    const exclusions = circuitInputs.excludedMovements
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean);
+    return {
+      durationMinutes: circuitInputs.durationMinutes,
+      location,
+      readiness,
+      focus: circuitInputs.focus,
+      intensity: circuitInputs.intensity,
+      format: circuitInputs.format,
+      equipment: circuitInputs.equipment,
+      excludeHighImpact: circuitInputs.excludeHighImpact,
+      excludeAdvanced: circuitInputs.excludeAdvanced,
+      excludedExerciseIds: circuitCandidates
+        .filter((candidate) =>
+          exclusions.some((exclusion) => candidate.name.toLowerCase().includes(exclusion)),
+        )
+        .map((candidate) => candidate.id),
+    };
+  }, [circuitCandidates, circuitInputs, location, readiness]);
+  const circuitSwapOptions = useMemo(
+    () =>
+      circuitMovementIds.map((_, index) =>
+        getCircuitReplacementCandidates(
+          circuitCandidates,
+          circuitConfig,
+          circuitMovementIds,
+          index,
+        ).slice(0, 24),
+      ),
+    [circuitCandidates, circuitConfig, circuitMovementIds],
   );
   const weeklyLogs = useMemo(() => {
     const scopes = new Map(
@@ -352,10 +404,12 @@ function PlanPage() {
           generated_by: "circuit_builder",
           requested_duration_minutes: circuitBuild.requestedMinutes,
           estimated_duration_minutes: circuitBuild.estimatedMinutes,
+          generation_variation: circuitVariation,
+          locked_movement_count: lockedCircuitIds.length,
         },
       },
     ];
-  }, [circuitBuild, circuitMethod]);
+  }, [circuitBuild, circuitMethod, circuitVariation, lockedCircuitIds.length]);
   const activePlan =
     plannerMode === "circuit"
       ? circuitBuild?.ok
@@ -376,6 +430,9 @@ function PlanPage() {
   useEffect(() => {
     setBasisDate(null);
     setCircuitBuild(null);
+    setCircuitMovementIds([]);
+    setLockedCircuitIds([]);
+    setCircuitVariation(0);
     if (plannerMode === "circuit") {
       setMovements([]);
       setMethodBlocks([]);
@@ -442,6 +499,9 @@ function PlanPage() {
     setReadiness(mode === "deload" ? "tired" : "normal");
     if (plannerMode === "circuit") {
       setCircuitBuild(null);
+      setCircuitMovementIds([]);
+      setLockedCircuitIds([]);
+      setCircuitVariation(0);
       setMovements([]);
       setMethodBlocks([]);
     }
@@ -455,6 +515,9 @@ function PlanPage() {
     setReadiness(nextReadiness);
     if (plannerMode === "circuit") {
       setCircuitBuild(null);
+      setCircuitMovementIds([]);
+      setLockedCircuitIds([]);
+      setCircuitVariation(0);
       setMovements([]);
       setMethodBlocks([]);
     }
@@ -465,35 +528,20 @@ function PlanPage() {
       toast.error("The Circuit training method is unavailable. Enable it in Manage → Methods.");
       return;
     }
-    const exclusions = circuitInputs.excludedMovements
-      .split(",")
-      .map((value) => value.trim().toLowerCase())
-      .filter(Boolean);
-    const result = buildCircuit(circuitCandidates, {
-      durationMinutes: circuitInputs.durationMinutes,
-      location,
-      readiness,
-      focus: circuitInputs.focus,
-      intensity: circuitInputs.intensity,
-      format: circuitInputs.format,
-      equipment: circuitInputs.equipment,
-      excludeHighImpact: circuitInputs.excludeHighImpact,
-      excludeAdvanced: circuitInputs.excludeAdvanced,
-      excludedExerciseIds: circuitCandidates
-        .filter((candidate) =>
-          exclusions.some((exclusion) => candidate.name.toLowerCase().includes(exclusion)),
-        )
-        .map((candidate) => candidate.id),
-    });
+    const result = buildCircuit(circuitCandidates, circuitConfig);
     setCircuitBuild(result);
+    setLockedCircuitIds([]);
+    setCircuitVariation(0);
     setMethodBlocks([]);
     if (result.ok) {
       setMovements(result.movements);
+      setCircuitMovementIds(result.selections.map((selection) => selection.candidate.id));
       toast.success("Circuit built", {
         description: `${result.movements.length} movements · ${result.rounds} rounds · about ${result.estimatedMinutes} minutes`,
       });
     } else {
       setMovements([]);
+      setCircuitMovementIds([]);
     }
   };
 
@@ -502,8 +550,164 @@ function PlanPage() {
   ) => {
     setCircuitInputs(action);
     setCircuitBuild(null);
+    setCircuitMovementIds([]);
+    setLockedCircuitIds([]);
+    setCircuitVariation(0);
     setMovements([]);
     setMethodBlocks([]);
+  };
+
+  const regenerateUnlockedCircuit = () => {
+    if (!circuitBuild?.ok || circuitMovementIds.length < 3) return;
+    const lockedIds = circuitMovementIds.filter((id) => lockedCircuitIds.includes(id));
+    const unlockedIds = circuitMovementIds.filter((id) => !lockedIds.includes(id));
+    const nextVariation = circuitVariation + 1;
+    const buildOptions = {
+      requiredExerciseIds: lockedIds,
+      movementCount: circuitMovementIds.length,
+      variation: nextVariation,
+    };
+    const refreshedConfig = {
+      ...circuitConfig,
+      excludedExerciseIds: Array.from(
+        new Set([...circuitConfig.excludedExerciseIds, ...unlockedIds]),
+      ),
+    };
+    let result = buildCircuit(circuitCandidates, refreshedConfig, buildOptions);
+    if (!result.ok) result = buildCircuit(circuitCandidates, circuitConfig, buildOptions);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+
+    const resultById = new Map(
+      result.selections.map((selection, index) => [
+        selection.candidate.id,
+        { selection, movement: result.movements[index] },
+      ]),
+    );
+    const currentMovementById = new Map(
+      circuitMovementIds.map((id, index) => [id, movements[index]]),
+    );
+    const replacementIds = result.selections
+      .map((selection) => selection.candidate.id)
+      .filter((id) => !lockedIds.includes(id));
+    const orderedIds = circuitMovementIds
+      .map((id) => (lockedIds.includes(id) && resultById.has(id) ? id : replacementIds.shift()))
+      .filter((id): id is string => Boolean(id));
+    orderedIds.push(...replacementIds);
+    const orderedSelections = orderedIds
+      .map((id) => resultById.get(id)?.selection)
+      .filter((selection): selection is (typeof result.selections)[number] => Boolean(selection));
+    const orderedMovements = orderedIds
+      .map((id) =>
+        lockedIds.includes(id) ? currentMovementById.get(id) : resultById.get(id)?.movement,
+      )
+      .filter((movement): movement is WorkoutPlanMovement => Boolean(movement));
+    const nextResult = {
+      ...result,
+      basis: `${result.basis} ${
+        lockedIds.length
+          ? `${lockedIds.length} locked movement${lockedIds.length === 1 ? " was" : "s were"} retained.`
+          : "All movement slots were regenerated."
+      }`,
+      selections: orderedSelections,
+      movements: orderedMovements,
+    };
+    setCircuitBuild(nextResult);
+    setCircuitMovementIds(orderedIds);
+    setLockedCircuitIds(lockedIds);
+    setCircuitVariation(nextVariation);
+    setMovements(orderedMovements);
+    toast.success("Unlocked movements regenerated", {
+      description: lockedIds.length
+        ? `${lockedIds.length} locked movement${lockedIds.length === 1 ? " stayed" : "s stayed"} in the circuit.`
+        : "The full movement mix was refreshed.",
+    });
+  };
+
+  const swapCircuitMovement = (movementIndex: number, replacementId: string) => {
+    if (!circuitBuild?.ok || lockedCircuitIds.includes(circuitMovementIds[movementIndex])) return;
+    const nextIds = circuitMovementIds.map((id, index) =>
+      index === movementIndex ? replacementId : id,
+    );
+    const result = buildCircuit(circuitCandidates, circuitConfig, {
+      requiredExerciseIds: nextIds,
+      movementCount: nextIds.length,
+      variation: circuitVariation,
+    });
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    const generatedById = new Map(
+      result.selections.map((selection, index) => [
+        selection.candidate.id,
+        { selection, movement: result.movements[index] },
+      ]),
+    );
+    const orderedSelections = nextIds
+      .map((id) => generatedById.get(id)?.selection)
+      .filter((selection): selection is (typeof result.selections)[number] => Boolean(selection));
+    const orderedMovements = nextIds.map((id, index) =>
+      index === movementIndex
+        ? (generatedById.get(id)?.movement ?? movements[index])
+        : movements[index],
+    );
+    const replacedName = movements[movementIndex]?.exercise;
+    const replacementName = orderedMovements[movementIndex]?.exercise;
+    setCircuitBuild({
+      ...result,
+      basis: `${result.basis} One movement was swapped in the editable preview.`,
+      selections: orderedSelections,
+      movements: orderedMovements,
+    });
+    setCircuitMovementIds(nextIds);
+    setMovements(orderedMovements);
+    toast.success("Movement swapped", {
+      description: `${replacedName} → ${replacementName}`,
+    });
+  };
+
+  const toggleCircuitLock = (movementIndex: number) => {
+    const exerciseId = circuitMovementIds[movementIndex];
+    if (!exerciseId) return;
+    setLockedCircuitIds((current) =>
+      current.includes(exerciseId)
+        ? current.filter((id) => id !== exerciseId)
+        : [...current, exerciseId],
+    );
+  };
+
+  const moveCircuitMovement = (movementIndex: number, direction: -1 | 1) => {
+    const targetIndex = movementIndex + direction;
+    if (targetIndex < 0 || targetIndex >= movements.length || !circuitBuild?.ok) return;
+    const nextMovements = [...movements];
+    [nextMovements[movementIndex], nextMovements[targetIndex]] = [
+      nextMovements[targetIndex],
+      nextMovements[movementIndex],
+    ];
+    const nextIds = [...circuitMovementIds];
+    [nextIds[movementIndex], nextIds[targetIndex]] = [nextIds[targetIndex], nextIds[movementIndex]];
+    const generatedById = new Map(
+      circuitBuild.selections.map((selection, index) => [
+        selection.candidate.id,
+        { selection, movement: circuitBuild.movements[index] },
+      ]),
+    );
+    setCircuitBuild({
+      ...circuitBuild,
+      selections: nextIds
+        .map((id) => generatedById.get(id)?.selection)
+        .filter((selection): selection is (typeof circuitBuild.selections)[number] =>
+          Boolean(selection),
+        ),
+      movements: nextIds
+        .map((id) => generatedById.get(id)?.movement)
+        .filter((movement): movement is WorkoutPlanMovement => Boolean(movement)),
+    });
+    setCircuitMovementIds(nextIds);
+    setMovements(nextMovements);
   };
 
   const updateSet = <K extends keyof WorkoutPlanSet>(
@@ -572,7 +776,14 @@ function PlanPage() {
     );
 
   const removeMovement = (movementIndex: number) => {
+    const removedCircuitId = circuitMovementIds[movementIndex];
     setMovements((current) => current.filter((_, index) => index !== movementIndex));
+    if (plannerMode === "circuit") {
+      setCircuitMovementIds((current) => current.filter((_, index) => index !== movementIndex));
+      if (removedCircuitId) {
+        setLockedCircuitIds((current) => current.filter((id) => id !== removedCircuitId));
+      }
+    }
     setMethodBlocks((current) =>
       current
         .map((block) => ({
@@ -854,23 +1065,43 @@ function PlanPage() {
           </div>
 
           <section className="space-y-3">
-            <div className="flex items-end justify-between gap-3">
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-base font-semibold">Suggested movements</h2>
                 <p className="text-xs text-muted-foreground">
-                  Edit sets here, or make further changes after opening the logger.
+                  {plannerMode === "circuit"
+                    ? "Lock favourites, swap exercises, change the order, or edit the dose."
+                    : "Edit sets here, or make further changes after opening the logger."}
                 </p>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setMovements(activePlan.movements);
-                  setMethodBlocks(activePlan.methodBlocks ?? []);
-                }}
-              >
-                <RotateCcw className="mr-1 h-3.5 w-3.5" /> Reset
-              </Button>
+              <div className="flex w-full flex-wrap gap-1.5 sm:w-auto sm:justify-end">
+                {plannerMode === "circuit" ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={movements.length < 3}
+                    onClick={regenerateUnlockedCircuit}
+                  >
+                    <RefreshCw className="mr-1 h-3.5 w-3.5" /> Regenerate unlocked
+                  </Button>
+                ) : null}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setMovements(activePlan.movements);
+                    setMethodBlocks(activePlan.methodBlocks ?? []);
+                    if (plannerMode === "circuit" && circuitBuild?.ok) {
+                      setCircuitMovementIds(
+                        circuitBuild.selections.map((selection) => selection.candidate.id),
+                      );
+                      setLockedCircuitIds([]);
+                    }
+                  }}
+                >
+                  <RotateCcw className="mr-1 h-3.5 w-3.5" /> Reset
+                </Button>
+              </div>
             </div>
 
             <div className="grid gap-3 xl:grid-cols-2">
@@ -884,6 +1115,23 @@ function PlanPage() {
                   onRemoveSet={removeSet}
                   onAddSet={addSet}
                   onRemoveMovement={() => removeMovement(movementIndex)}
+                  circuitControls={
+                    plannerMode === "circuit"
+                      ? {
+                          locked: lockedCircuitIds.includes(
+                            circuitMovementIds[movementIndex] ?? "",
+                          ),
+                          swapOptions: circuitSwapOptions[movementIndex] ?? [],
+                          canMoveUp: movementIndex > 0,
+                          canMoveDown: movementIndex < movements.length - 1,
+                          onToggleLock: () => toggleCircuitLock(movementIndex),
+                          onSwap: (replacementId) =>
+                            swapCircuitMovement(movementIndex, replacementId),
+                          onMoveUp: () => moveCircuitMovement(movementIndex, -1),
+                          onMoveDown: () => moveCircuitMovement(movementIndex, 1),
+                        }
+                      : undefined
+                  }
                 />
               ))}
             </div>
@@ -1333,6 +1581,7 @@ function MovementPlanCard({
   onRemoveSet,
   onAddSet,
   onRemoveMovement,
+  circuitControls,
 }: {
   movement: WorkoutPlanMovement;
   index: number;
@@ -1350,6 +1599,16 @@ function MovementPlanCard({
   onRemoveSet: (movementIndex: number, setIndex: number) => void;
   onAddSet: (movementIndex: number) => void;
   onRemoveMovement: () => void;
+  circuitControls?: {
+    locked: boolean;
+    swapOptions: CircuitCandidate[];
+    canMoveUp: boolean;
+    canMoveDown: boolean;
+    onToggleLock: () => void;
+    onSwap: (replacementId: string) => void;
+    onMoveUp: () => void;
+    onMoveDown: () => void;
+  };
 }) {
   const profile = getMovementMetricProfile({
     workoutType: movement.workoutType,
@@ -1369,20 +1628,105 @@ function MovementPlanCard({
       <CardHeader className="p-4 pb-2">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <CardTitle className="truncate text-sm">{movement.exercise}</CardTitle>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <CardTitle className="truncate text-sm">{movement.exercise}</CardTitle>
+              {circuitControls?.locked ? (
+                <Badge variant="outline" className="border-cyan-400/30 text-[9px] text-cyan-200">
+                  <Lock className="mr-1 h-2.5 w-2.5" /> Locked
+                </Badge>
+              ) : null}
+            </div>
             <p className="mt-1 text-[11px] text-muted-foreground">
               {movement.sourceDate
                 ? `Last pattern: ${formatUKDate(movement.sourceDate)}`
                 : "Circuit selection"}
             </p>
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onRemoveMovement}>
-            <Trash2 className="h-4 w-4" />
-            <span className="sr-only">Remove {movement.exercise}</span>
-          </Button>
+          <div className="flex shrink-0 items-center gap-0.5">
+            {circuitControls ? (
+              <>
+                <Button
+                  variant={circuitControls.locked ? "outline" : "ghost"}
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={circuitControls.onToggleLock}
+                >
+                  {circuitControls.locked ? (
+                    <LockOpen className="h-3.5 w-3.5" />
+                  ) : (
+                    <Lock className="h-3.5 w-3.5" />
+                  )}
+                  <span className="sr-only">
+                    {circuitControls.locked ? "Unlock" : "Lock"} {movement.exercise}
+                  </span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={!circuitControls.canMoveUp}
+                  onClick={circuitControls.onMoveUp}
+                >
+                  <ArrowUp className="h-3.5 w-3.5" />
+                  <span className="sr-only">Move {movement.exercise} earlier</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={!circuitControls.canMoveDown}
+                  onClick={circuitControls.onMoveDown}
+                >
+                  <ArrowDown className="h-3.5 w-3.5" />
+                  <span className="sr-only">Move {movement.exercise} later</span>
+                </Button>
+              </>
+            ) : null}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              disabled={circuitControls?.locked}
+              onClick={onRemoveMovement}
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="sr-only">Remove {movement.exercise}</span>
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3 p-4 pt-1">
+        {circuitControls ? (
+          <div className="flex items-center gap-2">
+            <Shuffle className="h-3.5 w-3.5 shrink-0 text-cyan-300" />
+            <Select
+              disabled={circuitControls.locked || circuitControls.swapOptions.length === 0}
+              onValueChange={circuitControls.onSwap}
+            >
+              <SelectTrigger
+                className="h-9 flex-1 text-xs"
+                aria-label={`Swap ${movement.exercise}`}
+              >
+                <SelectValue
+                  placeholder={
+                    circuitControls.locked
+                      ? "Unlock to swap"
+                      : circuitControls.swapOptions.length
+                        ? "Swap this movement…"
+                        : "No compatible swaps"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                {circuitControls.swapOptions.map((candidate) => (
+                  <SelectItem key={candidate.id} value={candidate.id}>
+                    {candidate.name} · {candidate.circuitPattern.replace("_", " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
         <div className="rounded-lg border border-sky-400/15 bg-sky-400/[0.04] p-2.5 text-xs text-muted-foreground">
           {movement.reason}
         </div>
