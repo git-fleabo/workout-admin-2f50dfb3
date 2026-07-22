@@ -33,7 +33,7 @@ This is a product redesign, not a ground-up technical rewrite. Keep the existing
 - **Progress:** concise exercise status and recent trend.
 - **More:** History, PRs, 1RM, and the Manage area.
 - **Manage:** Exercise Library, Training Methods, Programme Templates, Daily Rotation, Goals,
-  Training Locations, and future administration.
+  Training Locations with per-location equipment, and future administration.
 
 ### Larger screens
 
@@ -42,7 +42,7 @@ This is a product redesign, not a ground-up technical rewrite. Keep the existing
 - Planning views that can compare recent sessions and the coming week.
 - Manage is the entry point for Library, Methods, Programme Templates, Daily Rotation, Goals,
   Training Locations, and future administration; the underlying pages remain efficient dense-data
-  screens.
+  screens. Training Locations owns a reusable equipment catalogue plus availability at each place.
 
 ## Phase 1: One Unified Workout Logger
 

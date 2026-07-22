@@ -155,6 +155,7 @@ Important data files:
 - `docs/product-roadmap.md`: product redesign roadmap organised around Plan, Train, Review, and Adjust; Phase 1 is the unified logger.
 - `supabase/schema.sql`: local schema snapshot, may not always reflect every live data tweak.
 - `supabase/migrations/20260713100036_add_training_locations.sql`: tracked Home/Gym training-location schema, session foreign key, RLS, grants, and initial location seed.
+- `supabase/migrations/20260722222504_add_training_location_equipment.sql`: person-owned equipment catalogue, per-location assignments, RLS, grants, and a 31-item starter catalogue.
 - `supabase/migrations/20260714150600_add_daily_rotation.sql`: configurable daily-practice pool, persisted per-date assignments, completion state, RLS, grants, and indexes.
 - `supabase/migrations/20260716072606_add_structured_goals.sql`: applied additive structured-goal fields for goal type, linked exercise, canonical measurement, numeric target/unit, starting value, and deadline.
 - `supabase/approved_logging_library_updates.sql`: idempotent data update script for approved library/logging changes.
@@ -193,6 +194,11 @@ Selected live counts rechecked on 2026-07-13 after the workout-logging iteration
 - `session_entries`: 106
 - `entry_sets`: 90
 - `training_locations`: 2 (`Home`, `Gym`)
+
+Selected live counts rechecked on 2026-07-22 after the location-equipment iteration:
+
+- `equipment_items`: 31 active starter items
+- `training_location_equipment`: 0 after authenticated smoke-test cleanup
 
 ## Database Schema
 
@@ -472,6 +478,39 @@ Key columns:
 RLS:
 
 - Managed-person SELECT/INSERT/UPDATE/DELETE policies use `app_private.person_is_accessible(person_id)`.
+
+### `equipment_items`
+
+Purpose: one reusable, person-owned equipment catalogue for all training locations and future
+location-aware planning.
+
+Key columns:
+
+- `id uuid primary key`
+- `person_id uuid -> people.id`
+- `name text`, unique per person case-insensitively
+- `category text`, one of `free_weights`, `fixed_equipment`, `cardio`, `functional`, `accessory`
+- `circuit_group text`, mapped to the Circuit Builder's broad equipment groups
+- `sort_order integer`
+- `is_active boolean`
+
+RLS:
+
+- Managed-person SELECT/INSERT/UPDATE/DELETE policies use `app_private.person_is_accessible(person_id)`.
+
+### `training_location_equipment`
+
+Purpose: many-to-many equipment availability for each training location.
+
+Key columns:
+
+- `location_id uuid -> training_locations.id`
+- `equipment_item_id uuid -> equipment_items.id`
+- composite primary key across both columns
+
+RLS:
+
+- Managed-person SELECT/INSERT/DELETE policies verify accessible, same-person location and equipment rows.
 
 ### `session_entries`
 
@@ -838,13 +877,17 @@ Daily actions remain close to the training flow: Today still shows and completes
 practice, while Manage owns its rotation configuration. Goals are configured in Manage, but future
 quick check-ins can still surface in Today or review views.
 
-`/locations` manages the existing person-owned `training_locations` rows. It can add places, rename
-them, and archive or restore them. Archiving is non-destructive: inactive locations disappear from new
-workout selection while completed sessions retain their location relationship and name. `Home` and
-`Gym` remain the two core planning contexts, so the UI protects the last active location of each kind
-from archival and keeps an existing core location's kind stable. `Other` locations are available in
-the unified logger without applying Home/Gym exercise filtering. The page uses the table's existing
-managed-person RLS policies and requires no schema change.
+`/locations` manages person-owned `training_locations` rows and the reusable `equipment_items`
+catalogue. It can add places, rename them, and archive or restore them. Each location has a searchable,
+grouped equipment picker with select-all and clear controls; its card summarises the assigned kit.
+The catalogue supports search, add, edit, archive, and restore, while circuit-matching groups keep the
+data ready for location-aware Circuit Builder eligibility. Bodyweight remains available everywhere.
+Archiving is non-destructive: inactive locations disappear from new workout selection while completed
+sessions retain their location relationship and name. `Home` and `Gym` remain the two core planning
+contexts, so the UI protects the last active location of each kind from archival and keeps an existing
+core location's kind stable. `Other` locations are available in the unified logger without applying
+Home/Gym exercise filtering. Both equipment tables use managed-person RLS; assignment policies also
+require the location and item to belong to the same person.
 
 `/programmes` reads the protected template rows from `programs`, `program_workouts`, and
 `program_workout_entries`, lets the user compare Operator and Fighter cadence, and exposes an
@@ -1325,6 +1368,7 @@ The top-level Methods settings screen starts Phase 5 advanced-method support:
 - `package.json`: scripts and dependencies.
 - `supabase/schema.sql`: schema/policy snapshot.
 - `supabase/migrations/20260713100036_add_training_locations.sql`: applied and tracked training-location migration.
+- `supabase/migrations/20260722222504_add_training_location_equipment.sql`: applied and tracked equipment catalogue and per-location availability migration.
 - `supabase/migrations/20260713105054_add_exercise_location_scope.sql`: applied and tracked per-person Home/Gym/Both exercise availability.
 - `supabase/migrations/20260713110640_add_persistent_workout_suggestions.sql`: applied and tracked persistent workout plan entries/sets, session link, indexes, grants, and RLS.
 - `supabase/migrations/20260713142913_add_training_methods.sql`: applied and tracked training-method definitions, per-person settings, system seed data, indexes, grants, and RLS.

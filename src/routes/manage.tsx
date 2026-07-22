@@ -74,7 +74,7 @@ const TRAINING_SETUP: ManageLink[] = [
   },
   {
     title: "Training Locations",
-    description: "Manage Home, Gym and other places available when logging training.",
+    description: "Manage training places and the equipment available at each one.",
     to: "/locations",
     icon: MapPin,
     accent: "text-sky-300 bg-sky-400/10 border-sky-400/20",

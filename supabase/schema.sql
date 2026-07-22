@@ -230,6 +230,44 @@ create trigger training_locations_set_updated_at
 before update on public.training_locations
 for each row execute function public.set_updated_at();
 
+create table if not exists public.equipment_items (
+  id uuid primary key default gen_random_uuid(),
+  person_id uuid not null references public.people(id) on delete cascade,
+  name text not null,
+  category text not null default 'accessory'
+    check (category in ('free_weights', 'fixed_equipment', 'cardio', 'functional', 'accessory')),
+  circuit_group text not null default 'specialist'
+    check (
+      circuit_group in (
+        'mat', 'kettlebell', 'dumbbell', 'barbell', 'bar_rings',
+        'cardio_machine', 'cable_machine', 'specialist'
+      )
+    ),
+  sort_order integer not null default 0,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists equipment_items_person_name_unique
+  on public.equipment_items (person_id, lower(name));
+create index if not exists equipment_items_person_active_idx
+  on public.equipment_items (person_id, is_active, sort_order, name);
+
+create trigger equipment_items_set_updated_at
+before update on public.equipment_items
+for each row execute function public.set_updated_at();
+
+create table if not exists public.training_location_equipment (
+  location_id uuid not null references public.training_locations(id) on delete cascade,
+  equipment_item_id uuid not null references public.equipment_items(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (location_id, equipment_item_id)
+);
+
+create index if not exists training_location_equipment_item_idx
+  on public.training_location_equipment (equipment_item_id, location_id);
+
 create table if not exists public.sessions (
   id uuid primary key default gen_random_uuid(),
   person_id uuid not null references public.people(id) on delete cascade,
@@ -917,6 +955,8 @@ alter table public.exercise_tags enable row level security;
 alter table public.exercise_tag_links enable row level security;
 alter table public.person_exercises enable row level security;
 alter table public.training_locations enable row level security;
+alter table public.equipment_items enable row level security;
+alter table public.training_location_equipment enable row level security;
 alter table public.sessions enable row level security;
 alter table public.session_entries enable row level security;
 alter table public.entry_sets enable row level security;
@@ -949,6 +989,8 @@ grant select on
   public.exercise_tag_links,
   public.person_exercises,
   public.training_locations,
+  public.equipment_items,
+  public.training_location_equipment,
   public.sessions,
   public.session_entries,
   public.entry_sets,
@@ -977,6 +1019,8 @@ grant insert, update on public.activity_types to authenticated;
 grant insert, update on public.exercises to authenticated;
 grant insert, update, delete on public.person_exercises to authenticated;
 grant insert, update, delete on public.training_locations to authenticated;
+grant insert, update, delete on public.equipment_items to authenticated;
+grant insert, delete on public.training_location_equipment to authenticated;
 grant insert, update, delete on public.program_assignments to authenticated;
 grant insert on public.sessions to authenticated;
 grant insert on public.session_entries to authenticated;
@@ -1126,6 +1170,73 @@ create policy training_locations_delete_managed
   for delete
   to authenticated
   using (app_private.person_is_accessible(person_id));
+
+create policy equipment_items_select_accessible
+  on public.equipment_items
+  for select
+  to authenticated
+  using (app_private.person_is_accessible(person_id));
+
+create policy equipment_items_insert_accessible
+  on public.equipment_items
+  for insert
+  to authenticated
+  with check (app_private.person_is_accessible(person_id));
+
+create policy equipment_items_update_accessible
+  on public.equipment_items
+  for update
+  to authenticated
+  using (app_private.person_is_accessible(person_id))
+  with check (app_private.person_is_accessible(person_id));
+
+create policy equipment_items_delete_accessible
+  on public.equipment_items
+  for delete
+  to authenticated
+  using (app_private.person_is_accessible(person_id));
+
+create policy training_location_equipment_select_accessible
+  on public.training_location_equipment
+  for select
+  to authenticated
+  using (exists (
+    select 1
+    from public.training_locations location
+    join public.equipment_items equipment
+      on equipment.id = equipment_item_id
+     and equipment.person_id = location.person_id
+    where location.id = location_id
+      and app_private.person_is_accessible(location.person_id)
+  ));
+
+create policy training_location_equipment_insert_accessible
+  on public.training_location_equipment
+  for insert
+  to authenticated
+  with check (exists (
+    select 1
+    from public.training_locations location
+    join public.equipment_items equipment
+      on equipment.id = equipment_item_id
+     and equipment.person_id = location.person_id
+    where location.id = location_id
+      and app_private.person_is_accessible(location.person_id)
+  ));
+
+create policy training_location_equipment_delete_accessible
+  on public.training_location_equipment
+  for delete
+  to authenticated
+  using (exists (
+    select 1
+    from public.training_locations location
+    join public.equipment_items equipment
+      on equipment.id = equipment_item_id
+     and equipment.person_id = location.person_id
+    where location.id = location_id
+      and app_private.person_is_accessible(location.person_id)
+  ));
 
 create policy sessions_select_managed
   on public.sessions

@@ -403,6 +403,50 @@ export type Database = {
           },
         ];
       };
+      equipment_items: {
+        Row: {
+          category: string;
+          circuit_group: string;
+          created_at: string;
+          id: string;
+          is_active: boolean;
+          name: string;
+          person_id: string;
+          sort_order: number;
+          updated_at: string;
+        };
+        Insert: {
+          category?: string;
+          circuit_group?: string;
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          name: string;
+          person_id: string;
+          sort_order?: number;
+          updated_at?: string;
+        };
+        Update: {
+          category?: string;
+          circuit_group?: string;
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          name?: string;
+          person_id?: string;
+          sort_order?: number;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "equipment_items_person_id_fkey";
+            columns: ["person_id"];
+            isOneToOne: false;
+            referencedRelation: "people";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       exercise_tag_links: {
         Row: {
           exercise_id: string;
@@ -2507,6 +2551,39 @@ export type Database = {
           {
             foreignKeyName: "suggested_workouts_training_location_id_fkey";
             columns: ["training_location_id"];
+            isOneToOne: false;
+            referencedRelation: "training_locations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      training_location_equipment: {
+        Row: {
+          created_at: string;
+          equipment_item_id: string;
+          location_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          equipment_item_id: string;
+          location_id: string;
+        };
+        Update: {
+          created_at?: string;
+          equipment_item_id?: string;
+          location_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "training_location_equipment_equipment_item_id_fkey";
+            columns: ["equipment_item_id"];
+            isOneToOne: false;
+            referencedRelation: "equipment_items";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "training_location_equipment_location_id_fkey";
+            columns: ["location_id"];
             isOneToOne: false;
             referencedRelation: "training_locations";
             referencedColumns: ["id"];

@@ -128,6 +128,18 @@ impact, dose, and per-side metadata. The migration also creates enabled `person_
 active people, assigning portable/no-equipment movements to `both` and facility-dependent movements
 to `gym`.
 
+`equipment_items`
+
+One person-owned, reusable catalogue for equipment available across training locations. Items store a
+display name, broad category, circuit-matching group, sort order, active state, and timestamps. Names
+are unique per person case-insensitively; archiving keeps existing assignments and history intact.
+
+`training_location_equipment`
+
+Many-to-many availability between `training_locations` and `equipment_items`. The composite primary
+key prevents duplicate assignments, cascading foreign keys clean up removed parents, and RLS verifies
+that both sides belong to the same accessible person.
+
 `exercise_tags`
 
 Useful for filtering and custom app views without duplicating exercises.
