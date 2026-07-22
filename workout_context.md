@@ -1307,6 +1307,10 @@ Earlier important commits:
 
 ## Known Gotchas
 
+- The unified Log form only shows advanced training methods after a compatible strength,
+  calisthenics, hold/grip, carry, conditioning, or power movement is selected. Duration-only
+  classes, cardio/time, mobility/flexibility, yoga, and climbing movements are excluded from method
+  blocks; changing a movement to an incompatible profile detaches it from any existing block.
 - Lovable preview can lag behind GitHub. Use the build label to confirm the preview build. The label prefers commit metadata when the build environment exposes it, then falls back to a build timestamp rather than `local`.
 - Lovable cache clearing can use tokens.
 - Lovable auto-fixes can remove intentional wiring. In particular, keep `Toaster` mounted in `src/routes/__root.tsx` so success/error messages render.

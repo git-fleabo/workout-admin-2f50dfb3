@@ -162,3 +162,7 @@ export function profileUsesStandardSets(profile: MetricProfile) {
 export function profileUsesLoad(profile: MetricProfile) {
   return ["weighted", "carry", "grip", "conditioning"].includes(profile);
 }
+
+export function profileSupportsAdvancedMethods(profile: MetricProfile) {
+  return ["weighted", "reps", "hold", "grip", "carry", "conditioning", "power"].includes(profile);
+}

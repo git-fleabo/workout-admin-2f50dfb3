@@ -94,6 +94,7 @@ import {
 import {
   getMovementMetricProfile,
   type MetricProfile,
+  profileSupportsAdvancedMethods,
   profileUsesLoad,
   profileUsesStandardSets,
 } from "@/lib/movement-metrics";
@@ -285,6 +286,22 @@ type RecentSessionTemplate = {
   entries: FormState[];
   methodBlocks: WorkoutMethodBlockState[];
 };
+
+function removeMovementFromMethodBlocks(
+  methodBlocks: WorkoutMethodBlockState[],
+  movementClientId: string,
+) {
+  return methodBlocks
+    .map((block) => ({
+      ...block,
+      memberClientIds: block.memberClientIds.filter((id) => id !== movementClientId),
+    }))
+    .filter((block) =>
+      block.family === "timed_density"
+        ? block.memberClientIds.length >= 1
+        : block.memberClientIds.length >= 2,
+    );
+}
 
 let clientIdCounter = 0;
 const newClientId = (prefix: string) =>
@@ -1873,6 +1890,52 @@ export function FullWorkoutForm() {
         i === index ? { ...entry, [key]: value } : entry,
       ),
     }));
+  const selectEntryExercise = (index: number, name: string) => {
+    const selected = libraryExercises.find((exercise) => exercise.name === name);
+    const selectedProfile = getMovementMetricProfile({
+      workoutType: selected?.workoutType ?? "Other",
+      movement: name,
+      defaultMetric: selected?.metric,
+    });
+
+    setForm((current) => {
+      const currentEntry = current.entries[index];
+      if (!currentEntry) return current;
+
+      const nextEntry: FormState = {
+        ...currentEntry,
+        exercise: name,
+        workoutType: selected?.workoutType ?? "Other",
+        entryKind:
+          selected?.workoutType === SKILL_WORKOUT_TYPE
+            ? "Skill"
+            : selected?.workoutType === GRIP_WORKOUT_TYPE
+              ? GRIP_WORKOUT_TYPE
+              : "Workout",
+        distanceUnit:
+          selectedProfile === "mobility_position"
+            ? "cm"
+            : selectedProfile === "carry"
+              ? "m"
+              : selectedProfile === "time"
+                ? "km"
+                : "",
+        climbingTrackingMode: selectedProfile === "climbing" ? "Problems / routes" : "",
+        climbingGradient: supportsClimbingGradient(name) ? currentEntry.climbingGradient : "",
+        setRows: [blankSet()],
+      };
+
+      return {
+        ...current,
+        entries: current.entries.map((entry, entryIndex) =>
+          entryIndex === index ? nextEntry : entry,
+        ),
+        methodBlocks: profileSupportsAdvancedMethods(selectedProfile)
+          ? current.methodBlocks
+          : removeMovementFromMethodBlocks(current.methodBlocks, currentEntry.clientId),
+      };
+    });
+  };
   const addEntry = () =>
     setForm((current) => ({
       ...current,
@@ -1897,16 +1960,9 @@ export function FullWorkoutForm() {
     setForm((current) => {
       if (current.entries.length === 1) return current;
       const removedId = current.entries[index]?.clientId;
-      const methodBlocks = current.methodBlocks
-        .map((block) => ({
-          ...block,
-          memberClientIds: block.memberClientIds.filter((id) => id !== removedId),
-        }))
-        .filter((block) =>
-          block.family === "timed_density"
-            ? block.memberClientIds.length >= 1
-            : block.memberClientIds.length >= 2,
-        );
+      const methodBlocks = removedId
+        ? removeMovementFromMethodBlocks(current.methodBlocks, removedId)
+        : current.methodBlocks;
       return {
         ...current,
         entries: current.entries.filter((_, i) => i !== index),
@@ -2323,6 +2379,18 @@ export function FullWorkoutForm() {
     ? new Date(draftSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : null;
   const workoutEntries = form.entries.filter((entry) => entry.exercise.trim());
+  const advancedMethodEntries = workoutEntries.filter((entry) => {
+    const selected = libraryExercises.find(
+      (exercise) => exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
+    );
+    return profileSupportsAdvancedMethods(
+      getMovementMetricProfile({
+        workoutType: selected?.workoutType ?? entry.workoutType,
+        movement: entry.exercise,
+        defaultMetric: selected?.metric,
+      }),
+    );
+  });
   const selectedLocation = locations.data?.find(
     (location) => location.id === form.trainingLocationId,
   );
@@ -2671,47 +2739,7 @@ export function FullWorkoutForm() {
                     exercises={libraryExercises}
                     favoriteNames={favoriteExercises}
                     recentNames={recentExerciseNames}
-                    onChange={(name) => {
-                      const selected = libraryExercises.find((exercise) => exercise.name === name);
-                      const selectedProfile = getMovementMetricProfile({
-                        workoutType: selected?.workoutType ?? "Other",
-                        movement: name,
-                        defaultMetric: selected?.metric,
-                      });
-                      updateEntry(index, "exercise", name);
-                      updateEntry(index, "workoutType", selected?.workoutType ?? "Other");
-                      updateEntry(
-                        index,
-                        "entryKind",
-                        selected?.workoutType === SKILL_WORKOUT_TYPE
-                          ? "Skill"
-                          : selected?.workoutType === GRIP_WORKOUT_TYPE
-                            ? GRIP_WORKOUT_TYPE
-                            : "Workout",
-                      );
-                      updateEntry(
-                        index,
-                        "distanceUnit",
-                        selectedProfile === "mobility_position"
-                          ? "cm"
-                          : selectedProfile === "carry"
-                            ? "m"
-                            : selectedProfile === "time"
-                              ? "km"
-                              : "",
-                      );
-                      updateEntry(
-                        index,
-                        "climbingTrackingMode",
-                        selectedProfile === "climbing" ? "Problems / routes" : "",
-                      );
-                      updateEntry(
-                        index,
-                        "climbingGradient",
-                        supportsClimbingGradient(name) ? entry.climbingGradient : "",
-                      );
-                      updateEntry(index, "setRows", [blankSet()]);
-                    }}
+                    onChange={(name) => selectEntryExercise(index, name)}
                   />
                   <Button
                     type="button"
@@ -2882,113 +2910,115 @@ export function FullWorkoutForm() {
         <Plus className="mr-1 h-4 w-4" /> Add movement
       </Button>
 
-      <Card className="space-y-3 border-border bg-card p-4">
-        <div>
-          <h2 className="flex items-center gap-2 text-base font-semibold">
-            <Layers3 className="h-4 w-4 text-indigo-300" /> 2. Add advanced methods
-          </h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Optional. Choose whether the method joins movements or changes one set.
-          </p>
-        </div>
-
-        <div className="grid gap-2 sm:grid-cols-2">
-          <div className="flex min-h-24 flex-col justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
-            <div>
-              <p className="text-sm font-medium">Across movements</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Supersets, circuits, EDT and Tabata.
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-full"
-              onClick={() => setMethodBlockEditor({ mode: "create" })}
-              disabled={workoutEntries.length < 1 || blockMethods.length === 0}
-            >
-              <Plus className="mr-1 h-3.5 w-3.5" /> Add grouped or timed method
-            </Button>
-          </div>
-          <div className="flex min-h-24 flex-col justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
-            <div>
-              <p className="text-sm font-medium">Within a set</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Drop sets, clusters, rest-pause, pyramids, eccentrics, negatives and more.
-              </p>
-            </div>
-            <p className="text-xs font-medium text-fuchsia-200">
-              Use “Set method” beneath the set it applies to.
+      {advancedMethodEntries.length > 0 ? (
+        <Card className="space-y-3 border-border bg-card p-4">
+          <div>
+            <h2 className="flex items-center gap-2 text-base font-semibold">
+              <Layers3 className="h-4 w-4 text-indigo-300" /> 2. Add advanced methods
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Optional. Choose whether the method joins movements or changes one set.
             </p>
           </div>
-        </div>
 
-        {methods.isLoading ? (
-          <p className="text-xs text-muted-foreground">Loading available methods…</p>
-        ) : form.methodBlocks.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-            {workoutEntries.length
-              ? "No grouped or timed method added."
-              : "Add a movement before creating a grouped or timed method."}
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {form.methodBlocks.map((block) => {
-              const movementNames = block.memberClientIds
-                .map((id) => form.entries.find((entry) => entry.clientId === id)?.exercise)
-                .filter(Boolean);
-              return (
-                <div
-                  key={block.id}
-                  className="flex flex-col gap-3 rounded-lg border border-indigo-400/25 bg-indigo-400/[0.05] p-3 sm:flex-row sm:items-center"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">{block.methodName}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {block.family === "timed_density"
-                        ? [
-                            movementNames.join(" → "),
-                            block.blockDurationMinutes
-                              ? `${block.blockDurationMinutes} min block`
-                              : "",
-                            block.workIntervalSeconds ? `${block.workIntervalSeconds}s work` : "",
-                            block.restIntervalSeconds ? `${block.restIntervalSeconds}s rest` : "",
-                            block.completedRounds
-                              ? `${block.completedRounds}/${block.rounds || "—"} rounds done`
-                              : block.rounds
-                                ? `${block.rounds} rounds planned`
-                                : "",
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")
-                        : `${movementNames.join(" → ")} · ${block.rounds || "—"} rounds · ${block.restBetweenRoundsSeconds || "0"}s between rounds`}
-                    </p>
-                  </div>
-                  <div className="flex justify-end gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setMethodBlockEditor({ mode: "edit", blockId: block.id })}
-                    >
-                      <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeMethodBlock(block.id)}
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="flex min-h-24 flex-col justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
+              <div>
+                <p className="text-sm font-medium">Across movements</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Supersets, circuits, EDT and Tabata.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => setMethodBlockEditor({ mode: "create" })}
+                disabled={workoutEntries.length < 1 || blockMethods.length === 0}
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" /> Add grouped or timed method
+              </Button>
+            </div>
+            <div className="flex min-h-24 flex-col justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
+              <div>
+                <p className="text-sm font-medium">Within a set</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Drop sets, clusters, rest-pause, pyramids, eccentrics, negatives and more.
+                </p>
+              </div>
+              <p className="text-xs font-medium text-fuchsia-200">
+                Use “Set method” beneath the set it applies to.
+              </p>
+            </div>
           </div>
-        )}
-      </Card>
+
+          {methods.isLoading ? (
+            <p className="text-xs text-muted-foreground">Loading available methods…</p>
+          ) : form.methodBlocks.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+              {workoutEntries.length
+                ? "No grouped or timed method added."
+                : "Add a movement before creating a grouped or timed method."}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {form.methodBlocks.map((block) => {
+                const movementNames = block.memberClientIds
+                  .map((id) => form.entries.find((entry) => entry.clientId === id)?.exercise)
+                  .filter(Boolean);
+                return (
+                  <div
+                    key={block.id}
+                    className="flex flex-col gap-3 rounded-lg border border-indigo-400/25 bg-indigo-400/[0.05] p-3 sm:flex-row sm:items-center"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{block.methodName}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {block.family === "timed_density"
+                          ? [
+                              movementNames.join(" → "),
+                              block.blockDurationMinutes
+                                ? `${block.blockDurationMinutes} min block`
+                                : "",
+                              block.workIntervalSeconds ? `${block.workIntervalSeconds}s work` : "",
+                              block.restIntervalSeconds ? `${block.restIntervalSeconds}s rest` : "",
+                              block.completedRounds
+                                ? `${block.completedRounds}/${block.rounds || "—"} rounds done`
+                                : block.rounds
+                                  ? `${block.rounds} rounds planned`
+                                  : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")
+                          : `${movementNames.join(" → ")} · ${block.rounds || "—"} rounds · ${block.restBetweenRoundsSeconds || "0"}s between rounds`}
+                      </p>
+                    </div>
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setMethodBlockEditor({ mode: "edit", blockId: block.id })}
+                      >
+                        <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeMethodBlock(block.id)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      ) : null}
 
       <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/50 px-3 py-2">
         <Label className="text-sm">Completed</Label>
@@ -3106,7 +3136,7 @@ export function FullWorkoutForm() {
       <MethodBlockDialog
         state={methodBlockEditor}
         methods={blockMethods}
-        entries={form.entries}
+        entries={advancedMethodEntries}
         blocks={form.methodBlocks}
         onClose={() => setMethodBlockEditor({ mode: "closed" })}
         onSave={saveMethodBlock}
