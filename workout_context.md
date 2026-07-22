@@ -1147,6 +1147,16 @@ Workout Log history or from the movement Library's Circuit Builder:
   enabled system `Circuit` method block. Starting it restores timed movement sets in the unified
   logger instead of flattening them into aggregate duration fields. Completion therefore counts as a
   normal workout and remains linked to History and Progress.
+- The authenticated end-to-end audit on 2026-07-22 covered Home/Gym generation, rep-led/time-led/
+  mixed briefs, equipment filtering, exclusions, lock/swap/regenerate/reorder, Save for later, Load,
+  direct Start, completion, History, Progress, and recent-workout repeat. Audit fixes keep generated
+  rounds/rest metadata consistent in both method columns and JSON, preserve edited timed intervals as
+  set rows, describe cardio work as intervals/time rather than attempts/holds, preserve movement order
+  on Today, and clear a stale local completion marker when its server session no longer exists.
+- Live Library equipment metadata now marks 1-Arm Hang and Hanging Leg Raise as Pull-up bar movements
+  and Weighted Pull-Up as Pull-up bar / Added weight. The Home bodyweight-only audit consequently
+  reports two genuinely eligible movements instead of silently admitting those bar exercises; growing
+  that constrained catalogue remains deliberate product work rather than weakening the filter.
 - Below 5 reps, weighted work keeps the load and adds one rep per set up to 5.
 - Comfortable 5+ rep sets require a logged RPE of 8 or below before `Normal` moves load up 2.5 kg and resets the target to 3 reps. `Fresh` allows that small move without the RPE confirmation; `Tired` removes one set and reduces load by about 10%.
 - Every movement shows the source date and a plain-language reason. Suggested sets remain editable and movements can be removed.
@@ -1467,9 +1477,10 @@ Recommended next work, in order:
     without replacing normal workflows, and linked completion advances the assignment atomically.
 18. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
 19. Only when a second user is planned, build People & Access: create/edit people, link an auth user, assign an app profile, and route exercise selection through the existing per-person Library controls.
-20. Test Circuit Builder in the deployed authenticated app across Home/Gym, bodyweight-only,
-    rep-led, and time-led briefs, including lock/swap/regenerate/reorder and completed-workout review.
-    Then decide whether optional live interval timers add enough value without becoming mandatory.
+20. Circuit Builder authenticated audit — completed locally on 2026-07-22 across Home/Gym,
+    bodyweight-only, rep-led, time-led, lock/swap/regenerate/reorder, persistence, completion, History,
+    Progress, and repeat. Next expand the deliberately small equipment-free Home catalogue, then decide
+    whether optional live interval timers add enough value without becoming mandatory.
 
 ## Future Stage: iPhone App
 

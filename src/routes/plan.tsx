@@ -401,6 +401,10 @@ function PlanPage() {
         restIntervalSeconds: "",
         config: {
           ...circuitMethod.defaultConfig,
+          rounds: circuitBuild.rounds,
+          movement_count: circuitBuild.movements.length,
+          rest_between_movements_seconds: circuitBuild.restBetweenMovementsSeconds,
+          rest_between_rounds_seconds: circuitBuild.restBetweenRoundsSeconds,
           generated_by: "circuit_builder",
           requested_duration_minutes: circuitBuild.requestedMinutes,
           estimated_duration_minutes: circuitBuild.estimatedMinutes,

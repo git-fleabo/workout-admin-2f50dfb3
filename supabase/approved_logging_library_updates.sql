@@ -253,6 +253,15 @@ select
   next_source_row
 from numbered;
 
+-- Pull-up-bar movements must not be treated as equipment-free by the circuit builder.
+update public.exercises
+set equipment = case lower(name)
+  when 'weighted pull-up' then 'Pull-up bar / Added weight'
+  else 'Pull-up bar'
+end,
+updated_at = now()
+where lower(name) in ('1-arm hang', 'hanging leg raise', 'weighted pull-up');
+
 update public.exercises
 set is_active = false,
     updated_at = now()

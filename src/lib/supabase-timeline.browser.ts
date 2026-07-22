@@ -1,5 +1,6 @@
 import { supabasePublicSelect } from "./supabase-public";
 import { claimNoamProfile, getCurrentPerson } from "./supabase-people.browser";
+import { getMovementMetricProfile } from "./movement-metrics";
 
 type ActivityTypeRef = { name: string | null } | null;
 
@@ -38,6 +39,7 @@ type SessionEntryRecord = {
   notes: string | null;
   source_sheet: string | null;
   activity_types: ActivityTypeRef;
+  exercises: { default_metric: string | null; activity_types: ActivityTypeRef } | null;
   entry_sets: EntrySetRecord[] | null;
   entry_metrics: EntryMetricRecord[] | null;
 };
@@ -157,7 +159,10 @@ function compactNumber(value: number) {
   return Number.isInteger(value) ? `${value}` : `${Math.round(value * 10) / 10}`;
 }
 
-function describeSets(sets: EntrySetRecord[] | null | undefined) {
+function describeSets(
+  sets: EntrySetRecord[] | null | undefined,
+  durationStyle: "hold" | "time" = "hold",
+) {
   if (!sets?.length) return "";
   const set = sets[0];
   const parts: string[] = [];
@@ -168,7 +173,8 @@ function describeSets(sets: EntrySetRecord[] | null | undefined) {
     const duration = toNum(item.duration_seconds);
     return duration != null && duration > 0 ? [duration] : [];
   });
-  const isHold = durationValues.length > 0 && sets.every((item) => (toNum(item.reps) ?? 0) <= 0);
+  const isDurationOnly =
+    durationValues.length > 0 && sets.every((item) => (toNum(item.reps) ?? 0) <= 0);
   const workRows: Array<{
     method_name: string | null;
     reps: number | string | null;
@@ -196,8 +202,9 @@ function describeSets(sets: EntrySetRecord[] | null | undefined) {
     durationValues.reduce((total, value) => total + value, 0) *
     (individualSets ? 1 : aggregateAttempts);
   const bestHoldSeconds = durationValues.length ? Math.max(...durationValues) : null;
-  if (isHold && attemptCount > 0) {
-    parts.push(`${compactNumber(attemptCount)} ${attemptCount === 1 ? "attempt" : "attempts"}`);
+  if (isDurationOnly && attemptCount > 0) {
+    const noun = durationStyle === "hold" ? "attempt" : "interval";
+    parts.push(`${compactNumber(attemptCount)} ${attemptCount === 1 ? noun : `${noun}s`}`);
   } else if (setCount != null && setCount > 0) {
     parts.push(`${compactNumber(setCount)} sets`);
   }
@@ -211,20 +218,38 @@ function describeSets(sets: EntrySetRecord[] | null | undefined) {
   if (weight != null && weight > 0) parts.push(`${compactNumber(weight)}kg max`);
   const methodName = sets.flatMap((item) => item.entry_set_segments ?? [])[0]?.method_name;
   if (methodName) parts.push(methodName);
-  if (totalHoldSeconds > 0) parts.push(`${compactNumber(totalHoldSeconds)}s total hold`);
-  if (bestHoldSeconds != null) parts.push(`${compactNumber(bestHoldSeconds)}s best`);
+  if (totalHoldSeconds > 0) {
+    parts.push(
+      durationStyle === "hold"
+        ? `${compactNumber(totalHoldSeconds)}s total hold`
+        : `${compactNumber(totalHoldSeconds)}s total time`,
+    );
+  }
+  if (bestHoldSeconds != null && durationValues.length > 1) {
+    parts.push(
+      durationStyle === "hold"
+        ? `${compactNumber(bestHoldSeconds)}s best`
+        : `${compactNumber(bestHoldSeconds)}s longest`,
+    );
+  }
   return parts.join(" · ");
 }
 
 function workoutEntry(session: SessionRecord, entry: SessionEntryRecord): TimelineEntry {
   const firstSet = entry.entry_sets?.[0];
   const minutes = sessionMinutes(session, entry);
+  const profile = getMovementMetricProfile({
+    workoutType: entry.activity_types?.name ?? entry.exercises?.activity_types?.name ?? "",
+    movement: entry.name,
+    defaultMetric: entry.exercises?.default_metric ?? "",
+  });
+  const durationStyle = ["hold", "grip", "mobility_position"].includes(profile) ? "hold" : "time";
   const details = [
     session.training_locations?.name ? `Location: ${session.training_locations.name}` : "",
     session.activity_types?.name ?? entry.activity_types?.name,
     entry.entry_kind,
     entry.progression_level,
-    describeSets(entry.entry_sets),
+    describeSets(entry.entry_sets, durationStyle),
     clean(firstSet?.quality) ? `Quality: ${clean(firstSet?.quality)}` : "",
     clean(firstSet?.rest_time) ? `Rest: ${clean(firstSet?.rest_time)}` : "",
     clean(firstSet?.assistance_type) && clean(firstSet?.assistance_type).toLowerCase() !== "none"
@@ -333,7 +358,7 @@ export async function getTimelineDataClient(): Promise<TimelineData> {
   const [sessions, oneRmRows, bodyweightRows] = await Promise.all([
     supabasePublicSelect<SessionRecord>("sessions", {
       select:
-        "id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name),training_locations(name,kind),session_entries(id,entry_kind,name,progression_level,completed,notes,source_sheet,activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,completed,entry_set_segments(method_name,reps,weight,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
+        "id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name),training_locations(name,kind),session_entries(id,entry_kind,name,progression_level,completed,notes,source_sheet,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,completed,entry_set_segments(method_name,reps,weight,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
       order: "session_date.desc",
       limit: 1000,
     }),

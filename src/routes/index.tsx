@@ -129,12 +129,16 @@ function groupRecentSessions(
       movements: [],
     };
     if (!current.movements.some((name) => name.toLowerCase() === log.exercise.toLowerCase())) {
-      current.movements.push(log.exercise);
+      current.movements[log.orderIndex] = log.exercise;
     }
     sessions.set(log.id, current);
   }
   const seenLocations = new Set<string>();
   return Array.from(sessions.values())
+    .map((session) => ({
+      ...session,
+      movements: session.movements.filter(Boolean),
+    }))
     .sort((a, b) => b.date.localeCompare(a.date))
     .filter((session) => {
       if (seenLocations.has(session.locationKind)) return false;
@@ -205,6 +209,14 @@ function TodayPage() {
       readCompletedWorkoutSummary(window.localStorage.getItem(lastCompletedWorkoutKey())),
     );
   }, []);
+
+  useEffect(() => {
+    if (!recent.isSuccess || !completed?.sessionId) return;
+    const sessionStillExists = recent.data.recent.some((log) => log.id === completed.sessionId);
+    if (sessionStillExists) return;
+    window.localStorage.removeItem(lastCompletedWorkoutKey());
+    setCompleted(null);
+  }, [completed?.sessionId, recent.data, recent.isSuccess]);
 
   const recentSessions = useMemo(
     () => groupRecentSessions(recent.data?.recent ?? []),

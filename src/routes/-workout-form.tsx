@@ -633,7 +633,7 @@ function numericInputValue(value: unknown) {
   return Number.isFinite(number) ? number : 0;
 }
 
-function workoutEntrySummary(entry: FormState) {
+function workoutEntrySummary(entry: FormState, profile: MetricProfile) {
   const sets = entry.setRows.filter(
     (set) => set.reps || set.weight || set.durationSeconds || set.rpe || set.method,
   );
@@ -660,18 +660,36 @@ function workoutEntrySummary(entry: FormState) {
     const holdSeconds = sets.map((set) => numericInputValue(set.durationSeconds));
     const recordedHolds = holdSeconds.filter((seconds) => seconds > 0);
     const totalHoldSeconds = recordedHolds.reduce((total, seconds) => total + seconds, 0);
-    const isAttemptBased = totalHoldSeconds > 0 && reps === 0;
+    const isTimed = totalHoldSeconds > 0 && reps === 0;
+    const isStaticDuration = ["hold", "grip", "mobility_position"].includes(profile);
     const assistance = [entry.assistanceType, entry.assistanceDetail].filter(Boolean).join(" · ");
     return [
-      `${sets.length} ${isAttemptBased ? (sets.length === 1 ? "attempt" : "attempts") : sets.length === 1 ? "set" : "sets"}`,
+      `${sets.length} ${
+        isTimed
+          ? isStaticDuration
+            ? sets.length === 1
+              ? "attempt"
+              : "attempts"
+            : sets.length === 1
+              ? "interval"
+              : "intervals"
+          : sets.length === 1
+            ? "set"
+            : "sets"
+      }`,
       methodSegments
         ? `${methodSegments} extra ${methodSegments === 1 ? "segment" : "segments"}`
         : "",
       reps > 0 ? `${reps} reps` : "",
-      totalHoldSeconds > 0
+      totalHoldSeconds > 0 && isStaticDuration
         ? recordedHolds.length > 1
           ? `${recordedHolds.map((seconds) => `${seconds}s`).join(" + ")} = ${totalHoldSeconds}s total hold`
           : `${totalHoldSeconds}s total hold`
+        : "",
+      totalHoldSeconds > 0 && !isStaticDuration
+        ? recordedHolds.length > 1
+          ? `${recordedHolds.map((seconds) => `${seconds}s`).join(" + ")} = ${totalHoldSeconds}s total time`
+          : `${totalHoldSeconds}s`
         : "",
       volume > 0 ? `${Math.round(volume).toLocaleString()} kg volume` : "",
       entry.progressionLevel ? `Progression: ${entry.progressionLevel}` : "",
@@ -2259,7 +2277,10 @@ export function FullWorkoutForm() {
       return {
         ...entry,
         setRows:
-          profileUsesStandardSets(profile) || profile === "hold" || profile === "grip"
+          profileUsesStandardSets(profile) ||
+          profile === "hold" ||
+          profile === "grip" ||
+          entry.setRows.some((set) => set.durationSeconds)
             ? entry.setRows
             : [],
         date: form.date,
@@ -2807,6 +2828,11 @@ export function FullWorkoutForm() {
                         ? "duration"
                         : "reps"
                     }
+                    durationLabel={
+                      profile === "hold" || profile === "grip" || profile === "mobility_position"
+                        ? "Hold (sec)"
+                        : "Seconds"
+                    }
                     setMethods={setMethods}
                     previousWorkout={
                       previousWorkout
@@ -3101,7 +3127,7 @@ export function FullWorkoutForm() {
             </div>
             <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Sets / attempts
+                Sets / efforts
               </p>
               <p className="mt-1 text-sm font-semibold">{totalRecordedSets || "—"}</p>
             </div>
@@ -3131,7 +3157,23 @@ export function FullWorkoutForm() {
                     }
                   </p>
                 ) : null}
-                <p className="mt-1 text-xs text-muted-foreground">{workoutEntrySummary(entry)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {workoutEntrySummary(
+                    entry,
+                    getMovementMetricProfile({
+                      workoutType:
+                        libraryExercises.find(
+                          (exercise) =>
+                            exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
+                        )?.workoutType ?? entry.workoutType,
+                      movement: entry.exercise,
+                      defaultMetric: libraryExercises.find(
+                        (exercise) =>
+                          exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
+                      )?.metric,
+                    }),
+                  )}
+                </p>
               </div>
             ))}
           </div>
@@ -3759,6 +3801,7 @@ function SetRowsEditor({
   rows,
   usesLoad,
   valueKind = "reps",
+  durationLabel = "Hold (sec)",
   setMethods,
   previousWorkout,
   onChange,
@@ -3775,6 +3818,7 @@ function SetRowsEditor({
   rows: WorkoutSetState[];
   usesLoad: boolean;
   valueKind?: "reps" | "duration";
+  durationLabel?: string;
   setMethods: TrainingMethod[];
   previousWorkout?: { date: string; location?: string; rows: WorkoutSetState[] };
   onChange: <K extends keyof WorkoutSetState>(
@@ -3840,7 +3884,7 @@ function SetRowsEditor({
       >
         <span>Set</span>
         {usesLoad && <span>kg</span>}
-        <span>{valueKind === "duration" ? "Hold (sec)" : "Reps"}</span>
+        <span>{valueKind === "duration" ? durationLabel : "Reps"}</span>
         <span>RPE</span>
         <span />
       </div>
@@ -3891,7 +3935,7 @@ function SetRowsEditor({
               )}
               <label className="space-y-1 sm:space-y-0">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
-                  {valueKind === "duration" ? "Hold (sec)" : "Reps"}
+                  {valueKind === "duration" ? durationLabel : "Reps"}
                 </span>
                 <Input
                   type="number"
@@ -3899,7 +3943,13 @@ function SetRowsEditor({
                   min={0}
                   step={valueKind === "duration" ? 0.1 : 1}
                   className="h-12 text-lg font-semibold sm:h-10 sm:text-sm sm:font-normal"
-                  aria-label={`Set ${setIndex + 1} ${valueKind === "duration" ? "hold seconds" : "reps"}`}
+                  aria-label={`Set ${setIndex + 1} ${
+                    valueKind === "duration" && durationLabel === "Hold (sec)"
+                      ? "hold seconds"
+                      : valueKind === "duration"
+                        ? "seconds"
+                        : "reps"
+                  }`}
                   value={valueKind === "duration" ? set.durationSeconds : set.reps}
                   onChange={(event) =>
                     valueKind === "duration"

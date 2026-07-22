@@ -327,7 +327,7 @@ function selectionReason(candidate: CircuitCandidate, config: CircuitBuilderConf
       : "adds movement balance",
     candidate.circuitImpact === "low" ? "low impact" : `${candidate.circuitImpact} impact`,
   ].filter(Boolean);
-  return `${dose}. Selected as a ${reasons.join(", ")}.`;
+  return `Generated target: ${dose}. Selected as a ${reasons.join(", ")}.`;
 }
 
 function movementFromSelection(selection: CircuitSelection): WorkoutPlanMovement {

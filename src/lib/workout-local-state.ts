@@ -23,6 +23,7 @@ export function lastCompletedWorkoutKey() {
 }
 
 export type WorkoutLocalSummary = {
+  sessionId: string | null;
   savedAt: string;
   date: string;
   title: string;
@@ -61,6 +62,7 @@ function readSummary(value: string | null, completedOnly: boolean): WorkoutLocal
       typeof entry.exercise === "string" && entry.exercise.trim() ? [entry.exercise.trim()] : [],
     );
     return {
+      sessionId: typeof stored.sessionId === "string" ? stored.sessionId : null,
       savedAt: stored.savedAt,
       date: stored.form.date,
       title: stored.form.title,

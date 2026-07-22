@@ -258,10 +258,11 @@ uses the normal plan, logger, completion, History, and Progress contracts.
 4. Add a Circuit Builder flow to Plan for duration, location/equipment, focus, intensity, exclusions,
    and rep- or time-led format choices. — implemented
 5. Add an editable preview with swap, lock, regenerate, reorder, save, and start actions. — implemented
-6. Verify execution and review, expand the movement catalogue deliberately, and add optional timer
-   polish without making live timer use mandatory.
+6. Verify execution and review. — authenticated local audit completed 2026-07-22
+7. Expand the movement catalogue deliberately and add optional timer polish without making live timer
+   use mandatory.
 
-The first five foundations are now delivered. Library cards and filters expose circuit availability,
+The first six foundations are now delivered. Library cards and filters expose circuit availability,
 while the movement editor controls the exact structured values. Initial values are seeded
 conservatively: aggregate sessions and classes are excluded; atomic movements remain available; and
 clearly circuit-friendly movements are preferred. Saved workout entries now carry a canonical
@@ -272,9 +273,11 @@ format, impact, difficulty, readiness, and explicit exclusions. It then determin
 movement patterns, budgets rounds and rests against the requested duration, explains every choice,
 and saves/starts through the normal Circuit training-method and workout-plan contracts. The preview
 can now protect locked movements, offer ranked eligible swaps, regenerate only unlocked slots, move
-exercises earlier or later, edit doses, remove movements, and then save or start the result. The next
-release should concentrate on authenticated execution/review testing, deliberate catalogue expansion,
-and optional timer polish rather than adding a second persistence path.
+exercises earlier or later, edit doses, remove movements, and then save or start the result. The
+2026-07-22 authenticated audit covered generation through completion, History, Progress, and repeat.
+It also corrected timed-interval persistence/wording, Today ordering, method metadata consistency,
+equipment metadata, and stale local completion reconciliation. The next release should concentrate on
+deliberate catalogue expansion and optional timer polish rather than adding a second persistence path.
 
 ## What We Keep
 
