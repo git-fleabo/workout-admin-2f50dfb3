@@ -888,17 +888,23 @@ Programme-template decision:
 
 ## App Behavior And Screens
 
-### Manage
+### Navigation And Settings
 
-`/manage` is the administration landing page. The primary navigation stays focused on everyday
-training and review, while Manage links to Exercise Library, Training Methods, Programme Templates,
-Daily Rotation, Goals, and Training Locations. Those existing routes remain stable and make Manage
-appear active while open. The landing page also reserves clearly non-interactive planned homes for
-Preferences and People & Access; these placeholders do not imply that the features are implemented.
+The primary navigation is intentionally limited to four everyday destinations: Today, Log, Plan, and
+Review. Review opens the existing Dashboard as its Overview and adds a compact section navigation for
+Overview, Progress, and History; Weekly Review remains an Overview action and is treated as part of
+the same Review section. Review stays visibly selected throughout those routes.
+
+Settings sits beside Sign Out in the app header instead of occupying another primary-navigation
+slot. The existing `/manage` URL remains stable, but the page title and interface now say Settings.
+Settings links to Exercise Library, Training Methods, Programme Templates, Daily Rotation, Goals, and
+Training Locations, and stays visibly selected throughout those routes. The landing page also
+reserves clearly non-interactive planned homes for Preferences and People & Access; these
+placeholders do not imply that the features are implemented.
 
 Daily actions remain close to the training flow: Today still shows and completes the selected daily
-practice, while Manage owns its rotation configuration. Goals are configured in Manage, but future
-quick check-ins can still surface in Today or review views.
+practice, while Settings owns its rotation configuration. Goals are configured in Settings, but
+future quick check-ins can still surface in Today or review views.
 
 `/locations` manages person-owned `training_locations` rows and the reusable `equipment_items`
 catalogue. It can add places, rename them, and archive or restore them. Each location has a searchable,
@@ -1543,7 +1549,8 @@ Recommended next work, in order:
 
 1. Push any local commits via GitHub Desktop if the branch is ahead of remote.
 2. In Lovable preview, confirm the commit label matches the latest pushed commit.
-3. Confirm app startup opens Today and the Dashboard nav still opens `/dashboard`.
+3. Confirm app startup opens Today and Review opens `/dashboard` with Overview, Progress, and History
+   section navigation.
 4. Set a few Library movements to Home-only and Gym-only, then confirm the workout movement list filters correctly while Both appears in both lists.
 5. Test Log flows for Strength, Run, Class, Mobility/Flexibility, Grip, Climbing, 1RM, and Bodyweight.
 6. Test the duplicate-log warning by trying to save the same movement twice on the same date.

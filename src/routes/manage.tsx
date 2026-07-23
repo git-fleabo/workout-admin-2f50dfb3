@@ -18,15 +18,15 @@ import { Card } from "@/components/ui/card";
 export const Route = createFileRoute("/manage")({
   head: () => ({
     meta: [
-      { title: "Manage · Training Tracker" },
+      { title: "Settings · Training Tracker" },
       {
         name: "description",
         content:
-          "Manage the exercise library, training methods, programme templates, daily rotation, goals and locations.",
+          "Configure the exercise library, training methods, programme templates, daily rotation, goals and locations.",
       },
     ],
   }),
-  component: ManagePage,
+  component: SettingsPage,
 });
 
 type ManageLink = {
@@ -101,17 +101,17 @@ const PLANNED: PlannedItem[] = [
   },
 ];
 
-function ManagePage() {
+function SettingsPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <header className="border-b border-border pb-5">
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-amber-300">
-          <Settings2 className="h-4 w-4" /> Training administration
+          <Settings2 className="h-4 w-4" /> App configuration
         </div>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Manage</h1>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Settings</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Shape how your training system works. Everyday logging, planning and review stay in the
-          main navigation.
+          Manage the libraries, rules and targets that shape your training. Everyday logging,
+          planning and review stay in the main navigation.
         </p>
       </header>
 
