@@ -258,6 +258,16 @@ create trigger equipment_items_set_updated_at
 before update on public.equipment_items
 for each row execute function public.set_updated_at();
 
+create table if not exists public.exercise_equipment_items (
+  exercise_id uuid not null references public.exercises(id) on delete cascade,
+  equipment_item_id uuid not null references public.equipment_items(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (exercise_id, equipment_item_id)
+);
+
+create index if not exists exercise_equipment_items_equipment_idx
+  on public.exercise_equipment_items (equipment_item_id, exercise_id);
+
 create table if not exists public.training_location_equipment (
   location_id uuid not null references public.training_locations(id) on delete cascade,
   equipment_item_id uuid not null references public.equipment_items(id) on delete cascade,
@@ -956,6 +966,7 @@ alter table public.exercise_tag_links enable row level security;
 alter table public.person_exercises enable row level security;
 alter table public.training_locations enable row level security;
 alter table public.equipment_items enable row level security;
+alter table public.exercise_equipment_items enable row level security;
 alter table public.training_location_equipment enable row level security;
 alter table public.sessions enable row level security;
 alter table public.session_entries enable row level security;
@@ -990,6 +1001,7 @@ grant select on
   public.person_exercises,
   public.training_locations,
   public.equipment_items,
+  public.exercise_equipment_items,
   public.training_location_equipment,
   public.sessions,
   public.session_entries,
@@ -1020,6 +1032,7 @@ grant insert, update on public.exercises to authenticated;
 grant insert, update, delete on public.person_exercises to authenticated;
 grant insert, update, delete on public.training_locations to authenticated;
 grant insert, update, delete on public.equipment_items to authenticated;
+grant insert, delete on public.exercise_equipment_items to authenticated;
 grant insert, delete on public.training_location_equipment to authenticated;
 grant insert, update, delete on public.program_assignments to authenticated;
 grant insert on public.sessions to authenticated;
@@ -1195,6 +1208,45 @@ create policy equipment_items_delete_accessible
   for delete
   to authenticated
   using (app_private.person_is_accessible(person_id));
+
+create policy exercise_equipment_items_select_accessible
+  on public.exercise_equipment_items
+  for select
+  to authenticated
+  using (exists (
+    select 1
+    from public.equipment_items equipment
+    where equipment.id = equipment_item_id
+      and app_private.person_is_accessible(equipment.person_id)
+  ));
+
+create policy exercise_equipment_items_insert_admin
+  on public.exercise_equipment_items
+  for insert
+  to authenticated
+  with check (
+    app_private.current_person_is_admin()
+    and exists (
+      select 1
+      from public.equipment_items equipment
+      where equipment.id = equipment_item_id
+        and app_private.person_is_accessible(equipment.person_id)
+    )
+  );
+
+create policy exercise_equipment_items_delete_admin
+  on public.exercise_equipment_items
+  for delete
+  to authenticated
+  using (
+    app_private.current_person_is_admin()
+    and exists (
+      select 1
+      from public.equipment_items equipment
+      where equipment.id = equipment_item_id
+        and app_private.person_is_accessible(equipment.person_id)
+    )
+  );
 
 create policy training_location_equipment_select_accessible
   on public.training_location_equipment

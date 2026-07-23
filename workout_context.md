@@ -156,6 +156,7 @@ Important data files:
 - `supabase/schema.sql`: local schema snapshot, may not always reflect every live data tweak.
 - `supabase/migrations/20260713100036_add_training_locations.sql`: tracked Home/Gym training-location schema, session foreign key, RLS, grants, and initial location seed.
 - `supabase/migrations/20260722222504_add_training_location_equipment.sql`: person-owned equipment catalogue, per-location assignments, RLS, grants, and a 31-item starter catalogue.
+- `supabase/migrations/20260723064459_link_exercises_to_equipment.sql`: structured many-to-many exercise equipment requirements, managed-person RLS/grants, conservative legacy backfill, and eight missing catalogue items.
 - `supabase/migrations/20260714150600_add_daily_rotation.sql`: configurable daily-practice pool, persisted per-date assignments, completion state, RLS, grants, and indexes.
 - `supabase/migrations/20260716072606_add_structured_goals.sql`: applied additive structured-goal fields for goal type, linked exercise, canonical measurement, numeric target/unit, starting value, and deadline.
 - `supabase/approved_logging_library_updates.sql`: idempotent data update script for approved library/logging changes.
@@ -195,10 +196,11 @@ Selected live counts rechecked on 2026-07-13 after the workout-logging iteration
 - `entry_sets`: 90
 - `training_locations`: 2 (`Home`, `Gym`)
 
-Selected live counts rechecked on 2026-07-22 after the location-equipment iteration:
+Selected live counts rechecked on 2026-07-23 after exercise-equipment linking:
 
-- `equipment_items`: 31 active starter items
-- `training_location_equipment`: 0 after authenticated smoke-test cleanup
+- `equipment_items`: 40 active items, including one previously added custom item
+- `training_location_equipment`: 30 assignments across Home and The Font
+- `exercise_equipment_items`: 176 structured requirements across 162 active exercises
 
 ## Database Schema
 
@@ -335,7 +337,7 @@ Key columns:
 - `activity_type_id uuid -> activity_types.id nullable`
 - `name text`
 - `focus_area text nullable`
-- `equipment text nullable`
+- `equipment text nullable`, retained as a legacy display snapshot while structured requirements live in `exercise_equipment_items`
 - `default_metric text nullable`
 - `suggested_sets text nullable`
 - `suggested_reps text nullable`
@@ -511,6 +513,27 @@ Key columns:
 RLS:
 
 - Managed-person SELECT/INSERT/DELETE policies verify accessible, same-person location and equipment rows.
+
+### `exercise_equipment_items`
+
+Purpose: structured, multi-select equipment requirements for master-library exercises.
+
+Key columns:
+
+- `exercise_id uuid -> exercises.id`
+- `equipment_item_id uuid -> equipment_items.id`
+- composite primary key across both columns
+
+Availability contract:
+
+- Every linked equipment item must be assigned to the selected training location.
+- No links means the exercise needs no equipment and remains available at any otherwise allowed location.
+- `person_exercises.location_scope` is still applied as an additional Home/Gym/Both restriction.
+- Links use the selected person's equipment catalogue, so shared master exercises can resolve differently for different people.
+
+RLS:
+
+- Managed-person SELECT and admin INSERT/DELETE policies verify that the equipment item belongs to an accessible person.
 
 ### `session_entries`
 
@@ -881,7 +904,10 @@ quick check-ins can still surface in Today or review views.
 catalogue. It can add places, rename them, and archive or restore them. Each location has a searchable,
 grouped equipment picker with select-all and clear controls; its card summarises the assigned kit.
 The catalogue supports search, add, edit, archive, and restore, while circuit-matching groups keep the
-data ready for location-aware Circuit Builder eligibility. Bodyweight remains available everywhere.
+data ready for location-aware exercise and Circuit Builder eligibility. Library exercises select one
+or more items from this catalogue rather than storing freeform equipment. All selected items are
+required at a location; bodyweight/no-equipment exercises use an empty selection and remain available
+everywhere their Home/Gym/Both scope permits.
 Archiving is non-destructive: inactive locations disappear from new workout selection while completed
 sessions retain their location relationship and name. `Home` and `Gym` remain the two core planning
 contexts, so the UI protects the last active location of each kind from archival and keeps an existing
@@ -944,15 +970,16 @@ The log screen supports:
 - bodyweight logs
 
 Climbing now has a dedicated `Climb` mode alongside Workout, 1RM, and PRs. It deliberately bypasses
-the workout composer: there is no Home/Gym choice, set editor, movement ordering, advanced-method
-section, completion toggle, or review dialog. The compact form uses four direct choices
+the workout composer: there is no set editor, movement ordering, advanced-method section, completion
+toggle, or review dialog. The compact form first selects an active training location, then offers four direct choices
 (`Bouldering`, `Ropes`, `Kilter`, and `Mix`), friendly hours/minutes inputs, an optional
 movement-aware problems/routes count, optional max grade and RPE, Kilter-only gradient, and collapsed
 date/notes. A blank count saves `Time only`; entering a count saves `Problems / routes`. The screen
 still writes through `addWorkoutSessionClient`, so it keeps canonical `duration_minutes` and the same
 session/entry/metric contract consumed by Dashboard, History, Progress, and Goals. Climbing movements
-and climb-only recent sessions are excluded from the Workout composer so they cannot accidentally
-pick up workout sets or advanced methods.
+whose requirements are not assigned to the selected location are disabled. Climb-only recent sessions
+are excluded from the Workout composer so they cannot accidentally pick up workout sets or advanced
+methods.
 
 1RM logging uses Epley as the fixed/default estimate formula. The formula selector is intentionally hidden from the UI, but new rows still save `formula = 'Epley'` in `one_rm_tests`.
 
@@ -980,7 +1007,7 @@ Movement selection is grouped into account-scoped local favourites, recent movem
 
 Finishing a workout is now a two-step action. `Review and finish` opens a summary of location, movement count, recorded sets, and each movement's work before the final Supabase write. A successfully completed workout stores an account-scoped local same-day pointer plus its form snapshot, so the Log screen can show `Today's workout is saved` after navigation or refresh and reopen it for correction. Corrections create the replacement session first, remove the original only after the replacement succeeds, and relink any completed suggested workout; if replacement or original deletion fails, the original remains intact. Correction state is also included in draft autosave so a refresh cannot accidentally turn an edit into a duplicate new session.
 
-Home/Gym selection is saved on `sessions.training_location_id` and remembered locally for the next workout entry. History details show the saved location. The workout movement picker filters enabled exercises using the selected person's `person_exercises.location_scope`: Home, Gym, or Both.
+Training-location selection is saved on `sessions.training_location_id` and remembered locally for the next workout entry. History details show the saved location. The workout movement picker filters enabled exercises by both the selected person's `person_exercises.location_scope` and whether every structured equipment requirement is assigned to the exact selected location. Recent-workout templates are filtered through the same availability contract.
 
 ### Today
 
@@ -1043,6 +1070,8 @@ The library reads from Supabase. It supports:
 - per-person enable/disable selections
 - per-person Home, Gym, or Both availability, editable inline on each movement
 - an All/Home/Gym library filter that includes Both movements in either location view
+- a searchable, non-freeform equipment multi-select backed by the selected person's location equipment catalogue
+- computed location availability that requires every selected equipment item to exist at a location
 - exercise history/details
 - a `Show inactive` toggle for admin review of hidden/retired movements
 - a circuit-status filter plus structured circuit metadata on every movement: Preferred/Available/
@@ -1059,7 +1088,9 @@ record and stable exercise identity. The 2026-07-22 migration seeds all existing
 aggregate sessions, classes, climbing sessions, and already-composed workouts are excluded; common
 atomic circuit movements are preferred; all remaining atomic movements are available. The future
 generator must filter by per-person enabled/location scope first, then use these structured fields for
-balance and dosing instead of relying on free-text focus/equipment values or movement-name guesses.
+balance and dosing instead of relying on free-text focus values or movement-name guesses. Equipment
+eligibility comes from `exercise_equipment_items` and exact per-location assignments; the legacy
+`exercises.equipment` string is display-only.
 
 ### Goals
 
@@ -1153,7 +1184,7 @@ Workout Log history or from the movement Library's Circuit Builder:
 - A single warning can set only the next workout to `Tired`. Stronger repeated-hard-week evidence can apply a full account/week-local deload mode, which keeps the planned training days but gives every strength suggestion one fewer set and about 10% less load until the user returns to normal.
 - The authenticated local preview showed `No deload signal yet`: 15.3 recent load points versus 14 previously, no RPE 9+ days, no exercise-level decline, and only 8% RPE coverage. Its `Use lighter next workout` action correctly selected the Tired targets without changing workout history.
 - Home and Gym are analysed separately when explicit location history exists.
-- Movements excluded from the selected location in the Library are also excluded from suggestions.
+- Movements excluded from the selected location by Home/Gym/Both scope or missing required equipment are also excluded from suggestions.
 - If the selected location has no labelled history yet, the app clearly falls back to older locationless logs instead of pretending those sessions are known to be Home or Gym.
 - Legacy separate movement sessions are grouped back into training days so older history can still form a workout pattern.
 - If the last three matching training days clearly resemble an A/B/A rotation, the planner suggests the B pattern next; otherwise it repeats the most recent matching training day.
@@ -1167,8 +1198,8 @@ Workout Log history or from the movement Library's Circuit Builder:
   available equipment, high-impact/advanced exclusions, and named movements to avoid.
 - Circuit generation is deterministic for the same brief and Library state. It filters per-person
   enabled movements by Library location first, then applies structured suitability, dose mode,
-  difficulty, impact, equipment, and exclusions. Free-text equipment is normalised only for
-  eligibility; selection and dose do not infer suitability from movement names.
+  difficulty, impact, structured equipment groups, and exclusions. Selection and dose do not infer
+  suitability or equipment from movement names.
 - The generator favours preferred movements and the requested focus while penalising repeated
   movement patterns. It calculates a movement count, per-movement dose, rounds, rest between
   movements, rest between rounds, and an estimated total duration, with warnings when the available

@@ -107,7 +107,7 @@ Suggested columns:
 - `id uuid primary key`
 - `activity_type_id uuid references activity_types(id)`
 - `name text not null`
-- `equipment text`
+- `equipment text` retained as a legacy display snapshot; editing uses structured equipment links
 - `default_metric text` using one of `weight_reps`, `reps_only`, `hold`, `grip_hold`, `distance_time`, `duration`, `conditioning`, `carry`, `mobility_position`, `power`, or `climbing`
 - `suggested_sets text`
 - `suggested_reps text`
@@ -133,6 +133,13 @@ to `gym`.
 One person-owned, reusable catalogue for equipment available across training locations. Items store a
 display name, broad category, circuit-matching group, sort order, active state, and timestamps. Names
 are unique per person case-insensitively; archiving keeps existing assignments and history intact.
+
+`exercise_equipment_items`
+
+Many-to-many equipment requirements between master-library exercises and a person's equipment
+catalogue. An exercise is available at a location only when every linked item is assigned to that
+location. An exercise with no linked items is treated as bodyweight/no-equipment. The existing
+per-person Home/Gym/Both scope remains an additional restriction.
 
 `training_location_equipment`
 

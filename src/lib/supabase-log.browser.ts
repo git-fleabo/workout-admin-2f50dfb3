@@ -6,8 +6,8 @@ import {
 } from "./supabase-public";
 import { claimNoamProfile, getCurrentPerson } from "./supabase-people.browser";
 import { climbingMetricIssue, supportsClimbingGradient } from "./climbing-metrics";
+import { listLibraryClient } from "./supabase-library.browser";
 import {
-  DEFAULT_CIRCUIT_METADATA,
   type CircuitDifficulty,
   type CircuitDoseMode,
   type CircuitImpact,
@@ -86,12 +86,6 @@ type ExerciseRecord = {
   circuit_dose_per_side: boolean | null;
   activity_type_id: string | null;
   activity_types: { name: string | null } | null;
-};
-
-type PersonExerciseRecord = {
-  exercise_id: string;
-  is_enabled: boolean;
-  location_scope: "home" | "gym" | "both";
 };
 
 type EntrySetRecord = {
@@ -274,6 +268,7 @@ export type TrainingLocation = {
   id: string;
   name: string;
   kind: "home" | "gym" | "other";
+  equipmentItemIds: string[];
 };
 
 export type WorkoutSessionInput = {
@@ -472,83 +467,47 @@ async function findExercise(name: string) {
 
 export async function getLibraryClient() {
   const person = await requirePerson();
-  const [activityTypes, exercises, personExercises] = await Promise.all([
-    listActivityTypes(),
-    supabasePublicSelect<ExerciseRecord>("exercises", {
-      select:
-        "id,focus_area,name,equipment,default_metric,suggested_sets,suggested_reps,notes,circuit_suitability,circuit_pattern,circuit_difficulty,circuit_impact,circuit_dose_mode,circuit_dose_min,circuit_dose_max,circuit_dose_per_side,activity_type_id,activity_types(name)",
-      is_active: "eq.true",
-      order: "source_row.asc,name.asc",
-      limit: 1000,
-    }),
-    supabasePublicSelect<PersonExerciseRecord>("person_exercises", {
-      select: "exercise_id,is_enabled,location_scope",
-      person_id: `eq.${person.id}`,
-    }),
-  ]);
-  const enabledExercises = new Set(
-    personExercises.filter((row) => row.is_enabled).map((row) => row.exercise_id),
-  );
-  const availableExercises = exercises.filter((row) => enabledExercises.has(row.id));
-
-  const workoutTypes = activityTypes
-    .map((type) => type.name)
-    .filter((name, index, all) => {
-      if (!name || all.indexOf(name) !== index) return false;
-      if (name === "Bouldering" || name === "Sport") return false;
-      return availableExercises.some((row) => row.activity_types?.name === name);
-    });
+  const library = await listLibraryClient(person.id);
+  const availableExercises = library.items.filter((row) => row.enabled && row.active);
 
   return {
-    exercises: availableExercises.map((row) => ({
-      id: row.id,
-      workoutType: row.activity_types?.name ?? "",
-      focusArea: row.focus_area ?? "",
-      name: row.name,
-      equipment: row.equipment ?? "",
-      metric: row.default_metric ?? "",
-      suggestedSets: row.suggested_sets ?? "",
-      suggestedReps: row.suggested_reps ?? "",
-      notes: row.notes ?? "",
-      circuitSuitability: row.circuit_suitability ?? DEFAULT_CIRCUIT_METADATA.circuitSuitability,
-      circuitPattern: row.circuit_pattern ?? DEFAULT_CIRCUIT_METADATA.circuitPattern,
-      circuitDifficulty: row.circuit_difficulty ?? DEFAULT_CIRCUIT_METADATA.circuitDifficulty,
-      circuitImpact: row.circuit_impact ?? DEFAULT_CIRCUIT_METADATA.circuitImpact,
-      circuitDoseMode: row.circuit_dose_mode ?? DEFAULT_CIRCUIT_METADATA.circuitDoseMode,
-      circuitDoseMin:
-        row.circuit_dose_min == null
-          ? DEFAULT_CIRCUIT_METADATA.circuitDoseMin
-          : String(row.circuit_dose_min),
-      circuitDoseMax:
-        row.circuit_dose_max == null
-          ? DEFAULT_CIRCUIT_METADATA.circuitDoseMax
-          : String(row.circuit_dose_max),
-      circuitDosePerSide: row.circuit_dose_per_side ?? DEFAULT_CIRCUIT_METADATA.circuitDosePerSide,
-      locationScope:
-        personExercises.find((personExercise) => personExercise.exercise_id === row.id)
-          ?.location_scope ?? "both",
-    })),
-    workoutTypes,
-    focusAreas: Array.from(
-      new Set(availableExercises.map((row) => row.focus_area ?? "").filter(Boolean)),
-    ),
+    exercises: availableExercises,
+    workoutTypes: library.workoutTypes,
+    focusAreas: Array.from(new Set(availableExercises.map((row) => row.focusArea).filter(Boolean))),
+    equipmentItems: library.equipmentItems,
+    locations: library.locations,
     ...FALLBACK_SETTINGS,
   };
 }
 
 export async function getTrainingLocationsClient(): Promise<TrainingLocation[]> {
   const person = await requirePerson();
-  const rows = await supabasePublicSelect<{
-    id: string;
-    name: string;
-    kind: "home" | "gym" | "other";
-  }>("training_locations", {
-    select: "id,name,kind",
-    person_id: `eq.${person.id}`,
-    is_active: "eq.true",
-    order: "kind.asc,name.asc",
-  });
-  return rows;
+  const [rows, assignments] = await Promise.all([
+    supabasePublicSelect<{
+      id: string;
+      name: string;
+      kind: "home" | "gym" | "other";
+    }>("training_locations", {
+      select: "id,name,kind",
+      person_id: `eq.${person.id}`,
+      is_active: "eq.true",
+      order: "kind.asc,name.asc",
+    }),
+    supabasePublicSelect<{ location_id: string; equipment_item_id: string }>(
+      "training_location_equipment",
+      { select: "location_id,equipment_item_id" },
+    ),
+  ]);
+  const equipmentByLocation = new Map<string, string[]>();
+  for (const assignment of assignments) {
+    const ids = equipmentByLocation.get(assignment.location_id) ?? [];
+    ids.push(assignment.equipment_item_id);
+    equipmentByLocation.set(assignment.location_id, ids);
+  }
+  return rows.map((row) => ({
+    ...row,
+    equipmentItemIds: equipmentByLocation.get(row.id) ?? [],
+  }));
 }
 
 function firstSet(entry: SessionEntryRecord) {

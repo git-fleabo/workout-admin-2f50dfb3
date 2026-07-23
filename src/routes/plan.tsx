@@ -246,7 +246,9 @@ function PlanPage() {
     const allowed = new Set(
       (library.data?.exercises ?? [])
         .filter(
-          (exercise) => exercise.locationScope === "both" || exercise.locationScope === location,
+          (exercise) =>
+            (exercise.locationScope === "both" || exercise.locationScope === location) &&
+            exercise.availableLocationKinds.includes(location),
         )
         .map((exercise) => exercise.name.toLowerCase()),
     );
@@ -260,8 +262,10 @@ function PlanPage() {
         workoutType: exercise.workoutType,
         focusArea: exercise.focusArea,
         equipment: exercise.equipment,
+        equipmentGroups: exercise.equipmentCircuitGroups as CircuitEquipment[],
         metric: exercise.metric,
         locationScope: exercise.locationScope,
+        availableLocationKinds: exercise.availableLocationKinds,
         circuitSuitability: exercise.circuitSuitability,
         circuitPattern: exercise.circuitPattern,
         circuitDifficulty: exercise.circuitDifficulty,
@@ -276,7 +280,9 @@ function PlanPage() {
   const locationCircuitCandidateCount = useMemo(
     () =>
       circuitCandidates.filter(
-        (candidate) => candidate.locationScope === "both" || candidate.locationScope === location,
+        (candidate) =>
+          (candidate.locationScope === "both" || candidate.locationScope === location) &&
+          candidate.availableLocationKinds.includes(location),
       ).length,
     [circuitCandidates, location],
   );

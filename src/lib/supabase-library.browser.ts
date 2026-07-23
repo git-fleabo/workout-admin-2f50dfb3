@@ -1,4 +1,5 @@
 import {
+  supabasePublicDelete,
   supabasePublicInsert,
   supabasePublicSelect,
   supabasePublicUpdate,
@@ -57,7 +58,43 @@ type PersonExerciseRecord = {
   location_scope: ExerciseLocationScope;
 };
 
+type EquipmentItemRecord = {
+  id: string;
+  person_id: string;
+  name: string;
+  category: string;
+  circuit_group: string;
+  sort_order: number;
+  is_active: boolean;
+};
+
+type ExerciseEquipmentItemRecord = {
+  exercise_id: string;
+  equipment_item_id: string;
+};
+
+type TrainingLocationRecord = {
+  id: string;
+  person_id: string;
+  name: string;
+  kind: "home" | "gym" | "other";
+  is_active: boolean;
+};
+
+type TrainingLocationEquipmentRecord = {
+  location_id: string;
+  equipment_item_id: string;
+};
+
 export type ExerciseLocationScope = "home" | "gym" | "both";
+
+export type LibraryEquipmentItem = {
+  id: string;
+  name: string;
+  category: string;
+  circuitGroup: string;
+  isActive: boolean;
+};
 
 export type LibraryClientRow = LibraryRow & {
   id: string;
@@ -65,9 +102,16 @@ export type LibraryClientRow = LibraryRow & {
   active: boolean;
   personExerciseId: string | null;
   locationScope: ExerciseLocationScope;
+  equipmentItemIds: string[];
+  equipmentCircuitGroups: string[];
+  availableLocationIds: string[];
+  availableLocationKinds: Array<"home" | "gym" | "other">;
+  availableLocationNames: string[];
 };
 
-export type LibraryFields = Omit<LibraryRow, "row">;
+export type LibraryFields = Omit<LibraryRow, "row"> & {
+  equipmentItemIds: string[];
+};
 export { claimNoamProfile };
 
 function nullableNumber(value: string) {
@@ -86,14 +130,31 @@ function slugify(value: string) {
     .slice(0, 80);
 }
 
-function mapExercise(row: ExerciseRecord, personExercise?: PersonExerciseRecord): LibraryClientRow {
+function scopeAllowsKind(scope: ExerciseLocationScope, kind: TrainingLocationRecord["kind"]) {
+  return kind === "other" || scope === "both" || scope === kind;
+}
+
+function mapExercise(
+  row: ExerciseRecord,
+  personExercise: PersonExerciseRecord | undefined,
+  equipmentItems: EquipmentItemRecord[],
+  locations: TrainingLocationRecord[],
+  locationEquipment: Map<string, Set<string>>,
+): LibraryClientRow {
+  const locationScope = personExercise?.location_scope ?? "both";
+  const requiredIds = equipmentItems.map((item) => item.id);
+  const availableLocations = locations.filter((location) => {
+    if (!scopeAllowsKind(locationScope, location.kind)) return false;
+    const availableIds = locationEquipment.get(location.id) ?? new Set<string>();
+    return requiredIds.every((id) => availableIds.has(id));
+  });
   return {
     id: row.id,
     row: row.source_row ?? 0,
     workoutType: row.activity_types?.name ?? "",
     focusArea: row.focus_area ?? "",
     name: row.name,
-    equipment: row.equipment ?? "",
+    equipment: equipmentItems.map((item) => item.name).join(" / "),
     metric: row.default_metric ?? "",
     suggestedSets: row.suggested_sets ?? "",
     suggestedReps: row.suggested_reps ?? "",
@@ -115,7 +176,14 @@ function mapExercise(row: ExerciseRecord, personExercise?: PersonExerciseRecord)
     active: row.is_active,
     enabled: personExercise?.is_enabled ?? false,
     personExerciseId: personExercise?.id ?? null,
-    locationScope: personExercise?.location_scope ?? "both",
+    locationScope,
+    equipmentItemIds: requiredIds,
+    equipmentCircuitGroups: Array.from(new Set(equipmentItems.map((item) => item.circuit_group))),
+    availableLocationIds: availableLocations.map((location) => location.id),
+    availableLocationKinds: Array.from(
+      new Set(availableLocations.map((location) => location.kind)),
+    ),
+    availableLocationNames: availableLocations.map((location) => location.name),
   };
 }
 
@@ -170,12 +238,86 @@ async function listPersonExercises(personId: string) {
   });
 }
 
+async function listEquipmentItems(personId: string) {
+  return supabasePublicSelect<EquipmentItemRecord>("equipment_items", {
+    select: "id,person_id,name,category,circuit_group,sort_order,is_active",
+    person_id: `eq.${personId}`,
+    order: "is_active.desc,sort_order.asc,name.asc",
+  });
+}
+
+async function listExerciseEquipmentItems(equipmentIds: string[]) {
+  if (!equipmentIds.length) return [] as ExerciseEquipmentItemRecord[];
+  return supabasePublicSelect<ExerciseEquipmentItemRecord>("exercise_equipment_items", {
+    select: "exercise_id,equipment_item_id",
+    equipment_item_id: `in.(${equipmentIds.join(",")})`,
+  });
+}
+
+async function listTrainingLocations(personId: string) {
+  return supabasePublicSelect<TrainingLocationRecord>("training_locations", {
+    select: "id,person_id,name,kind,is_active",
+    person_id: `eq.${personId}`,
+    is_active: "eq.true",
+    order: "kind.asc,name.asc",
+  });
+}
+
+async function listTrainingLocationEquipment(locationIds: string[]) {
+  if (!locationIds.length) return [] as TrainingLocationEquipmentRecord[];
+  return supabasePublicSelect<TrainingLocationEquipmentRecord>("training_location_equipment", {
+    select: "location_id,equipment_item_id",
+    location_id: `in.(${locationIds.join(",")})`,
+  });
+}
+
 async function getTargetPerson(personId?: string) {
   const current = await getCurrentPerson();
   if (!current) return null;
   if (!personId || personId === current.id) return current;
   const people = await listManagedPeopleClient();
   return people.find((p) => p.id === personId) ?? current;
+}
+
+async function equipmentSelectionForPerson(personId: string, equipmentItemIds: string[]) {
+  const selectedIds = Array.from(new Set(equipmentItemIds));
+  if (!selectedIds.length) return [] as EquipmentItemRecord[];
+  const rows = await supabasePublicSelect<EquipmentItemRecord>("equipment_items", {
+    select: "id,person_id,name,category,circuit_group,sort_order,is_active",
+    person_id: `eq.${personId}`,
+    id: `in.(${selectedIds.join(",")})`,
+  });
+  if (rows.length !== selectedIds.length || rows.some((row) => !row.is_active)) {
+    throw new Error("One or more selected equipment items are no longer available.");
+  }
+  return selectedIds
+    .map((id) => rows.find((row) => row.id === id))
+    .filter((row): row is EquipmentItemRecord => Boolean(row));
+}
+
+async function syncExerciseEquipmentItems(
+  exerciseId: string,
+  personId: string,
+  personEquipmentItems: EquipmentItemRecord[],
+) {
+  const personEquipmentIds = personEquipmentItems.map((item) => item.id);
+  const allPersonEquipment = await listEquipmentItems(personId);
+  const allPersonEquipmentIds = allPersonEquipment.map((item) => item.id);
+  if (allPersonEquipmentIds.length) {
+    await supabasePublicDelete<ExerciseEquipmentItemRecord>("exercise_equipment_items", {
+      exercise_id: `eq.${exerciseId}`,
+      equipment_item_id: `in.(${allPersonEquipmentIds.join(",")})`,
+    });
+  }
+  if (personEquipmentIds.length) {
+    await supabasePublicInsert<ExerciseEquipmentItemRecord>(
+      "exercise_equipment_items",
+      personEquipmentIds.map((equipmentItemId) => ({
+        exercise_id: exerciseId,
+        equipment_item_id: equipmentItemId,
+      })),
+    );
+  }
 }
 
 export async function listLibraryClient(personId?: string, includeInactive = false) {
@@ -187,6 +329,8 @@ export async function listLibraryClient(personId?: string, includeInactive = fal
       selectedPersonId: null,
       workoutTypes: [] as string[],
       items: [] as LibraryClientRow[],
+      equipmentItems: [] as LibraryEquipmentItem[],
+      locations: [] as Array<Pick<TrainingLocationRecord, "id" | "name" | "kind">>,
     };
   }
 
@@ -194,7 +338,7 @@ export async function listLibraryClient(personId?: string, includeInactive = fal
   const selectedPersonId =
     personId && people.some((p) => p.id === personId) ? personId : current.id;
 
-  const [activityTypes, exercises, personExercises] = await Promise.all([
+  const [activityTypes, exercises, personExercises, equipmentItems, locations] = await Promise.all([
     listActivityTypes(),
     supabasePublicSelect<ExerciseRecord>("exercises", {
       select:
@@ -203,9 +347,30 @@ export async function listLibraryClient(personId?: string, includeInactive = fal
       order: "source_row.asc",
     }),
     listPersonExercises(selectedPersonId),
+    listEquipmentItems(selectedPersonId),
+    listTrainingLocations(selectedPersonId),
+  ]);
+  const [exerciseEquipmentRows, locationEquipmentRows] = await Promise.all([
+    listExerciseEquipmentItems(equipmentItems.map((item) => item.id)),
+    listTrainingLocationEquipment(locations.map((location) => location.id)),
   ]);
 
   const byExercise = new Map(personExercises.map((pe) => [pe.exercise_id, pe]));
+  const equipmentById = new Map(equipmentItems.map((item) => [item.id, item]));
+  const equipmentByExercise = new Map<string, EquipmentItemRecord[]>();
+  for (const link of exerciseEquipmentRows) {
+    const item = equipmentById.get(link.equipment_item_id);
+    if (!item) continue;
+    const items = equipmentByExercise.get(link.exercise_id) ?? [];
+    items.push(item);
+    equipmentByExercise.set(link.exercise_id, items);
+  }
+  const equipmentByLocation = new Map<string, Set<string>>();
+  for (const link of locationEquipmentRows) {
+    const ids = equipmentByLocation.get(link.location_id) ?? new Set<string>();
+    ids.add(link.equipment_item_id);
+    equipmentByLocation.set(link.location_id, ids);
+  }
   const activeExerciseTypes = new Set(
     exercises
       .filter((row) => row.is_active)
@@ -225,7 +390,23 @@ export async function listLibraryClient(personId?: string, includeInactive = fal
     people,
     selectedPersonId,
     workoutTypes,
-    items: exercises.map((row) => mapExercise(row, byExercise.get(row.id))),
+    items: exercises.map((row) =>
+      mapExercise(
+        row,
+        byExercise.get(row.id),
+        equipmentByExercise.get(row.id) ?? [],
+        locations,
+        equipmentByLocation,
+      ),
+    ),
+    equipmentItems: equipmentItems.map((item) => ({
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      circuitGroup: item.circuit_group,
+      isActive: item.is_active,
+    })),
+    locations: locations.map(({ id, name, kind }) => ({ id, name, kind })),
   };
 }
 
@@ -236,12 +417,16 @@ export async function addExerciseClient(fields: LibraryFields, personId?: string
     getTargetPerson(personId),
   ]);
   if (!targetPerson) throw new Error("Claim your profile first.");
+  const selectedEquipment = await equipmentSelectionForPerson(
+    targetPerson.id,
+    fields.equipmentItemIds,
+  );
 
   const inserted = await supabasePublicInsert<ExerciseRecord>("exercises", {
     activity_type_id: activityType?.id ?? null,
     focus_area: fields.focusArea,
     name: fields.name,
-    equipment: fields.equipment,
+    equipment: selectedEquipment.map((item) => item.name).join(" / ") || null,
     default_metric: fields.metric,
     suggested_sets: fields.suggestedSets,
     suggested_reps: fields.suggestedReps,
@@ -260,18 +445,29 @@ export async function addExerciseClient(fields: LibraryFields, personId?: string
   });
   const exercise = inserted[0];
   if (exercise) {
-    await supabasePublicInsert<PersonExerciseRecord>("person_exercises", {
-      person_id: targetPerson.id,
-      exercise_id: exercise.id,
-      is_enabled: true,
-      location_scope: "both",
-    });
+    await Promise.all([
+      supabasePublicInsert<PersonExerciseRecord>("person_exercises", {
+        person_id: targetPerson.id,
+        exercise_id: exercise.id,
+        is_enabled: true,
+        location_scope: "both",
+      }),
+      syncExerciseEquipmentItems(exercise.id, targetPerson.id, selectedEquipment),
+    ]);
   }
   return { ok: true, row: exercise?.source_row ?? sourceRow };
 }
 
-export async function updateExerciseClient(id: string, fields: LibraryFields) {
-  const activityType = await getOrCreateActivityType(fields.workoutType);
+export async function updateExerciseClient(id: string, fields: LibraryFields, personId?: string) {
+  const [activityType, targetPerson] = await Promise.all([
+    getOrCreateActivityType(fields.workoutType),
+    getTargetPerson(personId),
+  ]);
+  if (!targetPerson) throw new Error("Claim your profile first.");
+  const selectedEquipment = await equipmentSelectionForPerson(
+    targetPerson.id,
+    fields.equipmentItemIds,
+  );
   await supabasePublicUpdate<ExerciseRecord>(
     "exercises",
     { id: `eq.${id}` },
@@ -279,7 +475,7 @@ export async function updateExerciseClient(id: string, fields: LibraryFields) {
       activity_type_id: activityType?.id ?? null,
       focus_area: fields.focusArea,
       name: fields.name,
-      equipment: fields.equipment,
+      equipment: selectedEquipment.map((item) => item.name).join(" / ") || null,
       default_metric: fields.metric,
       suggested_sets: fields.suggestedSets,
       suggested_reps: fields.suggestedReps,
@@ -294,6 +490,7 @@ export async function updateExerciseClient(id: string, fields: LibraryFields) {
       circuit_dose_per_side: fields.circuitDosePerSide,
     },
   );
+  await syncExerciseEquipmentItems(id, targetPerson.id, selectedEquipment);
   return { ok: true };
 }
 

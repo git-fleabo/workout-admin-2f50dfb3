@@ -2,7 +2,18 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Activity, Loader2, Pencil, Plus, Search, Trash2, UserCheck, X } from "lucide-react";
+import {
+  Activity,
+  Check,
+  ChevronsUpDown,
+  Loader2,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  UserCheck,
+  X,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +21,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   Dialog,
   DialogContent,
@@ -54,6 +74,7 @@ import {
   updateExerciseClient,
   type ExerciseLocationScope,
   type LibraryClientRow,
+  type LibraryEquipmentItem,
 } from "@/lib/supabase-library.browser";
 import { ExerciseDetail } from "@/components/exercise-detail";
 import {
@@ -91,7 +112,7 @@ type EditorState =
   | { mode: "create" }
   | { mode: "edit"; row: LibraryClientRow };
 
-const BLANK: Omit<LibraryRow, "row"> = {
+const BLANK: Omit<LibraryRow, "row"> & { equipmentItemIds: string[] } = {
   workoutType: "",
   focusArea: "",
   name: "",
@@ -100,6 +121,7 @@ const BLANK: Omit<LibraryRow, "row"> = {
   suggestedSets: "",
   suggestedReps: "",
   notes: "",
+  equipmentItemIds: [],
   ...DEFAULT_CIRCUIT_METADATA,
 };
 
@@ -360,8 +382,7 @@ function LibraryPage() {
     const q = search.trim().toLowerCase();
     return items.filter((i) => {
       if (typeFilter && i.workoutType !== typeFilter) return false;
-      if (locationFilter && i.locationScope !== "both" && i.locationScope !== locationFilter)
-        return false;
+      if (locationFilter && !i.availableLocationKinds.includes(locationFilter)) return false;
       if (circuitFilter && i.circuitSuitability !== circuitFilter) return false;
       if (!q) return true;
       return (
@@ -385,7 +406,7 @@ function LibraryPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, fields }: { id: string; fields: typeof BLANK }) =>
-      updateExerciseClient(id, fields),
+      updateExerciseClient(id, fields, effectivePersonId || undefined),
     onSuccess: () => {
       toast.success("Movement updated");
       setEditor({ mode: "closed" });
@@ -625,6 +646,17 @@ function LibraryPage() {
                               ? "Home"
                               : "Gym"}
                         </span>
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${
+                            ex.availableLocationNames.length
+                              ? "border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-300"
+                              : "border-amber-400/25 bg-amber-400/[0.08] text-amber-300"
+                          }`}
+                        >
+                          {ex.availableLocationNames.length
+                            ? `At ${ex.availableLocationNames.join(", ")}`
+                            : "No equipped location"}
+                        </span>
                         {!ex.enabled && (
                           <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
                             Disabled
@@ -752,6 +784,7 @@ function LibraryPage() {
         state={editor}
         onClose={() => setEditor({ mode: "closed" })}
         workoutTypes={list.data?.workoutTypes ?? []}
+        equipmentItems={list.data?.equipmentItems ?? []}
         onSubmit={(fields) => {
           if (editor.mode === "create") {
             addMutation.mutate(fields);
@@ -813,18 +846,87 @@ function FilterSelect({
   );
 }
 
+function EquipmentMultiSelect({
+  items,
+  selectedIds,
+  onChange,
+}: {
+  items: LibraryEquipmentItem[];
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const selected = items.filter((item) => selectedIds.includes(item.id));
+  const toggle = (item: LibraryEquipmentItem) => {
+    if (!item.isActive && !selectedIds.includes(item.id)) return;
+    onChange(
+      selectedIds.includes(item.id)
+        ? selectedIds.filter((id) => id !== item.id)
+        : [...selectedIds, item.id],
+    );
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          className="h-auto min-h-10 w-full justify-between px-3 py-2 text-left font-normal"
+        >
+          <span className="min-w-0">
+            {selected.length ? selected.map((item) => item.name).join(", ") : "No equipment"}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search equipment…" />
+          <CommandList>
+            <CommandEmpty>
+              No equipment found. Add it under Manage → Training Locations.
+            </CommandEmpty>
+            <CommandGroup>
+              {items.map((item) => {
+                const checked = selectedIds.includes(item.id);
+                return (
+                  <CommandItem
+                    key={item.id}
+                    value={`${item.name} ${item.category}`}
+                    disabled={!item.isActive && !checked}
+                    onSelect={() => toggle(item)}
+                  >
+                    <Check className={`mr-2 h-4 w-4 ${checked ? "opacity-100" : "opacity-0"}`} />
+                    <span className="flex-1">{item.name}</span>
+                    {!item.isActive ? (
+                      <span className="text-[10px] uppercase text-muted-foreground">Archived</span>
+                    ) : null}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function ExerciseEditorDialog({
   state,
   onClose,
   onSubmit,
   isPending,
   workoutTypes,
+  equipmentItems,
 }: {
   state: EditorState;
   onClose: () => void;
   onSubmit: (fields: typeof BLANK) => void;
   isPending: boolean;
   workoutTypes: string[];
+  equipmentItems: LibraryEquipmentItem[];
 }) {
   const initial =
     state.mode === "edit"
@@ -841,6 +943,7 @@ function ExerciseEditorDialog({
           suggestedSets: state.row.suggestedSets,
           suggestedReps: state.row.suggestedReps,
           notes: state.row.notes,
+          equipmentItemIds: state.row.equipmentItemIds,
           circuitSuitability: state.row.circuitSuitability,
           circuitPattern: state.row.circuitPattern,
           circuitDifficulty: state.row.circuitDifficulty,
@@ -969,22 +1072,24 @@ function ExerciseEditorDialog({
               </SelectContent>
             </Select>
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={fieldConfig.focusLabel}>
-              <Input
-                value={form.focusArea}
-                onChange={(e) => update("focusArea", e.target.value)}
-                placeholder={fieldConfig.focusPlaceholder}
-              />
-            </Field>
-            <Field label={fieldConfig.equipmentLabel}>
-              <Input
-                value={form.equipment}
-                onChange={(e) => update("equipment", e.target.value)}
-                placeholder={fieldConfig.equipmentPlaceholder}
-              />
-            </Field>
-          </div>
+          <Field label={fieldConfig.focusLabel}>
+            <Input
+              value={form.focusArea}
+              onChange={(e) => update("focusArea", e.target.value)}
+              placeholder={fieldConfig.focusPlaceholder}
+            />
+          </Field>
+          <Field label="Required equipment">
+            <EquipmentMultiSelect
+              items={equipmentItems}
+              selectedIds={form.equipmentItemIds}
+              onChange={(equipmentItemIds) => update("equipmentItemIds", equipmentItemIds)}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Every selected item must be available at a training location. Leave empty for
+              bodyweight or no-equipment movements.
+            </p>
+          </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label={fieldConfig.setsLabel}>
               <Input

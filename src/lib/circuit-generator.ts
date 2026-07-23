@@ -67,8 +67,10 @@ export type CircuitCandidate = CircuitMetadata & {
   workoutType: string;
   focusArea: string;
   equipment: string;
+  equipmentGroups: CircuitEquipment[];
   metric: string;
   locationScope: PlannerLocation | "both";
+  availableLocationKinds: Array<PlannerLocation | "other">;
 };
 
 export type CircuitSelection = {
@@ -199,7 +201,7 @@ export function circuitEquipmentFor(equipment: string): CircuitEquipment[] {
 
 function equipmentMatches(candidate: CircuitCandidate, allowed: CircuitEquipment[] | null) {
   if (allowed == null) return true;
-  const required = circuitEquipmentFor(candidate.equipment);
+  const required = candidate.equipmentGroups;
   if (!required.length) return true;
   return required.every((tag) => allowed.includes(tag));
 }
@@ -239,6 +241,7 @@ function isEligible(candidate: CircuitCandidate, config: CircuitBuilderConfig) {
   if (candidate.locationScope !== "both" && candidate.locationScope !== config.location) {
     return false;
   }
+  if (!candidate.availableLocationKinds.includes(config.location)) return false;
   if (config.excludedExerciseIds.includes(candidate.id)) return false;
   if (!equipmentMatches(candidate, config.equipment)) return false;
   if (!formatMatches(config.format, candidate.circuitDoseMode)) return false;

@@ -447,6 +447,39 @@ export type Database = {
           },
         ];
       };
+      exercise_equipment_items: {
+        Row: {
+          created_at: string;
+          equipment_item_id: string;
+          exercise_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          equipment_item_id: string;
+          exercise_id: string;
+        };
+        Update: {
+          created_at?: string;
+          equipment_item_id?: string;
+          exercise_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "exercise_equipment_items_equipment_item_id_fkey";
+            columns: ["equipment_item_id"];
+            isOneToOne: false;
+            referencedRelation: "equipment_items";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "exercise_equipment_items_exercise_id_fkey";
+            columns: ["exercise_id"];
+            isOneToOne: false;
+            referencedRelation: "exercises";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       exercise_tag_links: {
         Row: {
           exercise_id: string;

@@ -758,8 +758,15 @@ function entryFromRecentLog(log: RecentWorkoutLog): FormState {
 function buildRecentSessionTemplates(
   logs: RecentWorkoutLog[],
   locationKind?: string,
+  allowedExerciseNames?: Set<string>,
 ): RecentSessionTemplate[] {
-  const completed = logs.filter((log) => log.completed && log.exercise && log.id);
+  const completed = logs.filter(
+    (log) =>
+      log.completed &&
+      log.exercise &&
+      log.id &&
+      (!allowedExerciseNames || allowedExerciseNames.has(log.exercise.toLowerCase())),
+  );
   const locationMatches = locationKind
     ? completed.filter((log) => log.trainingLocation?.kind === locationKind)
     : completed;
@@ -1226,6 +1233,7 @@ export function WorkoutForm({
 
 type ClimbFormState = {
   date: string;
+  trainingLocationId: string;
   movement: string;
   durationHours: string;
   durationMinutes: string;
@@ -1238,6 +1246,7 @@ type ClimbFormState = {
 
 const blankClimbForm = (): ClimbFormState => ({
   date: today(),
+  trainingLocationId: "",
   movement: "Bouldering Session",
   durationHours: "",
   durationMinutes: "",
@@ -1280,6 +1289,23 @@ export function ClimbForm() {
   const [form, setForm] = useState<ClimbFormState>(() => blankClimbForm());
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+  const library = useQuery({
+    queryKey: ["library"],
+    queryFn: getLibraryClient,
+    staleTime: 5 * 60_000,
+  });
+  const locations = useQuery({
+    queryKey: ["training-locations"],
+    queryFn: getTrainingLocationsClient,
+    staleTime: 5 * 60_000,
+  });
+  const selectedLocation = locations.data?.find(
+    (location) => location.id === form.trainingLocationId,
+  );
+  const movementMeta = library.data?.exercises.find((exercise) => exercise.name === form.movement);
+  const movementAvailable = Boolean(
+    movementMeta?.availableLocationIds.includes(form.trainingLocationId),
+  );
   const totalMinutes = climbDurationInMinutes(form.durationHours, form.durationMinutes);
   const trackingMode = form.problemsOrRoutes.trim() ? "Problems / routes" : "Time only";
   const climbingIssue =
@@ -1303,13 +1329,25 @@ export function ClimbForm() {
   const update = <K extends keyof ClimbFormState>(key: K, value: ClimbFormState[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
 
+  useEffect(() => {
+    if (form.trainingLocationId || !locations.data?.length) return;
+    const storedId = window.localStorage.getItem("training-location-id");
+    const selected =
+      locations.data.find((location) => location.id === storedId) ??
+      locations.data.find((location) => location.kind === "gym") ??
+      locations.data[0];
+    if (selected) {
+      setForm((current) => ({ ...current, trainingLocationId: selected.id }));
+    }
+  }, [form.trainingLocationId, locations.data]);
+
   const mutate = useMutation({
     mutationFn: () => {
       const duration = String(totalMinutes ?? "");
       return addWorkoutSessionClient({
         date: form.date,
         title: form.movement,
-        trainingLocationId: "",
+        trainingLocationId: form.trainingLocationId,
         duration,
         intensity: "",
         rpe: form.rpe,
@@ -1337,7 +1375,10 @@ export function ClimbForm() {
       toast.success("Climb logged", {
         description: `${climbMovementLabel(form.movement)} · ${totalMinutes} minutes`,
       });
-      setForm(blankClimbForm());
+      setForm((current) => ({
+        ...blankClimbForm(),
+        trainingLocationId: current.trainingLocationId,
+      }));
       setDuplicateOpen(false);
       qc.invalidateQueries({ queryKey: ["recent-workouts"] });
       qc.invalidateQueries({ queryKey: ["recent-climbs"] });
@@ -1348,7 +1389,14 @@ export function ClimbForm() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const canSubmit = Boolean(form.date && form.movement && !validationIssue && !mutate.isPending);
+  const canSubmit = Boolean(
+    form.date &&
+    form.trainingLocationId &&
+    form.movement &&
+    movementAvailable &&
+    !validationIssue &&
+    !mutate.isPending,
+  );
 
   const submit = async (skipDuplicateCheck = false) => {
     if (!canSubmit || checkingDuplicate) return;
@@ -1391,23 +1439,61 @@ export function ClimbForm() {
           </p>
         </div>
 
-        <Field label="What did you climb?">
-          <div className="grid grid-cols-2 gap-2">
-            {CLIMBING_MOVEMENTS.map((movement) => (
+        <Field label="Where did you climb?">
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            {(locations.data ?? []).map((location) => (
               <Button
-                key={movement}
+                key={location.id}
                 type="button"
-                variant={form.movement === movement ? "secondary" : "outline"}
-                className="h-11"
+                variant={form.trainingLocationId === location.id ? "secondary" : "outline"}
+                className="sm:min-w-28"
                 onClick={() => {
-                  update("movement", movement);
-                  if (!supportsClimbingGradient(movement)) update("gradient", "");
+                  update("trainingLocationId", location.id);
+                  window.localStorage.setItem("training-location-id", location.id);
                 }}
               >
-                {climbMovementLabel(movement)}
+                {location.name}
               </Button>
             ))}
           </div>
+        </Field>
+
+        <Field label="What did you climb?">
+          <div className="grid grid-cols-2 gap-2">
+            {CLIMBING_MOVEMENTS.map((movement) => {
+              const meta = library.data?.exercises.find((exercise) => exercise.name === movement);
+              const available = Boolean(
+                meta?.availableLocationIds.includes(form.trainingLocationId),
+              );
+              return (
+                <Button
+                  key={movement}
+                  type="button"
+                  variant={form.movement === movement ? "secondary" : "outline"}
+                  className="h-11"
+                  disabled={!available}
+                  title={
+                    available
+                      ? undefined
+                      : `${meta?.equipment || "Required equipment"} is not available at ${selectedLocation?.name ?? "this location"}`
+                  }
+                  onClick={() => {
+                    update("movement", movement);
+                    if (!supportsClimbingGradient(movement)) update("gradient", "");
+                  }}
+                >
+                  {climbMovementLabel(movement)}
+                </Button>
+              );
+            })}
+          </div>
+          {form.trainingLocationId && !movementAvailable ? (
+            <p className="mt-2 text-xs text-amber-300">
+              {movementMeta?.equipment || "Required climbing equipment"} is not assigned to{" "}
+              {selectedLocation?.name ?? "this location"}. Update the location equipment or choose
+              another movement.
+            </p>
+          ) : null}
         </Field>
 
         <Field label="Duration">
@@ -1608,15 +1694,18 @@ export function FullWorkoutForm() {
   )?.kind;
   const libraryExercises = useMemo(
     () =>
-      selectedLocationKind === "home" || selectedLocationKind === "gym"
+      form.trainingLocationId
         ? workoutLibraryExercises.filter(
             (exercise) =>
-              !("locationScope" in exercise) ||
-              exercise.locationScope === "both" ||
-              exercise.locationScope === selectedLocationKind,
+              (!("locationScope" in exercise) ||
+                exercise.locationScope === "both" ||
+                exercise.locationScope === selectedLocationKind) &&
+              (!("availableLocationIds" in exercise) ||
+                !Array.isArray(exercise.availableLocationIds) ||
+                exercise.availableLocationIds.includes(form.trainingLocationId)),
           )
         : workoutLibraryExercises,
-    [selectedLocationKind, workoutLibraryExercises],
+    [form.trainingLocationId, selectedLocationKind, workoutLibraryExercises],
   );
   const recentExerciseNames = useMemo(() => {
     const completed = recentWorkoutLogs.filter((item) => item.completed && item.exercise);
@@ -1627,8 +1716,13 @@ export function FullWorkoutForm() {
     return Array.from(new Set(source.map((item) => item.exercise))).slice(0, 10);
   }, [recentWorkoutLogs, selectedLocationKind]);
   const recentSessionTemplates = useMemo(
-    () => buildRecentSessionTemplates(recentWorkoutLogs, selectedLocationKind),
-    [recentWorkoutLogs, selectedLocationKind],
+    () =>
+      buildRecentSessionTemplates(
+        recentWorkoutLogs,
+        selectedLocationKind,
+        new Set(libraryExercises.map((exercise) => exercise.name.toLowerCase())),
+      ),
+    [libraryExercises, recentWorkoutLogs, selectedLocationKind],
   );
   const exerciseGroupMethods = useMemo(
     () =>
@@ -2408,6 +2502,13 @@ export function FullWorkoutForm() {
     form.date &&
     form.trainingLocationId &&
     form.entries.some((entry) => entry.exercise.trim()) &&
+    form.entries.every(
+      (entry) =>
+        !entry.exercise.trim() ||
+        libraryExercises.some(
+          (exercise) => exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
+        ),
+    ) &&
     !incompleteSetMethod &&
     climbingIssues.length === 0 &&
     !mutate.isPending;
@@ -2416,6 +2517,12 @@ export function FullWorkoutForm() {
     ? new Date(draftSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : null;
   const workoutEntries = form.entries.filter((entry) => entry.exercise.trim());
+  const unavailableWorkoutEntries = workoutEntries.filter(
+    (entry) =>
+      !libraryExercises.some(
+        (exercise) => exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
+      ),
+  );
   const advancedMethodEntries = workoutEntries.filter((entry) => {
     const selected = libraryExercises.find(
       (exercise) => exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
@@ -2610,6 +2717,17 @@ export function FullWorkoutForm() {
             ))}
           </div>
         </Field>
+
+        {unavailableWorkoutEntries.length > 0 ? (
+          <div className="rounded-lg border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2 text-xs text-amber-100">
+            <p className="font-medium">Some movements are not available here</p>
+            <p className="mt-1 text-amber-100/80">
+              {unavailableWorkoutEntries.map((entry) => entry.exercise).join(", ")} require
+              equipment that is not assigned to this location. Remove them or choose another
+              location before saving.
+            </p>
+          </div>
+        ) : null}
 
         {recentSessionTemplates.length > 0 ? (
           <details className="rounded-lg border border-border bg-secondary/20 px-3 py-2">
