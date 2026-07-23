@@ -8,7 +8,7 @@ This file is the handoff document for the Training Tracker workout app. A new ch
 
 The admin/settings app is now the main workout app. The original tracker app is retired for current work and should be ignored unless explicitly requested for historical reference.
 
-The app has been moved from Google Sheets toward Supabase. Current priority is still that the app works for Noam exactly as it does now. Future flexibility matters, but preserving real training history, progress, and stats is more important than speculative redesign.
+The app is operationally Supabase-backed. Historical Google Sheets provenance remains in the database, and some app queries/writes still use spreadsheet-shaped `source_sheet` / `source_row` fields, but no active route contacts Google Sheets or requires Google credentials. Current priority is still that the app works for Noam exactly as it does now. Future flexibility matters, but preserving real training history, progress, and stats is more important than speculative redesign.
 
 Product direction:
 
@@ -34,7 +34,7 @@ Main repo to work in:
 
 Current branch:
 
-- `codex/unify-skills-workouts`
+- `codex/data-quality-dry-run-audit`
 
 Git remote:
 
@@ -152,6 +152,8 @@ RLS/settings summary:
 
 Important data files:
 
+- `docs/data-quality-phase-1-report-2026-07-23.md`: current architecture, live dry-run data-quality findings, proposed additive schema, cleanup approval boundary, backup/rollback plan, affected files, and test plan. No live data was changed for this report.
+- `docs/data-quality-dry-run-2026-07-23.sql`: read-only repeatable audit that enumerates every affected row ID and rolls back.
 - `docs/product-roadmap.md`: product redesign roadmap organised around Plan, Train, Review, and Adjust; Phase 1 is the unified logger.
 - `supabase/schema.sql`: local schema snapshot, may not always reflect every live data tweak.
 - `supabase/migrations/20260713100036_add_training_locations.sql`: tracked Home/Gym training-location schema, session foreign key, RLS, grants, and initial location seed.
@@ -165,6 +167,17 @@ Important data files:
 - `supabase/program_template_read_policies.sql`: idempotent RLS policy script allowing authenticated users to read reusable template rows from `programs`, `program_workouts`, and `program_workout_entries`.
 - `docs/supabase-schema-design.md`: original design direction.
 - `docs/supabase-import-status.md`: import history, but some notes are stale because the app is now more migrated than this doc says.
+
+### Data quality audit (2026-07-23)
+
+- Live audit baseline: 106 completed sessions, 129 entries, 137 sets, 78 metrics, 19 entries without `exercise_id`, 16 set rows without a performance dose (8 strictly empty and 8 RPE-only), 27 aggregate-candidate rows above 12 reps, 234 active exercises, 217 enabled person exercises, and 24 linked exercises used in completed history.
+- All 129 completed entries have movement-level activity. Of 19 null-parent sessions, 9 are valid mixed sessions and 10 are single-activity parent-derivation candidates.
+- Eighteen orphan entries have high-confidence reviewed canonical targets. The single historical `Yoga` entry is ambiguous between `Yoga Flow` and `Yoga Class`.
+- Sixty-four one-row entries overload `set_number` as an aggregate count; 63 have a performance dose and one RPE-only Box Jumps row remains ambiguous. Do not create synthetic individual sets.
+- Current Progress/PR logic infers equal per-set reps from aggregate totals. The approved implementation must stop that, exclude aggregates from estimated 1RM, and apply an initial configurable 12-rep ceiling.
+- Native rows still carry sheet labels: 64 sessions and 87 entries. Remove application reliance before clearing those labels, while preserving imported provenance.
+- Strict grouping rules identify 9 high-confidence groups (29 current sessions) and 9 ambiguous groups (21 sessions). No grouping has been executed.
+- The next approved slice should be additive foundations plus a read-only Manage > Data Quality workspace. Historical mutation remains a separate approval-gated cleanup batch after backup/PITR confirmation.
 
 ## Current Supabase Row Counts
 
