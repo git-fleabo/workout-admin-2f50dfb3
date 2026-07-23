@@ -1,6 +1,6 @@
 # Workout App Context
 
-Last updated: 2026-07-22
+Last updated: 2026-07-23
 
 This file is the handoff document for the Training Tracker workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
 
@@ -327,7 +327,7 @@ RLS:
 
 Purpose: master exercise/movement library. One library supports Noam now and future custom apps later.
 
-Rows: 73 active in the live library as of 2026-07-22
+Rows: 204 active in the live library as of 2026-07-23
 
 Key columns:
 
@@ -1206,6 +1206,10 @@ Workout Log history or from the movement Library's Circuit Builder:
   28 movements; authenticated Library and Home bodyweight-circuit checks confirmed the new rows and a
   balanced generated circuit using Bodyweight Squat, Diamond Push-Up, Bear Crawl, Single-Leg Glute
   Bridge, and V-Up.
+- `20260723063232_add_trx_ring_exercises.sql` adds 36 Gym-scoped suspension movements: 18 TRX
+  exercises and 18 gymnastic-ring exercises across push, pull, lower-body, core, grip, hold, and skill
+  patterns. The rows use canonical tracking modes, suggested prescriptions, coaching notes, and
+  explicit circuit metadata; every active person receives an enabled `person_exercises` row.
 - Below 5 reps, weighted work keeps the load and adds one rep per set up to 5.
 - Comfortable 5+ rep sets require a logged RPE of 8 or below before `Normal` moves load up 2.5 kg and resets the target to 3 reps. `Fresh` allows that small move without the RPE confirmation; `Tired` removes one set and reduces load by about 10%.
 - Every movement shows the source date and a plain-language reason. Suggested sets remain editable and movements can be removed.
