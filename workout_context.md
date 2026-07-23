@@ -980,7 +980,8 @@ The log screen supports:
 
 Climbing now has a dedicated `Climb` mode alongside Workout, 1RM, and PRs. It deliberately bypasses
 the workout composer: there is no set editor, movement ordering, advanced-method section, completion
-toggle, or review dialog. The compact form first selects an active training location, then offers four direct choices
+toggle, or review dialog. The compact form first selects an active training location that has the
+canonical `Climbing wall` equipment item assigned, then offers four direct choices
 (`Bouldering`, `Ropes`, `Kilter`, and `Mix`), friendly hours/minutes inputs, an optional
 movement-aware problems/routes count, optional max grade and RPE, Kilter-only gradient, and collapsed
 date/notes. A blank count saves `Time only`; entering a count saves `Problems / routes`. The screen

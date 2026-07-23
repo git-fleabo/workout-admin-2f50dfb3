@@ -130,6 +130,7 @@ const SKILL_WORKOUT_TYPE = "Skills/Calisthenics";
 const GRIP_WORKOUT_TYPE = "Grip";
 const YOGA_WORKOUT_TYPE = "Yoga";
 const CLIMBING_WORKOUT_TYPE = "Climbing";
+const CLIMBING_WALL_EQUIPMENT_NAME = "Climbing wall";
 const CLASS_WORKOUT_TYPE = "Class";
 const MOBILITY_WORKOUT_TYPE = "Mobility/Flexibility";
 const CLIMBING_MOVEMENTS = ["Bouldering Session", "Ropes/Belay", "Kilter", "Mix"];
@@ -1299,6 +1300,20 @@ export function ClimbForm() {
     queryFn: getTrainingLocationsClient,
     staleTime: 5 * 60_000,
   });
+  const climbingWallEquipmentId = library.data?.equipmentItems.find(
+    (item) =>
+      item.isActive &&
+      item.name.trim().toLowerCase() === CLIMBING_WALL_EQUIPMENT_NAME.toLowerCase(),
+  )?.id;
+  const climbingLocations = useMemo(
+    () =>
+      climbingWallEquipmentId
+        ? (locations.data ?? []).filter((location) =>
+            location.equipmentItemIds.includes(climbingWallEquipmentId),
+          )
+        : [],
+    [climbingWallEquipmentId, locations.data],
+  );
   const selectedLocation = locations.data?.find(
     (location) => location.id === form.trainingLocationId,
   );
@@ -1330,16 +1345,22 @@ export function ClimbForm() {
     setForm((current) => ({ ...current, [key]: value }));
 
   useEffect(() => {
-    if (form.trainingLocationId || !locations.data?.length) return;
+    if (!climbingLocations.length) {
+      if (form.trainingLocationId && library.data && locations.data) {
+        setForm((current) => ({ ...current, trainingLocationId: "" }));
+      }
+      return;
+    }
+    if (climbingLocations.some((location) => location.id === form.trainingLocationId)) return;
     const storedId = window.localStorage.getItem("training-location-id");
     const selected =
-      locations.data.find((location) => location.id === storedId) ??
-      locations.data.find((location) => location.kind === "gym") ??
-      locations.data[0];
+      climbingLocations.find((location) => location.id === storedId) ??
+      climbingLocations.find((location) => location.kind === "gym") ??
+      climbingLocations[0];
     if (selected) {
       setForm((current) => ({ ...current, trainingLocationId: selected.id }));
     }
-  }, [form.trainingLocationId, locations.data]);
+  }, [climbingLocations, form.trainingLocationId, library.data, locations.data]);
 
   const mutate = useMutation({
     mutationFn: () => {
@@ -1441,7 +1462,7 @@ export function ClimbForm() {
 
         <Field label="Where did you climb?">
           <div className="grid grid-cols-2 gap-2 sm:flex">
-            {(locations.data ?? []).map((location) => (
+            {climbingLocations.map((location) => (
               <Button
                 key={location.id}
                 type="button"
@@ -1456,6 +1477,14 @@ export function ClimbForm() {
               </Button>
             ))}
           </div>
+          {library.isLoading || locations.isLoading ? (
+            <p className="mt-2 text-xs text-muted-foreground">Loading climbing locations…</p>
+          ) : climbingLocations.length === 0 ? (
+            <p className="mt-2 text-xs text-amber-300">
+              No active training locations have a {CLIMBING_WALL_EQUIPMENT_NAME} assigned. Add it
+              under Manage → Training Locations.
+            </p>
+          ) : null}
         </Field>
 
         <Field label="What did you climb?">
