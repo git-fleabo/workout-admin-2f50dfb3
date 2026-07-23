@@ -157,6 +157,7 @@ Important data files:
 - `supabase/migrations/20260713100036_add_training_locations.sql`: tracked Home/Gym training-location schema, session foreign key, RLS, grants, and initial location seed.
 - `supabase/migrations/20260722222504_add_training_location_equipment.sql`: person-owned equipment catalogue, per-location assignments, RLS, grants, and a 31-item starter catalogue.
 - `supabase/migrations/20260723064459_link_exercises_to_equipment.sql`: structured many-to-many exercise equipment requirements, managed-person RLS/grants, conservative legacy backfill, and eight missing catalogue items.
+- `supabase/migrations/20260723123014_add_kettlebell_dumbbell_exercises.sql`: idempotent 15-kettlebell / 15-dumbbell catalogue expansion, active-person enablement, exact equipment links, and Barbell-only Deadlift cleanup.
 - `supabase/migrations/20260714150600_add_daily_rotation.sql`: configurable daily-practice pool, persisted per-date assignments, completion state, RLS, grants, and indexes.
 - `supabase/migrations/20260716072606_add_structured_goals.sql`: applied additive structured-goal fields for goal type, linked exercise, canonical measurement, numeric target/unit, starting value, and deadline.
 - `supabase/approved_logging_library_updates.sql`: idempotent data update script for approved library/logging changes.
@@ -196,11 +197,13 @@ Selected live counts rechecked on 2026-07-13 after the workout-logging iteration
 - `entry_sets`: 90
 - `training_locations`: 2 (`Home`, `Gym`)
 
-Selected live counts rechecked on 2026-07-23 after exercise-equipment linking:
+Selected live counts rechecked on 2026-07-23 after exercise-equipment linking and the kettlebell /
+dumbbell expansion:
 
 - `equipment_items`: 40 active items, including one previously added custom item
 - `training_location_equipment`: 30 assignments across Home and The Font
-- `exercise_equipment_items`: 176 structured requirements across 162 active exercises
+- `exercises`: 234 active movements
+- `exercise_equipment_items`: 208 structured requirements across 191 active exercises
 
 ## Database Schema
 
@@ -1247,6 +1250,13 @@ Workout Log history or from the movement Library's Circuit Builder:
   exercises and 18 gymnastic-ring exercises across push, pull, lower-body, core, grip, hold, and skill
   patterns. The rows use canonical tracking modes, suggested prescriptions, coaching notes, and
   explicit circuit metadata; every active person receives an enabled `person_exercises` row.
+- `20260723123014_add_kettlebell_dumbbell_exercises.sql` adds 15 kettlebell and 15 dumbbell movements
+  across squat, hinge, lunge, push, pull, carry, core, full-body, and direct arm work. All 30 use
+  canonical weighted/carry tracking, explicit circuit metadata, Both-scoped enabled person rows, and
+  exact Kettlebell or Dumbbell requirements; Chest-Supported Dumbbell Row and Dumbbell Hip Thrust
+  additionally require a Bench. Deadlift is now consistently Barbell-only in both its display text
+  and structured equipment requirement. The live audit confirmed all 30 active rows, 30 enabled
+  person rows, 32 exact equipment links, and matching local/remote migration history.
 - Below 5 reps, weighted work keeps the load and adds one rep per set up to 5.
 - Comfortable 5+ rep sets require a logged RPE of 8 or below before `Normal` moves load up 2.5 kg and resets the target to 3 reps. `Fresh` allows that small move without the RPE confirmation; `Tired` removes one set and reduces load by about 10%.
 - Every movement shows the source date and a plain-language reason. Suggested sets remain editable and movements can be removed.
@@ -1571,9 +1581,10 @@ Recommended next work, in order:
 19. Only when a second user is planned, build People & Access: create/edit people, link an auth user, assign an app profile, and route exercise selection through the existing per-person Library controls.
 20. Circuit Builder authenticated audit — completed locally on 2026-07-22 across Home/Gym,
     bodyweight-only, rep-led, time-led, lock/swap/regenerate/reorder, persistence, completion, History,
-    Progress, and repeat. The catalogue expansion is also complete with 95 new Strength/Conditioning
-    movements. Next decide whether optional live interval timers add enough value without becoming
-    mandatory, then curate movement defaults from real usage rather than adding volume for its own sake.
+    Progress, and repeat. The broad 95-movement catalogue expansion and 30-movement
+    kettlebell/dumbbell follow-up are complete. Next decide whether optional live interval timers add
+    enough value without becoming mandatory, then curate movement defaults from real usage rather
+    than adding volume for its own sake.
 
 ## Future Stage: iPhone App
 
