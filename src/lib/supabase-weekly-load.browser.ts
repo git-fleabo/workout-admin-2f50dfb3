@@ -18,7 +18,6 @@ type WeeklyLoadSessionRecord = {
   title: string | null;
   duration_minutes: number | string | null;
   rpe: number | string | null;
-  source_sheet: string | null;
   activity_types: { name: string | null } | null;
   session_entries: Array<{
     name: string;
@@ -38,7 +37,6 @@ function numberOrNull(value: unknown) {
 function sessionLabels(session: WeeklyLoadSessionRecord) {
   const entries = (session.session_entries ?? []).filter((entry) => entry.completed);
   return [
-    session.source_sheet,
     session.title,
     session.activity_types?.name,
     ...entries.flatMap((entry) => [entry.name, entry.entry_kind, entry.activity_types?.name]),
@@ -118,7 +116,7 @@ export async function getWeeklyLoadHistoryClient(days = 90): Promise<WeeklyLoadH
   if (!person) throw new Error("This account is not linked to a training profile.");
   const rows = await supabasePublicSelect<WeeklyLoadSessionRecord>("sessions", {
     select:
-      "id,session_date,title,duration_minutes,rpe,source_sheet,activity_types(name),session_entries(name,entry_kind,completed,activity_types(name),entry_sets(duration_seconds))",
+      "id,session_date,title,duration_minutes,rpe,activity_types(name),session_entries(name,entry_kind,completed,activity_types(name),entry_sets(duration_seconds))",
     person_id: `eq.${person.id}`,
     completed: "eq.true",
     session_date: `gte.${startDateFor(days)}`,

@@ -37,7 +37,6 @@ type SessionEntryRecord = {
   progression_level: string | null;
   completed: boolean;
   notes: string | null;
-  source_sheet: string | null;
   activity_types: ActivityTypeRef;
   exercises: { default_metric: string | null; activity_types: ActivityTypeRef } | null;
   entry_sets: EntrySetRecord[] | null;
@@ -53,7 +52,6 @@ type SessionRecord = {
   intensity: string | null;
   rpe: number | string | null;
   notes: string | null;
-  source_sheet: string | null;
   activity_types: ActivityTypeRef;
   training_locations: { name: string | null; kind: string | null } | null;
   session_entries: SessionEntryRecord[] | null;
@@ -133,7 +131,6 @@ function metricText(metrics: EntryMetricRecord[] | null | undefined, key: string
 
 function isClimbing(session: SessionRecord, entry?: SessionEntryRecord) {
   const labels = [
-    session.source_sheet,
     session.activity_types?.name,
     session.title,
     entry?.entry_kind,
@@ -358,7 +355,7 @@ export async function getTimelineDataClient(): Promise<TimelineData> {
   const [sessions, oneRmRows, bodyweightRows] = await Promise.all([
     supabasePublicSelect<SessionRecord>("sessions", {
       select:
-        "id,session_date,title,completed,duration_minutes,intensity,rpe,notes,source_sheet,activity_types(name),training_locations(name,kind),session_entries(id,entry_kind,name,progression_level,completed,notes,source_sheet,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,completed,entry_set_segments(method_name,reps,weight,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
+        "id,session_date,title,completed,duration_minutes,intensity,rpe,notes,activity_types(name),training_locations(name,kind),session_entries(id,entry_kind,name,progression_level,completed,notes,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,completed,entry_set_segments(method_name,reps,weight,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
       order: "session_date.desc",
       limit: 1000,
     }),

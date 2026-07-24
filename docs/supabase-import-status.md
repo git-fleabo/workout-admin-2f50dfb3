@@ -1,4 +1,9 @@
-# Supabase Import Status
+# Supabase Import Archive
+
+> Historical record only. The application is operationally Supabase-backed.
+> No active route contacts Google Sheets, no Google credential is required,
+> and new native records must leave `source_sheet` and `source_row` null. Counts
+> below describe import-time snapshots and are not current production totals.
 
 Supabase project:
 
@@ -6,7 +11,7 @@ Supabase project:
 - Project ID: `dvcdghmcqqfvlbzufpyy`
 - URL: `https://dvcdghmcqqfvlbzufpyy.supabase.co`
 
-Live spreadsheet source:
+Historical spreadsheet source:
 
 - Spreadsheet ID: `17bxY64sce1_QcoWVf0gYHlbWkOVwu3MvZj6eUtTbT7o`
 
@@ -147,37 +152,15 @@ Notes:
 - 1 `one_rm_tests`
 - 2 `bodyweight_logs`
 
-## App-Side Comparison Layer
+## Current operational state
 
-Added server-only Supabase helpers:
-
-- `src/lib/supabase.server.ts`
-- `src/lib/supabase-admin.functions.ts`
-
-Available comparison functions:
-
-- `listExercisesFromSupabase`
-- `listGoalsFromSupabase`
-- `getSupabaseImportSummary`
-
-These are wired into the internal `/data-check` route. They sit beside the existing Google Sheets functions so Library and Goals can be compared before switching the app's source of truth.
-
-Required runtime env before using them:
-
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-
-Lovable note:
-
-- The `/data-check` route and server-only comparison helpers are for local/admin-side verification only.
-- Do not put a service-role key into browser code or any Lovable runtime that cannot keep it secret.
-- The app migration should use Supabase Auth plus row-level security for normal screens.
-
-## App Migration Progress
-
-- Goals is the first Supabase-backed screen.
-- `src/routes/goals.tsx` now uses browser-side Supabase Auth/RLS for list, create, update, and delete.
-- Library is the second Supabase-backed screen.
+- Active screens use Supabase Auth, the Data API, and row-level security.
+- Historical spreadsheet provenance remains available for imported records.
+- Native session, movement, exercise, and goal writes no longer allocate sheet rows.
+- The former `/data-check` comparison route and server-only comparison helpers have been retired.
+- Current data-quality status and exact affected rows live in
+  `docs/data-quality-phase-1-report-2026-07-23.md` and the read-only
+  `/data-quality` workspace under Manage.
 - `src/routes/library.tsx` now uses browser-side Supabase Auth/RLS for the master exercise list, add/edit/hide, person selection, and enable/disable toggles.
 - `src/components/supabase-auth-gate.tsx` adds email/password Supabase login.
 - `src/lib/supabase-public.ts` contains the public Supabase URL/key and REST/Auth helpers.

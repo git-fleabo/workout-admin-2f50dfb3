@@ -3,6 +3,7 @@ import { todayISO } from "./date";
 import { getCurrentPerson } from "./supabase-people.browser";
 import { getPRsClient } from "./supabase-log.browser";
 import { supabasePublicSelect } from "./supabase-public";
+import { comparableVolume, type VolumeStatus } from "./data-quality";
 
 type ActivityTypeRef = { name: string | null } | null;
 
@@ -11,6 +12,7 @@ type ReviewSetRecord = {
   weight: number | string | null;
   duration_seconds: number | string | null;
   rpe: number | string | null;
+  volume_status: VolumeStatus | null;
   entry_set_segments: Array<{
     reps: number | string | null;
     weight: number | string | null;
@@ -205,7 +207,14 @@ function entryVolume(entry: ReviewEntryRecord) {
       rows.reduce((rowTotal, row) => {
         const reps = toNumber(row.reps);
         const weight = toNumber(row.weight);
-        return rowTotal + (reps != null && weight != null ? reps * weight : 0);
+        return (
+          rowTotal +
+          (comparableVolume({
+            reps,
+            weight,
+            volumeStatus: set.volume_status ?? "unknown",
+          }) ?? 0)
+        );
       }, 0)
     );
   }, 0);
@@ -559,7 +568,7 @@ export async function getWeeklyReviewClient(anchor?: string): Promise<WeeklyRevi
   const [sessionRows, planRows, prData] = await Promise.all([
     supabasePublicSelect<ReviewSessionRecord>("sessions", {
       select:
-        "id,session_date,title,completed,duration_minutes,rpe,activity_types(name),training_locations(name,kind),session_entries(name,entry_kind,completed,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(reps,weight,duration_seconds,rpe,entry_set_segments(reps,weight)),entry_metrics(metric_key,metric_value,metric_text))",
+        "id,session_date,title,completed,duration_minutes,rpe,activity_types(name),training_locations(name,kind),session_entries(name,entry_kind,completed,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(reps,weight,duration_seconds,rpe,volume_status,entry_set_segments(reps,weight)),entry_metrics(metric_key,metric_value,metric_text))",
       person_id: `eq.${person.id}`,
       completed: "eq.true",
       and: `(session_date.gte.${comparisonStart},session_date.lte.${reviewEnd})`,

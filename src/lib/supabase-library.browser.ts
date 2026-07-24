@@ -56,6 +56,8 @@ type PersonExerciseRecord = {
   exercise_id: string;
   is_enabled: boolean;
   location_scope: ExerciseLocationScope;
+  is_quick_log: boolean;
+  quick_log_order: number | null;
 };
 
 type EquipmentItemRecord = {
@@ -102,6 +104,7 @@ export type LibraryClientRow = LibraryRow & {
   active: boolean;
   personExerciseId: string | null;
   locationScope: ExerciseLocationScope;
+  quickLog: boolean;
   equipmentItemIds: string[];
   equipmentCircuitGroups: string[];
   availableLocationIds: string[];
@@ -175,6 +178,7 @@ function mapExercise(
     circuitDosePerSide: row.circuit_dose_per_side ?? DEFAULT_CIRCUIT_METADATA.circuitDosePerSide,
     active: row.is_active,
     enabled: personExercise?.is_enabled ?? false,
+    quickLog: personExercise?.is_quick_log ?? false,
     personExerciseId: personExercise?.id ?? null,
     locationScope,
     equipmentItemIds: requiredIds,
@@ -221,19 +225,9 @@ async function getOrCreateActivityType(name: string) {
   return inserted[0] ?? null;
 }
 
-async function findNextExerciseSourceRow() {
-  const rows = await supabasePublicSelect<Pick<ExerciseRecord, "source_row">>("exercises", {
-    select: "source_row",
-    source_sheet: "eq.Exercise Library",
-    order: "source_row.desc",
-    limit: 1,
-  });
-  return Math.max(5, (rows[0]?.source_row ?? 4) + 1);
-}
-
 async function listPersonExercises(personId: string) {
   return supabasePublicSelect<PersonExerciseRecord>("person_exercises", {
-    select: "id,person_id,exercise_id,is_enabled,location_scope",
+    select: "id,person_id,exercise_id,is_enabled,location_scope,is_quick_log,quick_log_order",
     person_id: `eq.${personId}`,
   });
 }
@@ -344,7 +338,7 @@ export async function listLibraryClient(personId?: string, includeInactive = fal
       select:
         "id,source_row,focus_area,name,equipment,default_metric,suggested_sets,suggested_reps,notes,is_active,circuit_suitability,circuit_pattern,circuit_difficulty,circuit_impact,circuit_dose_mode,circuit_dose_min,circuit_dose_max,circuit_dose_per_side,activity_type_id,activity_types(name)",
       ...(includeInactive ? {} : { is_active: "eq.true" }),
-      order: "source_row.asc",
+      order: "name.asc",
     }),
     listPersonExercises(selectedPersonId),
     listEquipmentItems(selectedPersonId),
@@ -390,15 +384,16 @@ export async function listLibraryClient(personId?: string, includeInactive = fal
     people,
     selectedPersonId,
     workoutTypes,
-    items: exercises.map((row) =>
-      mapExercise(
+    items: exercises.map((row, index) => ({
+      ...mapExercise(
         row,
         byExercise.get(row.id),
         equipmentByExercise.get(row.id) ?? [],
         locations,
         equipmentByLocation,
       ),
-    ),
+      row: index + 1,
+    })),
     equipmentItems: equipmentItems.map((item) => ({
       id: item.id,
       name: item.name,
@@ -411,9 +406,8 @@ export async function listLibraryClient(personId?: string, includeInactive = fal
 }
 
 export async function addExerciseClient(fields: LibraryFields, personId?: string) {
-  const [activityType, sourceRow, targetPerson] = await Promise.all([
+  const [activityType, targetPerson] = await Promise.all([
     getOrCreateActivityType(fields.workoutType),
-    findNextExerciseSourceRow(),
     getTargetPerson(personId),
   ]);
   if (!targetPerson) throw new Error("Claim your profile first.");
@@ -439,8 +433,6 @@ export async function addExerciseClient(fields: LibraryFields, personId?: string
     circuit_dose_min: nullableNumber(fields.circuitDoseMin),
     circuit_dose_max: nullableNumber(fields.circuitDoseMax),
     circuit_dose_per_side: fields.circuitDosePerSide,
-    source_sheet: "Exercise Library",
-    source_row: sourceRow,
     is_active: true,
   });
   const exercise = inserted[0];
@@ -451,11 +443,13 @@ export async function addExerciseClient(fields: LibraryFields, personId?: string
         exercise_id: exercise.id,
         is_enabled: true,
         location_scope: "both",
+        is_quick_log: false,
+        quick_log_order: null,
       }),
       syncExerciseEquipmentItems(exercise.id, targetPerson.id, selectedEquipment),
     ]);
   }
-  return { ok: true, row: exercise?.source_row ?? sourceRow };
+  return { ok: true, row: "Supabase" };
 }
 
 export async function updateExerciseClient(id: string, fields: LibraryFields, personId?: string) {
@@ -507,7 +501,7 @@ export async function setExerciseEnabledClient(
   const targetPerson = await getTargetPerson(personId);
   if (!targetPerson) throw new Error("Claim your profile first.");
   const existing = await supabasePublicSelect<PersonExerciseRecord>("person_exercises", {
-    select: "id,person_id,exercise_id,is_enabled,location_scope",
+    select: "id,person_id,exercise_id,is_enabled,location_scope,is_quick_log,quick_log_order",
     person_id: `eq.${targetPerson.id}`,
     exercise_id: `eq.${exerciseId}`,
     limit: 1,
@@ -517,7 +511,10 @@ export async function setExerciseEnabledClient(
     await supabasePublicUpdate<PersonExerciseRecord>(
       "person_exercises",
       { id: `eq.${row.id}` },
-      { is_enabled: enabled },
+      {
+        is_enabled: enabled,
+        ...(enabled ? {} : { is_quick_log: false, quick_log_order: null }),
+      },
     );
   } else {
     await supabasePublicInsert<PersonExerciseRecord>("person_exercises", {
@@ -525,6 +522,8 @@ export async function setExerciseEnabledClient(
       exercise_id: exerciseId,
       is_enabled: enabled,
       location_scope: "both",
+      is_quick_log: false,
+      quick_log_order: null,
     });
   }
   return { ok: true };
@@ -538,7 +537,7 @@ export async function setExerciseLocationScopeClient(
   const targetPerson = await getTargetPerson(personId);
   if (!targetPerson) throw new Error("Claim your profile first.");
   const existing = await supabasePublicSelect<PersonExerciseRecord>("person_exercises", {
-    select: "id,person_id,exercise_id,is_enabled,location_scope",
+    select: "id,person_id,exercise_id,is_enabled,location_scope,is_quick_log,quick_log_order",
     person_id: `eq.${targetPerson.id}`,
     exercise_id: `eq.${exerciseId}`,
     limit: 1,
@@ -556,6 +555,56 @@ export async function setExerciseLocationScopeClient(
       exercise_id: exerciseId,
       is_enabled: false,
       location_scope: locationScope,
+      is_quick_log: false,
+      quick_log_order: null,
+    });
+  }
+  return { ok: true };
+}
+
+export async function setExerciseQuickLogClient(
+  exerciseId: string,
+  quickLog: boolean,
+  personId?: string,
+) {
+  const targetPerson = await getTargetPerson(personId);
+  if (!targetPerson) throw new Error("Claim your profile first.");
+  const existing = await supabasePublicSelect<PersonExerciseRecord>("person_exercises", {
+    select: "id,person_id,exercise_id,is_enabled,location_scope,is_quick_log,quick_log_order",
+    person_id: `eq.${targetPerson.id}`,
+    exercise_id: `eq.${exerciseId}`,
+    limit: 1,
+  });
+  let quickLogOrder: number | null = null;
+  if (quickLog) {
+    const current = await supabasePublicSelect<PersonExerciseRecord>("person_exercises", {
+      select: "id,person_id,exercise_id,is_enabled,location_scope,is_quick_log,quick_log_order",
+      person_id: `eq.${targetPerson.id}`,
+      is_quick_log: "eq.true",
+      order: "quick_log_order.desc",
+      limit: 1,
+    });
+    quickLogOrder = (current[0]?.quick_log_order ?? -1) + 1;
+  }
+  const row = existing[0];
+  if (row) {
+    await supabasePublicUpdate<PersonExerciseRecord>(
+      "person_exercises",
+      { id: `eq.${row.id}` },
+      {
+        is_quick_log: quickLog,
+        quick_log_order: quickLogOrder,
+        ...(quickLog ? { is_enabled: true } : {}),
+      },
+    );
+  } else {
+    await supabasePublicInsert<PersonExerciseRecord>("person_exercises", {
+      person_id: targetPerson.id,
+      exercise_id: exerciseId,
+      is_enabled: quickLog,
+      location_scope: "both",
+      is_quick_log: quickLog,
+      quick_log_order: quickLogOrder,
     });
   }
   return { ok: true };

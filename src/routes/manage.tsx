@@ -3,6 +3,7 @@ import {
   BookOpen,
   ChevronRight,
   Dumbbell,
+  DatabaseZap,
   Layers3,
   MapPin,
   Repeat2,
@@ -32,7 +33,14 @@ export const Route = createFileRoute("/manage")({
 type ManageLink = {
   title: string;
   description: string;
-  to: "/library" | "/methods" | "/rotation" | "/goals" | "/locations" | "/programmes";
+  to:
+    | "/library"
+    | "/methods"
+    | "/rotation"
+    | "/goals"
+    | "/locations"
+    | "/programmes"
+    | "/data-quality";
   icon: typeof BookOpen;
   accent: string;
 };
@@ -44,6 +52,13 @@ type PlannedItem = {
 };
 
 const TRAINING_SETUP: ManageLink[] = [
+  {
+    title: "Data Quality",
+    description: "Review historical ambiguity, provenance and calculation safety.",
+    to: "/data-quality",
+    icon: DatabaseZap,
+    accent: "text-cyan-300 bg-cyan-400/10 border-cyan-400/20",
+  },
   {
     title: "Exercise Library",
     description: "Movements, tracking types, availability and training locations.",

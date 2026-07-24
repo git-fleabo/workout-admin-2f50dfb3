@@ -150,11 +150,7 @@ function bestHold(points: ExerciseSessionPoint[]) {
 function totalHoldSeconds(points: ExerciseSessionPoint[]) {
   return points.reduce(
     (total, point) =>
-      total +
-      point.sets.reduce(
-        (setTotal, set) => setTotal + (set.durationSeconds ?? 0) * (set.aggregateSets ?? 1),
-        0,
-      ),
+      total + point.sets.reduce((setTotal, set) => setTotal + (set.durationSeconds ?? 0), 0),
     0,
   );
 }
@@ -162,9 +158,8 @@ function totalHoldSeconds(points: ExerciseSessionPoint[]) {
 function bestSetReps(points: ExerciseSessionPoint[]) {
   return points.reduce<number | null>((best, point) => {
     const pointBest = point.sets.reduce<number | null>((setBest, set) => {
-      if (set.reps == null) return setBest;
-      const value =
-        set.aggregateSets && set.aggregateSets > 1 ? set.reps / set.aggregateSets : set.reps;
+      if (set.reps == null || set.dataShape !== "individual") return setBest;
+      const value = set.reps;
       return setBest == null || value > setBest ? value : setBest;
     }, null);
     return pointBest != null && (best == null || pointBest > best) ? pointBest : best;

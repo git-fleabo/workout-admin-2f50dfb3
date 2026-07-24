@@ -71,6 +71,7 @@ import {
   listLibraryClient,
   setExerciseEnabledClient,
   setExerciseLocationScopeClient,
+  setExerciseQuickLogClient,
   updateExerciseClient,
   type ExerciseLocationScope,
   type LibraryClientRow,
@@ -439,6 +440,13 @@ function LibraryPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const quickLogMutation = useMutation({
+    mutationFn: ({ id, quickLog }: { id: string; quickLog: boolean }) =>
+      setExerciseQuickLogClient(id, quickLog, effectivePersonId || undefined),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["library"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const claimMutation = useMutation({
     mutationFn: () => claimNoamProfile(),
     onSuccess: () => {
@@ -721,6 +729,19 @@ function LibraryPage() {
                             <SelectItem value="gym">Gym</SelectItem>
                           </SelectContent>
                         </Select>
+                      )}
+                      {ex.active && (
+                        <div className="flex items-center gap-2 rounded-md border border-border px-2 py-1">
+                          <span className="text-xs text-muted-foreground">Quick</span>
+                          <Switch
+                            checked={ex.quickLog}
+                            onCheckedChange={(quickLog) =>
+                              quickLogMutation.mutate({ id: ex.id, quickLog })
+                            }
+                            disabled={quickLogMutation.isPending}
+                            aria-label={`${ex.quickLog ? "Remove" : "Add"} ${ex.name} ${ex.quickLog ? "from" : "to"} quick logging`}
+                          />
+                        </div>
                       )}
                       {ex.active && (
                         <div className="flex items-center gap-2 rounded-md border border-border px-2 py-1">

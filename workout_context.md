@@ -179,6 +179,16 @@ Important data files:
 - Strict grouping rules identify 9 high-confidence groups (29 current sessions) and 9 ambiguous groups (21 sessions). No grouping has been executed.
 - The next approved slice should be additive foundations plus a read-only Manage > Data Quality workspace. Historical mutation remains a separate approval-gated cleanup batch after backup/PITR confirmation.
 
+Implementation status:
+
+- Local migration `20260723181134_data_quality_foundations.sql` adds reviewed aliases, immutable audit batches/events, explicit aggregate/load semantics, movement-level activity validation, a personal quick-log shortlist, namespaced movement/tissue tags, and the `SECURITY INVOKER` atomic `save_workout` RPC.
+- The migration passed inside a rolled-back transaction against the live project. Its live apply is still pending because the connected Supabase tool hit its account usage limit on 2026-07-23; do not assume the new tables, columns, or RPC exist live yet.
+- Manage now links to a read-only `/data-quality` workspace. The Library exposes a personal Quick toggle, and the workout picker presents that shortlist separately.
+- Active workout saving is wired to the atomic RPC and writes native rows without `source_sheet` / `source_row`. Exercise and goal creation also stopped allocating spreadsheet rows.
+- Progress, Dashboard PRs, and volume calculations now exclude aggregate/unknown rows from invented set-level records and estimated 1RM, with a 12-rep ceiling.
+- The unused single-entry `WorkoutForm` and its legacy direct-save helpers were retired. `.env.example` no longer contains Google Sheets variables, and `docs/supabase-import-status.md` is explicitly historical.
+- Historical cleanup has not run. The approved automatic changes must remain separate until the foundation migration is live, a restore point is confirmed, and the exact cleanup migration is generated and verified.
+
 ## Current Supabase Row Counts
 
 Live row counts checked on 2026-06-19:

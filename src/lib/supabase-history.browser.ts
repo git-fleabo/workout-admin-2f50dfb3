@@ -7,6 +7,13 @@ import {
   type PlannedActualSet,
 } from "./planned-actual";
 import type { ExerciseHistory, ExerciseSessionPoint } from "./training-types";
+import {
+  comparableVolume,
+  estimatedOneRepMax,
+  type DataShape,
+  type LoadSemantics,
+  type VolumeStatus,
+} from "./data-quality";
 
 type EntrySetRecord = {
   set_number: number | null;
@@ -20,6 +27,10 @@ type EntrySetRecord = {
   rpe: number | string | null;
   quality: string | null;
   completed: boolean | null;
+  data_shape: DataShape | null;
+  aggregate_set_count: number | string | null;
+  load_semantics: LoadSemantics | null;
+  volume_status: VolumeStatus | null;
   entry_set_segments?: Array<{
     training_method_id: string;
     method_name: string;
@@ -38,7 +49,6 @@ type SessionEntryRecord = {
   sessions: {
     id: string;
     session_date: string;
-    source_sheet: string | null;
     training_locations: {
       name: string;
       kind: "home" | "gym" | "other";
@@ -127,11 +137,9 @@ export async function getLoggedExerciseKeysClient(): Promise<LoggedExerciseKeys>
   if (!person) throw new Error("This account is not linked to a training profile.");
 
   const rows = await supabasePublicSelect<LoggedExerciseRecord>("session_entries", {
-    select: "exercise_id,name,sessions!inner(person_id,source_sheet,completed)",
+    select: "exercise_id,name,sessions!inner(person_id,completed)",
     completed: "eq.true",
-    source_sheet: "eq.Workout Log",
     "sessions.person_id": `eq.${person.id}`,
-    "sessions.source_sheet": "eq.Workout Log",
     "sessions.completed": "eq.true",
     limit: 5000,
   });
@@ -153,6 +161,7 @@ function comparisonSet(row: SuggestedSetRecord | EntrySetRecord, index: number):
     weight: Number.isFinite(weight) ? weight : null,
     rpe: Number.isFinite(rpe) ? rpe : null,
     completed: row.completed !== false,
+    dataShape: "data_shape" in row ? (row.data_shape ?? "unknown") : "individual",
   };
 }
 
@@ -193,10 +202,9 @@ export async function getPlannedActualComparisonsClient(
   );
   const actualEntries = await supabasePublicSelect<ActualPlannedEntryRecord>("session_entries", {
     select:
-      "id,session_id,exercise_id,name,sessions!inner(session_date,training_locations(kind)),entry_sets(set_number,reps,weight,rpe,completed,entry_set_segments(training_method_id,method_name))",
+      "id,session_id,exercise_id,name,sessions!inner(session_date,training_locations(kind)),entry_sets(set_number,reps,weight,rpe,completed,data_shape,entry_set_segments(training_method_id,method_name))",
     session_id: `in.(${sessionIds.join(",")})`,
     completed: "eq.true",
-    source_sheet: "eq.Workout Log",
     limit: 1000,
   });
   const actualEntryIds = actualEntries.map((entry) => entry.id);
@@ -281,12 +289,6 @@ const toNumber = (value: unknown): number => {
   return Number.isFinite(n) ? n : NaN;
 };
 
-function repsPerSet(totalReps: number, sets: number) {
-  if (!Number.isFinite(totalReps) || totalReps <= 0) return null;
-  if (!Number.isFinite(sets) || sets <= 0) return Math.ceil(totalReps);
-  return Math.ceil(totalReps / sets);
-}
-
 function metricNumber(row: SessionEntryRecord, key: string) {
   const value = row.entry_metrics?.find((metric) => metric.metric_key === key)?.metric_value;
   const number = toNumber(value);
@@ -341,10 +343,8 @@ export async function getExerciseHistoryClient(
 ): Promise<ExerciseHistory> {
   const params: Record<string, string | number | boolean> = {
     select:
-      "id,name,completed,sessions!inner(id,session_date,source_sheet,training_locations(name,kind)),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,assistance_type,assistance_detail,rpe,quality,completed,entry_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit)",
+      "id,name,completed,sessions!inner(id,session_date,training_locations(name,kind)),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,assistance_type,assistance_detail,rpe,quality,completed,data_shape,aggregate_set_count,load_semantics,volume_status,entry_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit)",
     completed: "eq.true",
-    source_sheet: "eq.Workout Log",
-    "sessions.source_sheet": "eq.Workout Log",
     limit: 1000,
   };
   if (exercise.id) {
@@ -386,7 +386,6 @@ export async function getExerciseHistoryClient(
     if (!date) continue;
     const sessionId = row.sessions?.id ?? row.id;
     const sets = row.entry_sets?.length ? row.entry_sets : [{} as EntrySetRecord];
-    const individualSets = sets.length > 1 || toNumber(sets[0]?.set_number) <= 1;
     const point = bySession.get(sessionId) ?? blankPoint(row);
     point.sessions += 1;
     totalRows += 1;
@@ -425,17 +424,20 @@ export async function getExerciseHistoryClient(
 
     for (const set of sets) {
       const setsKnown = Number.isFinite(toNumber(set.set_number)) && toNumber(set.set_number) > 0;
+      const dataShape = set.data_shape ?? "unknown";
       const durationSeconds = toNumber(set.duration_seconds);
       const durationMinutes =
         Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds / 60 : 0;
       const aggregateSets =
-        !individualSets && setsKnown ? Math.max(1, Math.round(toNumber(set.set_number))) : null;
+        dataShape === "aggregate" && Number.isFinite(toNumber(set.aggregate_set_count))
+          ? Math.max(1, Math.round(toNumber(set.aggregate_set_count)))
+          : null;
       if (durationMinutes > 0) anyDuration = true;
-      point.totalDuration += durationMinutes * (aggregateSets ?? 1);
+      point.totalDuration += durationMinutes;
       const distance = toNumber(set.distance);
       const distanceN = Number.isFinite(distance) && distance > 0 ? distance : null;
       if (distanceN != null) {
-        point.totalDistanceKm += distanceInKm(distanceN, set.distance_unit) * (aggregateSets ?? 1);
+        point.totalDistanceKm += distanceInKm(distanceN, set.distance_unit);
         point.distanceUnit = set.distance_unit ?? point.distanceUnit;
       }
 
@@ -465,7 +467,7 @@ export async function getExerciseHistoryClient(
 
         point.sets.push({
           setNumber:
-            individualSets && setsKnown && segmentIndex === 0
+            dataShape === "individual" && setsKnown && segmentIndex === 0
               ? Math.round(toNumber(set.set_number))
               : null,
           reps: repsN,
@@ -480,22 +482,36 @@ export async function getExerciseHistoryClient(
           rpe: Number.isFinite(rpe) && rpe > 0 ? rpe : null,
           completed: set.completed !== false,
           aggregateSets: segmentIndex === 0 ? aggregateSets : null,
+          dataShape,
+          loadSemantics: set.load_semantics ?? "unknown",
+          volumeStatus: set.volume_status ?? "unknown",
         });
 
         if (weightN != null) anyWeight = true;
         if (repsN != null) anyReps = true;
         if (repsN != null) point.totalReps += repsN;
         if (weightN != null) {
-          if (!isPartial && (point.maxWeight == null || weightN > point.maxWeight)) {
+          if (
+            dataShape === "individual" &&
+            !isPartial &&
+            (point.maxWeight == null || weightN > point.maxWeight)
+          ) {
             point.maxWeight = weightN;
           }
           if (repsN != null) {
-            point.totalVolume += repsN * weightN;
-            const perSetReps = individualSets
-              ? repsN
-              : repsPerSet(repsN, setsKnown ? toNumber(set.set_number) : NaN);
-            if (!isPartial && perSetReps != null) {
-              const est = weightN * (1 + perSetReps / 30);
+            point.totalVolume +=
+              comparableVolume({
+                reps: repsN,
+                weight: weightN,
+                volumeStatus: set.volume_status ?? "unknown",
+              }) ?? 0;
+            const est = estimatedOneRepMax({
+              reps: repsN,
+              weight: weightN,
+              dataShape,
+              rangeOfMotion: isPartial ? "partial" : null,
+            });
+            if (est != null) {
               if (point.est1RM == null || est > point.est1RM) point.est1RM = est;
             }
           }

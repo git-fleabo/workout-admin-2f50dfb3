@@ -66,9 +66,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import {
-  addClimbClient,
   addWorkoutSessionClient,
-  addWorkoutClient,
   BOARD_GRADIENTS,
   deleteSessionClient,
   findDuplicateLogClient,
@@ -840,396 +838,6 @@ function recentSetRepSummary(sets: string, reps: string) {
     sets ? `${sets} ${sets === "1" ? "set" : "sets"}` : "",
     reps ? `${reps} total ${reps === "1" ? "rep" : "reps"}` : "",
   ];
-}
-
-export function WorkoutForm({
-  defaultWorkoutType = "",
-  title = "New workout",
-}: {
-  defaultWorkoutType?: string;
-  title?: string;
-}) {
-  const qc = useQueryClient();
-  const lib = useQuery({ queryKey: ["library"], queryFn: getLibraryClient });
-  const recent = useQuery({
-    queryKey: ["recent-workouts"],
-    queryFn: () => getRecentLogsClient(),
-  });
-
-  const [form, setForm] = useState<FormState>(() => blank(defaultWorkoutType));
-  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
-  const [duplicateOpen, setDuplicateOpen] = useState(false);
-  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
-  const update = <K extends keyof FormState>(k: K, v: FormState[K]) =>
-    setForm((f) => ({ ...f, [k]: v }));
-  const libraryExercises =
-    lib.data?.exercises && lib.data.exercises.length > 0 ? lib.data.exercises : FALLBACK_MOVEMENTS;
-  const workoutTypeOptions =
-    lib.data?.workoutTypes && lib.data.workoutTypes.length > 0
-      ? Array.from(
-          new Set([
-            ...lib.data.workoutTypes.filter((type) => type !== "Bouldering" && type !== "Sport"),
-            CLIMBING_WORKOUT_TYPE,
-          ]),
-        )
-      : FALLBACK_WORKOUT_TYPES;
-
-  const exerciseOptions = useMemo(() => {
-    if (form.workoutType === CLIMBING_WORKOUT_TYPE) {
-      return CLIMBING_MOVEMENTS.map((name) => ({
-        workoutType: CLIMBING_WORKOUT_TYPE,
-        focusArea: "",
-        name,
-      }));
-    }
-    const ex = libraryExercises;
-    if (!form.workoutType) return ex;
-    return ex.filter((e) => !form.workoutType || e.workoutType === form.workoutType);
-  }, [libraryExercises, form.workoutType]);
-
-  const selectedExercise = useMemo(
-    () => libraryExercises.find((e) => e.name.toLowerCase() === form.exercise.trim().toLowerCase()),
-    [libraryExercises, form.exercise],
-  );
-  const selectedExerciseMeta =
-    selectedExercise ??
-    exerciseOptions.find((e) => e.name.toLowerCase() === form.exercise.trim().toLowerCase());
-  const metricProfile = getMovementMetricProfile({
-    workoutType: selectedExerciseMeta?.workoutType ?? form.workoutType,
-    movement: form.exercise,
-    defaultMetric: selectedExercise?.metric,
-  });
-  const isSkill =
-    form.entryKind === "Skill" ||
-    form.workoutType === SKILL_WORKOUT_TYPE ||
-    selectedExercise?.workoutType === SKILL_WORKOUT_TYPE;
-  const isGrip =
-    form.entryKind === GRIP_WORKOUT_TYPE ||
-    form.workoutType === GRIP_WORKOUT_TYPE ||
-    selectedExercise?.workoutType === GRIP_WORKOUT_TYPE;
-  const isYoga =
-    form.workoutType === YOGA_WORKOUT_TYPE || selectedExercise?.workoutType === YOGA_WORKOUT_TYPE;
-  const isClimbing = form.workoutType === CLIMBING_WORKOUT_TYPE;
-  const isClass =
-    form.workoutType === CLASS_WORKOUT_TYPE || selectedExercise?.workoutType === CLASS_WORKOUT_TYPE;
-  const isKilter = form.exercise === "Kilter";
-  const usesStandardSets = profileUsesStandardSets(metricProfile);
-  const usesLoad = profileUsesLoad(metricProfile);
-
-  const mutate = useMutation({
-    mutationFn: () => {
-      if (isClimbing) {
-        return addClimbClient({
-          date: form.date,
-          type: CLIMBING_WORKOUT_TYPE,
-          movement: form.exercise,
-          trackingMode: form.climbingBoulders ? "Boulders/Routes" : "Hours",
-          hours: form.climbingHours,
-          boulders: form.climbingBoulders,
-          grade: form.climbingMaxGrade,
-          gradient: isKilter ? form.climbingGradient : "",
-          intensity: form.intensity,
-          rpe: form.rpe,
-          completed: form.completed,
-          notes: form.notes,
-        });
-      }
-      return addWorkoutClient({
-        ...form,
-        workoutType: selectedExercise?.workoutType ?? form.workoutType,
-        focusArea: "",
-        progressionLevel: isGrip ? form.gripStyle : form.progressionLevel,
-        assistanceType: isGrip ? form.gripLoadType : form.assistanceType,
-        entryKind:
-          isYoga || metricProfile === "time" || metricProfile === "conditioning"
-            ? "Workout"
-            : isGrip
-              ? GRIP_WORKOUT_TYPE
-              : isSkill
-                ? "Skill"
-                : form.entryKind || "Workout",
-      });
-    },
-    onSuccess: () => {
-      toast.success(isClimbing ? "Climb saved" : "Workout saved", {
-        description: `${form.exercise} was added to your log.`,
-      });
-      setForm(blank(defaultWorkoutType));
-      setDuplicateOpen(false);
-      qc.invalidateQueries({ queryKey: ["recent-workouts"] });
-      qc.invalidateQueries({ queryKey: ["recent-climbs"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteSessionClient(id),
-    onSuccess: () => {
-      toast.success("Workout deleted");
-      setDeleteTarget(null);
-      qc.invalidateQueries({ queryKey: ["recent-workouts"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-      qc.invalidateQueries({ queryKey: ["prs"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const canSubmit =
-    form.date &&
-    form.exercise &&
-    (!isClimbing || Boolean(form.climbingHours || form.climbingBoulders)) &&
-    !mutate.isPending;
-
-  const submit = async (skipDuplicateCheck = false) => {
-    if (!canSubmit || checkingDuplicate) return;
-    if (!skipDuplicateCheck) {
-      setCheckingDuplicate(true);
-      try {
-        const duplicate = await findDuplicateLogClient({
-          date: form.date,
-          title: form.exercise,
-          sourceSheet: isClimbing ? "Climbing Log" : "Workout Log",
-        });
-        if (duplicate) {
-          setDuplicateOpen(true);
-          return;
-        }
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Could not check for duplicates.");
-        return;
-      } finally {
-        setCheckingDuplicate(false);
-      }
-    }
-    mutate.mutate();
-  };
-
-  const recentEntries: RecentEntry[] =
-    recent.data?.recent.map((r) => ({
-      id: r.id,
-      date: r.date,
-      title: r.exercise,
-      meta:
-        [
-          r.entryKind === "Skill" && "Skill",
-          r.entryKind === GRIP_WORKOUT_TYPE && GRIP_WORKOUT_TYPE,
-          r.progressionLevel,
-          r.holdSeconds && `${r.holdSeconds}s`,
-          ...recentSetRepSummary(r.sets, r.reps),
-          r.weight && `${r.weight} kg`,
-          r.duration && `${r.duration}m`,
-          r.rpe && `RPE ${r.rpe}`,
-          r.quality,
-        ]
-          .filter(Boolean)
-          .join(" · ") || r.workoutType,
-      completed: r.completed,
-    })) ?? [];
-
-  return (
-    <div className="space-y-6">
-      <Card className="space-y-5 border-border bg-card p-5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">{title}</h2>
-          <Badge variant="outline" className="gap-1 border-border text-muted-foreground">
-            <Calendar className="h-3 w-3" /> {formatUKDate(form.date)}
-          </Badge>
-        </div>
-
-        <Field label="Date">
-          <DateInput value={form.date} onChange={(v) => update("date", v)} />
-        </Field>
-
-        <Field label="Type">
-          <SimpleSelect
-            value={form.workoutType}
-            onChange={(v) => {
-              update("workoutType", v);
-              update(
-                "entryKind",
-                v === SKILL_WORKOUT_TYPE
-                  ? "Skill"
-                  : v === GRIP_WORKOUT_TYPE
-                    ? GRIP_WORKOUT_TYPE
-                    : v === CLIMBING_WORKOUT_TYPE
-                      ? "Climbing"
-                      : "Workout",
-              );
-              if (v === CLIMBING_WORKOUT_TYPE) update("exercise", "");
-              update("focusArea", "");
-            }}
-            options={workoutTypeOptions}
-          />
-        </Field>
-
-        <Field label="Movement">
-          <SimpleSelect
-            value={form.exercise}
-            onChange={(v) => update("exercise", v)}
-            options={exerciseOptions.map((e) => e.name)}
-            placeholder="e.g. Bench Press or Front Lever"
-            noneLabel="Select"
-          />
-        </Field>
-
-        {isClimbing && (
-          <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Hours">
-                <Input
-                  inputMode="decimal"
-                  value={form.climbingHours}
-                  onChange={(e) => update("climbingHours", e.target.value)}
-                  placeholder="e.g. 1.5"
-                />
-              </Field>
-              <Field label="Boulders/Routes">
-                <Input
-                  inputMode="numeric"
-                  value={form.climbingBoulders}
-                  onChange={(e) => update("climbingBoulders", e.target.value)}
-                />
-              </Field>
-            </div>
-            <div className={isKilter ? "grid grid-cols-2 gap-3" : "grid gap-3"}>
-              <Field label="Max grade">
-                <Input
-                  value={form.climbingMaxGrade}
-                  onChange={(e) => update("climbingMaxGrade", e.target.value)}
-                  placeholder="V4, 6a..."
-                />
-              </Field>
-              {isKilter && (
-                <Field label="Gradient">
-                  <SimpleSelect
-                    value={form.climbingGradient}
-                    onChange={(v) => update("climbingGradient", v)}
-                    options={BOARD_GRADIENTS}
-                  />
-                </Field>
-              )}
-            </div>
-            <IntensityRow form={form} update={update} intensities={lib.data?.intensities ?? []} />
-          </div>
-        )}
-
-        {!isClimbing && (
-          <MetricFields
-            profile={metricProfile}
-            form={form}
-            update={update}
-            intensities={lib.data?.intensities ?? []}
-            qualities={lib.data?.qualities ?? []}
-            assistanceTypes={lib.data?.assistanceTypes ?? []}
-            usesLoad={usesLoad}
-            usesStandardSets={usesStandardSets}
-            isGrip={isGrip}
-            showIntensity={isClass}
-          />
-        )}
-
-        <Field label="Notes">
-          <Textarea
-            rows={2}
-            value={form.notes}
-            onChange={(e) => update("notes", e.target.value)}
-            placeholder="Form cues, how it felt…"
-          />
-        </Field>
-
-        <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/50 px-3 py-2">
-          <Label className="text-sm">Completed</Label>
-          <Switch checked={form.completed} onCheckedChange={(v) => update("completed", v)} />
-        </div>
-
-        <Button
-          onClick={() => submit()}
-          disabled={!canSubmit || checkingDuplicate}
-          className="h-12 w-full text-base font-semibold"
-          style={{ backgroundImage: "var(--gradient-primary)", color: "var(--primary-foreground)" }}
-        >
-          {mutate.isPending || checkingDuplicate ? (
-            <Loader2 className="mr-1.5 h-5 w-5 animate-spin" />
-          ) : (
-            <>
-              <Plus className="mr-1 h-5 w-5" /> Log workout
-            </>
-          )}
-        </Button>
-      </Card>
-
-      <RecentList
-        loading={recent.isLoading}
-        entries={recentEntries}
-        deletingId={deleteMutation.variables ?? null}
-        onDelete={(entry) => {
-          if (!entry.id) return;
-          setDeleteTarget({
-            id: entry.id,
-            title: entry.title,
-            description: `${entry.title} from ${formatUKDate(entry.date)} will be permanently removed from your log.`,
-          });
-        }}
-        onSelect={(i) => {
-          const r = recent.data?.recent[i];
-          if (!r) return;
-          const meta = (lib.data?.exercises ?? []).find((e) => e.name === r.exercise);
-          setForm((f) => ({
-            ...f,
-            exercise: r.exercise ?? f.exercise,
-            workoutType: meta?.workoutType ?? r.workoutType ?? f.workoutType,
-            focusArea: meta?.focusArea ?? f.focusArea,
-            entryKind:
-              r.entryKind ||
-              (meta?.workoutType === SKILL_WORKOUT_TYPE
-                ? "Skill"
-                : meta?.workoutType === GRIP_WORKOUT_TYPE
-                  ? GRIP_WORKOUT_TYPE
-                  : f.entryKind),
-            sets: r.sets ?? f.sets,
-            reps: r.reps ?? f.reps,
-            weight: r.weight ?? f.weight,
-            duration: r.duration ?? f.duration,
-            rpe: r.rpe ?? f.rpe,
-            progressionLevel: r.progressionLevel ?? f.progressionLevel,
-            gripStyle:
-              r.entryKind === GRIP_WORKOUT_TYPE ? (r.progressionLevel ?? f.gripStyle) : f.gripStyle,
-            holdSeconds: r.holdSeconds ?? f.holdSeconds,
-            assistanceType: r.assistanceType ?? f.assistanceType,
-            gripLoadType:
-              r.entryKind === GRIP_WORKOUT_TYPE
-                ? (r.assistanceType ?? f.gripLoadType)
-                : f.gripLoadType,
-            assistanceDetail: r.assistanceDetail ?? f.assistanceDetail,
-            quality: r.quality ?? f.quality,
-          }));
-          toast.message(`Prefilled from ${r.exercise}`);
-        }}
-      />
-      <DeleteConfirmDialog
-        target={deleteTarget}
-        busy={deleteMutation.isPending}
-        onCancel={() => setDeleteTarget(null)}
-        onConfirm={(id) => deleteMutation.mutate(id)}
-      />
-      <AlertDialog open={duplicateOpen} onOpenChange={setDuplicateOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Already logged today</AlertDialogTitle>
-            <AlertDialogDescription>
-              {form.exercise} already has an entry on {formatUKDate(form.date)}. Save another one
-              anyway?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => submit(true)}>Save anyway</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
 }
 
 type ClimbFormState = {
@@ -3802,7 +3410,7 @@ function MovementPicker({
   onChange,
 }: {
   value: string;
-  exercises: { name: string; workoutType: string; equipment?: string }[];
+  exercises: { name: string; workoutType: string; equipment?: string; quickLog?: boolean }[];
   favoriteNames: string[];
   recentNames: string[];
   onChange: (value: string) => void;
@@ -3810,18 +3418,26 @@ function MovementPicker({
   const [open, setOpen] = useState(false);
   const favoriteSet = new Set(favoriteNames.map((name) => name.toLowerCase()));
   const recentSet = new Set(recentNames.map((name) => name.toLowerCase()));
-  const favoriteExercises = exercises.filter((exercise) =>
-    favoriteSet.has(exercise.name.toLowerCase()),
+  const quickExercises = exercises.filter((exercise) => exercise.quickLog);
+  const quickSet = new Set(quickExercises.map((exercise) => exercise.name.toLowerCase()));
+  const favoriteExercises = exercises.filter(
+    (exercise) =>
+      favoriteSet.has(exercise.name.toLowerCase()) && !quickSet.has(exercise.name.toLowerCase()),
   );
   const recentExercises = exercises.filter(
     (exercise) =>
-      recentSet.has(exercise.name.toLowerCase()) && !favoriteSet.has(exercise.name.toLowerCase()),
+      recentSet.has(exercise.name.toLowerCase()) &&
+      !favoriteSet.has(exercise.name.toLowerCase()) &&
+      !quickSet.has(exercise.name.toLowerCase()),
   );
   const otherExercises = exercises.filter(
     (exercise) =>
-      !favoriteSet.has(exercise.name.toLowerCase()) && !recentSet.has(exercise.name.toLowerCase()),
+      !favoriteSet.has(exercise.name.toLowerCase()) &&
+      !recentSet.has(exercise.name.toLowerCase()) &&
+      !quickSet.has(exercise.name.toLowerCase()),
   );
   const groups = [
+    { label: "Quick logging", exercises: quickExercises },
     { label: "Favourites", exercises: favoriteExercises },
     { label: "Recent", exercises: recentExercises },
     { label: "All movements", exercises: otherExercises },

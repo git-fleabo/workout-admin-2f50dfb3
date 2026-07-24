@@ -9,6 +9,7 @@ import type {
   WeekStat,
 } from "./training-types";
 import { getMovementMetricProfile, type MetricProfile } from "./movement-metrics";
+import { comparableVolume, type DataShape, type VolumeStatus } from "./data-quality";
 
 type ActivityTypeRef = { name: string | null } | null;
 
@@ -24,6 +25,8 @@ type EntrySetRecord = {
   assistance_type: string | null;
   assistance_detail: string | null;
   quality: string | null;
+  data_shape: DataShape | null;
+  volume_status: VolumeStatus | null;
 };
 
 type EntryMetricRecord = {
@@ -40,7 +43,6 @@ type SessionEntryRecord = {
   progression_level: string | null;
   completed: boolean;
   notes: string | null;
-  source_sheet: string | null;
   activity_types: ActivityTypeRef;
   exercises: { default_metric: string | null; activity_types: ActivityTypeRef } | null;
   entry_sets: EntrySetRecord[] | null;
@@ -55,7 +57,6 @@ type SessionRecord = {
   duration_minutes: number | string | null;
   intensity: string | null;
   rpe: number | string | null;
-  source_sheet: string | null;
   activity_types: ActivityTypeRef;
   session_entries: SessionEntryRecord[] | null;
 };
@@ -169,12 +170,6 @@ function metricNumber(metrics: EntryMetricRecord[] | null | undefined, key: stri
 function metricText(metrics: EntryMetricRecord[] | null | undefined, key: string) {
   const row = metrics?.find((m) => m.metric_key === key);
   return (row?.metric_text ?? row?.metric_value ?? "").toString().trim();
-}
-
-function repsPerSet(totalReps: number, sets: number) {
-  if (!Number.isFinite(totalReps) || totalReps <= 0) return null;
-  if (!Number.isFinite(sets) || sets <= 0) return Math.ceil(totalReps);
-  return Math.ceil(totalReps / sets);
 }
 
 function rounded(value: number, places = 1) {
@@ -338,7 +333,14 @@ function entryDetails(entry: SessionEntryRecord, session: SessionRecord, profile
       const volume = sets.reduce((total, set) => {
         const reps = toNum(set.reps);
         const weight = toNum(set.weight);
-        return total + (Number.isFinite(reps) && Number.isFinite(weight) ? reps * weight : 0);
+        return (
+          total +
+          (comparableVolume({
+            reps: Number.isFinite(reps) ? reps : null,
+            weight: Number.isFinite(weight) ? weight : null,
+            volumeStatus: set.volume_status ?? "unknown",
+          }) ?? 0)
+        );
       }, 0);
       add("Volume", volume > 0 ? `${displayNumber(volume)} kg` : null);
     } else {
@@ -363,7 +365,7 @@ function isClimbing(session: SessionRecord, entry?: SessionEntryRecord) {
     .join(" ")
     .toLowerCase();
   if (entryLabels) return entryLabels.includes("climb") || entryLabels.includes("boulder");
-  const sessionLabels = [session.source_sheet, session.activity_types?.name, session.title]
+  const sessionLabels = [session.activity_types?.name, session.title]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
@@ -438,7 +440,7 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
   const [sessions, oneRM, bodyweightRows, goalRows] = await Promise.all([
     supabasePublicSelect<SessionRecord>("sessions", {
       select:
-        "id,session_date,title,completed,duration_minutes,intensity,rpe,source_sheet,activity_types(name),session_entries(id,entry_kind,name,progression_level,completed,notes,source_sheet,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,rest_time,assistance_type,assistance_detail,quality),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
+        "id,session_date,title,completed,duration_minutes,intensity,rpe,activity_types(name),session_entries(id,entry_kind,name,progression_level,completed,notes,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,rest_time,assistance_type,assistance_detail,quality,data_shape,volume_status),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
       order: "session_date.asc",
       limit: 1000,
     }),
@@ -456,7 +458,7 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
     supabasePublicSelect<GoalRecord>("goals", {
       select: "goal,metric,target,period",
       status: "eq.active",
-      order: "source_row.asc",
+      order: "created_at.asc",
       limit: 200,
     }),
   ]);
@@ -682,17 +684,17 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
       ) {
         const setRows = entry.entry_sets ?? [];
         const firstSet = setRows[0];
-        const individualSets = setRows.length > 1;
+        const individualSets = setRows.filter((set) => set.data_shape === "individual");
         const holdSeconds = setRows.reduce<number | null>((max, set) => {
           const value = toNum(set.duration_seconds);
           return value == null || (max != null && max >= value) ? max : value;
         }, null);
-        const reps = individualSets
-          ? setRows.reduce<number | null>((max, set) => {
+        const reps = individualSets.length
+          ? individualSets.reduce<number | null>((max, set) => {
               const value = toNum(set.reps);
               return value == null || (max != null && max >= value) ? max : value;
             }, null)
-          : repsPerSet(toNum(firstSet?.reps), toNum(firstSet?.set_number));
+          : null;
         const assistance = assistanceInfo(firstSet);
         const base = {
           title: entry.name,

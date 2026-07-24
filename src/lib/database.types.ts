@@ -142,6 +142,120 @@ export type Database = {
           },
         ];
       };
+      data_quality_audit_events: {
+        Row: {
+          action: string;
+          after_value: Json | null;
+          batch_id: string;
+          before_value: Json | null;
+          created_at: string;
+          entity_id: string;
+          entity_table: string;
+          id: number;
+          person_id: string;
+          reason: string;
+          reversal_value: Json | null;
+        };
+        Insert: {
+          action: string;
+          after_value?: Json | null;
+          batch_id: string;
+          before_value?: Json | null;
+          created_at?: string;
+          entity_id: string;
+          entity_table: string;
+          id?: number;
+          person_id: string;
+          reason: string;
+          reversal_value?: Json | null;
+        };
+        Update: {
+          action?: string;
+          after_value?: Json | null;
+          batch_id?: string;
+          before_value?: Json | null;
+          created_at?: string;
+          entity_id?: string;
+          entity_table?: string;
+          id?: number;
+          person_id?: string;
+          reason?: string;
+          reversal_value?: Json | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "data_quality_audit_events_batch_id_fkey";
+            columns: ["batch_id"];
+            isOneToOne: false;
+            referencedRelation: "data_quality_batches";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "data_quality_audit_events_person_id_fkey";
+            columns: ["person_id"];
+            isOneToOne: false;
+            referencedRelation: "people";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      data_quality_batches: {
+        Row: {
+          applied_at: string | null;
+          applied_checksum: string | null;
+          approved_checksum: string | null;
+          batch_kind: string;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          notes: string | null;
+          person_id: string;
+          reversed_at: string | null;
+          status: string;
+        };
+        Insert: {
+          applied_at?: string | null;
+          applied_checksum?: string | null;
+          approved_checksum?: string | null;
+          batch_kind: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          notes?: string | null;
+          person_id: string;
+          reversed_at?: string | null;
+          status?: string;
+        };
+        Update: {
+          applied_at?: string | null;
+          applied_checksum?: string | null;
+          approved_checksum?: string | null;
+          batch_kind?: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          notes?: string | null;
+          person_id?: string;
+          reversed_at?: string | null;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "data_quality_batches_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "people";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "data_quality_batches_person_id_fkey";
+            columns: ["person_id"];
+            isOneToOne: false;
+            referencedRelation: "people";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       daily_rotation_assignments: {
         Row: {
           assigned_date: string;
@@ -337,14 +451,17 @@ export type Database = {
       };
       entry_sets: {
         Row: {
+          aggregate_set_count: number | null;
           assistance_detail: string | null;
           assistance_type: string | null;
           completed: boolean;
           created_at: string;
+          data_shape: string;
           distance: number | null;
           distance_unit: string | null;
           duration_seconds: number | null;
           id: string;
+          load_semantics: string;
           notes: string | null;
           quality: string | null;
           reps: number | null;
@@ -353,17 +470,21 @@ export type Database = {
           rpe: number | null;
           session_entry_id: string;
           set_number: number | null;
+          volume_status: string;
           weight: number | null;
         };
         Insert: {
+          aggregate_set_count?: number | null;
           assistance_detail?: string | null;
           assistance_type?: string | null;
           completed?: boolean;
           created_at?: string;
+          data_shape?: string;
           distance?: number | null;
           distance_unit?: string | null;
           duration_seconds?: number | null;
           id?: string;
+          load_semantics?: string;
           notes?: string | null;
           quality?: string | null;
           reps?: number | null;
@@ -372,17 +493,21 @@ export type Database = {
           rpe?: number | null;
           session_entry_id: string;
           set_number?: number | null;
+          volume_status?: string;
           weight?: number | null;
         };
         Update: {
+          aggregate_set_count?: number | null;
           assistance_detail?: string | null;
           assistance_type?: string | null;
           completed?: boolean;
           created_at?: string;
+          data_shape?: string;
           distance?: number | null;
           distance_unit?: string | null;
           duration_seconds?: number | null;
           id?: string;
+          load_semantics?: string;
           notes?: string | null;
           quality?: string | null;
           reps?: number | null;
@@ -391,6 +516,7 @@ export type Database = {
           rpe?: number | null;
           session_entry_id?: string;
           set_number?: number | null;
+          volume_status?: string;
           weight?: number | null;
         };
         Relationships: [
@@ -476,6 +602,67 @@ export type Database = {
             columns: ["exercise_id"];
             isOneToOne: false;
             referencedRelation: "exercises";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      exercise_aliases: {
+        Row: {
+          activity_type_id: string | null;
+          alias_name: string;
+          created_at: string;
+          exercise_id: string;
+          id: string;
+          normalized_alias: string;
+          reason: string | null;
+          reviewed_by: string | null;
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          activity_type_id?: string | null;
+          alias_name: string;
+          created_at?: string;
+          exercise_id: string;
+          id?: string;
+          normalized_alias?: never;
+          reason?: string | null;
+          reviewed_by?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          activity_type_id?: string | null;
+          alias_name?: string;
+          created_at?: string;
+          exercise_id?: string;
+          id?: string;
+          normalized_alias?: never;
+          reason?: string | null;
+          reviewed_by?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "exercise_aliases_activity_type_id_fkey";
+            columns: ["activity_type_id"];
+            isOneToOne: false;
+            referencedRelation: "activity_types";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "exercise_aliases_exercise_id_fkey";
+            columns: ["exercise_id"];
+            isOneToOne: false;
+            referencedRelation: "exercises";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "exercise_aliases_reviewed_by_fkey";
+            columns: ["reviewed_by"];
+            isOneToOne: false;
+            referencedRelation: "people";
             referencedColumns: ["id"];
           },
         ];
@@ -903,9 +1090,11 @@ export type Database = {
           exercise_id: string;
           id: string;
           is_enabled: boolean;
+          is_quick_log: boolean;
           location_scope: string;
           notes: string | null;
           person_id: string;
+          quick_log_order: number | null;
           updated_at: string;
         };
         Insert: {
@@ -914,9 +1103,11 @@ export type Database = {
           exercise_id: string;
           id?: string;
           is_enabled?: boolean;
+          is_quick_log?: boolean;
           location_scope?: string;
           notes?: string | null;
           person_id: string;
+          quick_log_order?: number | null;
           updated_at?: string;
         };
         Update: {
@@ -925,9 +1116,11 @@ export type Database = {
           exercise_id?: string;
           id?: string;
           is_enabled?: boolean;
+          is_quick_log?: boolean;
           location_scope?: string;
           notes?: string | null;
           person_id?: string;
+          quick_log_order?: number | null;
           updated_at?: string;
         };
         Relationships: [
@@ -1321,7 +1514,7 @@ export type Database = {
       };
       session_entries: {
         Row: {
-          activity_type_id: string | null;
+          activity_type_id: string;
           completed: boolean;
           created_at: string;
           entry_kind: string | null;
@@ -1337,7 +1530,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
-          activity_type_id?: string | null;
+          activity_type_id: string;
           completed?: boolean;
           created_at?: string;
           entry_kind?: string | null;
@@ -1353,7 +1546,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
-          activity_type_id?: string | null;
+          activity_type_id?: string;
           completed?: boolean;
           created_at?: string;
           entry_kind?: string | null;
@@ -2720,6 +2913,15 @@ export type Database = {
           current_workout_index: number;
           program_assignment_id: string;
         }[];
+      };
+      save_workout: {
+        Args: {
+          p_entries: Json;
+          p_method_blocks?: Json;
+          p_person_id: string;
+          p_session: Json;
+        };
+        Returns: string;
       };
     };
     Enums: {

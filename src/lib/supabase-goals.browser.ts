@@ -12,6 +12,7 @@ type GoalRecord = {
   id: string;
   person_id: string;
   source_row: number | null;
+  created_at: string;
   goal: string;
   goal_type: GoalType;
   status: GoalStatus;
@@ -66,8 +67,8 @@ export async function listGoalsClient() {
   const [rows, checkins] = await Promise.all([
     supabasePublicSelect<GoalRecord>("goals", {
       select:
-        "id,person_id,source_row,goal,goal_type,status,exercise_id,tracking_mode,goal_metric,target_value,target_unit,starting_value,deadline,metric,target,period,notes",
-      order: "source_row.asc",
+        "id,person_id,source_row,created_at,goal,goal_type,status,exercise_id,tracking_mode,goal_metric,target_value,target_unit,starting_value,deadline,metric,target,period,notes",
+      order: "created_at.asc",
     }),
     supabasePublicSelect<GoalCheckinRecord>("goal_checkins", {
       select: "id,goal_id,checked_date,note,created_at",
@@ -83,9 +84,9 @@ export async function listGoalsClient() {
   }
   return {
     needsProfileClaim: false as const,
-    items: rows.map((r) => ({
+    items: rows.map((r, index) => ({
       id: r.id,
-      row: r.source_row ?? 0,
+      row: index + 1,
       goal: r.goal,
       goalType: r.goal_type ?? "legacy",
       status: r.status ?? "active",
@@ -118,18 +119,8 @@ async function requirePerson() {
   return person;
 }
 
-async function findNextGoalSourceRow() {
-  const rows = await supabasePublicSelect<Pick<GoalRecord, "source_row">>("goals", {
-    select: "source_row",
-    source_sheet: "eq.Goals",
-    order: "source_row.desc",
-    limit: 1,
-  });
-  return Math.max(2, (rows[0]?.source_row ?? 1) + 1);
-}
-
 export async function addGoalClient(fields: GoalFields) {
-  const [person, row] = await Promise.all([requirePerson(), findNextGoalSourceRow()]);
+  const person = await requirePerson();
   const inserted = await supabasePublicInsert<GoalMutationRecord>("goals", {
     person_id: person.id,
     goal: fields.goal,
@@ -146,10 +137,8 @@ export async function addGoalClient(fields: GoalFields) {
     period: fields.period,
     notes: fields.notes,
     status: "active",
-    source_sheet: "Goals",
-    source_row: row,
   });
-  return { ok: true, row: inserted[0]?.source_row ?? row };
+  return { ok: true, row: inserted[0] ? "Supabase" : null };
 }
 
 export async function updateGoalClient(id: string, fields: GoalFields) {

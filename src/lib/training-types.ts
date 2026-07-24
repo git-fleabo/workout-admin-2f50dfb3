@@ -1,4 +1,5 @@
 import type { CircuitMetadata } from "./circuit-metadata";
+import type { DataShape, LoadSemantics, VolumeStatus } from "./data-quality";
 
 export type LibraryRow = CircuitMetadata & {
   row: number;
@@ -159,6 +160,9 @@ export type ExerciseSetPoint = {
   rpe: number | null;
   completed: boolean;
   aggregateSets: number | null;
+  dataShape: DataShape;
+  loadSemantics: LoadSemantics;
+  volumeStatus: VolumeStatus;
 };
 
 export type ExerciseHistory = {

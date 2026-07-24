@@ -1,5 +1,6 @@
 import { formatUKDate } from "./date";
 import type { ExerciseSessionPoint, ExerciseSetPoint } from "./training-types";
+import { progressRepValues } from "./data-quality";
 
 export type ProgressDecisionKind = "progress" | "continue" | "hold" | "lighter" | "baseline";
 
@@ -30,13 +31,7 @@ function workingSets(point: ExerciseSessionPoint) {
 }
 
 function effectiveRepValues(sets: ExerciseSetPoint[]) {
-  return sets.flatMap((set) => {
-    if (set.reps == null) return [];
-    if (set.aggregateSets && set.aggregateSets > 1) {
-      return Array.from({ length: set.aggregateSets }, () => set.reps! / set.aggregateSets!);
-    }
-    return [set.reps];
-  });
+  return progressRepValues(sets);
 }
 
 function effortValues(sets: ExerciseSetPoint[]) {

@@ -4,6 +4,7 @@ export type PlannedActualSet = {
   weight: number | null;
   rpe: number | null;
   completed: boolean;
+  dataShape?: "individual" | "aggregate" | "unknown";
 };
 
 export type PlannedActualStatus = "met" | "exceeded" | "partial" | "missed";
@@ -31,7 +32,9 @@ export type PlannedActualComparison = {
 };
 
 function setTargetMet(planned: PlannedActualSet, actual: PlannedActualSet | undefined) {
-  if (!actual?.completed) return false;
+  if (!actual?.completed || actual.dataShape === "aggregate" || actual.dataShape === "unknown") {
+    return false;
+  }
   if (planned.weight != null && (actual.weight == null || actual.weight < planned.weight)) {
     return false;
   }
@@ -42,7 +45,11 @@ function setTargetMet(planned: PlannedActualSet, actual: PlannedActualSet | unde
 function volume(sets: PlannedActualSet[]) {
   return Math.round(
     sets.reduce(
-      (total, set) => total + (set.completed ? (set.weight ?? 0) * (set.reps ?? 0) : 0),
+      (total, set) =>
+        total +
+        (set.completed && set.dataShape !== "aggregate" && set.dataShape !== "unknown"
+          ? (set.weight ?? 0) * (set.reps ?? 0)
+          : 0),
       0,
     ),
   );
