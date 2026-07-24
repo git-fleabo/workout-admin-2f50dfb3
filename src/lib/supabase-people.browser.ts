@@ -1,8 +1,4 @@
-import {
-  getSupabaseSession,
-  supabasePublicSelect,
-  supabasePublicUpdate,
-} from "./supabase-public";
+import { getSupabaseSession, supabasePublicSelect, supabasePublicUpdate } from "./supabase-public";
 
 export type PersonRecord = {
   id: string;

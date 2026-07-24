@@ -17,18 +17,13 @@ export function PRsView() {
       <section className="space-y-3">
         <SectionHeader icon={<Trophy className="h-4 w-4" />} title="1RM PRs" />
         {isLoading && <Card className="p-4 text-sm text-muted-foreground">Loading…</Card>}
-        {error && (
-          <Card className="p-4 text-sm text-destructive">Couldn't load PRs.</Card>
-        )}
+        {error && <Card className="p-4 text-sm text-destructive">Couldn't load PRs.</Card>}
         {!isLoading && !error && data && data.oneRm.length === 0 && (
           <Card className="p-4 text-sm text-muted-foreground">No 1RM PRs yet.</Card>
         )}
         <div className="space-y-2">
           {data?.oneRm.map((pr) => (
-            <Card
-              key={pr.exercise}
-              className="flex items-start gap-3 border-border bg-card p-3"
-            >
+            <Card key={pr.exercise} className="flex items-start gap-3 border-border bg-card p-3">
               <DateBadge date={pr.date} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
@@ -56,10 +51,7 @@ export function PRsView() {
         )}
         <div className="space-y-2">
           {skillGroups.map((group) => (
-            <Card
-              key={group.skill}
-              className="flex items-start gap-3 border-border bg-card p-3"
-            >
+            <Card key={group.skill} className="flex items-start gap-3 border-border bg-card p-3">
               <DateBadge date={group.latestDate} />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{group.skill}</p>

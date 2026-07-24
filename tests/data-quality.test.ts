@@ -7,6 +7,7 @@ import {
   classifySessionGroups,
   comparableVolume,
   estimatedOneRepMax,
+  explicitLoadClassification,
   inferLoadClassification,
   normalizeExerciseName,
   progressRepValues,
@@ -48,6 +49,38 @@ test("estimated one-repetition max excludes aggregates, partials, and high reps"
 test("volume requires exact load semantics and never multiplies aggregate totals again", () => {
   assert.equal(comparableVolume({ reps: 26, weight: 60, volumeStatus: "exact" }), 1560);
   assert.equal(comparableVolume({ reps: 26, weight: 60, volumeStatus: "ambiguous" }), null);
+  assert.equal(
+    comparableVolume({
+      reps: 10,
+      weight: 20,
+      volumeStatus: "exact",
+      loadSemantics: "per_implement_load",
+      implementCount: 2,
+    }),
+    400,
+  );
+  assert.equal(
+    comparableVolume({
+      reps: 10,
+      weight: 20,
+      volumeStatus: "exact",
+      loadSemantics: "per_implement_load",
+    }),
+    null,
+  );
+});
+
+test("explicit dumbbell semantics preserve per-implement versus combined meaning", () => {
+  assert.deepEqual(explicitLoadClassification("per_implement_load"), {
+    loadSemantics: "per_implement_load",
+    volumeStatus: "exact",
+    implementCount: 2,
+  });
+  assert.deepEqual(explicitLoadClassification("combined_implement_load"), {
+    loadSemantics: "combined_implement_load",
+    volumeStatus: "exact",
+    implementCount: null,
+  });
 });
 
 test("progress rules do not invent per-set repetitions for aggregates", () => {
@@ -153,15 +186,37 @@ test("climbing metrics retain type-aware validation and board gradient rules", (
   assert.equal(supportsClimbingGradient("Bouldering"), false);
 });
 
-test("workout migration preserves mixed parent activity and defines an atomic invoker RPC", () => {
+test("workout migration assigns an explicit mixed parent and defines an atomic invoker RPC", () => {
   const sql = readFileSync(
-    new URL("../supabase/migrations/20260723181134_data_quality_foundations.sql", import.meta.url),
+    new URL("../supabase/migrations/20260724162356_data_quality_foundations.sql", import.meta.url),
     "utf8",
   );
   assert.match(sql, /create or replace function public\.save_workout\(/i);
   assert.match(sql, /language plpgsql\s+security invoker/i);
-  assert.match(sql, /nullif\(p_session->>'activity_type_id', ''\)::uuid/i);
+  assert.match(sql, /where slug = 'mixed-training'/i);
+  assert.match(sql, /completed = v_completed/i);
   assert.match(sql, /Every movement requires a valid activity type\./);
   assert.match(sql, /revoke all on function public\.save_workout[\s\S]+from public, anon;/i);
   assert.doesNotMatch(sql, /\bcommit\b/i);
+});
+
+test("cleanup migrations preserve rollback evidence and enforce data-quality constraints", () => {
+  const cleanup = readFileSync(
+    new URL(
+      "../supabase/migrations/20260724162406_complete_data_quality_cleanup.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const rollback = readFileSync(
+    new URL("../supabase/data_quality_rollback_20260724.sql", import.meta.url),
+    "utf8",
+  );
+  assert.match(cleanup, /app_private\.data_quality_snapshots/i);
+  assert.match(cleanup, /data_shape = 'aggregate'/i);
+  assert.match(cleanup, /sessions_completed_activity_present/i);
+  assert.match(cleanup, /entry_sets_entry_set_number_uidx/i);
+  assert.match(cleanup, /entry_sets_nonnegative_values/i);
+  assert.match(rollback, /jsonb_populate_record\(null::public\.sessions/i);
+  assert.match(rollback, /status = 'reversed'/i);
 });

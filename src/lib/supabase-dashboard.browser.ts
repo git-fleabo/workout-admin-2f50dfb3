@@ -9,7 +9,12 @@ import type {
   WeekStat,
 } from "./training-types";
 import { getMovementMetricProfile, type MetricProfile } from "./movement-metrics";
-import { comparableVolume, type DataShape, type VolumeStatus } from "./data-quality";
+import {
+  comparableVolume,
+  type DataShape,
+  type LoadSemantics,
+  type VolumeStatus,
+} from "./data-quality";
 
 type ActivityTypeRef = { name: string | null } | null;
 
@@ -26,6 +31,8 @@ type EntrySetRecord = {
   assistance_detail: string | null;
   quality: string | null;
   data_shape: DataShape | null;
+  load_semantics: LoadSemantics | null;
+  implement_count: number | string | null;
   volume_status: VolumeStatus | null;
 };
 
@@ -339,6 +346,8 @@ function entryDetails(entry: SessionEntryRecord, session: SessionRecord, profile
             reps: Number.isFinite(reps) ? reps : null,
             weight: Number.isFinite(weight) ? weight : null,
             volumeStatus: set.volume_status ?? "unknown",
+            loadSemantics: set.load_semantics ?? "unknown",
+            implementCount: set.implement_count == null ? null : Number(set.implement_count),
           }) ?? 0)
         );
       }, 0);
@@ -440,7 +449,7 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
   const [sessions, oneRM, bodyweightRows, goalRows] = await Promise.all([
     supabasePublicSelect<SessionRecord>("sessions", {
       select:
-        "id,session_date,title,completed,duration_minutes,intensity,rpe,activity_types(name),session_entries(id,entry_kind,name,progression_level,completed,notes,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,rest_time,assistance_type,assistance_detail,quality,data_shape,volume_status),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
+        "id,session_date,title,completed,duration_minutes,intensity,rpe,activity_types(name),session_entries(id,entry_kind,name,progression_level,completed,notes,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,rest_time,assistance_type,assistance_detail,quality,data_shape,load_semantics,volume_status,implement_count),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
       order: "session_date.asc",
       limit: 1000,
     }),

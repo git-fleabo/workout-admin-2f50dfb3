@@ -41,20 +41,8 @@ export function Field({ label, children }: { label: string; children: React.Reac
   );
 }
 
-export function DateInput({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <Input
-      type="date"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    />
-  );
+export function DateInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return <Input type="date" value={value} onChange={(e) => onChange(e.target.value)} />;
 }
 
 export function SimpleSelect({
@@ -72,10 +60,7 @@ export function SimpleSelect({
 }) {
   const cleanOptions = Array.from(new Set(options.map((o) => o.trim()).filter(Boolean)));
   return (
-    <Select
-      value={value || "__none"}
-      onValueChange={(v) => onChange(v === "__none" ? "" : v)}
-    >
+    <Select value={value || "__none"} onValueChange={(v) => onChange(v === "__none" ? "" : v)}>
       <SelectTrigger>
         <SelectValue placeholder={placeholder ?? "—"} />
       </SelectTrigger>
@@ -124,27 +109,28 @@ export function RecentList({
       <div className="space-y-2">
         {entries.map((r, i) => {
           const deleting = Boolean(r.id && deletingId === r.id);
-          const deleteButton = onDelete && r.id ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              disabled={deleting}
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(r, i);
-              }}
-              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-              aria-label={`Delete ${r.title}`}
-              title="Delete"
-            >
-              {deleting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="h-4 w-4" />
-              )}
-            </Button>
-          ) : null;
+          const deleteButton =
+            onDelete && r.id ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={deleting}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(r, i);
+                }}
+                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                aria-label={`Delete ${r.title}`}
+                title="Delete"
+              >
+                {deleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+              </Button>
+            ) : null;
           const inner = (
             <>
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs font-mono text-muted-foreground">
@@ -153,9 +139,7 @@ export function RecentList({
               <div className="min-w-0 flex-1 text-left">
                 <div className="flex items-center justify-between gap-2">
                   <p className="truncate font-medium">{r.title}</p>
-                  {r.completed && (
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                  )}
+                  {r.completed && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
                 </div>
                 <p className="truncate text-xs text-muted-foreground">{r.meta}</p>
               </div>
@@ -209,9 +193,7 @@ export function DeleteConfirmDialog({
       <AlertDialogContent className="max-w-sm">
         <AlertDialogHeader>
           <AlertDialogTitle>Delete this entry?</AlertDialogTitle>
-          <AlertDialogDescription>
-            {target?.description}
-          </AlertDialogDescription>
+          <AlertDialogDescription>{target?.description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>

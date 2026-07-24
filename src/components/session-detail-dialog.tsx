@@ -44,7 +44,7 @@ function movementMeta(entry: SessionDetailEntry) {
 }
 
 function MovementDetail({ entry }: { entry: SessionDetailEntry }) {
-  const aggregate = entry.sets.length === 1 && Number(entry.sets[0]?.setNumber ?? 0) > 1;
+  const aggregate = entry.sets.some((set) => set.dataShape === "aggregate");
   const isHold =
     entry.sets.some((set) => Number(set.durationSeconds ?? 0) > 0) &&
     entry.sets.every((set) => Number(set.reps ?? 0) <= 0);
@@ -66,6 +66,11 @@ function MovementDetail({ entry }: { entry: SessionDetailEntry }) {
 
       {entry.sets.length ? (
         <div className="mt-3 space-y-2">
+          {aggregate ? (
+            <Badge variant="outline" className="border-amber-400/30 text-amber-300">
+              Historic aggregate data
+            </Badge>
+          ) : null}
           {entry.sets.map((set, index) => {
             const details = setParts(set, aggregate && isHold ? Number(set.setNumber ?? 1) : 1);
             const assistance = [set.assistanceType, set.assistanceDetail]
@@ -80,7 +85,7 @@ function MovementDetail({ entry }: { entry: SessionDetailEntry }) {
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   <span className="w-16 shrink-0 text-xs font-medium text-muted-foreground">
                     {aggregate
-                      ? `${set.setNumber} ${isHold ? "attempts" : "sets"}`
+                      ? `${set.aggregateSetCount ?? "Multiple"} ${isHold ? "attempts" : "sets"}`
                       : `${isHold ? "Attempt" : "Set"} ${set.setNumber ?? index + 1}`}
                   </span>
                   <span>{details.join(" · ") || "Recorded set"}</span>

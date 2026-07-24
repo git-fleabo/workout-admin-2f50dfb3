@@ -15,7 +15,12 @@ import {
   type CircuitMovementPattern,
   type CircuitSuitability,
 } from "./circuit-metadata";
-import { inferLoadClassification, type DataShape } from "./data-quality";
+import {
+  explicitLoadClassification,
+  inferLoadClassification,
+  type DataShape,
+  type LoadSemantics,
+} from "./data-quality";
 
 export const REST_OPTIONS = [
   "0–30s",
@@ -105,6 +110,7 @@ type EntrySetRecord = {
   completed: boolean | null;
   data_shape: DataShape | null;
   aggregate_set_count: number | string | null;
+  load_semantics: LoadSemantics | null;
   entry_set_segments: Array<{
     training_method_id: string;
     method_name: string;
@@ -240,6 +246,7 @@ export type WorkoutLogInput = {
   climbingTrackingMode?: string;
   climbingMaxGrade?: string;
   climbingGradient?: string;
+  loadSemantics?: LoadSemantics | "";
   setRows?: WorkoutSetInput[];
 };
 
@@ -527,7 +534,7 @@ export async function getRecentLogsClient(limit = 15) {
   const person = await requirePerson();
   const rows = await supabasePublicSelect<SessionEntryRecord>("session_entries", {
     select:
-      "id,order_index,entry_kind,name,progression_level,completed,notes,exercises(name,focus_area,activity_types(name)),activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,rest_time,assistance_type,assistance_detail,quality,completed,data_shape,aggregate_set_count,entry_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion,config)),entry_metrics(metric_key,metric_value,metric_text,metric_unit),sessions!inner(id,person_id,session_date,title,completed,duration_minutes,intensity,rpe,notes,activity_types(name),training_locations(id,name,kind))",
+      "id,order_index,entry_kind,name,progression_level,completed,notes,exercises(name,focus_area,activity_types(name)),activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,rest_time,assistance_type,assistance_detail,quality,completed,data_shape,aggregate_set_count,load_semantics,entry_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion,config)),entry_metrics(metric_key,metric_value,metric_text,metric_unit),sessions!inner(id,person_id,session_date,title,completed,duration_minutes,intensity,rpe,notes,activity_types(name),training_locations(id,name,kind))",
     "sessions.person_id": `eq.${person.id}`,
     order: "created_at.desc",
     limit: Math.min(Math.max(Math.round(limit), 1), 500),
@@ -641,6 +648,7 @@ export async function getRecentLogsClient(limit = 15) {
         assistanceType: set?.assistance_type ?? "",
         assistanceDetail: set?.assistance_detail ?? "",
         quality: set?.quality ?? "",
+        loadSemantics: set?.load_semantics ?? "",
         trainingLocation: row.sessions?.training_locations ?? null,
         methodBlocks: blocksBySession.get(row.sessions?.id ?? "") ?? [],
         setRows: sets.map((item) => {
@@ -715,7 +723,7 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
         getOrCreateActivityType(entryData.workoutType || "Other"),
         findExercise(entryData.exercise),
       ]);
-      const activityTypeId = activityType?.id ?? exercise?.activity_type_id ?? null;
+      const activityTypeId = exercise?.activity_type_id ?? activityType?.id ?? null;
       if (!activityTypeId) throw new Error(`${entryData.exercise} needs an activity type.`);
       const entryKind =
         entryData.entryKind ||
@@ -755,12 +763,18 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
             ];
       const sets = rawSets.map(({ set, setNumber, dataShape, aggregateSetCount }) => {
         const weight = toNum(set.weight);
-        const classification = inferLoadClassification({
-          movement: entryData.exercise,
-          equipment: exercise?.equipment ?? null,
-          weight,
-          assistanceType: entryData.assistanceType,
-        });
+        const classification =
+          entryData.loadSemantics && weight != null && weight > 0
+            ? explicitLoadClassification(entryData.loadSemantics)
+            : {
+                ...inferLoadClassification({
+                  movement: entryData.exercise,
+                  equipment: exercise?.equipment ?? null,
+                  weight,
+                  assistanceType: entryData.assistanceType,
+                }),
+                implementCount: null,
+              };
         const methodSegments =
           set.method && set.method.segments.length > 0
             ? [
@@ -802,6 +816,7 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
           aggregate_set_count: aggregateSetCount,
           load_semantics: classification.loadSemantics,
           volume_status: classification.volumeStatus,
+          implement_count: classification.implementCount,
           segments: methodSegments,
         };
       });

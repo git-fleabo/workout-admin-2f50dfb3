@@ -31,6 +31,7 @@ type EntrySetRecord = {
   aggregate_set_count: number | string | null;
   load_semantics: LoadSemantics | null;
   volume_status: VolumeStatus | null;
+  implement_count: number | string | null;
   entry_set_segments?: Array<{
     training_method_id: string;
     method_name: string;
@@ -343,7 +344,7 @@ export async function getExerciseHistoryClient(
 ): Promise<ExerciseHistory> {
   const params: Record<string, string | number | boolean> = {
     select:
-      "id,name,completed,sessions!inner(id,session_date,training_locations(name,kind)),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,assistance_type,assistance_detail,rpe,quality,completed,data_shape,aggregate_set_count,load_semantics,volume_status,entry_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit)",
+      "id,name,completed,sessions!inner(id,session_date,training_locations(name,kind)),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,assistance_type,assistance_detail,rpe,quality,completed,data_shape,aggregate_set_count,load_semantics,volume_status,implement_count,entry_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit)",
     completed: "eq.true",
     limit: 1000,
   };
@@ -485,6 +486,10 @@ export async function getExerciseHistoryClient(
           dataShape,
           loadSemantics: set.load_semantics ?? "unknown",
           volumeStatus: set.volume_status ?? "unknown",
+          implementCount:
+            set.implement_count == null || !Number.isFinite(Number(set.implement_count))
+              ? null
+              : Number(set.implement_count),
         });
 
         if (weightN != null) anyWeight = true;
@@ -504,6 +509,8 @@ export async function getExerciseHistoryClient(
                 reps: repsN,
                 weight: weightN,
                 volumeStatus: set.volume_status ?? "unknown",
+                loadSemantics: set.load_semantics ?? "unknown",
+                implementCount: set.implement_count == null ? null : Number(set.implement_count),
               }) ?? 0;
             const est = estimatedOneRepMax({
               reps: repsN,

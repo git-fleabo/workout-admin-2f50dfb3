@@ -163,6 +163,7 @@ export type ExerciseSetPoint = {
   dataShape: DataShape;
   loadSemantics: LoadSemantics;
   volumeStatus: VolumeStatus;
+  implementCount: number | null;
 };
 
 export type ExerciseHistory = {

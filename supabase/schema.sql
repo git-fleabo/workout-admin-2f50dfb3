@@ -213,6 +213,14 @@ create unique index if not exists exercise_aliases_activity_uidx
 create index if not exists exercise_aliases_exercise_idx
   on public.exercise_aliases (exercise_id);
 
+create index if not exists exercise_aliases_activity_type_idx
+  on public.exercise_aliases (activity_type_id)
+  where activity_type_id is not null;
+
+create index if not exists exercise_aliases_reviewed_by_idx
+  on public.exercise_aliases (reviewed_by)
+  where reviewed_by is not null;
+
 create trigger exercise_aliases_set_updated_at
 before update on public.exercise_aliases
 for each row execute function public.set_updated_at();
@@ -338,7 +346,8 @@ create table if not exists public.sessions (
   source_row integer,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (source_sheet, source_row)
+  unique (source_sheet, source_row),
+  check (not completed or activity_type_id is not null)
 );
 
 create trigger sessions_set_updated_at
@@ -405,10 +414,23 @@ create table if not exists public.entry_sets (
     ),
   volume_status text not null default 'unknown'
     check (volume_status in ('exact', 'ambiguous', 'not_applicable', 'unknown')),
+  implement_count integer,
   check (
     (data_shape = 'aggregate' and aggregate_set_count is not null and aggregate_set_count > 0)
     or (data_shape <> 'aggregate' and aggregate_set_count is null)
   ),
+  check (
+    (load_semantics = 'per_implement_load' and implement_count is not null and implement_count > 0)
+    or (load_semantics <> 'per_implement_load' and implement_count is null)
+  ),
+  check (set_number > 0),
+  check (
+    coalesce(reps, 0) >= 0
+    and coalesce(weight, 0) >= 0
+    and coalesce(duration_seconds, 0) >= 0
+    and coalesce(distance, 0) >= 0
+  ),
+  unique (session_entry_id, set_number),
   created_at timestamptz not null default now()
 );
 
@@ -440,6 +462,28 @@ create table if not exists public.data_quality_audit_events (
   reversal_value jsonb,
   created_at timestamptz not null default now()
 );
+
+create unique index if not exists data_quality_batches_person_checksum_uidx
+  on public.data_quality_batches (person_id, approved_checksum)
+  where approved_checksum is not null;
+
+create index if not exists data_quality_batches_created_by_idx
+  on public.data_quality_batches (created_by)
+  where created_by is not null;
+
+create index if not exists data_quality_audit_events_person_idx
+  on public.data_quality_audit_events (person_id);
+
+create table if not exists app_private.data_quality_snapshots (
+  batch_id uuid not null references public.data_quality_batches(id) on delete restrict,
+  entity_table text not null,
+  entity_id text not null,
+  row_value jsonb not null,
+  captured_at timestamptz not null default now(),
+  primary key (batch_id, entity_table, entity_id)
+);
+
+revoke all on table app_private.data_quality_snapshots from public, anon, authenticated;
 
 create table if not exists public.entry_metrics (
   id uuid primary key default gen_random_uuid(),
@@ -877,6 +921,7 @@ values
   ('Skills/Calisthenics', 'skills-calisthenics', 70),
   ('Grip', 'grip', 80),
   ('Climbing', 'climbing', 90),
+  ('Mixed Training', 'mixed-training', 95),
   ('Bouldering', 'bouldering', 95),
   ('Conditioning', 'conditioning', 100),
   ('Power', 'power', 110),

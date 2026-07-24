@@ -113,6 +113,7 @@ import {
   listTrainingMethodsClient,
   type TrainingMethod,
 } from "@/lib/supabase-training-methods.browser";
+import type { LoadSemantics } from "@/lib/data-quality";
 import {
   DateInput,
   DeleteConfirmDialog,
@@ -131,6 +132,13 @@ const CLIMBING_WORKOUT_TYPE = "Climbing";
 const CLIMBING_WALL_EQUIPMENT_NAME = "Climbing wall";
 const CLASS_WORKOUT_TYPE = "Class";
 const MOBILITY_WORKOUT_TYPE = "Mobility/Flexibility";
+
+function coerceExerciseEquipment(exercise: unknown) {
+  if (!exercise || typeof exercise !== "object" || !("equipment" in exercise)) return "";
+  const equipment = (exercise as { equipment?: unknown }).equipment;
+  return typeof equipment === "string" ? equipment.toLowerCase() : "";
+}
+
 const CLIMBING_MOVEMENTS = ["Bouldering Session", "Ropes/Belay", "Kilter", "Mix"];
 const GRIP_STYLES = [
   "Open hand",
@@ -209,6 +217,7 @@ type FormState = {
   climbingBoulders: string;
   climbingMaxGrade: string;
   climbingGradient: string;
+  loadSemantics: LoadSemantics | "";
   distance: string;
   distanceUnit: string;
   rounds: string;
@@ -334,6 +343,7 @@ const blank = (defaultWorkoutType = ""): FormState => ({
   climbingBoulders: "",
   climbingMaxGrade: "",
   climbingGradient: "",
+  loadSemantics: "",
   distance: "",
   distanceUnit: "cm",
   rounds: "",
@@ -404,6 +414,7 @@ function isSessionFormState(form: unknown): form is SessionFormState {
 function normalizeSessionForm(form: SessionFormState): SessionFormState {
   const entries = form.entries.map((entry) => ({
     ...entry,
+    loadSemantics: entry.loadSemantics ?? "",
     clientId:
       typeof entry.clientId === "string" && entry.clientId
         ? entry.clientId
@@ -750,6 +761,7 @@ function entryFromRecentLog(log: RecentWorkoutLog): FormState {
       : "",
     climbingMaxGrade: log.climbingMaxGrade,
     climbingGradient: supportsClimbingGradient(log.exercise) ? log.climbingGradient : "",
+    loadSemantics: (log.loadSemantics ?? "") as LoadSemantics | "",
     setRows: setRowsFromRecentLog(log),
   };
 }
@@ -1304,6 +1316,7 @@ export function FullWorkoutForm() {
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const [discardDraftOpen, setDiscardDraftOpen] = useState(false);
   const [finishSummaryOpen, setFinishSummaryOpen] = useState(false);
+  const [uncategorizedConfirmed, setUncategorizedConfirmed] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [lastCompletedWorkout, setLastCompletedWorkout] = useState<StoredCompletedWorkout | null>(
     null,
@@ -1687,6 +1700,7 @@ export function FullWorkoutForm() {
                 : "",
         climbingTrackingMode: selectedProfile === "climbing" ? "Problems / routes" : "",
         climbingGradient: supportsClimbingGradient(name) ? currentEntry.climbingGradient : "",
+        loadSemantics: "",
         setRows: [blankSet()],
       };
 
@@ -2135,6 +2149,15 @@ export function FullWorkoutForm() {
       }),
     )
     .filter(Boolean);
+  const dumbbellSemanticsMissing = form.entries.some((entry) => {
+    const selected = libraryExercises.find(
+      (exercise) => exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
+    );
+    const isDumbbell = coerceExerciseEquipment(selected).includes("dumbbell");
+    return (
+      isDumbbell && entry.setRows.some((set) => Number(set.weight) > 0) && !entry.loadSemantics
+    );
+  });
   const canSubmit =
     form.date &&
     form.trainingLocationId &&
@@ -2147,6 +2170,7 @@ export function FullWorkoutForm() {
         ),
     ) &&
     !incompleteSetMethod &&
+    !dumbbellSemanticsMissing &&
     climbingIssues.length === 0 &&
     !mutate.isPending;
   const hasDraftContent = sessionHasDraftContent(form);
@@ -2154,6 +2178,7 @@ export function FullWorkoutForm() {
     ? new Date(draftSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : null;
   const workoutEntries = form.entries.filter((entry) => entry.exercise.trim());
+  const uncategorizedEntries = workoutEntries.filter((entry) => entry.workoutType === "Other");
   const unavailableWorkoutEntries = workoutEntries.filter(
     (entry) =>
       !libraryExercises.some(
@@ -2459,6 +2484,7 @@ export function FullWorkoutForm() {
           const selectedExercise = libraryExercises.find(
             (exercise) => exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
           );
+          const isDumbbell = coerceExerciseEquipment(selectedExercise).includes("dumbbell");
           const profile = getMovementMetricProfile({
             workoutType: selectedExercise?.workoutType ?? entry.workoutType,
             movement: entry.exercise,
@@ -2615,6 +2641,26 @@ export function FullWorkoutForm() {
                     }
                     onRemoveMethod={(setIndex) => updateSet(index, setIndex, "method", undefined)}
                   />
+                  {isDumbbell && entry.setRows.some((set) => Number(set.weight) > 0) ? (
+                    <Field label="Dumbbell weight means">
+                      <Select
+                        value={entry.loadSemantics || undefined}
+                        onValueChange={(value) =>
+                          updateEntry(index, "loadSemantics", value as LoadSemantics)
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose before saving" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="per_implement_load">Per dumbbell</SelectItem>
+                          <SelectItem value="combined_implement_load">
+                            Combined dumbbell weight
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  ) : null}
                   {profile === "reps" || profile === "hold" || profile === "grip" ? (
                     <div className="grid gap-3 rounded-lg border border-border bg-secondary/20 p-3 sm:grid-cols-3">
                       <Field label={profile === "grip" ? "Grip style" : "Progression"}>
@@ -2857,7 +2903,11 @@ export function FullWorkoutForm() {
 
       <Dialog
         open={finishSummaryOpen}
-        onOpenChange={(open) => !mutate.isPending && setFinishSummaryOpen(open)}
+        onOpenChange={(open) => {
+          if (mutate.isPending) return;
+          setFinishSummaryOpen(open);
+          if (!open) setUncategorizedConfirmed(false);
+        }}
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
@@ -2933,6 +2983,19 @@ export function FullWorkoutForm() {
             ))}
           </div>
 
+          {uncategorizedEntries.length ? (
+            <label className="flex items-start gap-2 rounded-lg border border-amber-400/30 bg-amber-400/[0.06] p-3 text-sm">
+              <Checkbox
+                checked={uncategorizedConfirmed}
+                onCheckedChange={(checked) => setUncategorizedConfirmed(checked === true)}
+              />
+              <span>
+                I confirm {uncategorizedEntries.map((entry) => entry.exercise).join(", ")} should
+                remain uncategorised.
+              </span>
+            </label>
+          ) : null}
+
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
               type="button"
@@ -2942,7 +3005,13 @@ export function FullWorkoutForm() {
             >
               Keep editing
             </Button>
-            <Button type="button" disabled={mutate.isPending} onClick={() => mutate.mutate()}>
+            <Button
+              type="button"
+              disabled={
+                mutate.isPending || (uncategorizedEntries.length > 0 && !uncategorizedConfirmed)
+              }
+              onClick={() => mutate.mutate()}
+            >
               {mutate.isPending ? (
                 <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
               ) : (

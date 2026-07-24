@@ -3,7 +3,7 @@ import { todayISO } from "./date";
 import { getCurrentPerson } from "./supabase-people.browser";
 import { getPRsClient } from "./supabase-log.browser";
 import { supabasePublicSelect } from "./supabase-public";
-import { comparableVolume, type VolumeStatus } from "./data-quality";
+import { comparableVolume, type LoadSemantics, type VolumeStatus } from "./data-quality";
 
 type ActivityTypeRef = { name: string | null } | null;
 
@@ -12,6 +12,8 @@ type ReviewSetRecord = {
   weight: number | string | null;
   duration_seconds: number | string | null;
   rpe: number | string | null;
+  load_semantics: LoadSemantics | null;
+  implement_count: number | string | null;
   volume_status: VolumeStatus | null;
   entry_set_segments: Array<{
     reps: number | string | null;
@@ -213,6 +215,8 @@ function entryVolume(entry: ReviewEntryRecord) {
             reps,
             weight,
             volumeStatus: set.volume_status ?? "unknown",
+            loadSemantics: set.load_semantics ?? "unknown",
+            implementCount: set.implement_count == null ? null : Number(set.implement_count),
           }) ?? 0)
         );
       }, 0)
@@ -568,7 +572,7 @@ export async function getWeeklyReviewClient(anchor?: string): Promise<WeeklyRevi
   const [sessionRows, planRows, prData] = await Promise.all([
     supabasePublicSelect<ReviewSessionRecord>("sessions", {
       select:
-        "id,session_date,title,completed,duration_minutes,rpe,activity_types(name),training_locations(name,kind),session_entries(name,entry_kind,completed,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(reps,weight,duration_seconds,rpe,volume_status,entry_set_segments(reps,weight)),entry_metrics(metric_key,metric_value,metric_text))",
+        "id,session_date,title,completed,duration_minutes,rpe,activity_types(name),training_locations(name,kind),session_entries(name,entry_kind,completed,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(reps,weight,duration_seconds,rpe,load_semantics,volume_status,implement_count,entry_set_segments(reps,weight)),entry_metrics(metric_key,metric_value,metric_text))",
       person_id: `eq.${person.id}`,
       completed: "eq.true",
       and: `(session_date.gte.${comparisonStart},session_date.lte.${reviewEnd})`,

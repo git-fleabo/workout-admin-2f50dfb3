@@ -269,11 +269,7 @@ export function OneRMForm() {
           variant="secondary"
           className="h-11 w-full font-medium"
         >
-          {bwMutate.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            "Save bodyweight"
-          )}
+          {bwMutate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save bodyweight"}
         </Button>
       </Card>
 
@@ -292,9 +288,7 @@ export function OneRMForm() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{r.bodyweight}kg</p>
-                    {r.notes && (
-                      <p className="truncate text-xs text-muted-foreground">{r.notes}</p>
-                    )}
+                    {r.notes && <p className="truncate text-xs text-muted-foreground">{r.notes}</p>}
                   </div>
                   <Button
                     type="button"
@@ -330,9 +324,7 @@ export function OneRMForm() {
         <h2 className="px-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Recent tests
         </h2>
-        {recent.isLoading && (
-          <Card className="p-4 text-sm text-muted-foreground">Loading…</Card>
-        )}
+        {recent.isLoading && <Card className="p-4 text-sm text-muted-foreground">Loading…</Card>}
         {!recent.isLoading && (recent.data?.recent.length ?? 0) === 0 && (
           <Card className="p-4 text-sm text-muted-foreground">No tests logged yet.</Card>
         )}
@@ -340,52 +332,52 @@ export function OneRMForm() {
           {recent.data?.recent.map((r) => {
             const deleting = deleteTestMutation.variables === r.id;
             return (
-            <Card key={r.id} className="flex items-start gap-3 border-border bg-card p-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs font-mono text-muted-foreground">
-                {formatUKDateShort(r.date)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate font-medium">{r.exercise}</p>
-                  {r.pr && (
-                    <Trophy className="h-3.5 w-3.5 shrink-0 text-primary" aria-label="PR" />
-                  )}
+              <Card key={r.id} className="flex items-start gap-3 border-border bg-card p-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs font-mono text-muted-foreground">
+                  {formatUKDateShort(r.date)}
                 </div>
-                <p className="truncate text-xs text-muted-foreground">
-                  {[
-                    r.externalWeight && `${r.externalWeight}kg`,
-                    r.reps && `${r.reps} reps`,
-                    r.rpe && `RPE ${r.rpe}`,
-                    r.estTotal && `≈ ${r.estTotal} 1RM`,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ") || r.source}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                disabled={deleting}
-                onClick={() => {
-                  setDeleteTarget({
-                    id: r.id,
-                    kind: "test",
-                    title: r.exercise,
-                    description: `${r.exercise} test from ${formatUKDate(r.date)} will be permanently removed from your tests.`,
-                  });
-                }}
-                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                aria-label={`Delete ${r.exercise} test`}
-                title="Delete"
-              >
-                {deleting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-              </Button>
-            </Card>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate font-medium">{r.exercise}</p>
+                    {r.pr && (
+                      <Trophy className="h-3.5 w-3.5 shrink-0 text-primary" aria-label="PR" />
+                    )}
+                  </div>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {[
+                      r.externalWeight && `${r.externalWeight}kg`,
+                      r.reps && `${r.reps} reps`,
+                      r.rpe && `RPE ${r.rpe}`,
+                      r.estTotal && `≈ ${r.estTotal} 1RM`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || r.source}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={deleting}
+                  onClick={() => {
+                    setDeleteTarget({
+                      id: r.id,
+                      kind: "test",
+                      title: r.exercise,
+                      description: `${r.exercise} test from ${formatUKDate(r.date)} will be permanently removed from your tests.`,
+                    });
+                  }}
+                  className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                  aria-label={`Delete ${r.exercise} test`}
+                  title="Delete"
+                >
+                  {deleting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </Button>
+              </Card>
             );
           })}
         </div>

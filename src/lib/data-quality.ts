@@ -62,15 +62,41 @@ export function comparableVolume({
   reps,
   weight,
   volumeStatus,
+  loadSemantics = "total_external_load",
+  implementCount,
 }: {
   reps: number | null;
   weight: number | null;
   volumeStatus: VolumeStatus;
+  loadSemantics?: LoadSemantics;
+  implementCount?: number | null;
 }) {
   if (volumeStatus !== "exact" || reps == null || reps <= 0 || weight == null || weight <= 0) {
     return null;
   }
+  if (loadSemantics === "per_implement_load") {
+    if (implementCount == null || implementCount <= 0) return null;
+    return reps * weight * implementCount;
+  }
   return reps * weight;
+}
+
+export function explicitLoadClassification(semantics: LoadSemantics): {
+  loadSemantics: LoadSemantics;
+  volumeStatus: VolumeStatus;
+  implementCount: number | null;
+} {
+  if (semantics === "per_implement_load") {
+    return { loadSemantics: semantics, volumeStatus: "exact", implementCount: 2 };
+  }
+  if (semantics === "combined_implement_load") {
+    return { loadSemantics: semantics, volumeStatus: "exact", implementCount: null };
+  }
+  return {
+    loadSemantics: semantics,
+    volumeStatus: semantics === "unknown" ? "ambiguous" : "exact",
+    implementCount: null,
+  };
 }
 
 export function progressRepValues(

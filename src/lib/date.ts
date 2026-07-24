@@ -8,14 +8,16 @@ function parseDateParts(dateStr: string): { day: number; month: number; year: nu
   // ISO YYYY-MM-DD (optionally with time)
   const iso = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) {
-    const year = +iso[1], month = +iso[2], day = +iso[3];
+    const year = +iso[1],
+      month = +iso[2],
+      day = +iso[3];
     const r = new Date(Date.UTC(year, month - 1, day));
     if (r.getUTCDate() !== day || r.getUTCMonth() !== month - 1) return null;
     return { day, month, year };
   }
 
   // DD/MM/YYYY or DD-MM-YYYY (UK)
-  const dmy = dateStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  const dmy = dateStr.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
   if (dmy) {
     let year = parseInt(dmy[3]);
     const month = parseInt(dmy[2]);
@@ -44,7 +46,7 @@ function parseDateParts(dateStr: string): { day: number; month: number; year: nu
   return null;
 }
 
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export function formatUKDate(dateStr: string): string {
   const d = parseDateParts(dateStr);

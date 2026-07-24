@@ -168,26 +168,26 @@ Important data files:
 - `docs/supabase-schema-design.md`: original design direction.
 - `docs/supabase-import-status.md`: import history, but some notes are stale because the app is now more migrated than this doc says.
 
-### Data quality audit (2026-07-23)
+### Data quality cleanup (completed 2026-07-24)
 
-- Live audit baseline: 106 completed sessions, 129 entries, 137 sets, 78 metrics, 19 entries without `exercise_id`, 16 set rows without a performance dose (8 strictly empty and 8 RPE-only), 27 aggregate-candidate rows above 12 reps, 234 active exercises, 217 enabled person exercises, and 24 linked exercises used in completed history.
-- All 129 completed entries have movement-level activity. Of 19 null-parent sessions, 9 are valid mixed sessions and 10 are single-activity parent-derivation candidates.
-- Eighteen orphan entries have high-confidence reviewed canonical targets. The single historical `Yoga` entry is ambiguous between `Yoga Flow` and `Yoga Class`.
-- Sixty-four one-row entries overload `set_number` as an aggregate count; 63 have a performance dose and one RPE-only Box Jumps row remains ambiguous. Do not create synthetic individual sets.
-- Current Progress/PR logic infers equal per-set reps from aggregate totals. The approved implementation must stop that, exclude aggregates from estimated 1RM, and apply an initial configurable 12-rep ceiling.
-- Native rows still carry sheet labels: 64 sessions and 87 entries. Remove application reliance before clearing those labels, while preserving imported provenance.
-- Strict grouping rules identify 9 high-confidence groups (29 current sessions) and 9 ambiguous groups (21 sessions). No grouping has been executed.
-- The next approved slice should be additive foundations plus a read-only Manage > Data Quality workspace. Historical mutation remains a separate approval-gated cleanup batch after backup/PITR confirmation.
+- The final pre-write baseline was 107 completed sessions, 132 entries, 146 sets, 19 unlinked entries, 64 one-row/multi-set candidates, and 20 completed parents without an activity.
+- The tracked cleanup merged the 9 reviewed high-confidence groups (29 parent sessions into 9), leaving 87 completed sessions and all 132 movement entries.
+- Exact aliases/canonical-name matches linked 18 historical entries. One `Yoga` entry remains intentionally unlinked because it could mean `Yoga Flow` or `Yoga Class`.
+- Sixty-three historical totals are explicitly `aggregate`; no per-set breakdown was invented. Aggregate/unknown rows are excluded from estimated 1RM and set-level PR logic, with a 12-rep ceiling.
+- All completed parents now have an activity. Single-activity sessions inherit it; mixed sessions use the explicit `Mixed Training` category. Linked movement/activity mismatches are zero.
+- Historic dumbbell and other uncertain loads remain `unknown`/`ambiguous`. New dumbbell logs require `Per dumbbell` or `Combined dumbbell weight`, and per-dumbbell volume records an implement count of two.
+- Nine ambiguous same-day session groups remain separate and are listed in `DATA_CLEANUP_REPORT.md`.
+- The cleanup created 708 private rollback snapshots and 274 public audit events. The rollback script was transactionally rehearsed.
 
 Implementation status:
 
-- Local migration `20260723181134_data_quality_foundations.sql` adds reviewed aliases, immutable audit batches/events, explicit aggregate/load semantics, movement-level activity validation, a personal quick-log shortlist, namespaced movement/tissue tags, and the `SECURITY INVOKER` atomic `save_workout` RPC.
-- The migration passed inside a rolled-back transaction against the live project. Its live apply is still pending because the connected Supabase tool hit its account usage limit on 2026-07-23; do not assume the new tables, columns, or RPC exist live yet.
+- Applied migration `20260724162356_data_quality_foundations.sql` adds reviewed aliases, immutable audit batches/events, explicit aggregate/load semantics, movement-level activity validation, a personal quick-log shortlist, namespaced movement/tissue tags, and the `SECURITY INVOKER` atomic `save_workout` RPC.
+- Applied migrations `20260724162406_complete_data_quality_cleanup.sql`, `20260724162504_resolve_remaining_exact_exercises.sql`, `20260724162643_index_data_quality_foreign_keys.sql`, and `20260724163006_retire_native_sheet_labels.sql` are aligned exactly with the live migration ledger.
 - Manage now links to a read-only `/data-quality` workspace. The Library exposes a personal Quick toggle, and the workout picker presents that shortlist separately.
 - Active workout saving is wired to the atomic RPC and writes native rows without `source_sheet` / `source_row`. Exercise and goal creation also stopped allocating spreadsheet rows.
 - Progress, Dashboard PRs, and volume calculations now exclude aggregate/unknown rows from invented set-level records and estimated 1RM, with a 12-rep ceiling.
 - The unused single-entry `WorkoutForm` and its legacy direct-save helpers were retired. `.env.example` no longer contains Google Sheets variables, and `docs/supabase-import-status.md` is explicitly historical.
-- Historical cleanup has not run. The approved automatic changes must remain separate until the foundation migration is live, a restore point is confirmed, and the exact cleanup migration is generated and verified.
+- Historical cleanup is live. `supabase/data_quality_rollback_20260724.sql` restores the private snapshot if an emergency reversal is ever approved.
 
 ## Current Supabase Row Counts
 

@@ -74,10 +74,11 @@ create index if not exists data_quality_audit_events_entity_idx
   on public.data_quality_audit_events (entity_table, entity_id);
 
 alter table public.entry_sets
-  add column if not exists data_shape text not null default 'individual',
+  add column if not exists data_shape text not null default 'unknown',
   add column if not exists aggregate_set_count integer,
   add column if not exists load_semantics text not null default 'unknown',
-  add column if not exists volume_status text not null default 'unknown';
+  add column if not exists volume_status text not null default 'unknown',
+  add column if not exists implement_count integer;
 
 do $$
 begin
@@ -134,8 +135,87 @@ begin
       add constraint entry_sets_volume_status_check
       check (volume_status in ('exact', 'ambiguous', 'not_applicable', 'unknown'));
   end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.entry_sets'::regclass
+      and conname = 'entry_sets_implement_count_check'
+  ) then
+    alter table public.entry_sets
+      add constraint entry_sets_implement_count_check
+      check (
+        (load_semantics = 'per_implement_load' and implement_count is not null and implement_count > 0)
+        or (load_semantics <> 'per_implement_load' and implement_count is null)
+      );
+  end if;
 end
 $$;
+
+insert into public.activity_types (name, slug, sort_order)
+values ('Mixed Training', 'mixed-training', 95)
+on conflict (slug) do update
+set name = excluded.name;
+
+create or replace function app_private.validate_exercise_activity_pair()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+declare
+  v_activity_type_id uuid;
+  v_is_active boolean;
+begin
+  if new.exercise_id is null then
+    return new;
+  end if;
+
+  select activity_type_id, is_active
+  into v_activity_type_id, v_is_active
+  from public.exercises
+  where id = new.exercise_id;
+
+  if not coalesce(v_is_active, false)
+    or v_activity_type_id is distinct from new.activity_type_id
+  then
+    raise exception 'A movement references an invalid exercise or activity pairing.'
+      using errcode = '23514';
+  end if;
+  return new;
+end
+$$;
+
+drop trigger if exists session_entries_validate_exercise_activity
+  on public.session_entries;
+create trigger session_entries_validate_exercise_activity
+before insert or update of exercise_id, activity_type_id
+on public.session_entries
+for each row execute function app_private.validate_exercise_activity_pair();
+
+create or replace function app_private.validate_reviewed_exercise_alias()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  if new.status = 'reviewed'
+    and not exists (
+      select 1 from public.exercises
+      where id = new.exercise_id and is_active
+    )
+  then
+    raise exception 'A reviewed alias must target an active exercise.'
+      using errcode = '23514';
+  end if;
+  return new;
+end
+$$;
+
+drop trigger if exists exercise_aliases_validate_reviewed_target
+  on public.exercise_aliases;
+create trigger exercise_aliases_validate_reviewed_target
+before insert or update of exercise_id, status
+on public.exercise_aliases
+for each row execute function app_private.validate_reviewed_exercise_alias();
 
 alter table public.person_exercises
   add column if not exists is_quick_log boolean not null default false,
@@ -314,6 +394,8 @@ declare
   v_client_id text;
   v_activity_type_id uuid;
   v_exercise_id uuid;
+  v_parent_activity_type_id uuid;
+  v_completed boolean := coalesce((p_session->>'completed')::boolean, true);
 begin
   if not app_private.person_is_accessible(p_person_id) then
     raise exception 'The requested training profile is not accessible.'
@@ -346,7 +428,7 @@ begin
     (p_session->>'session_date')::date,
     nullif(btrim(p_session->>'title'), ''),
     'manual',
-    coalesce((p_session->>'completed')::boolean, true),
+    false,
     nullif(p_session->>'duration_minutes', '')::numeric,
     nullif(p_session->>'intensity', ''),
     nullif(p_session->>'rpe', '')::numeric,
@@ -436,7 +518,8 @@ begin
         data_shape,
         aggregate_set_count,
         load_semantics,
-        volume_status
+        volume_status,
+        implement_count
       )
       values (
         v_entry_id,
@@ -456,7 +539,8 @@ begin
         coalesce(nullif(v_set->>'data_shape', ''), 'individual'),
         nullif(v_set->>'aggregate_set_count', '')::integer,
         coalesce(nullif(v_set->>'load_semantics', ''), 'unknown'),
-        coalesce(nullif(v_set->>'volume_status', ''), 'unknown')
+        coalesce(nullif(v_set->>'volume_status', ''), 'unknown'),
+        nullif(v_set->>'implement_count', '')::integer
       )
       returning id into v_set_id;
 
@@ -569,6 +653,23 @@ begin
       );
     end loop;
   end loop;
+
+  select
+    case
+      when count(distinct activity_type_id) = 1 then min(activity_type_id::text)::uuid
+      else (
+        select id from public.activity_types where slug = 'mixed-training'
+      )
+    end
+  into v_parent_activity_type_id
+  from public.session_entries
+  where session_id = v_session_id;
+
+  update public.sessions
+  set
+    activity_type_id = v_parent_activity_type_id,
+    completed = v_completed
+  where id = v_session_id;
 
   return v_session_id;
 end

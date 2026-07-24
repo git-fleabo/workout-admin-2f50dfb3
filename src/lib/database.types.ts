@@ -461,6 +461,7 @@ export type Database = {
           distance_unit: string | null;
           duration_seconds: number | null;
           id: string;
+          implement_count: number | null;
           load_semantics: string;
           notes: string | null;
           quality: string | null;
@@ -484,6 +485,7 @@ export type Database = {
           distance_unit?: string | null;
           duration_seconds?: number | null;
           id?: string;
+          implement_count?: number | null;
           load_semantics?: string;
           notes?: string | null;
           quality?: string | null;
@@ -507,6 +509,7 @@ export type Database = {
           distance_unit?: string | null;
           duration_seconds?: number | null;
           id?: string;
+          implement_count?: number | null;
           load_semantics?: string;
           notes?: string | null;
           quality?: string | null;
