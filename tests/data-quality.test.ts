@@ -223,6 +223,17 @@ test("cleanup migrations preserve rollback evidence and enforce data-quality con
     new URL("../supabase/aggregate_rep_split_rollback_20260724.sql", import.meta.url),
     "utf8",
   );
+  const manualCorrections = readFileSync(
+    new URL(
+      "../supabase/migrations/20260724173738_apply_manual_load_corrections.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const manualCorrectionsRollback = readFileSync(
+    new URL("../supabase/manual_load_corrections_rollback_20260724.sql", import.meta.url),
+    "utf8",
+  );
   assert.match(cleanup, /app_private\.data_quality_snapshots/i);
   assert.match(cleanup, /data_shape = 'aggregate'/i);
   assert.match(cleanup, /sessions_completed_activity_present/i);
@@ -235,4 +246,9 @@ test("cleanup migrations preserve rollback evidence and enforce data-quality con
   assert.match(repSplit, /workout-aggregate-rep-split-v1-2026-07-24/i);
   assert.match(repSplitRollback, /app_private\.data_quality_snapshots/i);
   assert.match(repSplitRollback, /status = 'reversed'/i);
+  assert.match(manualCorrections, /per_implement_load', 'exact', 2/i);
+  assert.match(manualCorrections, /'assistance', 'not_applicable', null/i);
+  assert.match(manualCorrections, /cross join generate_series\(2, 3\)/i);
+  assert.match(manualCorrectionsRollback, /app_private\.data_quality_snapshots/i);
+  assert.match(manualCorrectionsRollback, /status = 'reversed'/i);
 });
