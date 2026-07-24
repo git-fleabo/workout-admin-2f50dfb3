@@ -1,6 +1,6 @@
 # Workout App Context
 
-Last updated: 2026-07-23
+Last updated: 2026-07-24
 
 This file is the handoff document for the Training Tracker workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
 
@@ -34,7 +34,7 @@ Main repo to work in:
 
 Current branch:
 
-- `codex/data-quality-dry-run-audit`
+- `main`
 
 Git remote:
 
@@ -173,7 +173,7 @@ Important data files:
 - The final pre-write baseline was 107 completed sessions, 132 entries, 146 sets, 19 unlinked entries, 64 one-row/multi-set candidates, and 20 completed parents without an activity.
 - The tracked cleanup merged the 9 reviewed high-confidence groups (29 parent sessions into 9), leaving 87 completed sessions and all 132 movement entries.
 - Exact aliases/canonical-name matches linked 18 historical entries. One `Yoga` entry remains intentionally unlinked because it could mean `Yoga Flow` or `Yoga Class`.
-- Sixty-three historical totals are explicitly `aggregate`; no per-set breakdown was invented. Aggregate/unknown rows are excluded from estimated 1RM and set-level PR logic, with a 12-rep ceiling.
+- Forty-nine rep-only historical totals were later split into individual sets using the approved balanced non-increasing rule, preserving all 757 affected reps exactly. Fourteen aggregate rows remain: one `Front Lever` record with one total rep across three sets and duration-based records that cannot be divided safely.
 - All completed parents now have an activity. Single-activity sessions inherit it; mixed sessions use the explicit `Mixed Training` category. Linked movement/activity mismatches are zero.
 - Historic dumbbell and other uncertain loads remain `unknown`/`ambiguous`. New dumbbell logs require `Per dumbbell` or `Combined dumbbell weight`, and per-dumbbell volume records an implement count of two.
 - Nine ambiguous same-day session groups remain separate and are listed in `DATA_CLEANUP_REPORT.md`.
@@ -183,6 +183,7 @@ Implementation status:
 
 - Applied migration `20260724162356_data_quality_foundations.sql` adds reviewed aliases, immutable audit batches/events, explicit aggregate/load semantics, movement-level activity validation, a personal quick-log shortlist, namespaced movement/tissue tags, and the `SECURITY INVOKER` atomic `save_workout` RPC.
 - Applied migrations `20260724162406_complete_data_quality_cleanup.sql`, `20260724162504_resolve_remaining_exact_exercises.sql`, `20260724162643_index_data_quality_foreign_keys.sql`, and `20260724163006_retire_native_sheet_labels.sql` are aligned exactly with the live migration ledger.
+- Applied migrations `20260724172326_split_aggregate_rep_totals.sql` and `20260724172626_repair_aggregate_rep_split_snapshots.sql` materialise 49 rep-only totals as 142 individual sets, retain 49 complete private snapshots, and record 142 audit events. `supabase/aggregate_rep_split_rollback_20260724.sql` was transactionally rehearsed.
 - Manage now links to a read-only `/data-quality` workspace. The Library exposes a personal Quick toggle, and the workout picker presents that shortlist separately.
 - Active workout saving is wired to the atomic RPC and writes native rows without `source_sheet` / `source_row`. Exercise and goal creation also stopped allocating spreadsheet rows.
 - Progress, Dashboard PRs, and volume calculations now exclude aggregate/unknown rows from invented set-level records and estimated 1RM, with a 12-rep ceiling.

@@ -212,6 +212,17 @@ test("cleanup migrations preserve rollback evidence and enforce data-quality con
     new URL("../supabase/data_quality_rollback_20260724.sql", import.meta.url),
     "utf8",
   );
+  const repSplit = readFileSync(
+    new URL(
+      "../supabase/migrations/20260724172326_split_aggregate_rep_totals.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const repSplitRollback = readFileSync(
+    new URL("../supabase/aggregate_rep_split_rollback_20260724.sql", import.meta.url),
+    "utf8",
+  );
   assert.match(cleanup, /app_private\.data_quality_snapshots/i);
   assert.match(cleanup, /data_shape = 'aggregate'/i);
   assert.match(cleanup, /sessions_completed_activity_present/i);
@@ -219,4 +230,9 @@ test("cleanup migrations preserve rollback evidence and enforce data-quality con
   assert.match(cleanup, /entry_sets_nonnegative_values/i);
   assert.match(rollback, /jsonb_populate_record\(null::public\.sessions/i);
   assert.match(rollback, /status = 'reversed'/i);
+  assert.match(repSplit, /mod\(source\.reps, source\.aggregate_set_count\)/i);
+  assert.match(repSplit, /generate_series\(2, source\.aggregate_set_count\)/i);
+  assert.match(repSplit, /workout-aggregate-rep-split-v1-2026-07-24/i);
+  assert.match(repSplitRollback, /app_private\.data_quality_snapshots/i);
+  assert.match(repSplitRollback, /status = 'reversed'/i);
 });

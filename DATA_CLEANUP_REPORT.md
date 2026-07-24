@@ -21,9 +21,9 @@ The cleanup was first rehearsed in a transaction against the live schema and
 rolled back. The real cleanup then created an immutable private snapshot before
 changing history:
 
-- 708 rows in `app_private.data_quality_snapshots`
-- 274 rows in `public.data_quality_audit_events`
-- one applied `public.data_quality_batches` record
+- 757 rows in `app_private.data_quality_snapshots`
+- 416 rows in `public.data_quality_audit_events`
+- two applied `public.data_quality_batches` records
 
 The snapshot covers sessions, entries, sets, metrics, goals, 1RM tests, and the
 exercise catalogue. `supabase/data_quality_rollback_20260724.sql` restores the
@@ -37,11 +37,11 @@ transaction. The private snapshot table is not exposed to `anon` or
 | -------------------------------------------- | ------: | ----: |
 | Completed parent sessions                    |     107 |    87 |
 | Movement entries                             |     132 |   132 |
-| Set rows                                     |     146 |   146 |
+| Set rows                                     |     146 |   239 |
 | Completed parents missing activity           |      20 |     0 |
 | Completed entries missing canonical exercise |      19 |     1 |
 | Linked movement/activity mismatches          | present |     0 |
-| Historical aggregate rows explicitly marked  |       0 |    63 |
+| Historical aggregate rows remaining          |       0 |    14 |
 | Duplicate set numbers within an entry        |       0 |     0 |
 | Negative reps/load/duration/distance rows    |       0 |     0 |
 | Native sessions with stale sheet labels      |      65 |     0 |
@@ -73,11 +73,16 @@ repointing.
 
 ## Sets, volume, and estimated 1RM
 
-Sixty-three reviewed one-row/multi-set imports now carry
-`data_shape = 'aggregate'` plus their known aggregate set count. Total reps and
-load remain unchanged; no individual breakdown was invented. Aggregate and
-unknown shapes are excluded from set-level PR and estimated-1RM calculations.
-Estimated 1RM also rejects more than 12 reps and partial-range sets.
+Forty-nine reviewed rep-only aggregate imports were subsequently materialised
+as individual sets using the approved balanced, non-increasing rule. Remainder
+reps are placed in the earliest sets: for example, 20 total reps across three
+sets becomes 7/7/6. The migration preserved all 757 affected reps exactly and
+created 93 additional set rows. One `Front Lever` row with one total rep across
+three sets remains aggregate because splitting it would require zero-rep sets.
+The other remaining aggregate rows contain duration-based data. Aggregate and
+unknown shapes remain excluded from set-level PR and estimated-1RM
+calculations. Estimated 1RM also rejects more than 12 reps and partial-range
+sets.
 
 Volume requires exact load semantics. New dumbbell logs require the user to
 choose `Per dumbbell` or `Combined dumbbell weight`; per-dumbbell rows store an
@@ -109,15 +114,17 @@ excluded from comparable kg-volume.
 
 ### Historic load meaning
 
-Twenty-five positive-load set rows remain intentionally ambiguous across:
+Nineteen positive-load workout entries remain intentionally ambiguous. After
+materialising the historical rep totals, they occupy 44 individual set rows
+across:
 
 - ATG Squats (1)
-- Bulgarian Split Squat (6)
+- Bulgarian Split Squat (2)
 - Front Lever (2)
 - Kettlebell Swing (2)
 - Pull-Up (1)
 - Seated Dumbbell Shoulder Press (7)
-- Sled Push/Pull (4)
+- Sled Push/Pull (2)
 - Turkish Get-Up (2)
 
 The seven shoulder-press values and other dumbbell-capable rows were not
@@ -147,6 +154,8 @@ not strong enough for an automatic merge.
 - `20260724162504_resolve_remaining_exact_exercises.sql`
 - `20260724162643_index_data_quality_foreign_keys.sql`
 - `20260724163006_retire_native_sheet_labels.sql`
+- `20260724172326_split_aggregate_rep_totals.sql`
+- `20260724172626_repair_aggregate_rep_split_snapshots.sql`
 
 The local filenames match the live Supabase migration ledger.
 
@@ -162,6 +171,8 @@ The local filenames match the live Supabase migration ledger.
   it verified a two-movement mixed workout plus per-dumbbell semantics.
 - Full cleanup and rollback SQL rehearsals: passed inside rolled-back
   transactions.
+- Aggregate rep split: 49 entries, 757 reps before and after, zero invalid or
+  increasing sequences. Its dedicated rollback was also rehearsed.
 - Supabase security advisor: no new cleanup-table issue. Existing project
   notices remain for `person_app_profiles` having RLS without a policy and
   leaked-password protection being disabled.
