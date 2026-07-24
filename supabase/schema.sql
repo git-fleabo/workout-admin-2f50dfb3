@@ -1518,6 +1518,13 @@ create policy sessions_insert_managed
   to authenticated
   with check (app_private.person_is_accessible(person_id));
 
+create policy sessions_update_managed
+  on public.sessions
+  for update
+  to authenticated
+  using (app_private.person_is_accessible(person_id))
+  with check (app_private.person_is_accessible(person_id));
+
 create policy sessions_delete_managed
   on public.sessions
   for delete

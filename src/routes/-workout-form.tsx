@@ -25,7 +25,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -2001,7 +2000,7 @@ export function FullWorkoutForm() {
     duration: form.duration,
     intensity: form.intensity,
     rpe: form.rpe,
-    completed: form.completed,
+    completed: true,
     notes: form.notes,
     entries: form.entries.map((entry) => {
       const selected = libraryExercises.find(
@@ -2031,7 +2030,7 @@ export function FullWorkoutForm() {
         date: form.date,
         workoutType: selected?.workoutType ?? entry.workoutType,
         focusArea: "",
-        completed: form.completed,
+        completed: true,
         progressionLevel: isGrip ? entry.gripStyle : entry.progressionLevel,
         assistanceType: isGrip ? entry.gripLoadType : entry.assistanceType,
         entryKind:
@@ -2217,7 +2216,10 @@ export function FullWorkoutForm() {
 
   const editLastCompletedWorkout = () => {
     if (!lastCompletedWorkout) return;
-    setForm(lastCompletedWorkout.form);
+    setForm({
+      ...lastCompletedWorkout.form,
+      completed: true,
+    });
     setEditingSessionId(lastCompletedWorkout.sessionId);
     setLoadedSuggestionId(null);
     toast.message("Workout reopened", {
@@ -2871,9 +2873,11 @@ export function FullWorkoutForm() {
         </Card>
       ) : null}
 
-      <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/50 px-3 py-2">
-        <Label className="text-sm">Completed</Label>
-        <Switch checked={form.completed} onCheckedChange={(v) => update("completed", v)} />
+      <div className="rounded-lg border border-emerald-400/25 bg-emerald-400/[0.06] px-3 py-2">
+        <p className="text-sm font-medium text-emerald-200">Saves as completed</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Finished workouts appear in History and on the Dashboard.
+        </p>
       </div>
 
       <Button
