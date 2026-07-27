@@ -1,6 +1,6 @@
 # Workout App Context
 
-Last updated: 2026-07-24
+Last updated: 2026-07-27
 
 This file is the handoff document for the Training Tracker workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
 
@@ -186,7 +186,8 @@ Implementation status:
 - Applied migrations `20260724172326_split_aggregate_rep_totals.sql` and `20260724172626_repair_aggregate_rep_split_snapshots.sql` materialise 49 rep-only totals as 142 individual sets, retain 49 complete private snapshots, and record 142 audit events. `supabase/aggregate_rep_split_rollback_20260724.sql` was transactionally rehearsed.
 - Applied migration `20260724173738_apply_manual_load_corrections.sql` records Noam's reviewed meaning for all 19 previously ambiguous positive-load entries (44 set rows) and materialises Front Lever as 1/1/1. No ambiguous positive-load rows remain. It has 45 private snapshots, 47 audit events, and a rehearsed `supabase/manual_load_corrections_rollback_20260724.sql`.
 - Applied migration `20260724175412_repair_corrected_workout_completion.sql` adds the missing managed `sessions` update policy required by the atomic `save_workout` RPC and repairs the corrected 2026-07-24 workout whose movements and sets were complete but whose parent session lacked its Strength activity and had `completed = false`. The logger now always saves Review and finish as completed and no longer exposes a contradictory completion toggle, keeping Logging, History, and Dashboard consistent.
-- Manage now links to a read-only `/data-quality` workspace. The Library exposes a personal Quick toggle, and the workout picker presents that shortlist separately.
+- Applied migration `20260727164150_interactive_data_quality_repairs.sql` turns `/data-quality` into a guarded repair workspace. An authenticated approved admin can link an unlinked movement, enter missing duration/final RPE, classify load meaning, clear stale native spreadsheet labels, or remove a strictly empty set. Every action validates managed-person access, creates a private before-row snapshot, and records a public audit event atomically. Aggregate reconstruction, duplicate/alias changes, empty movement deletion, and same-day session merging remain review-only.
+- Manage links to the live `/data-quality` audit and repair workspace. The Library exposes a personal Quick toggle, and the workout picker presents that shortlist separately.
 - Active workout saving is wired to the atomic RPC and writes native rows without `source_sheet` / `source_row`. Exercise and goal creation also stopped allocating spreadsheet rows.
 - Progress, Dashboard PRs, and volume calculations now exclude aggregate/unknown rows from invented set-level records and estimated 1RM, with a 12-rep ceiling.
 - The unused single-entry `WorkoutForm` and its legacy direct-save helpers were retired. `.env.example` no longer contains Google Sheets variables, and `docs/supabase-import-status.md` is explicitly historical.
@@ -1118,8 +1119,11 @@ the workout movement picker. It does not bypass location/equipment availability,
 fields, or create a workout.
 
 Every Settings subsection now includes a consistent back link to the Settings hub. Data Quality runs
-its read-only live audit whenever the screen is opened, retains the last result while refreshing, and
-also has an explicit `Refresh audit` action. It does not run on a background interval or schedule.
+its live audit whenever the screen is opened, retains the last result while refreshing, and also has
+an explicit `Refresh audit` action. It does not run on a background interval or schedule. Rows with a
+narrow, validated repair show a Repair action; higher-risk categories remain review-only. Repairs
+are applied immediately through `public.apply_data_quality_fix`, with private rollback snapshots and
+public audit events saved in the same transaction.
 
 The library reads from Supabase. It supports:
 

@@ -252,3 +252,26 @@ test("cleanup migrations preserve rollback evidence and enforce data-quality con
   assert.match(manualCorrectionsRollback, /app_private\.data_quality_snapshots/i);
   assert.match(manualCorrectionsRollback, /status = 'reversed'/i);
 });
+
+test("interactive repairs are authenticated, narrowly whitelisted, and reversible", () => {
+  const repairs = readFileSync(
+    new URL(
+      "../supabase/migrations/20260727164150_interactive_data_quality_repairs.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(repairs, /security definer\s+set search_path = ''/i);
+  assert.match(repairs, /current_person_is_admin\(\)/i);
+  assert.match(repairs, /person_is_accessible\(v_target_person_id\)/i);
+  assert.match(repairs, /app_private\.data_quality_snapshots/i);
+  assert.match(repairs, /public\.data_quality_audit_events/i);
+  assert.match(repairs, /Kept a single-movement session activity aligned/i);
+  assert.match(repairs, /not exists \(\s*select 1\s*from public\.entry_set_segments/i);
+  assert.match(repairs, /create or replace function public\.apply_data_quality_fix/i);
+  assert.match(
+    repairs,
+    /revoke all on function public\.apply_data_quality_fix[\s\S]+from public, anon;/i,
+  );
+  assert.doesNotMatch(repairs, /\btruncate\b/i);
+});

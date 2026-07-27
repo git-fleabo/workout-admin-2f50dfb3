@@ -8,7 +8,7 @@ import {
   type VolumeStatus,
 } from "./data-quality";
 import { getCurrentPerson } from "./supabase-people.browser";
-import { supabasePublicSelect } from "./supabase-public";
+import { supabasePublicRpc, supabasePublicSelect } from "./supabase-public";
 
 type SetRecord = {
   id: string;
@@ -19,10 +19,18 @@ type SetRecord = {
   distance: number | string | null;
   distance_unit: string | null;
   rpe: number | string | null;
+  rest_seconds: number | string | null;
+  rest_time: string | null;
+  assistance_type: string | null;
+  assistance_detail: string | null;
+  quality: string | null;
+  notes: string | null;
   data_shape: DataShape | null;
   aggregate_set_count: number | string | null;
   load_semantics: LoadSemantics | null;
   volume_status: VolumeStatus | null;
+  implement_count: number | string | null;
+  entry_set_segments: Array<{ id: string }> | null;
 };
 
 type EntryRecord = {
@@ -77,7 +85,28 @@ export type DataQualityRow = {
   title: string;
   detail: string;
   confidence?: "high" | "ambiguous" | "manual";
+  fix?: DataQualityFix;
 };
+
+export type DataQualityFix =
+  | { action: "link_exercise"; entityId: string }
+  | {
+      action: "update_session_metadata";
+      entityId: string;
+      durationMinutes: number | null;
+      rpe: number | null;
+    }
+  | {
+      action: "classify_load";
+      entityId: string;
+      weight: number;
+      loadSemantics: LoadSemantics | null;
+      implementCount: number | null;
+      equipment: string | null;
+    }
+  | { action: "clear_session_provenance"; entityId: string }
+  | { action: "clear_entry_provenance"; entityId: string }
+  | { action: "delete_empty_set"; entityId: string };
 
 export type DataQualityCategory = {
   key:
@@ -106,6 +135,18 @@ function setHasDose(set: SetRecord) {
   );
 }
 
+function setIsStrictlyEmpty(set: SetRecord) {
+  return (
+    !setHasDose(set) &&
+    numberOrNull(set.rpe) == null &&
+    numberOrNull(set.rest_seconds) == null &&
+    [set.rest_time, set.assistance_type, set.assistance_detail, set.quality, set.notes].every(
+      (value) => !value?.trim(),
+    ) &&
+    !(set.entry_set_segments?.length ?? 0)
+  );
+}
+
 function displayNumber(value: unknown) {
   const number = numberOrNull(value);
   return number == null ? "—" : Number.isInteger(number) ? String(number) : number.toFixed(1);
@@ -124,7 +165,7 @@ export async function getDataQualityAuditClient() {
   const [sessions, exercises, aliases] = await Promise.all([
     supabasePublicSelect<SessionRecord>("sessions", {
       select:
-        "id,person_id,session_date,title,source,source_sheet,source_row,created_at,training_location_id,duration_minutes,rpe,activity_type_id,session_entries(id,exercise_id,activity_type_id,name,source_sheet,source_row,activity_types(name),exercises(name,equipment),entry_sets(id,set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,data_shape,aggregate_set_count,load_semantics,volume_status),entry_metrics(id))",
+        "id,person_id,session_date,title,source,source_sheet,source_row,created_at,training_location_id,duration_minutes,rpe,activity_type_id,session_entries(id,exercise_id,activity_type_id,name,source_sheet,source_row,activity_types(name),exercises(name,equipment),entry_sets(id,set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,rest_seconds,rest_time,assistance_type,assistance_detail,quality,notes,data_shape,aggregate_set_count,load_semantics,volume_status,implement_count,entry_set_segments(id)),entry_metrics(id))",
       person_id: `eq.${person.id}`,
       completed: "eq.true",
       order: "session_date.desc,created_at.desc",
@@ -162,6 +203,7 @@ export async function getDataQualityAuditClient() {
           ? `Reviewed alias → ${alias.exercises?.name ?? alias.exercise_id}`
           : "No reviewed exact alias. Manual decision required.",
         confidence: alias ? ("high" as const) : ("manual" as const),
+        fix: { action: "link_exercise" as const, entityId: entry.id },
       };
     });
 
@@ -197,6 +239,9 @@ export async function getDataQualityAuditClient() {
             ? "Strictly empty set row"
             : `RPE-only row · RPE ${set.rpe}`,
         confidence: "ambiguous" as const,
+        fix: setIsStrictlyEmpty(set)
+          ? ({ action: "delete_empty_set" as const, entityId: set.id } satisfies DataQualityFix)
+          : undefined,
       })),
   );
   const emptyEntries = entryRows
@@ -226,6 +271,12 @@ export async function getDataQualityAuditClient() {
         .join(" and ")
         .concat(" missing"),
       confidence: "manual" as const,
+      fix: {
+        action: "update_session_metadata" as const,
+        entityId: session.id,
+        durationMinutes: numberOrNull(session.duration_minutes),
+        rpe: numberOrNull(session.rpe),
+      },
     }));
 
   const weight = entryRows.flatMap(({ session, entry }) =>
@@ -243,27 +294,43 @@ export async function getDataQualityAuditClient() {
         title: entry.name,
         detail: `${displayNumber(set.weight)} kg · ${set.load_semantics ?? "unknown semantics"} · ${entry.exercises?.equipment ?? "uncatalogued equipment"}`,
         confidence: "ambiguous" as const,
+        fix: {
+          action: "classify_load" as const,
+          entityId: set.id,
+          weight: numberOrNull(set.weight)!,
+          loadSemantics: set.load_semantics,
+          implementCount: numberOrNull(set.implement_count),
+          equipment: entry.exercises?.equipment ?? null,
+        },
       })),
   );
 
   const provenance = [
     ...sessions
-      .filter((session) => session.source === "manual" && session.source_sheet)
+      .filter(
+        (session) =>
+          session.source === "manual" && (session.source_sheet || session.source_row != null),
+      )
       .map((session) => ({
         id: session.id,
         date: session.session_date,
         title: session.title?.trim() || "Workout",
-        detail: `Native session carries ${session.source_sheet}`,
+        detail: `Native session carries ${session.source_sheet ?? `source row ${session.source_row}`}`,
         confidence: "high" as const,
+        fix: { action: "clear_session_provenance" as const, entityId: session.id },
       })),
     ...entryRows
-      .filter(({ session, entry }) => session.source === "manual" && entry.source_sheet)
+      .filter(
+        ({ session, entry }) =>
+          session.source === "manual" && (entry.source_sheet || entry.source_row != null),
+      )
       .map(({ session, entry }) => ({
         id: entry.id,
         date: session.session_date,
         title: entry.name,
-        detail: `Native movement carries ${entry.source_sheet}`,
+        detail: `Native movement carries ${entry.source_sheet ?? `source row ${entry.source_row}`}`,
         confidence: "high" as const,
+        fix: { action: "clear_entry_provenance" as const, entityId: entry.id },
       })),
   ];
 
@@ -372,6 +439,29 @@ export async function getDataQualityAuditClient() {
   return {
     capturedAt: new Date().toISOString(),
     sessionCount: sessions.length,
+    exerciseOptions: exercises.map(({ id, name, activity_type_id }) => ({
+      id,
+      name,
+      activityTypeId: activity_type_id,
+    })),
     categories,
   };
+}
+
+export function applyDataQualityFixClient(
+  action: DataQualityFix["action"],
+  entityId: string,
+  payload: Record<string, unknown> = {},
+) {
+  return supabasePublicRpc<{
+    ok: true;
+    batch_id: string;
+    action: DataQualityFix["action"];
+    entity_table: string;
+    entity_id: string;
+  }>("apply_data_quality_fix", {
+    p_action: action,
+    p_entity_id: entityId,
+    p_payload: payload,
+  });
 }
