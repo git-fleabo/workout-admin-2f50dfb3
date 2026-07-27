@@ -56,6 +56,7 @@ import {
   type TrainingLocationFields,
   type TrainingLocationKind,
 } from "@/lib/supabase-training-locations.browser";
+import { SettingsBackLink } from "@/components/settings-back-link";
 
 export const Route = createFileRoute("/locations")({
   head: () => ({
@@ -157,7 +158,10 @@ function TrainingLocationsPage() {
   const [equipmentLocation, setEquipmentLocation] = useState<ManagedTrainingLocation | null>(null);
   const [equipmentSearch, setEquipmentSearch] = useState("");
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["training-locations"] });
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["training-locations"] });
+    queryClient.invalidateQueries({ queryKey: ["library"] });
+  };
 
   const addMutation = useMutation({
     mutationFn: addTrainingLocationClient,
@@ -253,6 +257,7 @@ function TrainingLocationsPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
+      <SettingsBackLink />
       <header className="flex flex-col gap-4 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-emerald-300">

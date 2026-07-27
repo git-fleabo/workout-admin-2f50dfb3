@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { AlertTriangle, ArrowLeft, CheckCircle2, DatabaseZap, Loader2 } from "lucide-react";
+import { createFileRoute } from "@tanstack/react-router";
+import { AlertTriangle, CheckCircle2, DatabaseZap, Loader2, RefreshCw } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { SettingsBackLink } from "@/components/settings-back-link";
 import {
   getDataQualityAuditClient,
   type DataQualityRow,
@@ -46,6 +47,7 @@ function DataQualityPage() {
     queryKey: ["data-quality-audit"],
     queryFn: getDataQualityAuditClient,
     staleTime: 60_000,
+    refetchOnMount: "always",
   });
 
   if (audit.isLoading) {
@@ -80,11 +82,7 @@ function DataQualityPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <header className="space-y-4 border-b border-border pb-5">
-        <Button asChild variant="ghost" size="sm" className="-ml-3">
-          <Link to="/manage">
-            <ArrowLeft className="mr-1 h-4 w-4" /> Manage
-          </Link>
-        </Button>
+        <SettingsBackLink />
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-cyan-300">
@@ -96,9 +94,21 @@ function DataQualityPage() {
               Nothing on this screen changes workout data.
             </p>
           </div>
-          <Badge variant="outline" className="border-cyan-400/25 bg-cyan-400/10 text-cyan-200">
-            Read only
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => audit.refetch()}
+              disabled={audit.isFetching}
+            >
+              <RefreshCw className={`mr-1 h-4 w-4 ${audit.isFetching ? "animate-spin" : ""}`} />
+              {audit.isFetching ? "Refreshing…" : "Refresh audit"}
+            </Button>
+            <Badge variant="outline" className="border-cyan-400/25 bg-cyan-400/10 text-cyan-200">
+              Read only
+            </Badge>
+          </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           <Card className="p-4">
@@ -116,7 +126,9 @@ function DataQualityPage() {
                 minute: "2-digit",
               })}
             </div>
-            <div className="text-xs text-muted-foreground">Latest audit refresh</div>
+            <div className="text-xs text-muted-foreground">
+              Last live refresh · runs on open, not on a schedule
+            </div>
           </Card>
         </div>
       </header>

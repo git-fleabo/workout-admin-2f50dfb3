@@ -88,6 +88,7 @@ import { getExerciseHistoryClient } from "@/lib/supabase-history.browser";
 import { getLibraryClient } from "@/lib/supabase-log.browser";
 import type { GoalMetric, GoalRow, GoalStatus, GoalType, LibraryRow } from "@/lib/training-types";
 import { cn } from "@/lib/utils";
+import { SettingsBackLink } from "@/components/settings-back-link";
 
 export const Route = createFileRoute("/goals")({
   head: () => ({
@@ -351,6 +352,7 @@ function GoalsPage() {
 
   return (
     <div className="space-y-5">
+      <SettingsBackLink />
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Goals</h2>

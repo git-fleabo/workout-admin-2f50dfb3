@@ -57,6 +57,7 @@ import {
   type TrainingMethodFamily,
   type TrainingMethodFields,
 } from "@/lib/supabase-training-methods.browser";
+import { SettingsBackLink } from "@/components/settings-back-link";
 
 export const Route = createFileRoute("/methods")({
   head: () => ({
@@ -248,6 +249,7 @@ function MethodsPage() {
 
   return (
     <div className="space-y-5">
+      <SettingsBackLink />
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold">

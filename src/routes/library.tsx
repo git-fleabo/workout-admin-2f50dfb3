@@ -78,6 +78,7 @@ import {
   type LibraryEquipmentItem,
 } from "@/lib/supabase-library.browser";
 import { ExerciseDetail } from "@/components/exercise-detail";
+import { SettingsBackLink } from "@/components/settings-back-link";
 import {
   CIRCUIT_DIFFICULTY_OPTIONS,
   CIRCUIT_DOSE_MODE_OPTIONS,
@@ -458,6 +459,7 @@ function LibraryPage() {
 
   return (
     <div className="space-y-5">
+      <SettingsBackLink />
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-1 min-w-[200px] flex-col gap-1">
           <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -570,6 +572,10 @@ function LibraryPage() {
           <Plus className="mr-1 h-4 w-4" /> Add movement
         </Button>
       </div>
+
+      <p className="-mt-2 text-xs text-muted-foreground">
+        Quick log pins a movement to the top of the movement picker when logging a workout.
+      </p>
 
       {filtersActive && (
         <p className="-mt-2 text-xs text-muted-foreground">
@@ -732,7 +738,7 @@ function LibraryPage() {
                       )}
                       {ex.active && (
                         <div className="flex items-center gap-2 rounded-md border border-border px-2 py-1">
-                          <span className="text-xs text-muted-foreground">Quick</span>
+                          <span className="text-xs text-muted-foreground">Quick log</span>
                           <Switch
                             checked={ex.quickLog}
                             onCheckedChange={(quickLog) =>

@@ -1356,6 +1356,10 @@ export function FullWorkoutForm() {
         : workoutLibraryExercises,
     [form.trainingLocationId, selectedLocationKind, workoutLibraryExercises],
   );
+  const availableExerciseNames = useMemo(
+    () => new Set(libraryExercises.map((exercise) => exercise.name.toLowerCase())),
+    [libraryExercises],
+  );
   const recentExerciseNames = useMemo(() => {
     const completed = recentWorkoutLogs.filter((item) => item.completed && item.exercise);
     const locationMatches = selectedLocationKind
@@ -2557,7 +2561,9 @@ export function FullWorkoutForm() {
                 <div className="flex gap-2">
                   <MovementPicker
                     value={entry.exercise}
-                    exercises={libraryExercises}
+                    exercises={workoutLibraryExercises}
+                    availableExerciseNames={availableExerciseNames}
+                    selectedLocationName={selectedLocation?.name}
                     favoriteNames={favoriteExercises}
                     recentNames={recentExerciseNames}
                     onChange={(name) => selectEntryExercise(index, name)}
@@ -3478,32 +3484,49 @@ function MethodBlockDialog({
 function MovementPicker({
   value,
   exercises,
+  availableExerciseNames,
+  selectedLocationName,
   favoriteNames,
   recentNames,
   onChange,
 }: {
   value: string;
   exercises: { name: string; workoutType: string; equipment?: string; quickLog?: boolean }[];
+  availableExerciseNames: Set<string>;
+  selectedLocationName?: string;
   favoriteNames: string[];
   recentNames: string[];
   onChange: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const favoriteSet = new Set(favoriteNames.map((name) => name.toLowerCase()));
   const recentSet = new Set(recentNames.map((name) => name.toLowerCase()));
-  const quickExercises = exercises.filter((exercise) => exercise.quickLog);
+  const normalizedQuery = query.trim().toLowerCase();
+  const nameMatches = (exercise: (typeof exercises)[number]) =>
+    !normalizedQuery || exercise.name.toLowerCase().includes(normalizedQuery);
+  const availableExercises = exercises.filter(
+    (exercise) => availableExerciseNames.has(exercise.name.toLowerCase()) && nameMatches(exercise),
+  );
+  const unavailableExercises = normalizedQuery
+    ? exercises.filter(
+        (exercise) =>
+          !availableExerciseNames.has(exercise.name.toLowerCase()) && nameMatches(exercise),
+      )
+    : [];
+  const quickExercises = availableExercises.filter((exercise) => exercise.quickLog);
   const quickSet = new Set(quickExercises.map((exercise) => exercise.name.toLowerCase()));
-  const favoriteExercises = exercises.filter(
+  const favoriteExercises = availableExercises.filter(
     (exercise) =>
       favoriteSet.has(exercise.name.toLowerCase()) && !quickSet.has(exercise.name.toLowerCase()),
   );
-  const recentExercises = exercises.filter(
+  const recentExercises = availableExercises.filter(
     (exercise) =>
       recentSet.has(exercise.name.toLowerCase()) &&
       !favoriteSet.has(exercise.name.toLowerCase()) &&
       !quickSet.has(exercise.name.toLowerCase()),
   );
-  const otherExercises = exercises.filter(
+  const otherExercises = availableExercises.filter(
     (exercise) =>
       !favoriteSet.has(exercise.name.toLowerCase()) &&
       !recentSet.has(exercise.name.toLowerCase()) &&
@@ -3514,10 +3537,23 @@ function MovementPicker({
     { label: "Favourites", exercises: favoriteExercises },
     { label: "Recent", exercises: recentExercises },
     { label: "All movements", exercises: otherExercises },
+    {
+      label: selectedLocationName
+        ? `Not available at ${selectedLocationName}`
+        : "Not available at this location",
+      exercises: unavailableExercises,
+      unavailable: true,
+    },
   ].filter((group) => group.exercises.length > 0);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setQuery("");
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -3533,16 +3569,21 @@ function MovementPicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[min(92vw,420px)] p-0">
-        <Command>
-          <CommandInput placeholder="Search by movement or type..." />
+        <Command shouldFilter={false}>
+          <CommandInput
+            value={query}
+            onValueChange={setQuery}
+            placeholder="Search movement name..."
+          />
           <CommandList>
-            <CommandEmpty>No movement found.</CommandEmpty>
+            <CommandEmpty>No movement name matches.</CommandEmpty>
             {groups.map((group) => (
               <CommandGroup key={group.label} heading={group.label}>
                 {group.exercises.map((exercise) => (
                   <CommandItem
                     key={exercise.name}
-                    value={`${exercise.name} ${exercise.workoutType} ${exercise.equipment ?? ""}`}
+                    value={exercise.name}
+                    disabled={group.unavailable}
                     onSelect={() => {
                       onChange(exercise.name);
                       setOpen(false);
@@ -3551,7 +3592,7 @@ function MovementPicker({
                     <Check className={value === exercise.name ? "opacity-100" : "opacity-0"} />
                     <span className="min-w-0 flex-1 truncate">{exercise.name}</span>
                     <span className="shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {exercise.workoutType}
+                      {group.unavailable ? "Equipment not assigned" : exercise.workoutType}
                     </span>
                   </CommandItem>
                 ))}

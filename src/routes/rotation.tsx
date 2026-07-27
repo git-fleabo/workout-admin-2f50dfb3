@@ -54,6 +54,7 @@ import {
   type DailyRotationItem,
   type DailyRotationItemFields,
 } from "@/lib/supabase-daily-rotation.browser";
+import { SettingsBackLink } from "@/components/settings-back-link";
 
 export const Route = createFileRoute("/rotation")({
   head: () => ({
@@ -174,6 +175,7 @@ function DailyRotationPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
+      <SettingsBackLink />
       <header className="flex flex-col gap-4 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-violet-300">

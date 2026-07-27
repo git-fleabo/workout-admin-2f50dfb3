@@ -57,6 +57,7 @@ import {
   type ProgrammeTemplateEntry,
   type ProgrammeTemplateWorkout,
 } from "@/lib/supabase-programmes.browser";
+import { SettingsBackLink } from "@/components/settings-back-link";
 
 export const Route = createFileRoute("/programmes")({
   head: () => ({
@@ -189,6 +190,7 @@ function ProgrammeTemplatesPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
+      <SettingsBackLink />
       <header className="border-b border-border pb-5">
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-fuchsia-300">
           <Layers3 className="h-4 w-4" /> Training setup

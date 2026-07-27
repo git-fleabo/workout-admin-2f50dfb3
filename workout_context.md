@@ -1039,11 +1039,26 @@ Meaningful workout edits are autosaved immediately to a versioned local browser 
 
 For standard set/reps movements, the unified logger records one `entry_sets` row per real set with its own weight, reps, and RPE. Selecting a movement now starts with a clean set and shows the most recent matching workout immediately above the editor, preferring history from the selected Home/Gym context when available. `Copy previous workout` copies that full set pattern, `Repeat last set` adds the current load/reps with blank RPE, and `Add blank set` adds an empty row. Weight and reps use larger mobile touch targets, while optional movement notes are collapsed. Legacy single-row aggregate entries remain readable and analytics distinguish them from newer multi-row set data.
 
-Movement selection is grouped into account-scoped local favourites, recent movements for the chosen Home/Gym context, and the remaining filtered library. The star beside a selected movement toggles its favourite status. Movement cards can be moved up or down and the reordered entry array is preserved by draft autosave. `Repeat a recent workout` groups existing recent entries by session, prefers the chosen location, and loads the full movement order and targets into today's draft; replacing a meaningful draft requires confirmation. These features reuse existing Supabase history and do not add schema or RLS changes.
+Movement selection is grouped into account-scoped Quick log pins, local favourites, recent movements
+for the chosen Home/Gym context, and the remaining filtered library. Logger search matches movement
+names only; type, equipment, and notes do not influence results. When a name search matches an enabled
+movement whose required equipment is not assigned to the selected location, the picker shows it in a
+disabled `Not available at …` group rather than silently hiding it. The star beside a selected
+movement toggles its favourite status. Movement cards can be moved up or down and the reordered entry
+array is preserved by draft autosave. `Repeat a recent workout` groups existing recent entries by
+session, prefers the chosen location, and loads the full movement order and targets into today's
+draft; replacing a meaningful draft requires confirmation. These features reuse existing Supabase
+history and do not add schema or RLS changes.
 
 Finishing a workout is now a two-step action. `Review and finish` opens a summary of location, movement count, recorded sets, and each movement's work before the final Supabase write. A successfully completed workout stores an account-scoped local same-day pointer plus its form snapshot, so the Log screen can show `Today's workout is saved` after navigation or refresh and reopen it for correction. Corrections create the replacement session first, remove the original only after the replacement succeeds, and relink any completed suggested workout; if replacement or original deletion fails, the original remains intact. Correction state is also included in draft autosave so a refresh cannot accidentally turn an edit into a duplicate new session.
 
 Training-location selection is saved on `sessions.training_location_id` and remembered locally for the next workout entry. History details show the saved location. The workout movement picker filters enabled exercises by both the selected person's `person_exercises.location_scope` and whether every structured equipment requirement is assigned to the exact selected location. Recent-workout templates are filtered through the same availability contract.
+
+The live `Half-Kneeling Landmine Press` row added on 2026-07-27 is active and enabled for Noam with
+Gym scope. It was initially unavailable because its required `Landmine` item was not assigned to any
+active location; Landmine was assigned to The Font at 09:01 UTC and the live recheck then confirmed
+the movement was eligible there. Training-location and equipment mutations invalidate both location
+and Library queries so the logger reflects availability changes immediately on return.
 
 ### Today
 
@@ -1097,6 +1112,14 @@ Recent workout summaries should show logged weight with `kg` so a bare number is
 Dashboard same-week workout detail should display entered set count from `entry_sets.set_number`, not the number of aggregate `entry_sets` rows.
 
 ### Library
+
+The per-movement `Quick log` switch pins an enabled movement to the first `Quick logging` group in
+the workout movement picker. It does not bypass location/equipment availability, change logging
+fields, or create a workout.
+
+Every Settings subsection now includes a consistent back link to the Settings hub. Data Quality runs
+its read-only live audit whenever the screen is opened, retains the last result while refreshing, and
+also has an explicit `Refresh audit` action. It does not run on a background interval or schedule.
 
 The library reads from Supabase. It supports:
 

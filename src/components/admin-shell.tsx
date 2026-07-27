@@ -69,6 +69,7 @@ const SETTINGS_PATHS = [
   "/goals",
   "/locations",
   "/programmes",
+  "/data-quality",
 ];
 
 function pathMatches(pathname: string, item: Pick<NavItem, "to" | "relatedPaths">) {
