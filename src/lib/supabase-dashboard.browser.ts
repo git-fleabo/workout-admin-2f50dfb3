@@ -276,7 +276,10 @@ function entryDetails(entry: SessionEntryRecord, session: SessionRecord, profile
     Number.isFinite(toNum(session.duration_minutes))
       ? toNum(session.duration_minutes)
       : null);
-  const rpe = bestRpe ?? (Number.isFinite(toNum(session.rpe)) ? toNum(session.rpe) : null);
+  const rpe =
+    metricNumber(metrics, "rpe") ??
+    bestRpe ??
+    (Number.isFinite(toNum(session.rpe)) ? toNum(session.rpe) : null);
   const assistance = [sets[0]?.assistance_type, sets[0]?.assistance_detail]
     .filter((value) => value && value.toLowerCase() !== "none")
     .join(" · ");

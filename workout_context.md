@@ -160,6 +160,7 @@ Important data files:
 - `supabase/migrations/20260722222504_add_training_location_equipment.sql`: person-owned equipment catalogue, per-location assignments, RLS, grants, and a 31-item starter catalogue.
 - `supabase/migrations/20260723064459_link_exercises_to_equipment.sql`: structured many-to-many exercise equipment requirements, managed-person RLS/grants, conservative legacy backfill, and eight missing catalogue items.
 - `supabase/migrations/20260723123014_add_kettlebell_dumbbell_exercises.sql`: idempotent 15-kettlebell / 15-dumbbell catalogue expansion, active-person enablement, exact equipment links, and Barbell-only Deadlift cleanup.
+- `supabase/migrations/20260727220740_normalize_yoga_climbing_activity_rows.sql`: applied guarded repair that preserves Yoga/Climbing RPE as an activity metric before removing a redundant no-dose set.
 - `supabase/migrations/20260714150600_add_daily_rotation.sql`: configurable daily-practice pool, persisted per-date assignments, completion state, RLS, grants, and indexes.
 - `supabase/migrations/20260716072606_add_structured_goals.sql`: applied additive structured-goal fields for goal type, linked exercise, canonical measurement, numeric target/unit, starting value, and deadline.
 - `supabase/approved_logging_library_updates.sql`: idempotent data update script for approved library/logging changes.
@@ -187,6 +188,9 @@ Implementation status:
 - Applied migration `20260724173738_apply_manual_load_corrections.sql` records Noam's reviewed meaning for all 19 previously ambiguous positive-load entries (44 set rows) and materialises Front Lever as 1/1/1. No ambiguous positive-load rows remain. It has 45 private snapshots, 47 audit events, and a rehearsed `supabase/manual_load_corrections_rollback_20260724.sql`.
 - Applied migration `20260724175412_repair_corrected_workout_completion.sql` adds the missing managed `sessions` update policy required by the atomic `save_workout` RPC and repairs the corrected 2026-07-24 workout whose movements and sets were complete but whose parent session lacked its Strength activity and had `completed = false`. The logger now always saves Review and finish as completed and no longer exposes a contradictory completion toggle, keeping Logging, History, and Dashboard consistent.
 - Applied migration `20260727164150_interactive_data_quality_repairs.sql` turns `/data-quality` into a guarded repair workspace. An authenticated approved admin can link an unlinked movement, enter missing duration/final RPE, classify load meaning, clear stale native spreadsheet labels, or remove a strictly empty set. Every action validates managed-person access, creates a private before-row snapshot, and records a public audit event atomically. Aggregate reconstruction, duplicate/alias changes, empty movement deletion, and same-day session merging remain review-only.
+- Yoga and Climbing now have an explicit setless activity contract in the logger: duration and RPE are stored as entry metrics, a single-activity log also mirrors them onto its parent session, and the shared saver no longer manufactures an RPE-only fallback set. Dashboard, History, Timeline, Weekly Review, and recent-log reconstruction read the activity RPE metric.
+- Applied migration `20260727220740_normalize_yoga_climbing_activity_rows.sql` adds a guarded audited repair for existing redundant Yoga/Climbing sets. A live read-only audit on 2026-07-27 found five Climbing and two Yoga sets that satisfy the repair preconditions. One Climbing and two Yoga entries with no child data lack complete session-level time/RPE and correctly remain review issues. The function/grant audit confirmed authenticated-only wrapper access, anonymous denial, and an empty definer search path; no workout rows were changed while applying it. Post-migration advisors reported no new migration-specific issue; the existing `person_app_profiles` no-policy notice, leaked-password-protection notice, and unused-index information remain unrelated.
+- `supabase db push --linked --dry-run` could not validate the local migration set because the linked ledger contains older versions absent from this checkout. The new migration was instead applied and verified through the linked Supabase migration API; do not repair the older migration-history drift without resolving it deliberately.
 - Manage links to the live `/data-quality` audit and repair workspace. The Library exposes a personal Quick toggle, and the workout picker presents that shortlist separately.
 - Active workout saving is wired to the atomic RPC and writes native rows without `source_sheet` / `source_row`. Exercise and goal creation also stopped allocating spreadsheet rows.
 - Progress, Dashboard PRs, and volume calculations now exclude aggregate/unknown rows from invented set-level records and estimated 1RM, with a 12-rep ceiling.
@@ -1123,7 +1127,8 @@ its live audit whenever the screen is opened, retains the last result while refr
 an explicit `Refresh audit` action. It does not run on a background interval or schedule. Rows with a
 narrow, validated repair show a Repair action; higher-risk categories remain review-only. Repairs
 are applied immediately through `public.apply_data_quality_fix`, with private rollback snapshots and
-public audit events saved in the same transaction.
+public audit events saved in the same transaction. Setless Yoga/Climbing entries with complete
+session time and RPE are valid; redundant no-dose sets are shown as high-confidence audited repairs.
 
 The library reads from Supabase. It supports:
 

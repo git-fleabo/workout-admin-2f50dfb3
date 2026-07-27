@@ -196,6 +196,7 @@ function sessionMinutes(session: ReviewSessionRecord, entries: ReviewEntryRecord
 function sessionRpe(session: ReviewSessionRecord, entries: ReviewEntryRecord[]) {
   const values = [
     toNumber(session.rpe),
+    ...entries.map((entry) => metricNumber(entry, "rpe")),
     ...entries.flatMap((entry) => (entry.entry_sets ?? []).map((set) => toNumber(set.rpe))),
   ].filter((value): value is number => value != null);
   return values.length ? Math.max(...values) : null;

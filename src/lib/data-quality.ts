@@ -14,6 +14,31 @@ export type VolumeStatus = "exact" | "ambiguous" | "not_applicable" | "unknown";
 
 export const ESTIMATED_ONE_RM_REP_CEILING = 12;
 
+const SETLESS_ACTIVITY_NAMES = new Set(["climbing", "yoga"]);
+
+export function isSetlessActivity(activityNames: Array<string | null | undefined>) {
+  return activityNames.some((name) => SETLESS_ACTIVITY_NAMES.has(name?.trim().toLowerCase() ?? ""));
+}
+
+export function setlessActivityHasDose({
+  activityNames,
+  durationMinutes,
+  rpe,
+}: {
+  activityNames: Array<string | null | undefined>;
+  durationMinutes: number | null;
+  rpe: number | null;
+}) {
+  return (
+    isSetlessActivity(activityNames) &&
+    durationMinutes != null &&
+    durationMinutes > 0 &&
+    rpe != null &&
+    rpe >= 1 &&
+    rpe <= 10
+  );
+}
+
 export function normalizeExerciseName(value: string) {
   return value
     .trim()

@@ -421,6 +421,13 @@ function RepairDialog({
             </p>
           ) : null}
 
+          {fix.action === "delete_redundant_activity_set" ? (
+            <p className="rounded-md border border-emerald-400/25 bg-emerald-400/10 p-3 text-sm text-emerald-100">
+              This Yoga or Climbing set contains no set-based work. Its RPE is preserved as an
+              activity metric before the redundant set is removed.
+            </p>
+          ) : null}
+
           {fix.action === "clear_session_provenance" || fix.action === "clear_entry_provenance" ? (
             <p className="text-sm text-muted-foreground">
               Retired spreadsheet source fields will be cleared. The workout data itself is

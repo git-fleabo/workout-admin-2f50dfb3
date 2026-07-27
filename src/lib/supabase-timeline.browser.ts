@@ -277,6 +277,7 @@ function climbEntry(session: SessionRecord, entry?: SessionEntryRecord): Timelin
   const grade = metricText(metrics, "grade");
   const gradient = metricText(metrics, "gradient");
   const trackingMode = metricText(metrics, "tracking_mode");
+  const rpe = metricNumber(metrics, "rpe") ?? toNum(session.rpe);
   const minutes = hours != null ? hours * 60 : sessionMinutes(session, entry);
   const details = [
     trackingMode,
@@ -285,7 +286,7 @@ function climbEntry(session: SessionRecord, entry?: SessionEntryRecord): Timelin
     grade ? `Grade ${grade}` : "",
     gradient ? `${gradient} board` : "",
     session.intensity,
-    session.rpe ? `RPE ${session.rpe}` : "",
+    rpe != null ? `RPE ${compactNumber(rpe)}` : "",
   ].filter(Boolean) as string[];
 
   return {

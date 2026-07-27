@@ -1,7 +1,9 @@
 import {
   classifySessionGroups,
+  isSetlessActivity,
   normalizeExerciseName,
   resolveReviewedAlias,
+  setlessActivityHasDose,
   type DataShape,
   type GroupingSession,
   type LoadSemantics,
@@ -43,7 +45,12 @@ type EntryRecord = {
   activity_types: { name: string | null } | null;
   exercises: { name: string; equipment: string | null } | null;
   entry_sets: SetRecord[] | null;
-  entry_metrics: Array<{ id: string }> | null;
+  entry_metrics: Array<{
+    id: string;
+    metric_key: string;
+    metric_value: number | string | null;
+    metric_text: string | null;
+  }> | null;
 };
 
 type SessionRecord = {
@@ -59,6 +66,7 @@ type SessionRecord = {
   duration_minutes: number | string | null;
   rpe: number | string | null;
   activity_type_id: string | null;
+  activity_types: { name: string | null } | null;
   session_entries: EntryRecord[] | null;
 };
 
@@ -106,7 +114,8 @@ export type DataQualityFix =
     }
   | { action: "clear_session_provenance"; entityId: string }
   | { action: "clear_entry_provenance"; entityId: string }
-  | { action: "delete_empty_set"; entityId: string };
+  | { action: "delete_empty_set"; entityId: string }
+  | { action: "delete_redundant_activity_set"; entityId: string };
 
 export type DataQualityCategory = {
   key:
@@ -147,6 +156,42 @@ function setIsStrictlyEmpty(set: SetRecord) {
   );
 }
 
+function setHasOnlyRpe(set: SetRecord) {
+  return (
+    !setHasDose(set) &&
+    numberOrNull(set.rest_seconds) == null &&
+    [set.rest_time, set.assistance_type, set.assistance_detail, set.quality, set.notes].every(
+      (value) => !value?.trim(),
+    ) &&
+    !(set.entry_set_segments?.length ?? 0)
+  );
+}
+
+function metricNumber(entry: EntryRecord, key: string) {
+  const metric = entry.entry_metrics?.find((row) => row.metric_key === key);
+  return numberOrNull(metric?.metric_value ?? metric?.metric_text);
+}
+
+function activityNames(session: SessionRecord, entry: EntryRecord) {
+  return [entry.activity_types?.name, session.activity_types?.name];
+}
+
+function activityDuration(session: SessionRecord, entry: EntryRecord) {
+  return metricNumber(entry, "duration_minutes") ?? numberOrNull(session.duration_minutes);
+}
+
+function activityRpe(session: SessionRecord, entry: EntryRecord, set?: SetRecord) {
+  return metricNumber(entry, "rpe") ?? numberOrNull(set?.rpe) ?? numberOrNull(session.rpe);
+}
+
+function entryHasCompleteSetlessDose(session: SessionRecord, entry: EntryRecord, set?: SetRecord) {
+  return setlessActivityHasDose({
+    activityNames: activityNames(session, entry),
+    durationMinutes: activityDuration(session, entry),
+    rpe: activityRpe(session, entry, set),
+  });
+}
+
 function displayNumber(value: unknown) {
   const number = numberOrNull(value);
   return number == null ? "—" : Number.isInteger(number) ? String(number) : number.toFixed(1);
@@ -165,7 +210,7 @@ export async function getDataQualityAuditClient() {
   const [sessions, exercises, aliases] = await Promise.all([
     supabasePublicSelect<SessionRecord>("sessions", {
       select:
-        "id,person_id,session_date,title,source,source_sheet,source_row,created_at,training_location_id,duration_minutes,rpe,activity_type_id,session_entries(id,exercise_id,activity_type_id,name,source_sheet,source_row,activity_types(name),exercises(name,equipment),entry_sets(id,set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,rest_seconds,rest_time,assistance_type,assistance_detail,quality,notes,data_shape,aggregate_set_count,load_semantics,volume_status,implement_count,entry_set_segments(id)),entry_metrics(id))",
+        "id,person_id,session_date,title,source,source_sheet,source_row,created_at,training_location_id,duration_minutes,rpe,activity_type_id,activity_types(name),session_entries(id,exercise_id,activity_type_id,name,source_sheet,source_row,activity_types(name),exercises(name,equipment),entry_sets(id,set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,rest_seconds,rest_time,assistance_type,assistance_detail,quality,notes,data_shape,aggregate_set_count,load_semantics,volume_status,implement_count,entry_set_segments(id)),entry_metrics(id,metric_key,metric_value,metric_text))",
       person_id: `eq.${person.id}`,
       completed: "eq.true",
       order: "session_date.desc,created_at.desc",
@@ -230,22 +275,39 @@ export async function getDataQualityAuditClient() {
   const emptySets = entryRows.flatMap(({ session, entry }) =>
     (entry.entry_sets ?? [])
       .filter((set) => !setHasDose(set))
-      .map((set) => ({
-        id: set.id,
-        date: session.session_date,
-        title: entry.name,
-        detail:
-          numberOrNull(set.rpe) == null
-            ? "Strictly empty set row"
-            : `RPE-only row · RPE ${set.rpe}`,
-        confidence: "ambiguous" as const,
-        fix: setIsStrictlyEmpty(set)
-          ? ({ action: "delete_empty_set" as const, entityId: set.id } satisfies DataQualityFix)
-          : undefined,
-      })),
+      .map((set) => {
+        const redundantActivitySet =
+          isSetlessActivity(activityNames(session, entry)) &&
+          setHasOnlyRpe(set) &&
+          entryHasCompleteSetlessDose(session, entry, set);
+        return {
+          id: set.id,
+          date: session.session_date,
+          title: entry.name,
+          detail: redundantActivitySet
+            ? `Redundant ${entry.activity_types?.name ?? session.activity_types?.name ?? "activity"} set · time and RPE are preserved as activity metrics`
+            : numberOrNull(set.rpe) == null
+              ? "Strictly empty set row"
+              : `RPE-only row · RPE ${set.rpe}`,
+          confidence: redundantActivitySet ? ("high" as const) : ("ambiguous" as const),
+          fix: redundantActivitySet
+            ? ({
+                action: "delete_redundant_activity_set" as const,
+                entityId: set.id,
+              } satisfies DataQualityFix)
+            : setIsStrictlyEmpty(set)
+              ? ({ action: "delete_empty_set" as const, entityId: set.id } satisfies DataQualityFix)
+              : undefined,
+        };
+      }),
   );
   const emptyEntries = entryRows
-    .filter(({ entry }) => !(entry.entry_sets?.length ?? 0) && !(entry.entry_metrics?.length ?? 0))
+    .filter(
+      ({ session, entry }) =>
+        !(entry.entry_sets?.length ?? 0) &&
+        !(entry.entry_metrics?.length ?? 0) &&
+        !entryHasCompleteSetlessDose(session, entry),
+    )
     .map(({ session, entry }) => ({
       id: entry.id,
       date: session.session_date,
@@ -259,25 +321,40 @@ export async function getDataQualityAuditClient() {
       (session) =>
         numberOrNull(session.duration_minutes) == null || numberOrNull(session.rpe) == null,
     )
-    .map((session) => ({
-      id: session.id,
-      date: session.session_date,
-      title: session.title?.trim() || "Workout",
-      detail: [
-        numberOrNull(session.duration_minutes) == null ? "duration" : "",
-        numberOrNull(session.rpe) == null ? "final RPE" : "",
-      ]
-        .filter(Boolean)
-        .join(" and ")
-        .concat(" missing"),
-      confidence: "manual" as const,
-      fix: {
-        action: "update_session_metadata" as const,
-        entityId: session.id,
-        durationMinutes: numberOrNull(session.duration_minutes),
-        rpe: numberOrNull(session.rpe),
-      },
-    }));
+    .map((session) => {
+      const onlyEntry =
+        session.session_entries?.length === 1 ? session.session_entries[0] : undefined;
+      const suggestedDuration =
+        onlyEntry && isSetlessActivity(activityNames(session, onlyEntry))
+          ? activityDuration(session, onlyEntry)
+          : numberOrNull(session.duration_minutes);
+      const suggestedRpe =
+        onlyEntry && isSetlessActivity(activityNames(session, onlyEntry))
+          ? activityRpe(session, onlyEntry, onlyEntry.entry_sets?.[0])
+          : numberOrNull(session.rpe);
+      return {
+        id: session.id,
+        date: session.session_date,
+        title: session.title?.trim() || "Workout",
+        detail: [
+          numberOrNull(session.duration_minutes) == null ? "duration" : "",
+          numberOrNull(session.rpe) == null ? "final RPE" : "",
+        ]
+          .filter(Boolean)
+          .join(" and ")
+          .concat(" missing"),
+        confidence:
+          suggestedDuration != null || suggestedRpe != null
+            ? ("high" as const)
+            : ("manual" as const),
+        fix: {
+          action: "update_session_metadata" as const,
+          entityId: session.id,
+          durationMinutes: suggestedDuration,
+          rpe: suggestedRpe,
+        },
+      };
+    });
 
   const weight = entryRows.flatMap(({ session, entry }) =>
     (entry.entry_sets ?? [])
@@ -401,7 +478,8 @@ export async function getDataQualityAuditClient() {
     {
       key: "empty",
       title: "Empty sets and entries",
-      description: "Strictly empty, RPE-only, and movement rows without measurable detail.",
+      description:
+        "Strictly empty rows, redundant Yoga/Climbing sets, and movements without measurable detail.",
       rows: [...emptySets, ...emptyEntries],
     },
     {

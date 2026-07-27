@@ -9,9 +9,11 @@ import {
   estimatedOneRepMax,
   explicitLoadClassification,
   inferLoadClassification,
+  isSetlessActivity,
   normalizeExerciseName,
   progressRepValues,
   resolveReviewedAlias,
+  setlessActivityHasDose,
 } from "../src/lib/data-quality.ts";
 import { comparePlannedActual } from "../src/lib/planned-actual.ts";
 
@@ -186,6 +188,28 @@ test("climbing metrics retain type-aware validation and board gradient rules", (
   assert.equal(supportsClimbingGradient("Bouldering"), false);
 });
 
+test("Yoga and Climbing use duration and RPE without fallback sets", () => {
+  assert.equal(isSetlessActivity(["Yoga"]), true);
+  assert.equal(isSetlessActivity(["Climbing"]), true);
+  assert.equal(isSetlessActivity(["Strength"]), false);
+  assert.equal(
+    setlessActivityHasDose({
+      activityNames: ["Yoga"],
+      durationMinutes: 45,
+      rpe: 6,
+    }),
+    true,
+  );
+  assert.equal(
+    setlessActivityHasDose({
+      activityNames: ["Climbing"],
+      durationMinutes: 90,
+      rpe: null,
+    }),
+    false,
+  );
+});
+
 test("workout migration assigns an explicit mixed parent and defines an atomic invoker RPC", () => {
   const sql = readFileSync(
     new URL("../supabase/migrations/20260724162356_data_quality_foundations.sql", import.meta.url),
@@ -274,4 +298,21 @@ test("interactive repairs are authenticated, narrowly whitelisted, and reversibl
     /revoke all on function public\.apply_data_quality_fix[\s\S]+from public, anon;/i,
   );
   assert.doesNotMatch(repairs, /\btruncate\b/i);
+});
+
+test("setless activity repair preserves RPE before deleting a redundant set", () => {
+  const repair = readFileSync(
+    new URL(
+      "../supabase/migrations/20260727220740_normalize_yoga_climbing_activity_rows.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(repair, /lower\(btrim\(v_activity_name\)\) not in \('climbing', 'yoga'\)/i);
+  assert.match(repair, /metric_key,\s*metric_value[\s\S]*'rpe',\s*v_preserved_rpe/i);
+  assert.match(repair, /app_private\.data_quality_snapshots/i);
+  assert.match(repair, /delete from public\.entry_sets/i);
+  assert.match(repair, /p_action = 'delete_redundant_activity_set'/i);
+  assert.match(repair, /security invoker/i);
+  assert.doesNotMatch(repair, /\btruncate\b/i);
 });

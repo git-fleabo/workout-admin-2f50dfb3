@@ -18,6 +18,7 @@ import {
 import {
   explicitLoadClassification,
   inferLoadClassification,
+  isSetlessActivity,
   type DataShape,
   type LoadSemantics,
 } from "./data-quality";
@@ -628,7 +629,7 @@ export async function getRecentLogsClient(limit = 15) {
         weight: asText(maxWeight ?? set?.weight),
         duration,
         intensity: row.sessions?.intensity ?? "",
-        rpe: asText(set?.rpe ?? row.sessions?.rpe),
+        rpe: metricValue(metrics, "rpe") || asText(set?.rpe ?? row.sessions?.rpe),
         restTime: set?.rest_time ?? "",
         completed: row.completed && Boolean(row.sessions?.completed),
         notes: row.notes ?? row.sessions?.notes ?? "",
@@ -703,10 +704,12 @@ export async function findDuplicateLogClient(data: DuplicateLogInput) {
 export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
   const person = await requirePerson();
   data.entries.forEach((entry) => validatedFeel(entry.feel));
-  const rpe = toNum(data.rpe);
-  const durationMinutes = toNum(data.duration);
   const entries = data.entries.filter((entry) => entry.exercise.trim());
   if (!entries.length) throw new Error("Add at least one movement.");
+  const singleSetlessEntry = entries.length === 1 && isSetlessActivity([entries[0]?.workoutType]);
+  const rpe = toNum(data.rpe) ?? (singleSetlessEntry ? toNum(entries[0]?.rpe) : null);
+  const durationMinutes =
+    toNum(data.duration) ?? (singleSetlessEntry ? toNum(entries[0]?.duration) : null);
   for (const entry of entries) {
     if (entry.workoutType !== "Climbing") continue;
     const issue = climbingMetricIssue({
@@ -725,6 +728,11 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
       ]);
       const activityTypeId = exercise?.activity_type_id ?? activityType?.id ?? null;
       if (!activityTypeId) throw new Error(`${entryData.exercise} needs an activity type.`);
+      const setlessActivity = isSetlessActivity([
+        entryData.workoutType,
+        activityType?.name,
+        exercise?.activity_types?.name,
+      ]);
       const entryKind =
         entryData.entryKind ||
         (entryData.workoutType === SKILL_WORKOUT_TYPE
@@ -735,8 +743,9 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
       const explicitSets = (entryData.setRows ?? []).filter(
         (set) => set.reps || set.weight || set.durationSeconds || set.rpe || set.method,
       );
-      const rawSets =
-        explicitSets.length > 0
+      const rawSets = setlessActivity
+        ? []
+        : explicitSets.length > 0
           ? explicitSets.map((set, setIndex) => ({
               set,
               setNumber: setIndex + 1,
@@ -825,6 +834,10 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
           metric_key: "duration_minutes",
           metric_value: toNum(entryData.duration),
           metric_unit: entryData.duration ? "min" : null,
+        },
+        {
+          metric_key: "rpe",
+          metric_value: setlessActivity ? (toNum(entryData.rpe) ?? rpe) : null,
         },
         { metric_key: "rounds", metric_value: toNum(entryData.rounds) },
         { metric_key: "feel", metric_value: validatedFeel(entryData.feel) },

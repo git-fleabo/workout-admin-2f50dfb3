@@ -398,6 +398,7 @@ export async function getExerciseHistoryClient(
     const feel = metricNumber(row, "feel");
     const height = metricNumber(row, "height");
     const problems = metricNumber(row, "boulders");
+    const metricRpe = metricNumber(row, "rpe");
     if (activityDuration != null && activityDuration > 0) {
       point.activityDurationMinutes += activityDuration;
     }
@@ -407,6 +408,7 @@ export async function getExerciseHistoryClient(
       point.heightCm = height;
     }
     if (problems != null && problems > 0) point.problems += problems;
+    if (metricRpe != null) point.averageRpe = metricRpe;
     point.grade = metricText(row, "grade") ?? point.grade;
     point.gradient = metricText(row, "gradient") ?? point.gradient;
 
@@ -542,9 +544,10 @@ export async function getExerciseHistoryClient(
     point.activityDurationMinutes = Math.round(point.activityDurationMinutes * 10) / 10;
     point.totalDistanceKm = Math.round(point.totalDistanceKm * 1000) / 1000;
     const rpes = point.sets.flatMap((set) => (set.rpe != null ? [set.rpe] : []));
-    point.averageRpe = rpes.length
-      ? Math.round((rpes.reduce((total, rpe) => total + rpe, 0) / rpes.length) * 10) / 10
-      : null;
+    if (rpes.length) {
+      point.averageRpe =
+        Math.round((rpes.reduce((total, rpe) => total + rpe, 0) / rpes.length) * 10) / 10;
+    }
     if (point.est1RM != null) point.est1RM = Math.round(point.est1RM * 10) / 10;
   }
 
