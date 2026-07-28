@@ -1191,6 +1191,9 @@ export type Database = {
           exercise_id: string | null;
           exercise_name: string;
           id: string;
+          is_enabled: boolean;
+          last_decision: string | null;
+          load_adjustment_percent: number;
           notes: string | null;
           one_rm_test_id: string | null;
           program_assignment_id: string;
@@ -1203,6 +1206,9 @@ export type Database = {
           exercise_id?: string | null;
           exercise_name: string;
           id?: string;
+          is_enabled?: boolean;
+          last_decision?: string | null;
+          load_adjustment_percent?: number;
           notes?: string | null;
           one_rm_test_id?: string | null;
           program_assignment_id: string;
@@ -1215,6 +1221,9 @@ export type Database = {
           exercise_id?: string | null;
           exercise_name?: string;
           id?: string;
+          is_enabled?: boolean;
+          last_decision?: string | null;
+          load_adjustment_percent?: number;
           notes?: string | null;
           one_rm_test_id?: string | null;
           program_assignment_id?: string;
@@ -1246,15 +1255,62 @@ export type Database = {
           },
         ];
       };
+      program_assignment_exercise_pools: {
+        Row: {
+          created_at: string;
+          exercise_id: string;
+          exercise_name: string;
+          id: string;
+          is_enabled: boolean;
+          program_assignment_id: string;
+          role: string;
+        };
+        Insert: {
+          created_at?: string;
+          exercise_id: string;
+          exercise_name: string;
+          id?: string;
+          is_enabled?: boolean;
+          program_assignment_id: string;
+          role: string;
+        };
+        Update: {
+          created_at?: string;
+          exercise_id?: string;
+          exercise_name?: string;
+          id?: string;
+          is_enabled?: boolean;
+          program_assignment_id?: string;
+          role?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "program_assignment_exercise_pools_exercise_id_fkey";
+            columns: ["exercise_id"];
+            isOneToOne: false;
+            referencedRelation: "exercises";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "program_assignment_exercise_pools_program_assignment_id_fkey";
+            columns: ["program_assignment_id"];
+            isOneToOne: false;
+            referencedRelation: "program_assignments";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       program_assignments: {
         Row: {
           assigned_by_person_id: string | null;
           completed_on: string | null;
           created_at: string;
+          cycle_number: number;
           current_workout_index: number;
           id: string;
           notes: string | null;
           person_id: string;
+          previous_assignment_id: string | null;
           program_id: string;
           started_on: string | null;
           status: string;
@@ -1264,10 +1320,12 @@ export type Database = {
           assigned_by_person_id?: string | null;
           completed_on?: string | null;
           created_at?: string;
+          cycle_number?: number;
           current_workout_index?: number;
           id?: string;
           notes?: string | null;
           person_id: string;
+          previous_assignment_id?: string | null;
           program_id: string;
           started_on?: string | null;
           status?: string;
@@ -1277,10 +1335,12 @@ export type Database = {
           assigned_by_person_id?: string | null;
           completed_on?: string | null;
           created_at?: string;
+          cycle_number?: number;
           current_workout_index?: number;
           id?: string;
           notes?: string | null;
           person_id?: string;
+          previous_assignment_id?: string | null;
           program_id?: string;
           started_on?: string | null;
           status?: string;
@@ -1318,6 +1378,8 @@ export type Database = {
           duration: string | null;
           exercise_id: string | null;
           id: string;
+          intensity_max_percent: number | null;
+          intensity_min_percent: number | null;
           intensity_percent: number | null;
           is_optional: boolean | null;
           max_reps: number | null;
@@ -1333,7 +1395,9 @@ export type Database = {
           reps: string | null;
           rest: string | null;
           rounding_increment: number | null;
+          rpe_cap: number | null;
           rpe: string | null;
+          selection_role: string | null;
           sets: string | null;
           slot_key: string | null;
           updated_at: string;
@@ -1346,6 +1410,8 @@ export type Database = {
           duration?: string | null;
           exercise_id?: string | null;
           id?: string;
+          intensity_max_percent?: number | null;
+          intensity_min_percent?: number | null;
           intensity_percent?: number | null;
           is_optional?: boolean | null;
           max_reps?: number | null;
@@ -1361,7 +1427,9 @@ export type Database = {
           reps?: string | null;
           rest?: string | null;
           rounding_increment?: number | null;
+          rpe_cap?: number | null;
           rpe?: string | null;
+          selection_role?: string | null;
           sets?: string | null;
           slot_key?: string | null;
           updated_at?: string;
@@ -1374,6 +1442,8 @@ export type Database = {
           duration?: string | null;
           exercise_id?: string | null;
           id?: string;
+          intensity_max_percent?: number | null;
+          intensity_min_percent?: number | null;
           intensity_percent?: number | null;
           is_optional?: boolean | null;
           max_reps?: number | null;
@@ -1389,7 +1459,9 @@ export type Database = {
           reps?: string | null;
           rest?: string | null;
           rounding_increment?: number | null;
+          rpe_cap?: number | null;
           rpe?: string | null;
+          selection_role?: string | null;
           sets?: string | null;
           slot_key?: string | null;
           updated_at?: string;
@@ -1408,6 +1480,77 @@ export type Database = {
             columns: ["program_workout_id"];
             isOneToOne: false;
             referencedRelation: "program_workouts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      program_workout_reviews: {
+        Row: {
+          applied_adjustment_percent: number;
+          created_at: string;
+          decision: string;
+          id: string;
+          pain: number | null;
+          program_assignment_exercise_id: string;
+          program_assignment_id: string;
+          program_workout_id: string;
+          rpe: number | null;
+          session_id: string | null;
+          technique: string | null;
+        };
+        Insert: {
+          applied_adjustment_percent?: number;
+          created_at?: string;
+          decision: string;
+          id?: string;
+          pain?: number | null;
+          program_assignment_exercise_id: string;
+          program_assignment_id: string;
+          program_workout_id: string;
+          rpe?: number | null;
+          session_id?: string | null;
+          technique?: string | null;
+        };
+        Update: {
+          applied_adjustment_percent?: number;
+          created_at?: string;
+          decision?: string;
+          id?: string;
+          pain?: number | null;
+          program_assignment_exercise_id?: string;
+          program_assignment_id?: string;
+          program_workout_id?: string;
+          rpe?: number | null;
+          session_id?: string | null;
+          technique?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "program_workout_reviews_program_assignment_exercise_id_fkey";
+            columns: ["program_assignment_exercise_id"];
+            isOneToOne: false;
+            referencedRelation: "program_assignment_exercises";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "program_workout_reviews_program_assignment_id_fkey";
+            columns: ["program_assignment_id"];
+            isOneToOne: false;
+            referencedRelation: "program_assignments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "program_workout_reviews_program_workout_id_fkey";
+            columns: ["program_workout_id"];
+            isOneToOne: false;
+            referencedRelation: "program_workouts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "program_workout_reviews_session_id_fkey";
+            columns: ["session_id"];
+            isOneToOne: false;
+            referencedRelation: "sessions";
             referencedColumns: ["id"];
           },
         ];

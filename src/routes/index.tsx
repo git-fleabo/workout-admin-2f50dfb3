@@ -34,6 +34,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { WorkoutLifecycleBadge } from "@/components/workout-lifecycle-badge";
 import { formatUKDate, todayISO } from "@/lib/date";
 import { getLibraryClient, getRecentLogsClient } from "@/lib/supabase-log.browser";
@@ -168,6 +175,9 @@ function TodayPage() {
   const [startingPlanId, setStartingPlanId] = useState<string | null>(null);
   const [startingProgrammeId, setStartingProgrammeId] = useState<string | null>(null);
   const [programmeLocations, setProgrammeLocations] = useState<Record<string, PlannerLocation>>({});
+  const [programmeSelections, setProgrammeSelections] = useState<
+    Record<string, Record<string, string>>
+  >({});
   const [recommendationLocation, setRecommendationLocation] = useState<PlannerLocation>("gym");
   const [startingRecommendation, setStartingRecommendation] = useState(false);
   const [discardDraftOpen, setDiscardDraftOpen] = useState(false);
@@ -279,7 +289,11 @@ function TodayPage() {
     }
     setStartingProgrammeId(offer.assignmentId);
     try {
-      const saved = await startProgrammeWorkoutClient(offer.assignmentId, location);
+      const saved = await startProgrammeWorkoutClient(
+        offer.assignmentId,
+        location,
+        programmeSelections[offer.assignmentId] ?? {},
+      );
       window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(saved));
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["programme-workout-offers"] }),
@@ -570,6 +584,51 @@ function TodayPage() {
                         </div>
                       ))}
                     </div>
+
+                    {offer.selections.length ? (
+                      <div className="mt-4 space-y-3">
+                        {offer.selections.map((selection) => (
+                          <div key={selection.role} className="space-y-1.5">
+                            <p className="text-xs font-medium">
+                              {selection.label} {selection.required ? "" : "(optional)"}
+                            </p>
+                            <Select
+                              value={
+                                programmeSelections[offer.assignmentId]?.[selection.role] ?? "none"
+                              }
+                              onValueChange={(value) =>
+                                setProgrammeSelections((current) => ({
+                                  ...current,
+                                  [offer.assignmentId]: {
+                                    ...(current[offer.assignmentId] ?? {}),
+                                    [selection.role]: value === "none" ? "" : value,
+                                  },
+                                }))
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Choose from Library pool" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {!selection.required ? (
+                                  <SelectItem value="none">Skip today</SelectItem>
+                                ) : null}
+                                {selection.options.map((option) => (
+                                  <SelectItem key={option.id} value={option.exerciseId}>
+                                    {option.exerciseName}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {!selection.options.length ? (
+                              <p className="text-[11px] text-muted-foreground">
+                                Add choices in Programme Templates, or skip this optional role.
+                              </p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
 
                     {availableLocations.length ? (
                       <div className="mt-4 grid grid-cols-2 gap-1 rounded-lg border border-border bg-secondary/30 p-1">

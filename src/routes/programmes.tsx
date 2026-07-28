@@ -25,6 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -47,16 +48,19 @@ import { listLibraryClient } from "@/lib/supabase-library.browser";
 import { listManagedPeopleClient, type PersonRecord } from "@/lib/supabase-people.browser";
 import { getProgrammeMethodSetup } from "@/lib/programme-methods";
 import {
+  createNextProgrammeCycleClient,
   createProgrammeAssignmentClient,
   listProgrammeAssignmentsClient,
   listProgrammeTemplatesClient,
   setProgrammeAssignmentStatusClient,
+  setProgrammeExerciseEnabledClient,
   type ProgrammeAssignment,
   type ProgrammeAssignmentInput,
   type ProgrammeTemplate,
   type ProgrammeTemplateEntry,
   type ProgrammeTemplateWorkout,
 } from "@/lib/supabase-programmes.browser";
+import { ADAPTIVE_STRENGTH_DEFAULTS, ADAPTIVE_STRENGTH_METHOD } from "@/lib/adaptive-strength";
 import { SettingsBackLink } from "@/components/settings-back-link";
 
 export const Route = createFileRoute("/programmes")({
@@ -101,7 +105,15 @@ function entryPrescription(entry: ProgrammeTemplateEntry) {
   const reps = formatRange(entry.minReps, entry.maxReps, entry.reps, "rep", "reps");
   const parts = [sets, reps].filter(Boolean);
 
-  if (entry.intensityPercent != null) {
+  if (entry.intensityMinPercent != null && entry.intensityMaxPercent != null) {
+    parts.push(
+      `${entry.intensityMinPercent}–${entry.intensityMaxPercent}% ${
+        entry.percentBase === "training_max"
+          ? "training max"
+          : titleCase(entry.percentBase).toLowerCase()
+      }`,
+    );
+  } else if (entry.intensityPercent != null) {
     parts.push(
       `${entry.intensityPercent}% ${entry.percentBase === "training_max" ? "training max" : titleCase(entry.percentBase).toLowerCase()}`,
     );
@@ -110,6 +122,7 @@ function entryPrescription(entry: ProgrammeTemplateEntry) {
   }
   if (entry.duration) parts.push(entry.duration);
   if (entry.rpe) parts.push(`RPE ${entry.rpe}`);
+  else if (entry.rpeCap != null) parts.push(`RPE cap ${entry.rpeCap}`);
   if (entry.rest) parts.push(`${entry.rest} rest`);
 
   return parts.join(" · ") || "Prescription details to be confirmed";
@@ -176,13 +189,32 @@ function ProgrammeTemplatesPage() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const streamMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      setProgrammeExerciseEnabledClient(id, enabled),
+    onSuccess: () => {
+      toast.success("Programme stream updated");
+      void queryClient.invalidateQueries({ queryKey: ["programme-assignments"] });
+      void queryClient.invalidateQueries({ queryKey: ["programme-workout-offers"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const nextCycleMutation = useMutation({
+    mutationFn: createNextProgrammeCycleClient,
+    onSuccess: () => {
+      toast.success("Next 12-week cycle created");
+      void queryClient.invalidateQueries({ queryKey: ["programme-assignments"] });
+      void queryClient.invalidateQueries({ queryKey: ["programme-workout-offers"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   useEffect(() => {
     if (selectedId && templates.data?.some((template) => template.id === selectedId)) return;
-    const operator = templates.data?.find((template) =>
-      template.name.toLowerCase().includes("operator"),
+    const adaptive = templates.data?.find(
+      (template) => template.methodType === ADAPTIVE_STRENGTH_METHOD,
     );
-    setSelectedId((operator ?? templates.data?.[0])?.id ?? "");
+    setSelectedId((adaptive ?? templates.data?.[0])?.id ?? "");
   }, [selectedId, templates.data]);
 
   const selected = templates.data?.find((template) => template.id === selectedId) ?? null;
@@ -210,6 +242,8 @@ function ProgrammeTemplatesPage() {
         error={assignments.error instanceof Error ? assignments.error : null}
         changing={statusMutation.isPending}
         onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
+        onStreamChange={(id, enabled) => streamMutation.mutate({ id, enabled })}
+        onNextCycle={(id) => nextCycleMutation.mutate(id)}
       />
 
       {templates.isLoading ? (
@@ -414,6 +448,8 @@ function AssignmentList({
   error,
   changing,
   onStatusChange,
+  onStreamChange,
+  onNextCycle,
 }: {
   assignments: ProgrammeAssignment[];
   templates: ProgrammeTemplate[];
@@ -422,6 +458,8 @@ function AssignmentList({
   error: Error | null;
   changing: boolean;
   onStatusChange: (id: string, status: "active" | "paused" | "archived") => void;
+  onStreamChange: (id: string, enabled: boolean) => void;
+  onNextCycle: (id: string) => void;
 }) {
   if (loading) return null;
   const templateById = new Map(templates.map((template) => [template.id, template]));
@@ -434,7 +472,7 @@ function AssignmentList({
           Assigned programmes
         </h2>
         <p className="text-sm text-muted-foreground">
-          Active and paused blocks. Archived assignments leave this working list.
+          Active, paused, and recently completed cycles. Archived assignments leave this list.
         </p>
       </div>
       {error ? (
@@ -458,37 +496,42 @@ function AssignmentList({
                       <Badge variant={assignment.status === "active" ? "default" : "secondary"}>
                         {titleCase(assignment.status)}
                       </Badge>
+                      <Badge variant="outline">Cycle {assignment.cycleNumber}</Badge>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {personById.get(assignment.personId)?.display_name ?? "Managed person"} ·
-                      Started {assignment.startedOn ?? "not set"} · Next session{" "}
-                      {assignment.currentWorkoutIndex + 1}
+                      Started {assignment.startedOn ?? "not set"} ·{" "}
+                      {assignment.status === "complete"
+                        ? "Review complete"
+                        : `Next session ${assignment.currentWorkoutIndex + 1}`}
                     </p>
                   </div>
                   <div className="flex gap-1">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      title={
-                        assignment.status === "active" ? "Pause programme" : "Resume programme"
-                      }
-                      aria-label={
-                        assignment.status === "active" ? "Pause programme" : "Resume programme"
-                      }
-                      disabled={changing}
-                      onClick={() =>
-                        onStatusChange(
-                          assignment.id,
-                          assignment.status === "active" ? "paused" : "active",
-                        )
-                      }
-                    >
-                      {assignment.status === "active" ? (
-                        <Pause className="h-4 w-4" />
-                      ) : (
-                        <Play className="h-4 w-4" />
-                      )}
-                    </Button>
+                    {assignment.status !== "complete" ? (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        title={
+                          assignment.status === "active" ? "Pause programme" : "Resume programme"
+                        }
+                        aria-label={
+                          assignment.status === "active" ? "Pause programme" : "Resume programme"
+                        }
+                        disabled={changing}
+                        onClick={() =>
+                          onStatusChange(
+                            assignment.id,
+                            assignment.status === "active" ? "paused" : "active",
+                          )
+                        }
+                      >
+                        {assignment.status === "active" ? (
+                          <Pause className="h-4 w-4" />
+                        ) : (
+                          <Play className="h-4 w-4" />
+                        )}
+                      </Button>
+                    ) : null}
                     <Button
                       size="icon"
                       variant="ghost"
@@ -511,9 +554,45 @@ function AssignmentList({
                           ? `${exercise.trainingMax} kg training max`
                           : "No training max"}
                       </p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {!exercise.enabled ? <Badge variant="secondary">Disabled</Badge> : null}
+                        {exercise.lastDecision ? (
+                          <Badge variant="outline">Next: {exercise.lastDecision}</Badge>
+                        ) : null}
+                      </div>
+                      {exercise.slotKey === "weighted_pull_up" ? (
+                        <Button
+                          className="mt-2 h-7 px-2 text-xs"
+                          size="sm"
+                          variant="outline"
+                          disabled={changing || assignment.status === "complete"}
+                          onClick={() => onStreamChange(exercise.id, !exercise.enabled)}
+                        >
+                          {exercise.enabled ? "Disable stream" : "Enable when ready"}
+                        </Button>
+                      ) : null}
                     </div>
                   ))}
                 </div>
+                {assignment.pools.length ? (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Library pools:{" "}
+                    {(["power", "accessory", "pull"] as const)
+                      .map((role) => {
+                        const count = assignment.pools.filter(
+                          (pool) => pool.enabled && pool.role === role,
+                        ).length;
+                        return count ? `${titleCase(role)} ${count}` : null;
+                      })
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                ) : null}
+                {assignment.status === "complete" ? (
+                  <Button className="mt-3 w-full" onClick={() => onNextCycle(assignment.id)}>
+                    Create next 12-week cycle
+                  </Button>
+                ) : null}
               </Card>
             );
           })}
@@ -558,6 +637,12 @@ function ProgrammeSetupDialog({
   const [status, setStatus] = useState<"active" | "paused">("active");
   const [notes, setNotes] = useState("");
   const [slotSetup, setSlotSetup] = useState<Record<string, SlotSetup>>({});
+  const [poolSetup, setPoolSetup] = useState<Record<string, string[]>>({
+    power: [],
+    accessory: [],
+    pull: [],
+  });
+  const [defaultsApplied, setDefaultsApplied] = useState(false);
   const library = useQuery({
     queryKey: ["programme-assignment-library", personId || "current"],
     queryFn: () => listLibraryClient(personId || undefined),
@@ -567,13 +652,14 @@ function ProgrammeSetupDialog({
     if (!personId && library.data?.selectedPersonId) setPersonId(library.data.selectedPersonId);
   }, [library.data?.selectedPersonId, personId]);
 
+  const allEnabledExercises = useMemo(
+    () => (library.data?.items ?? []).filter((item) => item.active && item.enabled),
+    [library.data?.items],
+  );
   const enabledExercises = useMemo(
     () =>
-      (library.data?.items ?? []).filter(
-        (item) =>
-          item.active && item.enabled && item.workoutType.trim().toLowerCase() === "strength",
-      ),
-    [library.data?.items],
+      allEnabledExercises.filter((item) => item.workoutType.trim().toLowerCase() === "strength"),
+    [allEnabledExercises],
   );
   const selectedIds = slots.map((slot) => slotSetup[slot.key]?.exerciseId).filter(Boolean);
   const duplicateExercise = new Set(selectedIds).size !== selectedIds.length;
@@ -587,6 +673,33 @@ function ProgrammeSetupDialog({
       return Number(setup.trainingMax) >= methodSetup.trainingMax.minimum;
     }) &&
     !duplicateExercise;
+
+  useEffect(() => {
+    if (
+      defaultsApplied ||
+      template.methodType !== ADAPTIVE_STRENGTH_METHOD ||
+      !enabledExercises.length
+    ) {
+      return;
+    }
+    const defaults: Record<string, SlotSetup> = {};
+    for (const slot of slots) {
+      const preset = ADAPTIVE_STRENGTH_DEFAULTS[slot.key];
+      if (!preset) continue;
+      const names = [preset.exerciseName, ...(preset.aliases ?? [])].map((name) =>
+        name.toLowerCase(),
+      );
+      const exercise = enabledExercises.find((item) => names.includes(item.name.toLowerCase()));
+      if (exercise) {
+        defaults[slot.key] = {
+          exerciseId: exercise.id,
+          trainingMax: String(preset.trainingMax),
+        };
+      }
+    }
+    setSlotSetup(defaults);
+    setDefaultsApplied(true);
+  }, [defaultsApplied, enabledExercises, slots, template.methodType]);
 
   const createMutation = useMutation({
     mutationFn: (input: ProgrammeAssignmentInput) => createProgrammeAssignmentClient(input),
@@ -610,6 +723,18 @@ function ProgrammeSetupDialog({
     });
   }
 
+  function togglePool(role: "power" | "accessory" | "pull", exerciseId: string) {
+    setPoolSetup((current) => {
+      const selected = current[role] ?? [];
+      return {
+        ...current,
+        [role]: selected.includes(exerciseId)
+          ? selected.filter((id) => id !== exerciseId)
+          : [...selected, exerciseId],
+      };
+    });
+  }
+
   function submit() {
     if (!isComplete) return;
     createMutation.mutate({
@@ -628,9 +753,26 @@ function ProgrammeSetupDialog({
             exerciseId: setup.exerciseId,
             exerciseName: exercise?.name ?? slot.label,
             trainingMax: methodSetup?.trainingMax ? Number(setup.trainingMax) : null,
+            enabled:
+              template.methodType !== ADAPTIVE_STRENGTH_METHOD ||
+              ADAPTIVE_STRENGTH_DEFAULTS[slot.key]?.enabled !== false,
           },
         ];
       }),
+      pools: Object.entries(poolSetup).flatMap(([role, exerciseIds]) =>
+        exerciseIds.flatMap((exerciseId) => {
+          const exercise = allEnabledExercises.find((item) => item.id === exerciseId);
+          return exercise
+            ? [
+                {
+                  role: role as "power" | "accessory" | "pull",
+                  exerciseId,
+                  exerciseName: exercise.name,
+                },
+              ]
+            : [];
+        }),
+      ),
     });
   }
 
@@ -652,6 +794,8 @@ function ProgrammeSetupDialog({
               onValueChange={(value) => {
                 setPersonId(value);
                 setSlotSetup({});
+                setPoolSetup({ power: [], accessory: [], pull: [] });
+                setDefaultsApplied(false);
               }}
             >
               <SelectTrigger id="programme-person">
@@ -688,6 +832,67 @@ function ProgrammeSetupDialog({
             </Select>
           </div>
         </div>
+
+        {template.methodType === ADAPTIVE_STRENGTH_METHOD && enabledExercises.length ? (
+          <div className="space-y-3 rounded-lg border border-border p-3">
+            <div>
+              <h3 className="text-sm font-semibold">Optional Library pools</h3>
+              <p className="text-xs text-muted-foreground">
+                Choose any movements you want offered before a session. You can still edit the
+                loaded workout, and Library’s existing add-exercise flow is unchanged.
+              </p>
+            </div>
+            {(
+              [
+                {
+                  role: "power" as const,
+                  label: "Power choices",
+                  items: allEnabledExercises.filter(
+                    (item) =>
+                      item.workoutType.toLowerCase() === "power" ||
+                      /jump|throw|swing|slam/i.test(item.name),
+                  ),
+                },
+                {
+                  role: "accessory" as const,
+                  label: "Accessory choices",
+                  items: allEnabledExercises.filter(
+                    (item) => !selectedIds.includes(item.id) && item.workoutType === "Strength",
+                  ),
+                },
+                {
+                  role: "pull" as const,
+                  label: "Pull choices",
+                  items: allEnabledExercises.filter((item) =>
+                    /row|pull|pulldown|scapular|hang/i.test(item.name),
+                  ),
+                },
+              ] as const
+            ).map((group) => (
+              <div key={group.role}>
+                <p className="text-xs font-medium">{group.label}</p>
+                <div className="mt-2 grid max-h-36 gap-2 overflow-y-auto sm:grid-cols-2">
+                  {group.items.length ? (
+                    group.items.map((exercise) => (
+                      <label
+                        key={exercise.id}
+                        className="flex items-center gap-2 rounded border border-border px-2 py-1.5 text-xs"
+                      >
+                        <Checkbox
+                          checked={(poolSetup[group.role] ?? []).includes(exercise.id)}
+                          onCheckedChange={() => togglePool(group.role, exercise.id)}
+                        />
+                        {exercise.name}
+                      </label>
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No matching enabled movements.</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         <div className="space-y-3">
           <div>

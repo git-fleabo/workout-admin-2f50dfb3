@@ -1,6 +1,6 @@
 # Workout App Context
 
-Last updated: 2026-07-27
+Last updated: 2026-07-28
 
 This file is the handoff document for the Training Tracker workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
 
@@ -920,6 +920,44 @@ Programme-template decision:
   `program_assignments` on 2026-07-16, resolving the live `rls_enabled_no_policy` advisor warning for
   that table. Insert/update additionally require the selected programme to be a protected template.
 
+Adaptive 12-week strength engine (implemented locally 2026-07-28):
+
+- `Adaptive Strength 12-Week Block` is a protected, reusable 12-week / 36-session template using the
+  existing programme assignment, Today offer, suggested-workout, unified logger, and canonical
+  completed-session paths. It does not create a parallel workout log.
+- Weekly cadence is Monday Bench Press + High Bar Squat, Wednesday Deadlift + Seated Dumbbell Press,
+  and Friday speed Bench Press plus a disabled Weighted Pull-Up stream. The disabled stream is
+  preserved in assignment state and can only be re-enabled explicitly; no rehabilitation movement is
+  medically prescribed.
+- Initial Training Max defaults are Bench Press 75 kg, High Bar Squat 65 kg, Deadlift 87.5 kg, Seated
+  Dumbbell Press 20 kg per hand, and disabled Weighted Pull-Up +30 kg. Setup resolves the exact enabled
+  Library exercise names and leaves existing Library add/edit flows unchanged.
+- Workouts use lower/upper percentage ranges plus RPE caps. Bench reaches the heaviest ranges and may
+  reach RPE 8.5; squat and deadlift remain conservative, never require the top of the range, and are
+  explicitly cued against grinding. Week 12 reduces volume/intensity for deload and review.
+- Assignment-owned `power`, `accessory`, and `pull` pools reference existing enabled Library rows.
+  Today asks the user to choose or skip the relevant optional role before starting. The selected
+  Library movement remains editable in the normal logger.
+- Strength movements can now save optional `technique` (`good`, `acceptable`, `poor`) and `pain`
+  (0-10) entry metrics alongside the existing set RPE. After a linked programme workout completes,
+  the engine stores a per-lift review and sets the next adjustment: progress = planned lower end,
+  repeat = -2.5 percentage points, regress = -5 percentage points. Missing review evidence holds
+  rather than assuming readiness; poor technique, incomplete work, or pain 4+ regresses.
+- `program_assignment_exercises` now stores enabled state, the next load adjustment, and the last
+  decision. `program_workout_reviews` stores the evidence/outcome without rewriting completed sets.
+  `program_assignment_exercise_pools` stores role-to-Library choices. Both new tables use managed-person
+  RLS and authenticated CRUD grants.
+- Completed assignments can generate a subsequent cycle while preserving exercise/pool choices.
+  Training Maxes increase by 2.5 kg for Bench/Squat/Deadlift, 1 kg per hand for Seated Dumbbell Press,
+  and do not increase Weighted Pull-Up automatically. The new assignment links back to the prior cycle.
+- Applied migration: `supabase/migrations/20260728214855_adaptive_strength_programme_engine.sql`.
+  The linked ledger records `adaptive_strength_programme_engine`; live verification found 36 workouts,
+  144 entries, deadlift capped at 77.5%, squat capped at 82.5%, and heavy bench capped at 92.5%.
+  Both new tables have RLS, managed-person policies, and authenticated CRUD grants. Post-migration
+  advisors reported no new security issue; the existing `person_app_profiles` no-policy notice and
+  leaked-password-protection warning remain unrelated. New indexes are initially reported unused,
+  which is expected before assignments/reviews exist.
+
 ## App Behavior And Screens
 
 ### Navigation And Settings
@@ -956,7 +994,7 @@ Home/Gym exercise filtering. Both equipment tables use managed-person RLS; assig
 require the location and item to belong to the same person.
 
 `/programmes` reads the protected template rows from `programs`, `program_workouts`, and
-`program_workout_entries`, lets the user compare Operator and Fighter cadence, and exposes an
+`program_workout_entries`, lets the user compare Operator, Fighter, and Adaptive Strength cadence, and exposes an
 expandable week-by-week prescription. Its assignment wizard selects a managed person, start date and
 initial status, then maps every programme slot to a distinct enabled Library movement with its training
 max. Active and paused assignments appear above the template browser and can be paused, resumed, or
@@ -965,7 +1003,8 @@ programme suggestion so it no longer appears as Ready.
 
 Programme methodologies are dispatched through `programs.method_type`. Shared programme structure,
 assignment lifecycle, and slot mappings remain methodology-neutral; `src/lib/programme-methods.ts`
-currently registers the Percentage Strength assignment fields and prescription builder. It calculates
+currently registers Percentage Strength and Adaptive 12-week Strength assignment fields while sharing
+the percentage prescription builder. It calculates
 working weights from the assignment training max and template intensity, rounds to the configured
 increment, and uses the template's minimum/maximum set choice. A future methodology should add a
 registry entry and its method-specific setup/prescription renderer, using additive configuration only
@@ -1087,6 +1126,9 @@ The unified logger remains fully editable. On successful completion,
 `program_assignments.current_workout_index`; the final session marks the assignment complete. The RPC
 is security-invoker, uses existing managed-person RLS, validates that the completed session belongs to
 the same person, rejects an out-of-order template workout, and is idempotent for the same session.
+Adaptive assignments then derive a non-destructive per-lift review from completed reps, maximum set
+RPE, optional technique, and optional pain. Review failure never rolls back an already-saved workout;
+it leaves the next prescription held at the conservative end until evidence is available.
 
 ### Daily rotation
 

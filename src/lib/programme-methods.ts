@@ -81,6 +81,18 @@ const PROGRAMME_METHOD_SETUPS: Record<string, ProgrammeMethodSetup> = {
     },
     buildSetRows: buildPercentageStrengthSets,
   },
+  adaptive_strength_12_week: {
+    label: "Adaptive 12-week strength",
+    workoutType: "Strength",
+    trainingMax: {
+      required: true,
+      label: "Training max",
+      unit: "kg",
+      minimum: 0.5,
+      step: 0.5,
+    },
+    buildSetRows: buildPercentageStrengthSets,
+  },
 };
 
 export function getProgrammeMethodSetup(methodType: string | null) {

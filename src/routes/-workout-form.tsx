@@ -209,6 +209,8 @@ type FormState = {
   assistanceType: string;
   assistanceDetail: string;
   quality: string;
+  technique: string;
+  pain: string;
   gripStyle: string;
   gripLoadType: string;
   climbingTrackingMode: string;
@@ -335,6 +337,8 @@ const blank = (defaultWorkoutType = ""): FormState => ({
   assistanceType: "",
   assistanceDetail: "",
   quality: "",
+  technique: "",
+  pain: "",
   gripStyle: "",
   gripLoadType: "",
   climbingTrackingMode: "",
@@ -413,6 +417,8 @@ function isSessionFormState(form: unknown): form is SessionFormState {
 function normalizeSessionForm(form: SessionFormState): SessionFormState {
   const entries = form.entries.map((entry) => ({
     ...entry,
+    technique: entry.technique ?? "",
+    pain: entry.pain ?? "",
     loadSemantics: entry.loadSemantics ?? "",
     clientId:
       typeof entry.clientId === "string" && entry.clientId
@@ -746,6 +752,8 @@ function entryFromRecentLog(log: RecentWorkoutLog): FormState {
     assistanceType: log.assistanceType,
     assistanceDetail: log.assistanceDetail,
     quality: log.quality,
+    technique: log.technique,
+    pain: log.pain,
     distance: log.distance,
     distanceUnit: log.distanceUnit,
     rounds: log.rounds,
@@ -2748,6 +2756,42 @@ export function FullWorkoutForm() {
                   />
                 )
               )}
+              {entry.exercise && entry.workoutType.trim().toLowerCase() === "strength" ? (
+                <div className="grid gap-3 rounded-lg border border-emerald-400/20 bg-emerald-400/[0.04] p-3 sm:grid-cols-2">
+                  <Field label="Technique (optional)">
+                    <Select
+                      value={entry.technique || undefined}
+                      onValueChange={(value) => updateEntry(index, "technique", value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose after the lift" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="good">Good</SelectItem>
+                        <SelectItem value="acceptable">Acceptable</SelectItem>
+                        <SelectItem value="poor">Poor</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Pain (0-10, optional)">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={10}
+                      step={1}
+                      inputMode="numeric"
+                      value={entry.pain}
+                      onChange={(event) => updateEntry(index, "pain", event.target.value)}
+                      placeholder="0"
+                    />
+                  </Field>
+                  <p className="text-[10px] leading-relaxed text-muted-foreground sm:col-span-2">
+                    Programme lifts use completed reps, set RPE, technique, and pain to progress,
+                    hold, or reduce the next prescription. This check-in does not diagnose or
+                    prescribe rehabilitation.
+                  </p>
+                </div>
+              ) : null}
               <details className="rounded-lg border border-border/70 bg-secondary/10 px-3 py-2">
                 <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
                   Movement notes {entry.notes ? "· Added" : "· Optional"}

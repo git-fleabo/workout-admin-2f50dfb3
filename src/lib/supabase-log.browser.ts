@@ -237,6 +237,8 @@ export type WorkoutLogInput = {
   assistanceType: string;
   assistanceDetail: string;
   quality: string;
+  technique: string;
+  pain: string;
   distance: string;
   distanceUnit: string;
   rounds: string;
@@ -649,6 +651,8 @@ export async function getRecentLogsClient(limit = 15) {
         assistanceType: set?.assistance_type ?? "",
         assistanceDetail: set?.assistance_detail ?? "",
         quality: set?.quality ?? "",
+        technique: metricValue(metrics, "technique"),
+        pain: metricValue(metrics, "pain"),
         loadSemantics: set?.load_semantics ?? "",
         trainingLocation: row.sessions?.training_locations ?? null,
         methodBlocks: blocksBySession.get(row.sessions?.id ?? "") ?? [],
@@ -841,6 +845,22 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
         },
         { metric_key: "rounds", metric_value: toNum(entryData.rounds) },
         { metric_key: "feel", metric_value: validatedFeel(entryData.feel) },
+        {
+          metric_key: "pain",
+          metric_value:
+            entryData.pain.trim() === ""
+              ? null
+              : Math.min(10, Math.max(0, toNum(entryData.pain) ?? 0)),
+        },
+        {
+          metric_key: "technique",
+          metric_text:
+            entryData.technique === "good" ||
+            entryData.technique === "acceptable" ||
+            entryData.technique === "poor"
+              ? entryData.technique
+              : null,
+        },
         { metric_key: "height", metric_value: toNum(entryData.height), metric_unit: "cm" },
         { metric_key: "detail", metric_text: entryData.detail || null },
         {

@@ -15,6 +15,7 @@ import type {
 } from "./workout-plan";
 import { getTrackingModeValue, TRACKING_MODE_OPTIONS, type TrackingMode } from "./movement-metrics";
 import type { SuggestedWorkoutStatus } from "./workout-lifecycle";
+import { applyProgrammeReviewClient } from "./supabase-programmes.browser";
 
 type SuggestedSetRow = {
   id: string;
@@ -550,5 +551,6 @@ export async function completeSuggestedWorkoutClient(id: string, sessionId: stri
     p_workout_id: id,
     p_session_id: sessionId,
   });
-  return { ok: true };
+  const review = await applyProgrammeReviewClient(id, sessionId).catch(() => ({ reviewed: 0 }));
+  return { ok: true, adaptiveReviews: review.reviewed };
 }
