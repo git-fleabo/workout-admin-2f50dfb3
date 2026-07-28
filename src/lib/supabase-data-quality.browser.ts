@@ -2,13 +2,15 @@ import {
   classifySessionGroups,
   isSetlessActivity,
   normalizeExerciseName,
+  resolveActivityDuration,
   resolveReviewedAlias,
-  setlessActivityHasDose,
+  setlessActivityHasDuration,
   type DataShape,
   type GroupingSession,
   type LoadSemantics,
   type VolumeStatus,
 } from "./data-quality";
+import { getMovementMetricProfile, profileRequiresDuration } from "./movement-metrics";
 import { getCurrentPerson } from "./supabase-people.browser";
 import { supabasePublicRpc, supabasePublicSelect } from "./supabase-public";
 
@@ -43,7 +45,12 @@ type EntryRecord = {
   source_sheet: string | null;
   source_row: number | null;
   activity_types: { name: string | null } | null;
-  exercises: { name: string; equipment: string | null } | null;
+  exercises: {
+    name: string;
+    equipment: string | null;
+    default_metric: string | null;
+    activity_types: { name: string | null } | null;
+  } | null;
   entry_sets: SetRecord[] | null;
   entry_metrics: Array<{
     id: string;
@@ -103,6 +110,7 @@ export type DataQualityFix =
       entityId: string;
       durationMinutes: number | null;
       rpe: number | null;
+      durationRequired: boolean;
     }
   | {
       action: "classify_load";
@@ -173,23 +181,45 @@ function metricNumber(entry: EntryRecord, key: string) {
 }
 
 function activityNames(session: SessionRecord, entry: EntryRecord) {
-  return [entry.activity_types?.name, session.activity_types?.name];
+  return [
+    entry.activity_types?.name,
+    entry.exercises?.activity_types?.name,
+    session.activity_types?.name,
+  ];
 }
 
 function activityDuration(session: SessionRecord, entry: EntryRecord) {
-  return metricNumber(entry, "duration_minutes") ?? numberOrNull(session.duration_minutes);
+  const minutes = metricNumber(entry, "duration_minutes");
+  const hours = metricNumber(entry, "hours");
+  return resolveActivityDuration({
+    entryDurationMinutes: minutes ?? (hours == null ? null : hours * 60),
+    sessionDurationMinutes: numberOrNull(session.duration_minutes),
+    sessionEntryCount: session.session_entries?.length ?? 0,
+  });
 }
 
 function activityRpe(session: SessionRecord, entry: EntryRecord, set?: SetRecord) {
   return metricNumber(entry, "rpe") ?? numberOrNull(set?.rpe) ?? numberOrNull(session.rpe);
 }
 
-function entryHasCompleteSetlessDose(session: SessionRecord, entry: EntryRecord, set?: SetRecord) {
-  return setlessActivityHasDose({
+function entryHasSetlessDuration(session: SessionRecord, entry: EntryRecord) {
+  return setlessActivityHasDuration({
     activityNames: activityNames(session, entry),
     durationMinutes: activityDuration(session, entry),
-    rpe: activityRpe(session, entry, set),
   });
+}
+
+function entryRequiresDuration(session: SessionRecord, entry: EntryRecord) {
+  const profile = getMovementMetricProfile({
+    workoutType:
+      entry.activity_types?.name ??
+      entry.exercises?.activity_types?.name ??
+      session.activity_types?.name ??
+      "",
+    movement: entry.name,
+    defaultMetric: entry.exercises?.default_metric ?? "",
+  });
+  return profileRequiresDuration(profile);
 }
 
 function displayNumber(value: unknown) {
@@ -210,7 +240,7 @@ export async function getDataQualityAuditClient() {
   const [sessions, exercises, aliases] = await Promise.all([
     supabasePublicSelect<SessionRecord>("sessions", {
       select:
-        "id,person_id,session_date,title,source,source_sheet,source_row,created_at,training_location_id,duration_minutes,rpe,activity_type_id,activity_types(name),session_entries(id,exercise_id,activity_type_id,name,source_sheet,source_row,activity_types(name),exercises(name,equipment),entry_sets(id,set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,rest_seconds,rest_time,assistance_type,assistance_detail,quality,notes,data_shape,aggregate_set_count,load_semantics,volume_status,implement_count,entry_set_segments(id)),entry_metrics(id,metric_key,metric_value,metric_text))",
+        "id,person_id,session_date,title,source,source_sheet,source_row,created_at,training_location_id,duration_minutes,rpe,activity_type_id,activity_types(name),session_entries(id,exercise_id,activity_type_id,name,source_sheet,source_row,activity_types(name),exercises(name,equipment,default_metric,activity_types(name)),entry_sets(id,set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,rest_seconds,rest_time,assistance_type,assistance_detail,quality,notes,data_shape,aggregate_set_count,load_semantics,volume_status,implement_count,entry_set_segments(id)),entry_metrics(id,metric_key,metric_value,metric_text))",
       person_id: `eq.${person.id}`,
       completed: "eq.true",
       order: "session_date.desc,created_at.desc",
@@ -276,10 +306,14 @@ export async function getDataQualityAuditClient() {
     (entry.entry_sets ?? [])
       .filter((set) => !setHasDose(set))
       .map((set) => {
+        const preservedRpe = activityRpe(session, entry, set);
         const redundantActivitySet =
           isSetlessActivity(activityNames(session, entry)) &&
           setHasOnlyRpe(set) &&
-          entryHasCompleteSetlessDose(session, entry, set);
+          entryHasSetlessDuration(session, entry) &&
+          preservedRpe != null &&
+          preservedRpe >= 1 &&
+          preservedRpe <= 10;
         return {
           id: set.id,
           date: session.session_date,
@@ -306,7 +340,7 @@ export async function getDataQualityAuditClient() {
       ({ session, entry }) =>
         !(entry.entry_sets?.length ?? 0) &&
         !(entry.entry_metrics?.length ?? 0) &&
-        !entryHasCompleteSetlessDose(session, entry),
+        !entryHasSetlessDuration(session, entry),
     )
     .map(({ session, entry }) => ({
       id: entry.id,
@@ -316,43 +350,30 @@ export async function getDataQualityAuditClient() {
       confidence: "manual" as const,
     }));
 
-  const missing = sessions
+  const missing = entryRows
     .filter(
-      (session) =>
-        numberOrNull(session.duration_minutes) == null || numberOrNull(session.rpe) == null,
+      ({ session, entry }) =>
+        entryRequiresDuration(session, entry) && activityDuration(session, entry) == null,
     )
-    .map((session) => {
-      const onlyEntry =
-        session.session_entries?.length === 1 ? session.session_entries[0] : undefined;
-      const suggestedDuration =
-        onlyEntry && isSetlessActivity(activityNames(session, onlyEntry))
-          ? activityDuration(session, onlyEntry)
-          : numberOrNull(session.duration_minutes);
-      const suggestedRpe =
-        onlyEntry && isSetlessActivity(activityNames(session, onlyEntry))
-          ? activityRpe(session, onlyEntry, onlyEntry.entry_sets?.[0])
-          : numberOrNull(session.rpe);
+    .map(({ session, entry }) => {
+      const singleEntrySession = session.session_entries?.length === 1;
       return {
-        id: session.id,
+        id: singleEntrySession ? session.id : entry.id,
         date: session.session_date,
-        title: session.title?.trim() || "Workout",
-        detail: [
-          numberOrNull(session.duration_minutes) == null ? "duration" : "",
-          numberOrNull(session.rpe) == null ? "final RPE" : "",
-        ]
-          .filter(Boolean)
-          .join(" and ")
-          .concat(" missing"),
-        confidence:
-          suggestedDuration != null || suggestedRpe != null
-            ? ("high" as const)
-            : ("manual" as const),
-        fix: {
-          action: "update_session_metadata" as const,
-          entityId: session.id,
-          durationMinutes: suggestedDuration,
-          rpe: suggestedRpe,
-        },
+        title: singleEntrySession ? session.title?.trim() || entry.name : entry.name,
+        detail: singleEntrySession
+          ? "This time-led activity has no recorded duration."
+          : "This time-led movement has no entry duration; the overall session duration is not inferred.",
+        confidence: "manual" as const,
+        fix: singleEntrySession
+          ? ({
+              action: "update_session_metadata" as const,
+              entityId: session.id,
+              durationMinutes: null,
+              rpe: activityRpe(session, entry, entry.entry_sets?.[0]),
+              durationRequired: true,
+            } satisfies DataQualityFix)
+          : undefined,
       };
     });
 
@@ -484,8 +505,9 @@ export async function getDataQualityAuditClient() {
     },
     {
       key: "missing",
-      title: "Missing duration and final RPE",
-      description: "Prompts for future review; no values are inferred.",
+      title: "Missing required activity duration",
+      description:
+        "Only time-led activities appear here. Overall duration and RPE remain optional for other workouts.",
       rows: missing,
     },
     {

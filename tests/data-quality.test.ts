@@ -12,9 +12,11 @@ import {
   isSetlessActivity,
   normalizeExerciseName,
   progressRepValues,
+  resolveActivityDuration,
   resolveReviewedAlias,
-  setlessActivityHasDose,
+  setlessActivityHasDuration,
 } from "../src/lib/data-quality.ts";
+import { getMovementMetricProfile, profileRequiresDuration } from "../src/lib/movement-metrics.ts";
 import { comparePlannedActual } from "../src/lib/planned-actual.ts";
 
 test("normalization resolves reviewed spelling variants without fuzzy matching", () => {
@@ -188,25 +190,83 @@ test("climbing metrics retain type-aware validation and board gradient rules", (
   assert.equal(supportsClimbingGradient("Bouldering"), false);
 });
 
-test("Yoga and Climbing use duration and RPE without fallback sets", () => {
+test("Yoga and Climbing require duration without making RPE mandatory", () => {
   assert.equal(isSetlessActivity(["Yoga"]), true);
   assert.equal(isSetlessActivity(["Climbing"]), true);
   assert.equal(isSetlessActivity(["Strength"]), false);
   assert.equal(
-    setlessActivityHasDose({
+    setlessActivityHasDuration({
       activityNames: ["Yoga"],
       durationMinutes: 45,
-      rpe: 6,
     }),
     true,
   );
   assert.equal(
-    setlessActivityHasDose({
+    setlessActivityHasDuration({
       activityNames: ["Climbing"],
       durationMinutes: 90,
-      rpe: null,
+    }),
+    true,
+  );
+  assert.equal(
+    setlessActivityHasDuration({
+      activityNames: ["Climbing"],
+      durationMinutes: null,
     }),
     false,
+  );
+});
+
+test("only time-led movement profiles require an audit duration", () => {
+  assert.equal(profileRequiresDuration("duration"), true);
+  assert.equal(profileRequiresDuration("time"), true);
+  assert.equal(profileRequiresDuration("climbing"), true);
+  assert.equal(profileRequiresDuration("weighted"), false);
+  assert.equal(profileRequiresDuration("hold"), false);
+  assert.equal(
+    profileRequiresDuration(
+      getMovementMetricProfile({
+        workoutType: "Mobility/Flexibility",
+        movement: "Front Split",
+        defaultMetric: "Distance / hold",
+      }),
+    ),
+    false,
+  );
+});
+
+test("an overall session duration is only reused for a single-entry activity", () => {
+  assert.equal(
+    resolveActivityDuration({
+      entryDurationMinutes: null,
+      sessionDurationMinutes: 60,
+      sessionEntryCount: 1,
+    }),
+    60,
+  );
+  assert.equal(
+    resolveActivityDuration({
+      entryDurationMinutes: null,
+      sessionDurationMinutes: 60,
+      sessionEntryCount: 3,
+    }),
+    null,
+  );
+  assert.equal(
+    resolveActivityDuration({
+      entryDurationMinutes: 20,
+      sessionDurationMinutes: 60,
+      sessionEntryCount: 3,
+    }),
+    20,
+  );
+  assert.equal(
+    resolveActivityDuration({
+      entryDurationMinutes: 0,
+      sessionDurationMinutes: 0,
+      sessionEntryCount: 1,
+    }),
+    null,
   );
 });
 

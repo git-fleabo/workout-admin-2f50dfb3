@@ -163,6 +163,10 @@ export function profileUsesLoad(profile: MetricProfile) {
   return ["weighted", "carry", "grip", "conditioning"].includes(profile);
 }
 
+export function profileRequiresDuration(profile: MetricProfile) {
+  return profile === "time" || profile === "duration" || profile === "climbing";
+}
+
 export function profileSupportsAdvancedMethods(profile: MetricProfile) {
   return ["weighted", "reps", "hold", "grip", "carry", "conditioning", "power"].includes(profile);
 }

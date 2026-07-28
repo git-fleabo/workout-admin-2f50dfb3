@@ -312,7 +312,8 @@ function RepairDialog({
   const disabled =
     pending ||
     (fix.action === "link_exercise" && !exerciseId) ||
-    (fix.action === "update_session_metadata" && !duration && !rpe) ||
+    (fix.action === "update_session_metadata" &&
+      (fix.durationRequired ? !duration : !duration && !rpe)) ||
     (fix.action === "classify_load" &&
       (!loadSemantics || (loadSemantics === "per_implement_load" && !implementCount)));
 
@@ -363,7 +364,7 @@ function RepairDialog({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="repair-rpe">Final RPE (1–10)</Label>
+                <Label htmlFor="repair-rpe">Final RPE (optional)</Label>
                 <Input
                   id="repair-rpe"
                   type="number"

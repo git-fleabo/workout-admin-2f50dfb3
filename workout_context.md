@@ -1128,7 +1128,11 @@ an explicit `Refresh audit` action. It does not run on a background interval or 
 narrow, validated repair show a Repair action; higher-risk categories remain review-only. Repairs
 are applied immediately through `public.apply_data_quality_fix`, with private rollback snapshots and
 public audit events saved in the same transaction. Setless Yoga/Climbing entries with complete
-session time and RPE are valid; redundant no-dose sets are shown as high-confidence audited repairs.
+positive duration are valid even when RPE is omitted; redundant no-dose sets are shown as
+high-confidence audited repairs when their RPE can be preserved. The missing-metadata audit is
+movement-profile aware: it only requires duration for time-led, duration-only, and climbing entries,
+while overall duration and final RPE remain optional for strength, skills, mixed, and other workouts.
+In a multi-entry workout, the overall session duration is not treated as every entry's duration.
 
 The library reads from Supabase. It supports:
 

@@ -20,23 +20,30 @@ export function isSetlessActivity(activityNames: Array<string | null | undefined
   return activityNames.some((name) => SETLESS_ACTIVITY_NAMES.has(name?.trim().toLowerCase() ?? ""));
 }
 
-export function setlessActivityHasDose({
+export function setlessActivityHasDuration({
   activityNames,
   durationMinutes,
-  rpe,
 }: {
   activityNames: Array<string | null | undefined>;
   durationMinutes: number | null;
-  rpe: number | null;
 }) {
-  return (
-    isSetlessActivity(activityNames) &&
-    durationMinutes != null &&
-    durationMinutes > 0 &&
-    rpe != null &&
-    rpe >= 1 &&
-    rpe <= 10
-  );
+  return isSetlessActivity(activityNames) && durationMinutes != null && durationMinutes > 0;
+}
+
+export function resolveActivityDuration({
+  entryDurationMinutes,
+  sessionDurationMinutes,
+  sessionEntryCount,
+}: {
+  entryDurationMinutes: number | null;
+  sessionDurationMinutes: number | null;
+  sessionEntryCount: number;
+}) {
+  if (entryDurationMinutes != null && entryDurationMinutes > 0) return entryDurationMinutes;
+  if (sessionEntryCount === 1 && sessionDurationMinutes != null && sessionDurationMinutes > 0) {
+    return sessionDurationMinutes;
+  }
+  return null;
 }
 
 export function normalizeExerciseName(value: string) {
