@@ -39,3 +39,14 @@ validation details.
   immediately filters the optional pools.
 - Starting a programme session persists that exact `training_location_id` instead of choosing the
   first active location with the same Home/Gym kind.
+
+## 2026-07-29 Programme Schedule In Plan
+
+- Plan's `Next 7 days` strip now layers active programme sessions onto their fixed assignment dates.
+- Programme items are visually distinct from history-derived Home/Gym/activity predictions and
+  cannot be removed by the device-local Adjust controls.
+- Each scheduled item shows its week/session and mapped main movements in advance.
+- The schedule is read-only: Today remains the only place that offers and starts a due programme
+  session, Log records it, and completion remains the only action that advances the assignment.
+- The schedule reuses the existing programme/template/assignment reads. No new table, write path, or
+  schema migration was added.

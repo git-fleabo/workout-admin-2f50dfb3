@@ -15,6 +15,7 @@ import {
   effectiveIntensityPercent,
   nextCycleTrainingMax,
   programmeWorkoutIsDue,
+  programmeWorkoutScheduledDate,
   suggestedRestForIntensity,
   type AdaptiveDecision,
   type TechniqueRating,
@@ -151,6 +152,18 @@ export type ProgrammeWorkoutOffer = {
   movements: WorkoutPlanMovement[];
   exerciseIds: string[];
   selections: ProgrammeSelectionOffer[];
+};
+
+export type ProgrammeScheduleSession = {
+  assignmentId: string;
+  programWorkoutId: string;
+  programmeName: string;
+  date: string;
+  weekNumber: number | null;
+  sessionNumber: number | null;
+  workoutNumber: number;
+  movementNames: string[];
+  status: "completed" | "current" | "upcoming";
 };
 
 type ProgrammeRecord = {
@@ -381,6 +394,65 @@ export async function listProgrammeAssignmentsClient(): Promise<ProgrammeAssignm
     order: "created_at.desc",
   });
   return rows.map(mapAssignment);
+}
+
+export async function getUpcomingProgrammeScheduleClient(
+  startDate: string,
+  endDate: string,
+): Promise<ProgrammeScheduleSession[]> {
+  const currentPerson = await getCurrentPerson();
+  if (!currentPerson) throw new Error("Connect your training profile first.");
+  const [templates, assignments] = await Promise.all([
+    listProgrammeTemplatesClient(),
+    listProgrammeAssignmentsClient(),
+  ]);
+  const templateById = new Map(templates.map((template) => [template.id, template]));
+  const sessions: ProgrammeScheduleSession[] = [];
+
+  for (const assignment of assignments) {
+    if (assignment.personId !== currentPerson.id || assignment.status !== "active") continue;
+    const template = templateById.get(assignment.programId);
+    if (!template) continue;
+    const mappingBySlot = new Map(
+      assignment.exercises.map((exercise) => [exercise.slotKey, exercise]),
+    );
+
+    for (const workout of template.workouts) {
+      const date = programmeWorkoutScheduledDate(
+        assignment.startedOn,
+        workout.weekNumber,
+        workout.dayNumber,
+      );
+      if (!date || date < startDate || date > endDate) continue;
+      const movementNames = workout.entries.flatMap((entry) => {
+        if (entry.selectionRole) return [];
+        const mapping = entry.slotKey ? mappingBySlot.get(entry.slotKey) : null;
+        if (!mapping?.enabled) return entry.isOptional ? [] : [entry.name];
+        return [entry.name];
+      });
+      sessions.push({
+        assignmentId: assignment.id,
+        programWorkoutId: workout.id,
+        programmeName: template.name,
+        date,
+        weekNumber: workout.weekNumber,
+        sessionNumber: workout.sessionNumber,
+        workoutNumber: workout.sequenceIndex + 1,
+        movementNames,
+        status:
+          workout.sequenceIndex < assignment.currentWorkoutIndex
+            ? "completed"
+            : workout.sequenceIndex === assignment.currentWorkoutIndex
+              ? "current"
+              : "upcoming",
+      });
+    }
+  }
+
+  return sessions.sort(
+    (left, right) =>
+      left.date.localeCompare(right.date) || left.workoutNumber - right.workoutNumber,
+  );
 }
 
 export async function createProgrammeAssignmentClient(input: ProgrammeAssignmentInput) {

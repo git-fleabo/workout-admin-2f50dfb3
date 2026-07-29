@@ -67,13 +67,22 @@ export function programmeWorkoutIsDue(
   dayNumber: number | null,
   currentDate: string,
 ) {
-  if (!startedOn) return true;
-  if (weekNumber == null || dayNumber == null) return startedOn <= currentDate;
+  const scheduledDate = programmeWorkoutScheduledDate(startedOn, weekNumber, dayNumber);
+  return scheduledDate == null || scheduledDate <= currentDate;
+}
+
+export function programmeWorkoutScheduledDate(
+  startedOn: string | null,
+  weekNumber: number | null,
+  dayNumber: number | null,
+) {
+  if (!startedOn) return null;
+  if (weekNumber == null || dayNumber == null) return startedOn;
   const start = new Date(`${startedOn}T00:00:00Z`);
-  if (Number.isNaN(start.getTime())) return startedOn <= currentDate;
+  if (Number.isNaN(start.getTime())) return startedOn;
   const offsetDays = Math.max(0, weekNumber - 1) * 7 + Math.max(0, dayNumber - 1);
   start.setUTCDate(start.getUTCDate() + offsetDays);
-  return start.toISOString().slice(0, 10) <= currentDate;
+  return start.toISOString().slice(0, 10);
 }
 
 export function suggestedRestForIntensity(intensityPercent: number | null) {

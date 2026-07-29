@@ -6,6 +6,7 @@ import {
   Footprints,
   HeartPulse,
   Home,
+  Layers3,
   Mountain,
   Pencil,
   RotateCcw,
@@ -28,6 +29,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatUKDateShort } from "@/lib/date";
+import type { ProgrammeScheduleSession } from "@/lib/supabase-programmes.browser";
 import type { PlannerLocation } from "@/lib/workout-plan";
 import type {
   WeeklyPlan,
@@ -191,11 +193,13 @@ function PatternCard({
 
 export function WeeklyPlanOverview({
   plan,
+  programmeSessions,
   adjustments,
   onChooseLocation,
   onAdjustDay,
 }: {
   plan: WeeklyPlan;
+  programmeSessions: ProgrammeScheduleSession[];
   adjustments: WeeklyPlanAdjustments;
   onChooseLocation: (location: PlannerLocation) => void;
   onAdjustDay: (date: string, items: WeeklyPlanItemKind[] | null) => void;
@@ -219,7 +223,8 @@ export function WeeklyPlanOverview({
             <CalendarRange className="h-4 w-4 text-fuchsia-300" /> Next 7 days
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            History-derived suggestions that you can adjust on this device.
+            Programme sessions are fixed. History-derived suggestions can be adjusted on this
+            device.
           </p>
         </div>
         <Badge variant="outline" className="text-[10px]">
@@ -230,6 +235,9 @@ export function WeeklyPlanOverview({
       <div className="flex gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-7 sm:overflow-visible">
         {plan.days.map((day, index) => {
           const plannedItems = adjustments[day.date] ?? day.inferredItems;
+          const scheduledProgrammeSessions = programmeSessions.filter(
+            (session) => session.date === day.date,
+          );
           const completed = day.completedItems.length > 0;
           return (
             <div
@@ -244,6 +252,27 @@ export function WeeklyPlanOverview({
               </p>
               <p className="mt-0.5 text-sm font-medium">{formatUKDateShort(day.date)}</p>
               <div className="mt-3 flex flex-col items-start gap-1.5">
+                {scheduledProgrammeSessions.map((session) => (
+                  <div
+                    key={`${session.assignmentId}:${session.programWorkoutId}`}
+                    className="w-full rounded-lg border border-fuchsia-400/25 bg-fuchsia-400/[0.08] p-2"
+                  >
+                    <div className="flex items-center gap-1 text-[10px] font-medium text-fuchsia-200">
+                      {session.status === "completed" ? (
+                        <CheckCircle2 className="h-3 w-3 text-emerald-300" />
+                      ) : (
+                        <Layers3 className="h-3 w-3" />
+                      )}
+                      {session.weekNumber ? `W${session.weekNumber} · ` : ""}
+                      {session.sessionNumber
+                        ? `Session ${session.sessionNumber}`
+                        : `Workout ${session.workoutNumber}`}
+                    </div>
+                    <p className="mt-1 line-clamp-3 text-[10px] leading-snug text-foreground/75">
+                      {session.movementNames.join(" · ")}
+                    </p>
+                  </div>
+                ))}
                 {day.completedItems.map((item) => (
                   <div key={`done-${item}`} className="flex items-center gap-1">
                     <CheckCircle2 className="h-3 w-3 text-emerald-300" />
@@ -253,7 +282,9 @@ export function WeeklyPlanOverview({
                 {plannedItems.map((item) => (
                   <ItemBadge key={item} item={item} />
                 ))}
-                {!completed && plannedItems.length === 0 ? (
+                {!completed &&
+                plannedItems.length === 0 &&
+                scheduledProgrammeSessions.length === 0 ? (
                   <span className="text-[10px] text-muted-foreground/70">Open</span>
                 ) : null}
               </div>

@@ -1673,6 +1673,26 @@ Possible first implementation:
 5. Add exercise selection.
 6. Add program/suggested workout assignment later.
 
+## 2026-07-29 — Active Programme Schedule On Plan
+
+Plan's rolling `Next 7 days` overview now includes a separate read-only layer for active programme
+assignments:
+
+- `getUpcomingProgrammeScheduleClient(startDate, endDate)` reads the current person's active
+  assignments and protected programme templates, calculates each workout date from `started_on`,
+  `week_number`, and `day_number`, and returns only sessions inside the visible seven-day window.
+- `programmeWorkoutScheduledDate(...)` is the shared pure date calculation used by both the Plan
+  schedule and Today's due-date gate, preventing the two surfaces from drifting.
+- Scheduled programme items show week/session and mapped main movements inside the correct day card.
+  They remain visually distinct from history-derived Home/Gym/climbing/recovery predictions.
+- Device-local day adjustments only edit inferred load items. They cannot move or remove programme
+  sessions.
+- This view does not pre-create `suggested_workouts`, start a draft, or advance
+  `program_assignments.current_workout_index`. Today still offers the due session; explicit Start
+  creates the linked suggestion; canonical Log completion advances it.
+
+No schema migration or live data mutation was required.
+
 ## Suggested Next Steps
 
 Recommended next work, in order:

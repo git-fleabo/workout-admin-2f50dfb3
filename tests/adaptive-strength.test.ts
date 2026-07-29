@@ -7,6 +7,7 @@ import {
   effectiveIntensityPercent,
   nextCycleTrainingMax,
   programmeWorkoutIsDue,
+  programmeWorkoutScheduledDate,
   suggestedRestForIntensity,
 } from "../src/lib/adaptive-strength.ts";
 
@@ -91,6 +92,14 @@ test("programme workouts stay hidden until their scheduled Mon/Wed/Fri date", ()
   assert.equal(programmeWorkoutIsDue("2026-08-03", 2, 1, "2026-08-09"), false);
   assert.equal(programmeWorkoutIsDue("2026-08-03", 2, 1, "2026-08-10"), true);
   assert.equal(programmeWorkoutIsDue(null, 1, 1, "2026-07-29"), true);
+});
+
+test("programme workout dates follow the assignment's Mon/Wed/Fri cadence", () => {
+  assert.equal(programmeWorkoutScheduledDate("2026-08-03", 1, 1), "2026-08-03");
+  assert.equal(programmeWorkoutScheduledDate("2026-08-03", 1, 3), "2026-08-05");
+  assert.equal(programmeWorkoutScheduledDate("2026-08-03", 1, 5), "2026-08-07");
+  assert.equal(programmeWorkoutScheduledDate("2026-08-03", 2, 1), "2026-08-10");
+  assert.equal(programmeWorkoutScheduledDate(null, 1, 1), null);
 });
 
 test("suggested rest increases with working-set intensity", () => {

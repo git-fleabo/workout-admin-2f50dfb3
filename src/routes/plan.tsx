@@ -63,6 +63,7 @@ import {
 } from "@/lib/supabase-plans.browser";
 import { getSupabaseSession } from "@/lib/supabase-public";
 import { getMovementMetricProfile } from "@/lib/movement-metrics";
+import { getUpcomingProgrammeScheduleClient } from "@/lib/supabase-programmes.browser";
 import { listTrainingMethodsClient } from "@/lib/supabase-training-methods.browser";
 import { getWeeklyLoadHistoryClient } from "@/lib/supabase-weekly-load.browser";
 import {
@@ -343,6 +344,11 @@ function PlanPage() {
     () => buildWeeklyPlan(weeklyLogs, todayISO(), weeklyLoad.data ?? []),
     [weeklyLoad.data, weeklyLogs],
   );
+  const programmeSchedule = useQuery({
+    queryKey: ["programme-schedule", weeklyPlan.startDate, weeklyPlan.endDate],
+    queryFn: () => getUpcomingProgrammeScheduleClient(weeklyPlan.startDate, weeklyPlan.endDate),
+    staleTime: 30_000,
+  });
   const weeklyRecovery = useMemo(
     () =>
       buildWeeklyRecoveryRecommendation({
@@ -861,6 +867,7 @@ function PlanPage() {
       {!history.isLoading && !library.isLoading && !history.error && !library.error ? (
         <WeeklyPlanOverview
           plan={weeklyPlan}
+          programmeSessions={programmeSchedule.data ?? []}
           adjustments={weeklyAdjustments}
           onChooseLocation={(nextLocation) => {
             setLocation(nextLocation);
