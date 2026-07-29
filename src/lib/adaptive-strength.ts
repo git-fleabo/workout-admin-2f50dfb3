@@ -61,6 +61,29 @@ export function effectiveIntensityPercent(input: {
   return Math.max(0, Math.min(adjusted, ceiling));
 }
 
+export function programmeWorkoutIsDue(
+  startedOn: string | null,
+  weekNumber: number | null,
+  dayNumber: number | null,
+  currentDate: string,
+) {
+  if (!startedOn) return true;
+  if (weekNumber == null || dayNumber == null) return startedOn <= currentDate;
+  const start = new Date(`${startedOn}T00:00:00Z`);
+  if (Number.isNaN(start.getTime())) return startedOn <= currentDate;
+  const offsetDays = Math.max(0, weekNumber - 1) * 7 + Math.max(0, dayNumber - 1);
+  start.setUTCDate(start.getUTCDate() + offsetDays);
+  return start.toISOString().slice(0, 10) <= currentDate;
+}
+
+export function suggestedRestForIntensity(intensityPercent: number | null) {
+  if (intensityPercent == null) return "";
+  if (intensityPercent >= 87.5) return "210–240s";
+  if (intensityPercent >= 80) return "180–210s";
+  if (intensityPercent >= 70) return "150–180s";
+  return "120–150s";
+}
+
 export function nextCycleTrainingMax(slotKey: string, current: number | null) {
   if (current == null) return null;
   if (slotKey === "seated_dumbbell_press") return current + 1;

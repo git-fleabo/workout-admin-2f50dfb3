@@ -3,6 +3,7 @@ import { getTrackingModeValue, type TrackingMode } from "./movement-metrics";
 
 export const WORKOUT_PLAN_DRAFT_KEY = "workout-plan-draft";
 export const WORKOUT_PLAN_LOCATION_KEY = "workout-plan-location";
+export const WORKOUT_TRAINING_LOCATION_KEY = "training-location-id";
 
 export type PlannerReadiness = "normal" | "fresh" | "tired";
 export type PlannerLocation = "home" | "gym";
@@ -33,6 +34,7 @@ export type WorkoutPlanMovement = {
   targets: WorkoutPlanTargets;
   sourceDate: string;
   reason: string;
+  restTime?: string;
   setRows: WorkoutPlanSet[];
 };
 
@@ -61,6 +63,7 @@ export type WorkoutPlanDraft = {
   suggestedWorkoutId?: string;
   title: string;
   locationKind: PlannerLocation;
+  trainingLocationId?: string;
   basis: string;
   movements: WorkoutPlanMovement[];
   methodBlocks?: WorkoutPlanMethodBlock[];

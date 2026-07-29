@@ -8,11 +8,14 @@ import { getProgrammeMethodSetup } from "./programme-methods";
 import { getCurrentPerson } from "./supabase-people.browser";
 import { listLibraryClient } from "./supabase-library.browser";
 import { getTrackingModeValue } from "./movement-metrics";
+import { todayISO } from "./date";
 import {
   adjustmentForDecision,
   decideAdaptiveProgression,
   effectiveIntensityPercent,
   nextCycleTrainingMax,
+  programmeWorkoutIsDue,
+  suggestedRestForIntensity,
   type AdaptiveDecision,
   type TechniqueRating,
 } from "./adaptive-strength";
@@ -494,6 +497,16 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
     const workout = template?.workouts[assignment.currentWorkoutIndex];
     const method = getProgrammeMethodSetup(template?.methodType ?? null);
     if (!template || !workout || !method || !template.methodType) continue;
+    if (
+      !programmeWorkoutIsDue(
+        assignment.startedOn,
+        workout.weekNumber,
+        workout.dayNumber,
+        todayISO(),
+      )
+    ) {
+      continue;
+    }
     if (linkedKeys.has(`${assignment.id}:${workout.id}`)) continue;
 
     const mappingBySlot = new Map(
@@ -542,6 +555,7 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
         break;
       }
       exerciseIds.push(mapping.exerciseId);
+      const restTime = suggestedRestForIntensity(plannedIntensity);
       movements.push({
         exercise: mapping.exerciseName,
         workoutType: method.workoutType,
@@ -563,12 +577,14 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
             ? `Planned range ${entry.intensityMinPercent}-${entry.intensityMaxPercent}%; start at the safe end.`
             : null,
           entry.rpeCap != null ? `RPE cap ${entry.rpeCap}.` : null,
+          restTime ? `Suggested rest ${restTime} between sets.` : null,
           mapping.lastDecision ? `Last review: ${mapping.lastDecision}.` : null,
           entry.isOptional ? "Optional movement." : null,
           entry.notes,
         ]
           .filter(Boolean)
           .join(" "),
+        restTime,
         setRows: setRows.map((set) => ({ ...set, durationSeconds: "" })),
       });
     }
@@ -602,7 +618,7 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
 
 export async function startProgrammeWorkoutClient(
   assignmentId: string,
-  locationKind: PlannerLocation,
+  trainingLocationId: string,
   selectedExerciseIds: Partial<Record<ProgrammeSelectionRole, string>> = {},
 ): Promise<WorkoutPlanDraft> {
   const currentPerson = await getCurrentPerson();
@@ -615,6 +631,19 @@ export async function startProgrammeWorkoutClient(
   }
   const library = await listLibraryClient(currentPerson.id);
   const libraryById = new Map(library.items.map((item) => [item.id, item]));
+  const location = library.locations.find((candidate) => candidate.id === trainingLocationId);
+  if (!location || (location.kind !== "home" && location.kind !== "gym")) {
+    throw new Error("Choose an active Home or Gym training location first.");
+  }
+  const locationKind: PlannerLocation = location.kind;
+  for (const exerciseId of offer.exerciseIds) {
+    const mappedExercise = libraryById.get(exerciseId);
+    if (!mappedExercise?.availableLocationIds.includes(location.id)) {
+      throw new Error(
+        `${mappedExercise?.name ?? "A mapped movement"} is not available at ${location.name}.`,
+      );
+    }
+  }
   const selectedMovements: Array<{
     role: ProgrammeSelectionRole;
     exerciseId: string;
@@ -633,8 +662,8 @@ export async function startProgrammeWorkoutClient(
     if (!libraryItem?.active || !libraryItem.enabled) {
       throw new Error(`${selection.label} is no longer enabled in Library.`);
     }
-    if (!libraryItem.availableLocationKinds.includes(locationKind)) {
-      throw new Error(`${libraryItem.name} is not available at the selected location.`);
+    if (!libraryItem.availableLocationIds.includes(location.id)) {
+      throw new Error(`${libraryItem.name} is not available at ${location.name}.`);
     }
     const firstNumber = (value: string, fallback: number) => {
       const parsed = Number(value.match(/\d+(?:\.\d+)?/)?.[0]);
@@ -689,16 +718,6 @@ export async function startProgrammeWorkoutClient(
     ...offer.exerciseIds,
     ...afterMain.map((item) => item.exerciseId),
   ];
-  const locations = await supabasePublicSelect<{ id: string }>("training_locations", {
-    select: "id",
-    person_id: `eq.${currentPerson.id}`,
-    kind: `eq.${locationKind}`,
-    is_active: "eq.true",
-    limit: 1,
-  });
-  const location = locations[0];
-  if (!location) throw new Error(`Add or restore a ${locationKind} training location first.`);
-
   const title = `${offer.programmeName} · ${offer.workoutName}`;
   const inserted = await supabasePublicInsert<{ id: string }>("suggested_workouts", {
     person_id: currentPerson.id,
@@ -752,6 +771,7 @@ export async function startProgrammeWorkoutClient(
     suggestedWorkoutId: workout.id,
     title,
     locationKind,
+    trainingLocationId: location.id,
     basis: offer.basis,
     movements: selectedPlanMovements,
     methodBlocks: [],

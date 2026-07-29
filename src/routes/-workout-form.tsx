@@ -104,6 +104,7 @@ import {
 import {
   readWorkoutPlanDraft,
   WORKOUT_PLAN_DRAFT_KEY,
+  WORKOUT_TRAINING_LOCATION_KEY,
   type RecentWorkoutLog,
   type WorkoutPlanDraft,
 } from "@/lib/workout-plan";
@@ -979,7 +980,7 @@ export function ClimbForm() {
       return;
     }
     if (climbingLocations.some((location) => location.id === form.trainingLocationId)) return;
-    const storedId = window.localStorage.getItem("training-location-id");
+    const storedId = window.localStorage.getItem(WORKOUT_TRAINING_LOCATION_KEY);
     const selected =
       climbingLocations.find((location) => location.id === storedId) ??
       climbingLocations.find((location) => location.kind === "gym") ??
@@ -1097,7 +1098,7 @@ export function ClimbForm() {
                 className="sm:min-w-28"
                 onClick={() => {
                   update("trainingLocationId", location.id);
-                  window.localStorage.setItem("training-location-id", location.id);
+                  window.localStorage.setItem(WORKOUT_TRAINING_LOCATION_KEY, location.id);
                 }}
               >
                 {location.name}
@@ -1471,7 +1472,9 @@ export function FullWorkoutForm() {
   const loadPlanIntoForm = useCallback(
     (draft: WorkoutPlanDraft) => {
       const trainingLocation = locations.data?.find(
-        (location) => location.kind === draft.locationKind,
+        (location) =>
+          location.id === draft.trainingLocationId ||
+          (!draft.trainingLocationId && location.kind === draft.locationKind),
       );
       const entries = draft.movements.map((movement) => {
         const totalReps = movement.setRows.reduce(
@@ -1493,6 +1496,7 @@ export function FullWorkoutForm() {
           rounds: movement.targets.rounds,
           height: movement.targets.height,
           detail: movement.targets.detail,
+          restTime: movement.restTime ?? "",
           setRows: movement.setRows.map((set) => ({
             ...set,
             completed: true,
@@ -1652,7 +1656,7 @@ export function FullWorkoutForm() {
   useEffect(() => {
     if (!initialFormLoaded) return;
     if (form.trainingLocationId || !locations.data?.length) return;
-    const remembered = window.localStorage.getItem("training-location-id");
+    const remembered = window.localStorage.getItem(WORKOUT_TRAINING_LOCATION_KEY);
     const selected =
       locations.data.find((location) => location.id === remembered) ?? locations.data[0];
     if (selected) {
@@ -2385,7 +2389,7 @@ export function FullWorkoutForm() {
                 className="sm:min-w-28"
                 onClick={() => {
                   update("trainingLocationId", location.id);
-                  window.localStorage.setItem("training-location-id", location.id);
+                  window.localStorage.setItem(WORKOUT_TRAINING_LOCATION_KEY, location.id);
                 }}
               >
                 {location.name}

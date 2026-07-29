@@ -24,3 +24,18 @@ The additive schema and template seed are tracked in
 linked Training Admin project and verified for template counts, intensity caps, RLS, policies, grants,
 and migration-ledger presence. See `workout_context.md` for architecture, exact design decisions, and
 validation details.
+
+## 2026-07-29 Programme Start, Rest, And Location Follow-up
+
+- Active programme workouts do not appear on Today before their configured Mon/Wed/Fri date,
+  calculated from the assignment start date plus each template workout's week/day position.
+- Main-lift prescriptions include percentage-sensitive rest guidance: 120–150 seconds below 70%,
+  150–180 seconds from 70%, 180–210 seconds from 80%, and 210–240 seconds from 87.5%.
+- The chosen rest interval is visible in Today and prefilled into the unified logger.
+- Programme sessions select an exact named training location, remember the latest choice, and default
+  to the remembered location (The Font for the current user) when all mapped lifts are available there.
+- Main lifts and optional power/accessory/pull choices use the existing Library contract based on
+  `exercise_equipment_items` plus `training_location_equipment`; changing the named location
+  immediately filters the optional pools.
+- Starting a programme session persists that exact `training_location_id` instead of choosing the
+  first active location with the same Home/Gym kind.

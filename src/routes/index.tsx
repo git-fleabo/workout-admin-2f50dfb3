@@ -70,6 +70,7 @@ import {
   buildWorkoutSuggestion,
   WORKOUT_PLAN_DRAFT_KEY,
   WORKOUT_PLAN_LOCATION_KEY,
+  WORKOUT_TRAINING_LOCATION_KEY,
   type PlannerLocation,
   type WorkoutPlanMovement,
 } from "@/lib/workout-plan";
@@ -106,17 +107,19 @@ function targetSummary(movement: WorkoutPlanMovement) {
       `${rows.length} ${rows.length === 1 ? "set" : "sets"}`,
       first?.weight ? `${first.weight} kg` : "",
       first?.reps ? `${first.reps} reps` : "",
+      movement.restTime ? `Rest ${movement.restTime}` : "",
     ]
       .filter(Boolean)
       .join(" · ");
   }
-  return `${rows.length} sets · ${rows
+  const targets = `${rows.length} sets · ${rows
     .map((row) =>
       [row.weight ? `${row.weight} kg` : "", row.reps ? `${row.reps} reps` : ""]
         .filter(Boolean)
         .join(" × "),
     )
     .join(", ")}`;
+  return movement.restTime ? `${targets} · Rest ${movement.restTime}` : targets;
 }
 
 function groupRecentSessions(
@@ -157,13 +160,15 @@ function groupRecentSessions(
 function availableProgrammeLocations(
   offer: ProgrammeWorkoutOffer,
   exercises: Awaited<ReturnType<typeof getLibraryClient>>["exercises"],
+  locations: Awaited<ReturnType<typeof getLibraryClient>>["locations"],
 ) {
   const byId = new Map(exercises.map((exercise) => [exercise.id, exercise]));
-  return (["home", "gym"] as PlannerLocation[]).filter((location) =>
-    offer.exerciseIds.every((exerciseId) => {
-      const exercise = byId.get(exerciseId);
-      return exercise && (exercise.locationScope === "both" || exercise.locationScope === location);
-    }),
+  return locations.filter(
+    (location) =>
+      (location.kind === "home" || location.kind === "gym") &&
+      offer.exerciseIds.every((exerciseId) =>
+        byId.get(exerciseId)?.availableLocationIds.includes(location.id),
+      ),
   );
 }
 
@@ -174,7 +179,10 @@ function TodayPage() {
   const [completed, setCompleted] = useState<WorkoutLocalSummary | null>(null);
   const [startingPlanId, setStartingPlanId] = useState<string | null>(null);
   const [startingProgrammeId, setStartingProgrammeId] = useState<string | null>(null);
-  const [programmeLocations, setProgrammeLocations] = useState<Record<string, PlannerLocation>>({});
+  const [rememberedTrainingLocationId, setRememberedTrainingLocationId] = useState<string | null>(
+    null,
+  );
+  const [programmeLocations, setProgrammeLocations] = useState<Record<string, string>>({});
   const [programmeSelections, setProgrammeSelections] = useState<
     Record<string, Record<string, string>>
   >({});
@@ -215,6 +223,7 @@ function TodayPage() {
 
   useEffect(() => {
     setDraft(readWorkoutDraftSummary(window.localStorage.getItem(workoutSessionDraftKey())));
+    setRememberedTrainingLocationId(window.localStorage.getItem(WORKOUT_TRAINING_LOCATION_KEY));
     setCompleted(
       readCompletedWorkoutSummary(window.localStorage.getItem(lastCompletedWorkoutKey())),
     );
@@ -280,7 +289,7 @@ function TodayPage() {
     }
   };
 
-  const startProgramme = async (offer: ProgrammeWorkoutOffer, location: PlannerLocation) => {
+  const startProgramme = async (offer: ProgrammeWorkoutOffer, trainingLocationId: string) => {
     if (draft) {
       toast.message("Resume or discard your draft first", {
         description: "Your unfinished workout is being kept safe.",
@@ -291,7 +300,7 @@ function TodayPage() {
     try {
       const saved = await startProgrammeWorkoutClient(
         offer.assignmentId,
-        location,
+        trainingLocationId,
         programmeSelections[offer.assignmentId] ?? {},
       );
       window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(saved));
@@ -542,10 +551,19 @@ function TodayPage() {
               const availableLocations = availableProgrammeLocations(
                 offer,
                 library.data?.exercises ?? [],
+                library.data?.locations ?? [],
               );
+              const requestedLocationId = programmeLocations[offer.assignmentId];
               const selectedLocation =
-                programmeLocations[offer.assignmentId] ??
-                (availableLocations.includes("gym") ? "gym" : availableLocations[0]);
+                availableLocations.find((location) => location.id === requestedLocationId) ??
+                availableLocations.find(
+                  (location) => location.id === rememberedTrainingLocationId,
+                ) ??
+                availableLocations.find((location) => location.kind === "gym") ??
+                availableLocations[0];
+              const libraryById = new Map(
+                (library.data?.exercises ?? []).map((exercise) => [exercise.id, exercise]),
+              );
               return (
                 <Card
                   key={offer.assignmentId}
@@ -585,88 +603,110 @@ function TodayPage() {
                       ))}
                     </div>
 
-                    {offer.selections.length ? (
-                      <div className="mt-4 space-y-3">
-                        {offer.selections.map((selection) => (
-                          <div key={selection.role} className="space-y-1.5">
-                            <p className="text-xs font-medium">
-                              {selection.label} {selection.required ? "" : "(optional)"}
-                            </p>
-                            <Select
-                              value={
-                                programmeSelections[offer.assignmentId]?.[selection.role] ?? "none"
-                              }
-                              onValueChange={(value) =>
-                                setProgrammeSelections((current) => ({
-                                  ...current,
-                                  [offer.assignmentId]: {
-                                    ...(current[offer.assignmentId] ?? {}),
-                                    [selection.role]: value === "none" ? "" : value,
-                                  },
-                                }))
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Choose from Library pool" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {!selection.required ? (
-                                  <SelectItem value="none">Skip today</SelectItem>
-                                ) : null}
-                                {selection.options.map((option) => (
-                                  <SelectItem key={option.id} value={option.exerciseId}>
-                                    {option.exerciseName}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {!selection.options.length ? (
-                              <p className="text-[11px] text-muted-foreground">
-                                Add choices in Programme Templates, or skip this optional role.
-                              </p>
-                            ) : null}
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-
                     {availableLocations.length ? (
-                      <div className="mt-4 grid grid-cols-2 gap-1 rounded-lg border border-border bg-secondary/30 p-1">
-                        {availableLocations.map((location) => (
-                          <button
-                            key={location}
-                            type="button"
-                            onClick={() =>
-                              setProgrammeLocations((current) => ({
-                                ...current,
-                                [offer.assignmentId]: location,
-                              }))
-                            }
-                            className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium capitalize transition ${
-                              selectedLocation === location
-                                ? "bg-card text-foreground shadow"
-                                : "text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            {location === "home" ? (
-                              <Home className="h-3.5 w-3.5" />
-                            ) : (
-                              <Building2 className="h-3.5 w-3.5" />
-                            )}
-                            {location}
-                          </button>
-                        ))}
+                      <div className="mt-4 space-y-1.5">
+                        <p className="text-xs font-medium">Training location</p>
+                        <Select
+                          value={selectedLocation?.id}
+                          onValueChange={(value) => {
+                            window.localStorage.setItem(WORKOUT_TRAINING_LOCATION_KEY, value);
+                            setRememberedTrainingLocationId(value);
+                            setProgrammeLocations((current) => ({
+                              ...current,
+                              [offer.assignmentId]: value,
+                            }));
+                            setProgrammeSelections((current) => ({
+                              ...current,
+                              [offer.assignmentId]: {},
+                            }));
+                          }}
+                        >
+                          <SelectTrigger>
+                            <MapPin className="mr-2 h-4 w-4" />
+                            <SelectValue placeholder="Choose a location" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableLocations.map((location) => (
+                              <SelectItem key={location.id} value={location.id}>
+                                {location.name} · {location.kind}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[11px] text-muted-foreground">
+                          Main lifts and optional choices use this location’s recorded equipment.
+                        </p>
                       </div>
                     ) : (
                       <p className="mt-4 text-xs text-destructive">
                         These mapped movements do not share an enabled Home or Gym location. Update
-                        their Library locations before starting.
+                        their Library locations or equipment before starting.
                       </p>
                     )}
 
+                    {offer.selections.length ? (
+                      <div className="mt-4 space-y-3">
+                        {offer.selections.map((selection) => {
+                          const availableOptions = selectedLocation
+                            ? selection.options.filter((option) =>
+                                libraryById
+                                  .get(option.exerciseId)
+                                  ?.availableLocationIds.includes(selectedLocation.id),
+                              )
+                            : [];
+                          const selectedExerciseId =
+                            programmeSelections[offer.assignmentId]?.[selection.role] ?? "";
+                          const selectionValue = availableOptions.some(
+                            (option) => option.exerciseId === selectedExerciseId,
+                          )
+                            ? selectedExerciseId
+                            : "none";
+                          return (
+                            <div key={selection.role} className="space-y-1.5">
+                              <p className="text-xs font-medium">
+                                {selection.label} {selection.required ? "" : "(optional)"}
+                              </p>
+                              <Select
+                                value={selectionValue}
+                                onValueChange={(value) =>
+                                  setProgrammeSelections((current) => ({
+                                    ...current,
+                                    [offer.assignmentId]: {
+                                      ...(current[offer.assignmentId] ?? {}),
+                                      [selection.role]: value === "none" ? "" : value,
+                                    },
+                                  }))
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Choose from Library pool" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {!selection.required ? (
+                                    <SelectItem value="none">Skip today</SelectItem>
+                                  ) : null}
+                                  {availableOptions.map((option) => (
+                                    <SelectItem key={option.id} value={option.exerciseId}>
+                                      {option.exerciseName}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {!availableOptions.length ? (
+                                <p className="text-[11px] text-muted-foreground">
+                                  No pool choices are available at{" "}
+                                  {selectedLocation?.name ?? "this location"}.
+                                </p>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+
                     <Button
                       className="mt-3 w-full"
-                      onClick={() => selectedLocation && startProgramme(offer, selectedLocation)}
+                      onClick={() => selectedLocation && startProgramme(offer, selectedLocation.id)}
                       disabled={!selectedLocation || Boolean(startingProgrammeId)}
                     >
                       {startingProgrammeId === offer.assignmentId ? (

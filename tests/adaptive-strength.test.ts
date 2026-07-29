@@ -6,6 +6,8 @@ import {
   decideAdaptiveProgression,
   effectiveIntensityPercent,
   nextCycleTrainingMax,
+  programmeWorkoutIsDue,
+  suggestedRestForIntensity,
 } from "../src/lib/adaptive-strength.ts";
 
 test("adaptive review progresses only with complete low-pain quality evidence", () => {
@@ -79,4 +81,22 @@ test("next cycle uses the agreed lift-specific training max steps", () => {
   assert.equal(nextCycleTrainingMax("deadlift", 87.5), 90);
   assert.equal(nextCycleTrainingMax("seated_dumbbell_press", 20), 21);
   assert.equal(nextCycleTrainingMax("weighted_pull_up", 30), 30);
+});
+
+test("programme workouts stay hidden until their scheduled Mon/Wed/Fri date", () => {
+  assert.equal(programmeWorkoutIsDue("2026-08-03", 1, 1, "2026-07-29"), false);
+  assert.equal(programmeWorkoutIsDue("2026-08-03", 1, 1, "2026-08-03"), true);
+  assert.equal(programmeWorkoutIsDue("2026-08-03", 1, 3, "2026-08-04"), false);
+  assert.equal(programmeWorkoutIsDue("2026-08-03", 1, 3, "2026-08-05"), true);
+  assert.equal(programmeWorkoutIsDue("2026-08-03", 2, 1, "2026-08-09"), false);
+  assert.equal(programmeWorkoutIsDue("2026-08-03", 2, 1, "2026-08-10"), true);
+  assert.equal(programmeWorkoutIsDue(null, 1, 1, "2026-07-29"), true);
+});
+
+test("suggested rest increases with working-set intensity", () => {
+  assert.equal(suggestedRestForIntensity(60), "120–150s");
+  assert.equal(suggestedRestForIntensity(70), "150–180s");
+  assert.equal(suggestedRestForIntensity(80), "180–210s");
+  assert.equal(suggestedRestForIntensity(90), "210–240s");
+  assert.equal(suggestedRestForIntensity(null), "");
 });

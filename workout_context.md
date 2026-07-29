@@ -957,6 +957,21 @@ Adaptive 12-week strength engine (implemented locally 2026-07-28):
   advisors reported no new security issue; the existing `person_app_profiles` no-policy notice and
   leaked-password-protection warning remain unrelated. New indexes are initially reported unused,
   which is expected before assignments/reviews exist.
+- Programme offers are schedule-gated: an active future assignment remains listed in Settings, while
+  its next workout appears on Today only when the assignment start date plus the template's week/day
+  offset is due in the user's local date. This preserves the intended Monday/Wednesday/Friday cadence
+  and prevents Wednesday's session appearing immediately after Monday is completed.
+- Main-lift offers calculate rest from the effective working percentage and carry it into Today and
+  the unified logger: 120–150s below 70%, 150–180s from 70%, 180–210s from 80%, and 210–240s from
+  87.5%. This is guidance, remains editable, and is stored through the logger's existing `rest_time`.
+- Programme execution selects a specific active training location rather than only `home` or `gym`.
+  Today remembers the normal logger's last named location, prefers it when every mapped main lift is
+  available, and otherwise falls back to an available Gym then Home location. Starting the workout
+  writes that exact `training_location_id`, and the logger restores the same location.
+- Exact programme-location eligibility reuses the Library availability contract. Every main lift must
+  be available at the chosen location, and optional power/accessory/pull pool choices are filtered
+  live using `exercise_equipment_items` plus `training_location_equipment`. Changing location clears
+  any stale optional selections so unavailable equipment cannot leak into the programme draft.
 
 ## App Behavior And Screens
 
