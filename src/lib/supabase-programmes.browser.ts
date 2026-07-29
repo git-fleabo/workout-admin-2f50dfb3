@@ -399,6 +399,7 @@ export async function listProgrammeAssignmentsClient(): Promise<ProgrammeAssignm
 export async function getUpcomingProgrammeScheduleClient(
   startDate: string,
   endDate: string,
+  assignmentStatuses: ProgrammeAssignmentStatus[] = ["active"],
 ): Promise<ProgrammeScheduleSession[]> {
   const currentPerson = await getCurrentPerson();
   if (!currentPerson) throw new Error("Connect your training profile first.");
@@ -410,7 +411,12 @@ export async function getUpcomingProgrammeScheduleClient(
   const sessions: ProgrammeScheduleSession[] = [];
 
   for (const assignment of assignments) {
-    if (assignment.personId !== currentPerson.id || assignment.status !== "active") continue;
+    if (
+      assignment.personId !== currentPerson.id ||
+      !assignmentStatuses.includes(assignment.status)
+    ) {
+      continue;
+    }
     const template = templateById.get(assignment.programId);
     if (!template) continue;
     const mappingBySlot = new Map(

@@ -209,7 +209,7 @@ function WeeklyReviewPage() {
         {data.comparisonLabel}. Current weeks use the same number of elapsed days.
       </p>
 
-      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid gap-4 lg:grid-cols-3">
         <Card className="p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -225,12 +225,11 @@ function WeeklyReviewPage() {
             <Target className="h-5 w-5 text-primary" />
           </div>
           <Progress className="mt-4 h-2.5" value={data.adherence.percentage ?? 0} />
-          <div className="mt-4 grid grid-cols-4 gap-2 text-center">
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
             {[
               ["Completed", data.adherence.completed],
               ["Skipped", data.adherence.skipped],
               ["Open", data.adherence.open],
-              ["Programme", data.adherence.programme],
             ].map(([label, value]) => (
               <div key={label} className="rounded-lg bg-muted/40 px-2 py-2">
                 <p className="text-base font-semibold">{value}</p>
@@ -238,6 +237,41 @@ function WeeklyReviewPage() {
               </div>
             ))}
           </div>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Programme adherence
+              </p>
+              <h2 className="mt-1 text-lg font-semibold">
+                {data.programmeAdherence.percentage == null
+                  ? "No sessions due"
+                  : `${data.programmeAdherence.percentage}% completed`}
+              </h2>
+            </div>
+            <Target className="h-5 w-5 text-fuchsia-300" />
+          </div>
+          <Progress className="mt-4 h-2.5" value={data.programmeAdherence.percentage ?? 0} />
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+            {[
+              ["Due", data.programmeAdherence.due],
+              ["On time", data.programmeAdherence.onTime],
+              ["Late", data.programmeAdherence.late],
+              ["Outstanding", data.programmeAdherence.outstanding],
+              ["Missed", data.programmeAdherence.missed],
+              ["Skipped", data.programmeAdherence.skipped],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-lg bg-muted/40 px-2 py-2">
+                <p className="text-base font-semibold">{value}</p>
+                <p className="text-[10px] text-muted-foreground">{label}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            Fixed programme dates count even when a session was never started.
+          </p>
         </Card>
 
         <Card className="p-5">

@@ -1693,6 +1693,31 @@ assignments:
 
 No schema migration or live data mutation was required.
 
+## 2026-07-29 — Scheduled Programme Adherence And Volume Context
+
+Weekly Review now treats ordinary saved plans and the fixed programme calendar as separate
+adherence contracts:
+
+- General Plan adherence excludes programme-linked suggestions and continues to report completed,
+  skipped, and open one-off plans/circuits.
+- `summarizeProgrammeAdherence(...)` compares programme sessions due between the review week's
+  Monday and `reviewEnd` with programme-linked suggestions and their completed session dates.
+- Programme sessions are classified as on time, completed late, outstanding, missed, or skipped.
+  A past-due session with no suggestion row is still missed; this closes the previous gap where
+  never-started sessions were invisible.
+- Current-week reviews stop at today, so future sessions do not reduce adherence. Historical
+  reviews use the full Monday–Sunday period.
+- Programme-derived next actions take priority when a scheduled session is missed or outstanding.
+
+The `Strength workload moved up` highlight no longer leads with a percentage that can be dominated
+by a small denominator. It shows the actual comparable kg-volume totals and explicitly identifies a
+low comparison baseline when the current value is at least three times the previous value. The live
+2026-07-27–29 audit was 6,000 kg versus 900 kg for 2026-07-20–22: the current period had two
+weighted sessions, while the comparison period had one. Holds, mobility, yoga, and climbing
+correctly contribute no kg-volume.
+
+No schema migration or data mutation was required.
+
 ## Suggested Next Steps
 
 Recommended next work, in order:

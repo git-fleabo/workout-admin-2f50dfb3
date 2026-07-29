@@ -4,6 +4,12 @@ import { getCurrentPerson } from "./supabase-people.browser";
 import { getPRsClient } from "./supabase-log.browser";
 import { supabasePublicSelect } from "./supabase-public";
 import { comparableVolume, type LoadSemantics, type VolumeStatus } from "./data-quality";
+import {
+  summarizeProgrammeAdherence,
+  type ProgrammeAdherence,
+  type ProgrammeAdherenceLink,
+} from "./programme-adherence";
+import { getUpcomingProgrammeScheduleClient } from "./supabase-programmes.browser";
 
 type ActivityTypeRef = { name: string | null } | null;
 
@@ -60,6 +66,7 @@ type ReviewPlanRecord = {
   created_at: string;
   completed_session_id: string | null;
   program_assignment_id: string | null;
+  program_workout_id: string | null;
 };
 
 export type WeeklyReviewTone = "positive" | "caution" | "neutral";
@@ -116,9 +123,9 @@ export type WeeklyReviewData = {
     completed: number;
     skipped: number;
     open: number;
-    programme: number;
     percentage: number | null;
   };
+  programmeAdherence: ProgrammeAdherence;
   activityMix: Array<{ label: string; sessions: number }>;
   locations: Array<{ label: string; sessions: number }>;
   highlights: WeeklyReviewItem[];
@@ -309,7 +316,9 @@ function planDate(plan: ReviewPlanRecord) {
 function planAdherence(plans: ReviewPlanRecord[], start: string, end: string) {
   const relevant = plans.filter((plan) => {
     const date = planDate(plan);
-    return date >= start && date <= end && plan.status !== "archived";
+    return (
+      date >= start && date <= end && plan.status !== "archived" && !plan.program_assignment_id
+    );
   });
   const completed = relevant.filter(
     (plan) => plan.status === "completed" || Boolean(plan.completed_session_id),
@@ -323,7 +332,6 @@ function planAdherence(plans: ReviewPlanRecord[], start: string, end: string) {
     completed,
     skipped,
     open,
-    programme: relevant.filter((plan) => Boolean(plan.program_assignment_id)).length,
     percentage: relevant.length ? Math.round((completed / relevant.length) * 100) : null,
   };
 }
@@ -339,9 +347,9 @@ function countLabels(sessions: WeeklyReviewSession[], key: "activities" | "locat
     .sort((left, right) => right.sessions - left.sessions || left.label.localeCompare(right.label));
 }
 
-function percentageChange(current: number, previous: number) {
-  if (previous <= 0) return current > 0 ? 100 : 0;
-  return Math.round(((current - previous) / previous) * 100);
+function formatKgVolume(value: number) {
+  if (value >= 1000) return `${Math.round((value / 1000) * 10) / 10}k kg`;
+  return `${Math.round(value)} kg`;
 }
 
 function buildHighlights({
@@ -349,11 +357,13 @@ function buildHighlights({
   previous,
   prs,
   adherence,
+  programmeAdherence,
 }: {
   current: ReturnType<typeof summarize>;
   previous: ReturnType<typeof summarize>;
   prs: WeeklyReviewPR[];
   adherence: WeeklyReviewData["adherence"];
+  programmeAdherence: ProgrammeAdherence;
 }) {
   const highlights: WeeklyReviewItem[] = prs.slice(0, 2).map((pr) => ({
     title: `${pr.title} personal best`,
@@ -364,10 +374,17 @@ function buildHighlights({
   if (adherence.completed > 0) {
     highlights.push({
       title: `${adherence.completed} planned workout${adherence.completed === 1 ? "" : "s"} completed`,
+      detail: "Completed sessions stayed linked to their saved plans.",
+      tone: "positive",
+    });
+  }
+  if (programmeAdherence.completed > 0) {
+    highlights.push({
+      title: `${programmeAdherence.completed}/${programmeAdherence.due} programme sessions completed`,
       detail:
-        adherence.programme > 0
-          ? "Programme-linked work contributed to this week’s plan adherence."
-          : "Completed sessions stayed linked to their saved plans.",
+        programmeAdherence.late > 0
+          ? `${programmeAdherence.onTime} on time · ${programmeAdherence.late} completed late.`
+          : "All completed programme sessions were finished on schedule.",
       tone: "positive",
     });
   }
@@ -385,7 +402,11 @@ function buildHighlights({
   ) {
     highlights.push({
       title: "Strength workload moved up",
-      detail: `${percentageChange(current.strengthVolume, previous.strengthVolume)}% more recorded kg-volume than the comparison period.`,
+      detail: `${formatKgVolume(current.strengthVolume)} versus ${formatKgVolume(previous.strengthVolume)} in the comparison period.${
+        current.strengthVolume >= previous.strengthVolume * 3
+          ? " The percentage change is large because the comparison baseline was low."
+          : ""
+      }`,
       tone: "positive",
     });
   }
@@ -405,10 +426,12 @@ function buildWatchlist({
   current,
   previous,
   adherence,
+  programmeAdherence,
 }: {
   current: ReturnType<typeof summarize>;
   previous: ReturnType<typeof summarize>;
   adherence: WeeklyReviewData["adherence"];
+  programmeAdherence: ProgrammeAdherence;
 }) {
   const watchlist: WeeklyReviewItem[] = [];
   if (current.hardDays >= 2) {
@@ -444,6 +467,16 @@ function buildWatchlist({
       tone: "caution",
     });
   }
+  if (programmeAdherence.missed > 0 || programmeAdherence.skipped > 0) {
+    watchlist.push({
+      title: `${programmeAdherence.missed + programmeAdherence.skipped} programme session${
+        programmeAdherence.missed + programmeAdherence.skipped === 1 ? "" : "s"
+      } missed or skipped`,
+      detail:
+        "This is calculated from the fixed programme dates, including sessions that were never started.",
+      tone: "caution",
+    });
+  }
   if (!watchlist.length) {
     watchlist.push({
       title: "No obvious recovery flag",
@@ -460,39 +493,59 @@ function buildActions({
   current,
   previous,
   adherence,
+  programmeAdherence,
   prs,
 }: {
   current: ReturnType<typeof summarize>;
   previous: ReturnType<typeof summarize>;
   adherence: WeeklyReviewData["adherence"];
+  programmeAdherence: ProgrammeAdherence;
   prs: WeeklyReviewPR[];
 }): WeeklyReviewAction[] {
   const planAction: WeeklyReviewAction =
-    adherence.skipped > 0
+    programmeAdherence.missed + programmeAdherence.skipped > 0
       ? {
-          title: "Reconcile the skipped plan",
+          title: "Reconcile the missed programme session",
           detail:
-            "Reschedule it only if it still fits the coming week; otherwise leave it skipped and plan from what actually happened.",
-          evidence: `${adherence.skipped} skipped · ${adherence.completed} completed`,
+            "Leave it recorded as missed if it no longer fits, or complete the outstanding programme session before advancing.",
+          evidence: `${programmeAdherence.missed} missed · ${programmeAdherence.skipped} skipped`,
           tone: "caution",
         }
-      : adherence.open > 0
+      : programmeAdherence.outstanding > 0
         ? {
-            title: "Resolve the remaining planned workout",
+            title: "Complete the due programme session",
             detail:
-              "Complete, skip or archive it so Today and Plan start next week from a clear lifecycle state.",
-            evidence: `${adherence.open} plan${adherence.open === 1 ? "" : "s"} still open`,
+              "Open Today and use the programme card; the assignment advances only after the linked workout is completed.",
+            evidence: `${programmeAdherence.outstanding} programme session${
+              programmeAdherence.outstanding === 1 ? "" : "s"
+            } outstanding`,
             tone: "neutral",
           }
-        : {
-            title: "Set the next concrete workout",
-            detail:
-              "Use Plan to save one editable Home or Gym session rather than carrying a vague intention into next week.",
-            evidence: adherence.total
-              ? `${adherence.completed}/${adherence.total} planned workouts completed`
-              : "No dated plans in this review period",
-            tone: "neutral",
-          };
+        : adherence.skipped > 0
+          ? {
+              title: "Reconcile the skipped plan",
+              detail:
+                "Reschedule it only if it still fits the coming week; otherwise leave it skipped and plan from what actually happened.",
+              evidence: `${adherence.skipped} skipped · ${adherence.completed} completed`,
+              tone: "caution",
+            }
+          : adherence.open > 0
+            ? {
+                title: "Resolve the remaining planned workout",
+                detail:
+                  "Complete, skip or archive it so Today and Plan start next week from a clear lifecycle state.",
+                evidence: `${adherence.open} plan${adherence.open === 1 ? "" : "s"} still open`,
+                tone: "neutral",
+              }
+            : {
+                title: "Set the next concrete workout",
+                detail:
+                  "Use Plan to save one editable Home or Gym session rather than carrying a vague intention into next week.",
+                evidence: adherence.total
+                  ? `${adherence.completed}/${adherence.total} planned workouts completed`
+                  : "No dated plans in this review period",
+                tone: "neutral",
+              };
 
   const recoveryPressure =
     current.hardDays >= 2 || (previous.minutes >= 60 && current.minutes >= previous.minutes * 1.3);
@@ -570,7 +623,7 @@ export async function getWeeklyReviewClient(anchor?: string): Promise<WeeklyRevi
   const comparisonStart = addDays(weekStart, -7);
   const comparisonEnd = addDays(comparisonStart, elapsedDays);
 
-  const [sessionRows, planRows, prData] = await Promise.all([
+  const [sessionRows, planRows, prData, scheduledProgrammeSessions] = await Promise.all([
     supabasePublicSelect<ReviewSessionRecord>("sessions", {
       select:
         "id,session_date,title,completed,duration_minutes,rpe,activity_types(name),training_locations(name,kind),session_entries(name,entry_kind,completed,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(reps,weight,duration_seconds,rpe,load_semantics,volume_status,implement_count,entry_set_segments(reps,weight)),entry_metrics(metric_key,metric_value,metric_text))",
@@ -581,12 +634,14 @@ export async function getWeeklyReviewClient(anchor?: string): Promise<WeeklyRevi
       limit: 500,
     }),
     supabasePublicSelect<ReviewPlanRecord>("suggested_workouts", {
-      select: "id,title,status,suggested_for,created_at,completed_session_id,program_assignment_id",
+      select:
+        "id,title,status,suggested_for,created_at,completed_session_id,program_assignment_id,program_workout_id",
       person_id: `eq.${person.id}`,
       order: "created_at.desc",
       limit: 500,
     }),
     getPRsClient(),
+    getUpcomingProgrammeScheduleClient(weekStart, reviewEnd, ["active", "complete"]),
   ]);
 
   const normalized = sessionRows
@@ -601,6 +656,27 @@ export async function getWeeklyReviewClient(anchor?: string): Promise<WeeklyRevi
   const current = summarize(currentSessions);
   const previous = summarize(previousSessions);
   const adherence = planAdherence(planRows, weekStart, reviewEnd);
+  const completedSessionDates = new Map(
+    sessionRows.map((session) => [session.id, session.session_date]),
+  );
+  const programmeLinks: ProgrammeAdherenceLink[] = planRows.flatMap((plan) =>
+    plan.program_assignment_id && plan.program_workout_id
+      ? [
+          {
+            assignmentId: plan.program_assignment_id,
+            programWorkoutId: plan.program_workout_id,
+            status: plan.status,
+            completedSessionId: plan.completed_session_id,
+          },
+        ]
+      : [],
+  );
+  const programmeAdherence = summarizeProgrammeAdherence({
+    sessions: scheduledProgrammeSessions,
+    links: programmeLinks,
+    completedSessionDates,
+    reviewEnd,
+  });
   const prs: WeeklyReviewPR[] = [
     ...prData.oneRm.map((pr) => ({
       title: pr.exercise,
@@ -638,11 +714,24 @@ export async function getWeeklyReviewClient(anchor?: string): Promise<WeeklyRevi
       volumeDelta: delta(current.strengthVolume, previous.strengthVolume),
     },
     adherence,
+    programmeAdherence,
     activityMix: countLabels(currentSessions, "activities"),
     locations: countLabels(currentSessions, "location"),
-    highlights: buildHighlights({ current, previous, prs: weeklyPRs, adherence }),
-    watchlist: buildWatchlist({ current, previous, adherence }),
-    actions: buildActions({ current, previous, adherence, prs: weeklyPRs }),
+    highlights: buildHighlights({
+      current,
+      previous,
+      prs: weeklyPRs,
+      adherence,
+      programmeAdherence,
+    }),
+    watchlist: buildWatchlist({ current, previous, adherence, programmeAdherence }),
+    actions: buildActions({
+      current,
+      previous,
+      adherence,
+      programmeAdherence,
+      prs: weeklyPRs,
+    }),
     sessions: currentSessions.map(({ volume: _volume, ...session }) => session),
   };
 }

@@ -50,3 +50,17 @@ validation details.
   session, Log records it, and completion remains the only action that advances the assignment.
 - The schedule reuses the existing programme/template/assignment reads. No new table, write path, or
   schema migration was added.
+
+## 2026-07-29 Programme Adherence In Weekly Review
+
+- Weekly Review now separates ordinary saved-plan adherence from scheduled programme adherence.
+- Programme adherence is calculated from fixed assignment dates, so a past due session can be
+  classified as missed even when the user never pressed Start.
+- The review shows due, on-time, late, outstanding, missed, and skipped programme sessions and uses
+  completed/due for the programme percentage.
+- Current weeks only assess programme dates through today; future Mon/Wed/Fri sessions are not
+  counted early.
+- Strength-volume highlights show the actual current and comparison totals instead of a potentially
+  misleading large percentage. Low comparison baselines are labelled explicitly.
+- This is a read-only aggregation over existing assignments, templates, linked suggestions, and
+  sessions. No schema migration or live data rewrite was required.
