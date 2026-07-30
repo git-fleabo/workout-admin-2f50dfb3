@@ -375,6 +375,9 @@ Key columns:
 - `default_metric text nullable`
 - `suggested_sets text nullable`
 - `suggested_reps text nullable`
+- `position_measurement_guide text nullable` (`foam_cork_blocks` when the optional logger aid is enabled)
+- `position_measurement_label text nullable`
+- `position_measurement_direction text nullable` (`lower`, `higher`, or `neutral`)
 - `circuit_suitability text` (`preferred`, `available`, or `excluded`)
 - `circuit_pattern text`
 - `circuit_difficulty text` and `circuit_impact text`
@@ -389,6 +392,8 @@ Key columns:
 Important active library decisions:
 
 - `default_metric` now stores one of eleven stable tracking keys rather than free text: `weight_reps`, `reps_only`, `hold`, `grip_hold`, `distance_time`, `duration`, `conditioning`, `carry`, `mobility_position`, `power`, or `climbing`. The Library editor exposes these as labelled dropdown choices and changes its contextual defaults accordingly.
+- Short-height measurement is optional exercise metadata, not a twelfth tracking mode. Library can enable the foam/cork block guide, give the measurement an exercise-specific label, and state whether lower, higher, or neutral values represent progress. The logger stores the selected numeric value as `entry_metrics.position_measurement` and the physical stack as `entry_metrics.position_measurement_setup`; Power `height` remains reserved for jump-style performance.
+- Settings contains the canonical foam/cork block-height reference. The same options appear only for opted-in exercises in Log, with custom centimetres available when a setup is not in the guide. Progress, Dashboard and Timeline display the neutral position measurement independently from the movement's main profile.
 - The unified logger treats the selected tracking mode as authoritative. It exposes mode-specific fields for standard sets, reps with progression/assistance, holds, loaded grip, distance/time with units, duration-only work, conditioning, carries, mobility positions, power/jumps, and climbing. Non-strength metrics now survive recent-workout repeat/correction round trips.
 - Unified climbing entries use whole `duration_minutes` as their canonical time metric. The form labels the unit explicitly, gives the `1h 15m = 75` conversion example, rejects missing/non-integer values and values above 720 minutes, and requires a positive problems/routes count when that tracking mode is selected. Persistence repeats the validation so drafts or other callers cannot bypass it. Legacy `hours` rows remain read-compatible but new saves do not dual-write hours.
 - Hold and loaded-grip movements use the individual-set editor: every attempt stores its own `entry_sets.duration_seconds`, optional load, RPE, progression, and assistance/load-type metadata. The multi-movement save payload must preserve these set rows (not collapse them into the aggregate fallback). Recent-workout copies preserve separate hold rows, while older single-row records with an aggregate set count remain readable as repeated equal-duration attempts.

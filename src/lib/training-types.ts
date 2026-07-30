@@ -10,6 +10,9 @@ export type LibraryRow = CircuitMetadata & {
   metric: string;
   suggestedSets: string;
   suggestedReps: string;
+  positionMeasurementGuide: string;
+  positionMeasurementLabel: string;
+  positionMeasurementDirection: string;
   notes: string;
 };
 
@@ -132,6 +135,8 @@ export type ExerciseSessionPoint = {
   rounds: number;
   feel: number | null;
   heightCm: number | null;
+  positionMeasurementCm: number | null;
+  positionMeasurementSetup: string | null;
   problems: number;
   grade: string | null;
   gradient: string | null;

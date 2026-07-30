@@ -36,6 +36,9 @@ type ExerciseRecord = {
   default_metric: string | null;
   suggested_sets: string | null;
   suggested_reps: string | null;
+  position_measurement_guide: string | null;
+  position_measurement_label: string | null;
+  position_measurement_direction: string | null;
   notes: string | null;
   is_active: boolean;
   circuit_suitability: CircuitSuitability;
@@ -161,6 +164,9 @@ function mapExercise(
     metric: row.default_metric ?? "",
     suggestedSets: row.suggested_sets ?? "",
     suggestedReps: row.suggested_reps ?? "",
+    positionMeasurementGuide: row.position_measurement_guide ?? "",
+    positionMeasurementLabel: row.position_measurement_label ?? "",
+    positionMeasurementDirection: row.position_measurement_direction ?? "",
     notes: row.notes ?? "",
     circuitSuitability: row.circuit_suitability ?? DEFAULT_CIRCUIT_METADATA.circuitSuitability,
     circuitPattern: row.circuit_pattern ?? DEFAULT_CIRCUIT_METADATA.circuitPattern,
@@ -336,7 +342,7 @@ export async function listLibraryClient(personId?: string, includeInactive = fal
     listActivityTypes(),
     supabasePublicSelect<ExerciseRecord>("exercises", {
       select:
-        "id,source_row,focus_area,name,equipment,default_metric,suggested_sets,suggested_reps,notes,is_active,circuit_suitability,circuit_pattern,circuit_difficulty,circuit_impact,circuit_dose_mode,circuit_dose_min,circuit_dose_max,circuit_dose_per_side,activity_type_id,activity_types(name)",
+        "id,source_row,focus_area,name,equipment,default_metric,suggested_sets,suggested_reps,position_measurement_guide,position_measurement_label,position_measurement_direction,notes,is_active,circuit_suitability,circuit_pattern,circuit_difficulty,circuit_impact,circuit_dose_mode,circuit_dose_min,circuit_dose_max,circuit_dose_per_side,activity_type_id,activity_types(name)",
       ...(includeInactive ? {} : { is_active: "eq.true" }),
       order: "name.asc",
     }),
@@ -424,6 +430,13 @@ export async function addExerciseClient(fields: LibraryFields, personId?: string
     default_metric: fields.metric,
     suggested_sets: fields.suggestedSets,
     suggested_reps: fields.suggestedReps,
+    position_measurement_guide: fields.positionMeasurementGuide || null,
+    position_measurement_label: fields.positionMeasurementGuide
+      ? fields.positionMeasurementLabel.trim() || "Position height"
+      : null,
+    position_measurement_direction: fields.positionMeasurementGuide
+      ? fields.positionMeasurementDirection || "neutral"
+      : null,
     notes: fields.notes,
     circuit_suitability: fields.circuitSuitability,
     circuit_pattern: fields.circuitPattern,
@@ -473,6 +486,13 @@ export async function updateExerciseClient(id: string, fields: LibraryFields, pe
       default_metric: fields.metric,
       suggested_sets: fields.suggestedSets,
       suggested_reps: fields.suggestedReps,
+      position_measurement_guide: fields.positionMeasurementGuide || null,
+      position_measurement_label: fields.positionMeasurementGuide
+        ? fields.positionMeasurementLabel.trim() || "Position height"
+        : null,
+      position_measurement_direction: fields.positionMeasurementGuide
+        ? fields.positionMeasurementDirection || "neutral"
+        : null,
       notes: fields.notes,
       circuit_suitability: fields.circuitSuitability,
       circuit_pattern: fields.circuitPattern,

@@ -244,6 +244,8 @@ export type WorkoutLogInput = {
   rounds: string;
   feel: string;
   height: string;
+  positionMeasurementCm: string;
+  positionMeasurementSetup: string;
   detail: string;
   climbingBoulders?: string;
   climbingTrackingMode?: string;
@@ -643,6 +645,8 @@ export async function getRecentLogsClient(limit = 15) {
         rounds: metricValue(metrics, "rounds"),
         feel: metricValue(metrics, "feel"),
         height: metricValue(metrics, "height"),
+        positionMeasurementCm: metricValue(metrics, "position_measurement"),
+        positionMeasurementSetup: metricValue(metrics, "position_measurement_setup"),
         detail: metricValue(metrics, "detail"),
         climbingBoulders: metricValue(metrics, "boulders"),
         climbingTrackingMode: metricValue(metrics, "tracking_mode"),
@@ -862,6 +866,15 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
               : null,
         },
         { metric_key: "height", metric_value: toNum(entryData.height), metric_unit: "cm" },
+        {
+          metric_key: "position_measurement",
+          metric_value: toNum(entryData.positionMeasurementCm),
+          metric_unit: entryData.positionMeasurementCm ? "cm" : null,
+        },
+        {
+          metric_key: "position_measurement_setup",
+          metric_text: entryData.positionMeasurementSetup || null,
+        },
         { metric_key: "detail", metric_text: entryData.detail || null },
         {
           metric_key: "tracking_mode",

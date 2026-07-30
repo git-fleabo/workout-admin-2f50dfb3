@@ -111,6 +111,9 @@ Suggested columns:
 - `default_metric text` using one of `weight_reps`, `reps_only`, `hold`, `grip_hold`, `distance_time`, `duration`, `conditioning`, `carry`, `mobility_position`, `power`, or `climbing`
 - `suggested_sets text`
 - `suggested_reps text`
+- `position_measurement_guide text` optionally set to `foam_cork_blocks`
+- `position_measurement_label text`
+- `position_measurement_direction text` using `lower`, `higher`, or `neutral`
 - `circuit_suitability text` using `preferred`, `available`, or `excluded`
 - `circuit_pattern text` using the builder's primary movement-pattern taxonomy
 - `circuit_difficulty text` using `beginner`, `intermediate`, or `advanced`
@@ -118,6 +121,12 @@ Suggested columns:
 - `circuit_dose_mode text` using `reps`, `seconds`, `metres`, or `rounds`
 - `circuit_dose_min numeric`, `circuit_dose_max numeric`, and `circuit_dose_per_side boolean`
 - `notes text`
+
+Position measurement metadata is deliberately independent of `default_metric`: a reps-based
+movement such as Handstand Pushups can also record a head-to-floor measurement, while Power
+movements keep `height` for jump performance. Logged values use the flexible `entry_metrics`
+keys `position_measurement` (cm) and `position_measurement_setup` (the selected block stack).
+
 - `is_active boolean not null default true`
 - `created_at timestamptz not null default now()`
 - `updated_at timestamptz not null default now()`

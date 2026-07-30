@@ -95,6 +95,11 @@ import {
   type CircuitMovementPattern,
   type CircuitSuitability,
 } from "@/lib/circuit-metadata";
+import {
+  POSITION_MEASUREMENT_DIRECTIONS,
+  POSITION_MEASUREMENT_GUIDES,
+  type PositionMeasurementDirection,
+} from "@/lib/position-measurements";
 
 export const Route = createFileRoute("/library")({
   head: () => ({
@@ -122,6 +127,9 @@ const BLANK: Omit<LibraryRow, "row"> & { equipmentItemIds: string[] } = {
   metric: "",
   suggestedSets: "",
   suggestedReps: "",
+  positionMeasurementGuide: "",
+  positionMeasurementLabel: "",
+  positionMeasurementDirection: "",
   notes: "",
   equipmentItemIds: [],
   ...DEFAULT_CIRCUIT_METADATA,
@@ -969,6 +977,9 @@ function ExerciseEditorDialog({
           }),
           suggestedSets: state.row.suggestedSets,
           suggestedReps: state.row.suggestedReps,
+          positionMeasurementGuide: state.row.positionMeasurementGuide,
+          positionMeasurementLabel: state.row.positionMeasurementLabel,
+          positionMeasurementDirection: state.row.positionMeasurementDirection,
           notes: state.row.notes,
           equipmentItemIds: state.row.equipmentItemIds,
           circuitSuitability: state.row.circuitSuitability,
@@ -1050,6 +1061,10 @@ function ExerciseEditorDialog({
               toast.error("Choose a tracking mode");
               return;
             }
+            if (form.positionMeasurementGuide && !form.positionMeasurementLabel.trim()) {
+              toast.error("Add a label for the position measurement");
+              return;
+            }
             const doseMin = Number(form.circuitDoseMin);
             const doseMax = Number(form.circuitDoseMax);
             if (!Number.isFinite(doseMin) || doseMin <= 0) {
@@ -1099,6 +1114,90 @@ function ExerciseEditorDialog({
               </SelectContent>
             </Select>
           </Field>
+          <div className="space-y-3 rounded-lg border border-amber-400/20 bg-amber-400/[0.04] p-3">
+            <label className="flex items-center justify-between gap-3">
+              <span>
+                <span className="block text-sm font-medium">Short-height measurement</span>
+                <span className="block text-xs text-muted-foreground">
+                  Add an optional block-stack picker without changing the main tracking mode.
+                </span>
+              </span>
+              <Switch
+                checked={Boolean(form.positionMeasurementGuide)}
+                onCheckedChange={(checked) =>
+                  setForm((current) => ({
+                    ...current,
+                    positionMeasurementGuide: checked ? "foam_cork_blocks" : "",
+                    positionMeasurementLabel: checked
+                      ? current.positionMeasurementLabel || "Head-to-floor"
+                      : "",
+                    positionMeasurementDirection: checked
+                      ? current.positionMeasurementDirection || "lower"
+                      : "",
+                  }))
+                }
+                aria-label="Enable short-height measurement"
+              />
+            </label>
+            {form.positionMeasurementGuide ? (
+              <>
+                <Field label="Measurement aid">
+                  <Select
+                    value={form.positionMeasurementGuide}
+                    onValueChange={(value) => update("positionMeasurementGuide", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {POSITION_MEASUREMENT_GUIDES.filter((option) => option.value).map(
+                        (option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ),
+                      )}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Measurement label">
+                    <Input
+                      value={form.positionMeasurementLabel}
+                      onChange={(event) => update("positionMeasurementLabel", event.target.value)}
+                      placeholder="Head-to-floor"
+                    />
+                  </Field>
+                  <Field label="Progress direction">
+                    <Select
+                      value={form.positionMeasurementDirection || "neutral"}
+                      onValueChange={(value) =>
+                        update(
+                          "positionMeasurementDirection",
+                          value as PositionMeasurementDirection,
+                        )
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {POSITION_MEASUREMENT_DIRECTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  The logger records this separately from jump height, so Box Jump progress keeps
+                  its existing higher-is-better meaning.
+                </p>
+              </>
+            ) : null}
+          </div>
           <Field label={fieldConfig.focusLabel}>
             <Input
               value={form.focusArea}

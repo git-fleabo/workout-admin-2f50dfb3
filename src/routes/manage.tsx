@@ -7,6 +7,7 @@ import {
   Layers3,
   MapPin,
   Repeat2,
+  Ruler,
   Settings2,
   SlidersHorizontal,
   Target,
@@ -15,6 +16,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { BLOCK_HEIGHT_OPTIONS } from "@/lib/position-measurements";
 
 export const Route = createFileRoute("/manage")({
   head: () => ({
@@ -162,6 +164,43 @@ function SettingsPage() {
             );
           })}
         </div>
+      </section>
+
+      <section className="space-y-3" aria-labelledby="measurement-guides-heading">
+        <div>
+          <h2 id="measurement-guides-heading" className="text-lg font-semibold">
+            Measurement guides
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Personal equipment references used by selected exercises in the logger.
+          </p>
+        </div>
+        <Card className="overflow-hidden">
+          <div className="flex items-start gap-4 border-b border-border p-4">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-amber-400/20 bg-amber-400/10 text-amber-300">
+              <Ruler className="h-5 w-5" />
+            </span>
+            <div>
+              <h3 className="font-medium">Foam & cork block heights</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Stack from bottom to top. FB = foam block · CB = cork block.
+              </p>
+            </div>
+          </div>
+          <div className="grid sm:grid-cols-2">
+            {BLOCK_HEIGHT_OPTIONS.map((option, index) => (
+              <div
+                key={`${option.heightCm}-${option.setup}`}
+                className={`grid grid-cols-[4.5rem_1fr] gap-3 px-4 py-2.5 text-sm ${
+                  index < BLOCK_HEIGHT_OPTIONS.length - 2 ? "border-b border-border/60" : ""
+                } ${index % 2 === 0 ? "sm:border-r" : ""}`}
+              >
+                <span className="font-mono font-medium text-amber-200">{option.heightCm} cm</span>
+                <span className="text-muted-foreground">{option.setup}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
       </section>
 
       <section className="space-y-3" aria-labelledby="coming-next-heading">

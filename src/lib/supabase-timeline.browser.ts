@@ -234,6 +234,8 @@ function describeSets(
 
 function workoutEntry(session: SessionRecord, entry: SessionEntryRecord): TimelineEntry {
   const firstSet = entry.entry_sets?.[0];
+  const positionMeasurement = metricNumber(entry.entry_metrics, "position_measurement");
+  const positionSetup = metricText(entry.entry_metrics, "position_measurement_setup");
   const minutes = sessionMinutes(session, entry);
   const profile = getMovementMetricProfile({
     workoutType: entry.activity_types?.name ?? entry.exercises?.activity_types?.name ?? "",
@@ -251,6 +253,9 @@ function workoutEntry(session: SessionRecord, entry: SessionEntryRecord): Timeli
     clean(firstSet?.rest_time) ? `Rest: ${clean(firstSet?.rest_time)}` : "",
     clean(firstSet?.assistance_type) && clean(firstSet?.assistance_type).toLowerCase() !== "none"
       ? `Assistance: ${[firstSet?.assistance_type, firstSet?.assistance_detail].map(clean).filter(Boolean).join(" · ")}`
+      : "",
+    positionMeasurement != null
+      ? `Position: ${compactNumber(positionMeasurement)} cm${positionSetup ? ` · ${positionSetup}` : ""}`
       : "",
     minutes > 0 ? `${Math.round(minutes)} min` : "",
   ].filter(Boolean) as string[];

@@ -69,6 +69,7 @@ import { getLibraryClient } from "@/lib/supabase-log.browser";
 import { getMovementMetricProfile, type MetricProfile } from "@/lib/movement-metrics";
 import type { ExerciseMethodUse, ExerciseSessionPoint, LibraryRow } from "@/lib/training-types";
 import { cn } from "@/lib/utils";
+import { formatPositionMeasurementDirection } from "@/lib/position-measurements";
 
 type ProgressSearch = {
   exercise?: string;
@@ -997,6 +998,8 @@ function ProgressPage() {
             points={analysis.current}
             weeklyVolume={analysis.weeklyVolume}
             weeklyHold={analysis.weeklyHold}
+            positionMeasurementLabel={exercise?.positionMeasurementLabel ?? ""}
+            positionMeasurementDirection={exercise?.positionMeasurementDirection ?? ""}
             onSelectSession={setSelectedSessionId}
           />
 
@@ -1860,12 +1863,16 @@ function ProfileCharts({
   points,
   weeklyVolume,
   weeklyHold,
+  positionMeasurementLabel,
+  positionMeasurementDirection,
   onSelectSession,
 }: {
   profile: MetricProfile;
   points: ExerciseSessionPoint[];
   weeklyVolume: { week: string; label: string; volume: number }[];
   weeklyHold: { week: string; label: string; seconds: number }[];
+  positionMeasurementLabel: string;
+  positionMeasurementDirection: string;
   onSelectSession: (sessionId: string) => void;
 }) {
   const trend = (
@@ -2119,7 +2126,23 @@ function ProfileCharts({
       </>
     );
   }
-  return <section className="grid gap-4 xl:grid-cols-2">{charts}</section>;
+  const positionMeasurementChart = points.some((point) => point.positionMeasurementCm != null)
+    ? trend({
+        title: positionMeasurementLabel || "Position measurement",
+        subtitle: `${formatPositionMeasurementDirection(positionMeasurementDirection)} · recorded independently from jump height`,
+        name: positionMeasurementLabel || "Position measurement",
+        unit: " cm",
+        read: (point) => point.positionMeasurementCm,
+        format: (value) => `${value} cm`,
+      })
+    : null;
+
+  return (
+    <section className="grid gap-4 xl:grid-cols-2">
+      {positionMeasurementChart}
+      {charts}
+    </section>
+  );
 }
 
 function setSummary(point: ExerciseSessionPoint) {
@@ -2175,6 +2198,13 @@ function profileSessionSummary(point: ExerciseSessionPoint, profile: MetricProfi
     return `${formatMinutes(activityMinutes(point))} · ${formatNumber(point.problems, " problems/routes")} · ${point.grade ?? "No grade"}${point.gradient ? ` @ ${point.gradient}` : ""}`;
   }
   return setSummary(point) || "Recorded session";
+}
+
+function positionMeasurementSummary(point: ExerciseSessionPoint) {
+  if (point.positionMeasurementCm == null) return "";
+  return `${point.positionMeasurementCm} cm${
+    point.positionMeasurementSetup ? ` · ${point.positionMeasurementSetup}` : ""
+  }`;
 }
 
 function historyMetricLabels(profile: MetricProfile): [string, string] {
@@ -2264,6 +2294,11 @@ function SetHistory({
                 </div>
               ) : null}
               <p className="mt-2 text-sm">{profileSessionSummary(point, profile)}</p>
+              {positionMeasurementSummary(point) ? (
+                <p className="mt-1 text-xs text-amber-200">
+                  Position: {positionMeasurementSummary(point)}
+                </p>
+              ) : null}
               <p className="mt-1 text-xs text-muted-foreground">
                 {primaryLabel}: {historyMetricValues(point, profile)[0]} · {secondaryLabel}:{" "}
                 {historyMetricValues(point, profile)[1]}
@@ -2309,7 +2344,14 @@ function SetHistory({
                       <MethodBadges methods={point.methods} />
                     </TableCell>
                   ) : null}
-                  <TableCell>{profileSessionSummary(point, profile)}</TableCell>
+                  <TableCell>
+                    <div>{profileSessionSummary(point, profile)}</div>
+                    {positionMeasurementSummary(point) ? (
+                      <div className="mt-1 text-xs text-amber-200">
+                        Position: {positionMeasurementSummary(point)}
+                      </div>
+                    ) : null}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {historyMetricValues(point, profile)[0]}
                   </TableCell>

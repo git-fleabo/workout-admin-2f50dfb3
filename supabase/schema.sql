@@ -148,6 +148,17 @@ create table if not exists public.exercises (
   default_metric text,
   suggested_sets text,
   suggested_reps text,
+  position_measurement_guide text
+    check (
+      position_measurement_guide is null
+      or position_measurement_guide in ('foam_cork_blocks')
+    ),
+  position_measurement_label text,
+  position_measurement_direction text
+    check (
+      position_measurement_direction is null
+      or position_measurement_direction in ('lower', 'higher', 'neutral')
+    ),
   circuit_suitability text not null default 'available'
     check (circuit_suitability in ('preferred', 'available', 'excluded')),
   circuit_pattern text not null default 'other'

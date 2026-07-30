@@ -330,6 +330,8 @@ function blankPoint(row: SessionEntryRecord): ExerciseSessionPoint {
     rounds: 0,
     feel: null,
     heightCm: null,
+    positionMeasurementCm: null,
+    positionMeasurementSetup: null,
     problems: 0,
     grade: null,
     gradient: null,
@@ -397,6 +399,7 @@ export async function getExerciseHistoryClient(
     const rounds = metricNumber(row, "rounds");
     const feel = metricNumber(row, "feel");
     const height = metricNumber(row, "height");
+    const positionMeasurement = metricNumber(row, "position_measurement");
     const problems = metricNumber(row, "boulders");
     const metricRpe = metricNumber(row, "rpe");
     if (activityDuration != null && activityDuration > 0) {
@@ -406,6 +409,11 @@ export async function getExerciseHistoryClient(
     if (feel != null) point.feel = feel;
     if (height != null && (point.heightCm == null || height > point.heightCm)) {
       point.heightCm = height;
+    }
+    if (positionMeasurement != null) {
+      point.positionMeasurementCm = positionMeasurement;
+      point.positionMeasurementSetup =
+        metricText(row, "position_measurement_setup") ?? point.positionMeasurementSetup;
     }
     if (problems != null && problems > 0) point.problems += problems;
     if (metricRpe != null) point.averageRpe = metricRpe;

@@ -737,6 +737,9 @@ export type Database = {
           is_active: boolean;
           name: string;
           notes: string | null;
+          position_measurement_direction: string | null;
+          position_measurement_guide: string | null;
+          position_measurement_label: string | null;
           source_row: number | null;
           source_sheet: string | null;
           suggested_reps: string | null;
@@ -761,6 +764,9 @@ export type Database = {
           is_active?: boolean;
           name: string;
           notes?: string | null;
+          position_measurement_direction?: string | null;
+          position_measurement_guide?: string | null;
+          position_measurement_label?: string | null;
           source_row?: number | null;
           source_sheet?: string | null;
           suggested_reps?: string | null;
@@ -785,6 +791,9 @@ export type Database = {
           is_active?: boolean;
           name?: string;
           notes?: string | null;
+          position_measurement_direction?: string | null;
+          position_measurement_guide?: string | null;
+          position_measurement_label?: string | null;
           source_row?: number | null;
           source_sheet?: string | null;
           suggested_reps?: string | null;

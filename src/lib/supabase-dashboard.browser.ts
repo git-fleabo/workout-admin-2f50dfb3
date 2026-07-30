@@ -361,6 +361,14 @@ function entryDetails(entry: SessionEntryRecord, session: SessionRecord, profile
     }
   }
 
+  const positionMeasurement = metricNumber(metrics, "position_measurement");
+  const positionSetup = metricText(metrics, "position_measurement_setup");
+  add(
+    "Position",
+    positionMeasurement != null
+      ? `${displayNumber(positionMeasurement)} cm${positionSetup ? ` · ${positionSetup}` : ""}`
+      : null,
+  );
   if (profile !== "mobility_position") add("RPE", rpe != null ? displayNumber(rpe) : null);
   add("Intensity", session.intensity);
   return details;

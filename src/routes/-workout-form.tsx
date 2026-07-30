@@ -113,6 +113,11 @@ import {
   listTrainingMethodsClient,
   type TrainingMethod,
 } from "@/lib/supabase-training-methods.browser";
+import {
+  BLOCK_HEIGHT_OPTIONS,
+  blockHeightOption,
+  formatPositionMeasurementDirection,
+} from "@/lib/position-measurements";
 import type { LoadSemantics } from "@/lib/data-quality";
 import {
   DateInput,
@@ -171,6 +176,9 @@ const FALLBACK_MOVEMENTS: Array<{
   name: string;
   metric?: string;
   locationScope?: "home" | "gym" | "both";
+  positionMeasurementGuide?: string;
+  positionMeasurementLabel?: string;
+  positionMeasurementDirection?: string;
 }> = [
   { workoutType: "Strength", focusArea: "", name: "Bench Press" },
   { workoutType: "Strength", focusArea: "", name: "High Bar Squat" },
@@ -225,6 +233,8 @@ type FormState = {
   rounds: string;
   feel: string;
   height: string;
+  positionMeasurementCm: string;
+  positionMeasurementSetup: string;
   detail: string;
   setRows: WorkoutSetState[];
 };
@@ -353,6 +363,8 @@ const blank = (defaultWorkoutType = ""): FormState => ({
   rounds: "",
   feel: "",
   height: "",
+  positionMeasurementCm: "",
+  positionMeasurementSetup: "",
   detail: "",
   setRows: [],
 });
@@ -421,6 +433,8 @@ function normalizeSessionForm(form: SessionFormState): SessionFormState {
     technique: entry.technique ?? "",
     pain: entry.pain ?? "",
     loadSemantics: entry.loadSemantics ?? "",
+    positionMeasurementCm: String(entry.positionMeasurementCm ?? ""),
+    positionMeasurementSetup: String(entry.positionMeasurementSetup ?? ""),
     clientId:
       typeof entry.clientId === "string" && entry.clientId
         ? entry.clientId
@@ -542,6 +556,8 @@ function entryHasDraftContent(entry: FormState) {
     "rounds",
     "feel",
     "height",
+    "positionMeasurementCm",
+    "positionMeasurementSetup",
     "detail",
   ];
   return (
@@ -721,6 +737,9 @@ function workoutEntrySummary(entry: FormState, profile: MetricProfile) {
       entry.distance ? `${entry.distance}${entry.distanceUnit || ""}` : "",
       entry.rounds ? `${entry.rounds} rounds` : "",
       entry.height ? `${entry.height} cm` : "",
+      entry.positionMeasurementCm
+        ? `${entry.positionMeasurementCm} cm${entry.positionMeasurementSetup ? ` · ${entry.positionMeasurementSetup}` : ""}`
+        : "",
       entry.climbingBoulders ? `${entry.climbingBoulders} problems/routes` : "",
       entry.climbingMaxGrade ? `Grade ${entry.climbingMaxGrade}` : "",
       entry.climbingGradient ? entry.climbingGradient : "",
@@ -760,6 +779,8 @@ function entryFromRecentLog(log: RecentWorkoutLog): FormState {
     rounds: log.rounds,
     feel: log.feel,
     height: log.height,
+    positionMeasurementCm: log.positionMeasurementCm,
+    positionMeasurementSetup: log.positionMeasurementSetup,
     detail: log.detail,
     climbingBoulders: log.climbingBoulders,
     climbingTrackingMode: log.climbingTrackingMode
@@ -1715,6 +1736,12 @@ export function FullWorkoutForm() {
                 : "",
         climbingTrackingMode: selectedProfile === "climbing" ? "Problems / routes" : "",
         climbingGradient: supportsClimbingGradient(name) ? currentEntry.climbingGradient : "",
+        positionMeasurementCm: selected?.positionMeasurementGuide
+          ? currentEntry.positionMeasurementCm
+          : "",
+        positionMeasurementSetup: selected?.positionMeasurementGuide
+          ? currentEntry.positionMeasurementSetup
+          : "",
         loadSemantics: "",
         setRows: [blankSet()],
       };
@@ -2760,6 +2787,18 @@ export function FullWorkoutForm() {
                   />
                 )
               )}
+              {entry.exercise && selectedExercise?.positionMeasurementGuide ? (
+                <PositionMeasurementField
+                  label={selectedExercise.positionMeasurementLabel || "Position height"}
+                  direction={selectedExercise.positionMeasurementDirection || "neutral"}
+                  value={entry.positionMeasurementCm}
+                  setup={entry.positionMeasurementSetup}
+                  onChange={(value, setup) => {
+                    updateEntry(index, "positionMeasurementCm", value);
+                    updateEntry(index, "positionMeasurementSetup", setup);
+                  }}
+                />
+              ) : null}
               {entry.exercise && entry.workoutType.trim().toLowerCase() === "strength" ? (
                 <div className="grid gap-3 rounded-lg border border-emerald-400/20 bg-emerald-400/[0.04] p-3 sm:grid-cols-2">
                   <Field label="Technique (optional)">
@@ -4585,6 +4624,84 @@ function MetricFields({
           />
         </Field>
       )}
+    </div>
+  );
+}
+
+function PositionMeasurementField({
+  label,
+  direction,
+  value,
+  setup,
+  onChange,
+}: {
+  label: string;
+  direction: string;
+  value: string;
+  setup: string;
+  onChange: (value: string, setup: string) => void;
+}) {
+  const matched = blockHeightOption(value, setup);
+  const selectedValue = matched ? String(matched.heightCm) : "custom";
+
+  return (
+    <div className="space-y-3 rounded-lg border border-amber-400/20 bg-amber-400/[0.04] p-3">
+      <div>
+        <p className="text-sm font-medium">{label}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Foam and cork block guide · {formatPositionMeasurementDirection(direction)}
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-[1fr_10rem]">
+        <Field label="Block stack">
+          <Select
+            value={value ? selectedValue : undefined}
+            onValueChange={(nextValue) => {
+              if (nextValue === "custom") {
+                onChange(matched ? "" : value, "");
+                return;
+              }
+              const option = BLOCK_HEIGHT_OPTIONS.find(
+                (candidate) => String(candidate.heightCm) === nextValue,
+              );
+              if (option) onChange(String(option.heightCm), option.setup);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Choose a block height" />
+            </SelectTrigger>
+            <SelectContent>
+              {BLOCK_HEIGHT_OPTIONS.map((option) => (
+                <SelectItem
+                  key={`${option.heightCm}-${option.setup}`}
+                  value={String(option.heightCm)}
+                >
+                  {option.heightCm} cm — {option.setup}
+                </SelectItem>
+              ))}
+              <SelectItem value="custom">Custom measurement…</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Custom (cm)">
+          <Input
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.1"
+            value={matched ? "" : value}
+            onChange={(event) => onChange(event.target.value, "")}
+            placeholder={matched ? `${matched.heightCm}` : "e.g. 8.5"}
+          />
+        </Field>
+      </div>
+      {matched ? (
+        <p className="text-xs text-amber-100/80">
+          {matched.heightCm} cm · bottom to top: {matched.setup}
+        </p>
+      ) : value ? (
+        <p className="text-xs text-muted-foreground">Custom measurement: {value} cm</p>
+      ) : null}
     </div>
   );
 }
