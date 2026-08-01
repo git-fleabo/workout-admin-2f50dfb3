@@ -98,7 +98,7 @@ export const Route = createFileRoute("/plan")({
       { title: "Plan Next Workout · Training Tracker" },
       {
         name: "description",
-        content: "Build a transparent next workout from recent history or an editable circuit.",
+        content: "Preview your programme week or plan an additional workout.",
       },
     ],
   }),
@@ -853,26 +853,15 @@ function PlanPage() {
       <header className="border-b border-border pb-4">
         <h1 className="text-2xl font-semibold tracking-tight">Plan</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          See the coming week, then repeat a useful pattern or build a circuit from your Library.
+          See exactly what is coming in your programme, alongside the rest of your training week.
         </p>
       </header>
-
-      <WorkoutLifecyclePanel
-        records={lifecycle.data ?? []}
-        activeDraftPlanId={activeDraftPlanId}
-        loading={lifecycle.isLoading}
-        error={Boolean(lifecycle.error)}
-      />
 
       {!history.isLoading && !library.isLoading && !history.error && !library.error ? (
         <WeeklyPlanOverview
           plan={weeklyPlan}
           programmeSessions={programmeSchedule.data ?? []}
           adjustments={weeklyAdjustments}
-          onChooseLocation={(nextLocation) => {
-            setLocation(nextLocation);
-            scrollToWorkoutBuilder();
-          }}
           onAdjustDay={adjustWeeklyDay}
         />
       ) : null}
@@ -894,12 +883,22 @@ function PlanPage() {
       ) : null}
 
       <div id="next-workout-builder" className="scroll-mt-24 border-t border-border pt-5">
-        <h2 className="text-base font-semibold">Build next workout</h2>
+        <Badge variant="outline" className="mb-2 text-[10px]">
+          Optional
+        </Badge>
+        <h2 className="text-base font-semibold">Plan another workout</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Repeat a useful training pattern or generate a balanced circuit from your movement
-          library.
+          This builder is separate from your scheduled programme. Repeat a useful training pattern
+          or generate a circuit from your Library.
         </p>
       </div>
+
+      <WorkoutLifecyclePanel
+        records={lifecycle.data ?? []}
+        activeDraftPlanId={activeDraftPlanId}
+        loading={lifecycle.isLoading}
+        error={Boolean(lifecycle.error)}
+      />
 
       <div className="grid grid-cols-2 gap-2 rounded-xl border border-border bg-secondary/15 p-1.5">
         <button

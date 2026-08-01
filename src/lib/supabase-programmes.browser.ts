@@ -5,6 +5,7 @@ import {
   supabasePublicUpdate,
 } from "./supabase-public";
 import { getProgrammeMethodSetup } from "./programme-methods";
+import { buildProgrammeMovementPrescription } from "./programme-prescription";
 import { getCurrentPerson } from "./supabase-people.browser";
 import { listLibraryClient } from "./supabase-library.browser";
 import { getTrackingModeValue } from "./movement-metrics";
@@ -12,11 +13,9 @@ import { todayISO } from "./date";
 import {
   adjustmentForDecision,
   decideAdaptiveProgression,
-  effectiveIntensityPercent,
   nextCycleTrainingMax,
   programmeWorkoutIsDue,
   programmeWorkoutScheduledDate,
-  suggestedRestForIntensity,
   type AdaptiveDecision,
   type TechniqueRating,
 } from "./adaptive-strength";
@@ -158,11 +157,14 @@ export type ProgrammeScheduleSession = {
   assignmentId: string;
   programWorkoutId: string;
   programmeName: string;
+  workoutName: string;
   date: string;
   weekNumber: number | null;
   sessionNumber: number | null;
   workoutNumber: number;
   movementNames: string[];
+  movements: WorkoutPlanMovement[];
+  selectionNotes: string[];
   status: "completed" | "current" | "upcoming";
 };
 
@@ -434,17 +436,44 @@ export async function getUpcomingProgrammeScheduleClient(
         if (entry.selectionRole) return [];
         const mapping = entry.slotKey ? mappingBySlot.get(entry.slotKey) : null;
         if (!mapping?.enabled) return entry.isOptional ? [] : [entry.name];
-        return [entry.name];
+        return [mapping.exerciseName];
+      });
+      const movements = workout.entries.flatMap((entry) => {
+        if (entry.selectionRole) return [];
+        const mapping = entry.slotKey ? mappingBySlot.get(entry.slotKey) : null;
+        if (!mapping?.enabled) return [];
+        const movement = buildProgrammeMovementPrescription({
+          entry,
+          exercise: mapping,
+          methodType: template.methodType,
+          defaultSetChoice: template.defaultSetChoice,
+          defaultRoundingIncrement: template.roundingIncrement,
+        });
+        return movement ? [movement] : [];
+      });
+      const selectionNotes = workout.entries.flatMap((entry) => {
+        if (!entry.selectionRole) return [];
+        const options = assignment.pools
+          .filter((pool) => pool.enabled && pool.role === entry.selectionRole)
+          .map((pool) => pool.exerciseName);
+        return [
+          `${entry.name}${entry.isOptional ? " (optional)" : ""}: ${
+            options.length ? `choose from ${options.join(", ")}` : "no enabled options"
+          }`,
+        ];
       });
       sessions.push({
         assignmentId: assignment.id,
         programWorkoutId: workout.id,
         programmeName: template.name,
+        workoutName: workout.name,
         date,
         weekNumber: workout.weekNumber,
         sessionNumber: workout.sessionNumber,
         workoutNumber: workout.sequenceIndex + 1,
         movementNames,
+        movements,
+        selectionNotes,
         status:
           workout.sequenceIndex < assignment.currentWorkoutIndex
             ? "completed"
@@ -613,58 +642,19 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
         invalid = true;
         break;
       }
-      const plannedIntensity = effectiveIntensityPercent({
-        minimum: entry.intensityMinPercent ?? entry.intensityPercent,
-        maximum: entry.intensityMaxPercent ?? entry.intensityPercent,
-        adjustment: mapping.loadAdjustmentPercent,
+      const movement = buildProgrammeMovementPrescription({
+        entry,
+        exercise: mapping,
+        methodType: template.methodType,
+        defaultSetChoice: template.defaultSetChoice,
+        defaultRoundingIncrement: template.roundingIncrement,
       });
-      const setRows = method.buildSetRows({
-        minimumSets: entry.minSets,
-        maximumSets: entry.maxSets,
-        minimumReps: entry.minReps,
-        maximumReps: entry.maxReps,
-        setChoice: template.defaultSetChoice,
-        intensityPercent: plannedIntensity,
-        trainingMax: mapping.trainingMax,
-        roundingIncrement: entry.roundingIncrement ?? template.roundingIncrement,
-      });
-      if (!setRows.length) {
+      if (!movement) {
         invalid = true;
         break;
       }
       exerciseIds.push(mapping.exerciseId);
-      const restTime = suggestedRestForIntensity(plannedIntensity);
-      movements.push({
-        exercise: mapping.exerciseName,
-        workoutType: method.workoutType,
-        trackingMode: "weight_reps",
-        targets: {
-          durationMinutes: "",
-          distance: "",
-          distanceUnit: "",
-          rounds: "",
-          height: "",
-          detail: "",
-        },
-        sourceDate: "",
-        reason: [
-          entry.intensityPercent != null && mapping.trainingMax != null
-            ? `${plannedIntensity}% of ${mapping.trainingMax} kg training max.`
-            : null,
-          entry.intensityMinPercent != null && entry.intensityMaxPercent != null
-            ? `Planned range ${entry.intensityMinPercent}-${entry.intensityMaxPercent}%; start at the safe end.`
-            : null,
-          entry.rpeCap != null ? `RPE cap ${entry.rpeCap}.` : null,
-          restTime ? `Suggested rest ${restTime} between sets.` : null,
-          mapping.lastDecision ? `Last review: ${mapping.lastDecision}.` : null,
-          entry.isOptional ? "Optional movement." : null,
-          entry.notes,
-        ]
-          .filter(Boolean)
-          .join(" "),
-        restTime,
-        setRows: setRows.map((set) => ({ ...set, durationSeconds: "" })),
-      });
+      movements.push(movement);
     }
     if (invalid || !movements.length) continue;
 

@@ -1723,6 +1723,26 @@ correctly contribute no kg-volume.
 
 No schema migration or data mutation was required.
 
+## 2026-08-01 — Advance Programme Prescription Preview
+
+Plan now treats the scheduled programme as its primary job:
+
+- Each fixed programme session in `Your next 7 days` opens a read-only detail view with exact
+  set-by-set weight and reps, rest guidance, RPE cap context, programme notes, and any movement
+  choice that will still be made when the session starts.
+- Plan and Today share `buildProgrammeMovementPrescription(...)`, so both surfaces calculate loads
+  from the same training max, adaptive adjustment, range, set-choice, rounding, and rest rules.
+- The preview remains read-only: opening it does not create a `suggested_workout`, start a draft, or
+  advance the assignment. Later sessions are labelled provisional because their prescription may
+  adapt after earlier workout reviews, while their scheduled dates stay fixed.
+- The history/circuit builder is now introduced as `Plan another workout` and explicitly labelled
+  optional and separate from the programme. Saved-plan lifecycle information lives with that
+  builder rather than above the programme week.
+- Programme-day controls say `Adjust other training`, making it clear that device-local adjustments
+  do not edit the fixed programme session.
+
+No schema migration or data mutation was required.
+
 ## Suggested Next Steps
 
 Recommended next work, in order:

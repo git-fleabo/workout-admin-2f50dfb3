@@ -1,5 +1,4 @@
 import {
-  ArrowRight,
   Building2,
   CalendarRange,
   CheckCircle2,
@@ -10,9 +9,7 @@ import {
   Mountain,
   Pencil,
   RotateCcw,
-  Sparkles,
   Trophy,
-  TriangleAlert,
   Users,
 } from "lucide-react";
 import { useState } from "react";
@@ -30,13 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatUKDateShort } from "@/lib/date";
 import type { ProgrammeScheduleSession } from "@/lib/supabase-programmes.browser";
-import type { PlannerLocation } from "@/lib/workout-plan";
-import type {
-  WeeklyPlan,
-  WeeklyPlanAdjustments,
-  WeeklyPlanItemKind,
-  WeeklyPlanLocation,
-} from "@/lib/weekly-plan";
+import type { WeeklyPlan, WeeklyPlanAdjustments, WeeklyPlanItemKind } from "@/lib/weekly-plan";
 import { cn } from "@/lib/utils";
 
 const LOCATION_STYLE = {
@@ -110,101 +101,20 @@ function ItemBadge({ item }: { item: WeeklyPlanItemKind }) {
   );
 }
 
-function PatternCard({
-  plan,
-  onChoose,
-}: {
-  plan: WeeklyPlanLocation;
-  onChoose: (location: PlannerLocation) => void;
-}) {
-  const style = LOCATION_STYLE[plan.location];
-  const Icon = style.icon;
-  const movementNames = plan.suggestion?.movements.map((movement) => movement.exercise) ?? [];
-  const patternLabel =
-    plan.suggestion?.pattern === "rotation" ? "Alternating rotation" : "Repeat recent pattern";
-  return (
-    <Card>
-      <CardHeader className="p-4 pb-2">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Icon className="h-4 w-4" /> {style.label}
-            </CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {plan.frequency > 0
-                ? `${plan.frequency} expected day${plan.frequency === 1 ? "" : "s"} · ${plan.confidence} confidence`
-                : "No location-labelled cadence yet"}
-            </p>
-          </div>
-          <Badge variant="outline" className="text-[9px] capitalize">
-            {plan.sourceDays} source day{plan.sourceDays === 1 ? "" : "s"}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3 p-4 pt-1">
-        {plan.suggestion ? (
-          <div className="rounded-lg border border-border bg-secondary/20 p-3">
-            <p className="text-xs font-medium">{patternLabel}</p>
-            <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
-              {movementNames.join(" · ")}
-            </p>
-          </div>
-        ) : (
-          <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-            Log a completed {style.label.toLowerCase()} workout to learn its rotation.
-          </p>
-        )}
-
-        {plan.progressionExercises.length > 0 ? (
-          <div className="flex gap-2 rounded-lg border border-cyan-400/20 bg-cyan-400/[0.05] p-2.5 text-xs">
-            <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-300" />
-            <div>
-              <p className="font-medium">Due to progress</p>
-              <p className="mt-0.5 text-muted-foreground">{plan.progressionExercises.join(", ")}</p>
-            </div>
-          </div>
-        ) : null}
-
-        {plan.fatigueExercises.length > 0 ? (
-          <div className="flex gap-2 rounded-lg border border-amber-400/20 bg-amber-400/[0.05] p-2.5 text-xs">
-            <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />
-            <div>
-              <p className="font-medium">Watch fatigue</p>
-              <p className="mt-0.5 text-muted-foreground">
-                {plan.fatigueExercises.join(", ")} · repeated RPE 9+
-              </p>
-            </div>
-          </div>
-        ) : null}
-
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full"
-          disabled={!plan.suggestion}
-          onClick={() => onChoose(plan.location)}
-        >
-          Plan this {style.label.toLowerCase()} workout <ArrowRight className="ml-2 h-3.5 w-3.5" />
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
-
 export function WeeklyPlanOverview({
   plan,
   programmeSessions,
   adjustments,
-  onChooseLocation,
   onAdjustDay,
 }: {
   plan: WeeklyPlan;
   programmeSessions: ProgrammeScheduleSession[];
   adjustments: WeeklyPlanAdjustments;
-  onChooseLocation: (location: PlannerLocation) => void;
   onAdjustDay: (date: string, items: WeeklyPlanItemKind[] | null) => void;
 }) {
   const [editingDate, setEditingDate] = useState<string | null>(null);
+  const [selectedProgrammeSession, setSelectedProgrammeSession] =
+    useState<ProgrammeScheduleSession | null>(null);
   const editingDay = plan.days.find((day) => day.date === editingDate);
   const editingItems = editingDay ? (adjustments[editingDay.date] ?? editingDay.inferredItems) : [];
   const toggleEditingItem = (item: WeeklyPlanItemKind) => {
@@ -220,11 +130,11 @@ export function WeeklyPlanOverview({
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 id="weekly-plan-heading" className="flex items-center gap-2 text-base font-semibold">
-            <CalendarRange className="h-4 w-4 text-fuchsia-300" /> Next 7 days
+            <CalendarRange className="h-4 w-4 text-fuchsia-300" /> Your next 7 days
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Programme sessions are fixed. History-derived suggestions can be adjusted on this
-            device.
+            Programme dates are fixed. Open a session to preview its full prescription; other
+            training can be adjusted on this device.
           </p>
         </div>
         <Badge variant="outline" className="text-[10px]">
@@ -253,9 +163,11 @@ export function WeeklyPlanOverview({
               <p className="mt-0.5 text-sm font-medium">{formatUKDateShort(day.date)}</p>
               <div className="mt-3 flex flex-col items-start gap-1.5">
                 {scheduledProgrammeSessions.map((session) => (
-                  <div
+                  <button
+                    type="button"
                     key={`${session.assignmentId}:${session.programWorkoutId}`}
-                    className="w-full rounded-lg border border-fuchsia-400/25 bg-fuchsia-400/[0.08] p-2"
+                    onClick={() => setSelectedProgrammeSession(session)}
+                    className="w-full rounded-lg border border-fuchsia-400/25 bg-fuchsia-400/[0.08] p-2 text-left transition hover:border-fuchsia-300/50 hover:bg-fuchsia-400/[0.13] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300"
                   >
                     <div className="flex items-center gap-1 text-[10px] font-medium text-fuchsia-200">
                       {session.status === "completed" ? (
@@ -271,7 +183,10 @@ export function WeeklyPlanOverview({
                     <p className="mt-1 line-clamp-3 text-[10px] leading-snug text-foreground/75">
                       {session.movementNames.join(" · ")}
                     </p>
-                  </div>
+                    <p className="mt-1.5 text-[10px] font-medium text-fuchsia-200">
+                      View workout details
+                    </p>
+                  </button>
                 ))}
                 {day.completedItems.map((item) => (
                   <div key={`done-${item}`} className="flex items-center gap-1">
@@ -294,7 +209,8 @@ export function WeeklyPlanOverview({
                 className="mt-2 h-7 px-1.5 text-[10px] text-muted-foreground"
                 onClick={() => setEditingDate(day.date)}
               >
-                <Pencil className="mr-1 h-3 w-3" /> Adjust
+                <Pencil className="mr-1 h-3 w-3" />
+                {scheduledProgrammeSessions.length ? "Adjust other training" : "Adjust day"}
               </Button>
             </div>
           );
@@ -322,11 +238,6 @@ export function WeeklyPlanOverview({
           )}
         </CardContent>
       </Card>
-
-      <div className="grid gap-3 lg:grid-cols-2">
-        <PatternCard plan={plan.locations.home} onChoose={onChooseLocation} />
-        <PatternCard plan={plan.locations.gym} onChoose={onChooseLocation} />
-      </div>
 
       <Dialog open={Boolean(editingDay)} onOpenChange={(open) => !open && setEditingDate(null)}>
         <DialogContent className="max-w-md">
@@ -380,6 +291,103 @@ export function WeeklyPlanOverview({
             <Button size="sm" onClick={() => setEditingDate(null)}>
               Done
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(selectedProgrammeSession)}
+        onOpenChange={(open) => !open && setSelectedProgrammeSession(null)}
+      >
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="border-fuchsia-400/25 bg-fuchsia-400/10 text-fuchsia-200">
+                Programme
+              </Badge>
+              {selectedProgrammeSession?.status === "upcoming" ? (
+                <Badge variant="outline">Provisional</Badge>
+              ) : null}
+            </div>
+            <DialogTitle>
+              {selectedProgrammeSession
+                ? `${dayName(selectedProgrammeSession.date, true)}, ${formatUKDateShort(selectedProgrammeSession.date)}`
+                : "Programme session"}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedProgrammeSession?.programmeName} · {selectedProgrammeSession?.workoutName}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedProgrammeSession ? (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-fuchsia-400/20 bg-fuchsia-400/[0.05] p-3 text-xs text-muted-foreground">
+                This preview uses your current training maxes and latest programme review. Later
+                sessions are provisional and may adjust after earlier workouts; the scheduled date
+                stays fixed.
+              </div>
+
+              {selectedProgrammeSession.movements.length ? (
+                <div className="space-y-3">
+                  {selectedProgrammeSession.movements.map((movement) => (
+                    <Card key={movement.exercise}>
+                      <CardHeader className="p-4 pb-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <CardTitle className="text-sm">{movement.exercise}</CardTitle>
+                          {movement.restTime ? (
+                            <Badge variant="outline">Rest {movement.restTime}</Badge>
+                          ) : null}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-3 p-4 pt-1">
+                        <div className="overflow-hidden rounded-lg border border-border">
+                          <div className="grid grid-cols-[3rem_1fr_1fr] bg-secondary/30 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            <span>Set</span>
+                            <span>Weight</span>
+                            <span>Reps</span>
+                          </div>
+                          {movement.setRows.map((set, index) => (
+                            <div
+                              key={`${movement.exercise}-${index}`}
+                              className="grid grid-cols-[3rem_1fr_1fr] border-t border-border px-3 py-2 text-sm"
+                            >
+                              <span className="text-muted-foreground">{index + 1}</span>
+                              <span>{set.weight ? `${set.weight} kg` : "—"}</span>
+                              <span>{set.reps || "—"}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {movement.reason ? (
+                          <p className="text-xs leading-relaxed text-muted-foreground">
+                            {movement.reason}
+                          </p>
+                        ) : null}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                  Exact sets are not available for this session. Check its exercise mappings and
+                  training maxes in programme settings.
+                </p>
+              )}
+
+              {selectedProgrammeSession.selectionNotes.length ? (
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs font-semibold">Chosen when you start</p>
+                  <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                    {selectedProgrammeSession.selectionNotes.map((note) => (
+                      <li key={note}>{note}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button onClick={() => setSelectedProgrammeSession(null)}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
