@@ -82,7 +82,7 @@ const PROGRAMME_METHOD_SETUPS: Record<string, ProgrammeMethodSetup> = {
     buildSetRows: buildPercentageStrengthSets,
   },
   adaptive_strength_12_week: {
-    label: "Adaptive 12-week strength",
+    label: "Adaptive 12-week strength · 80%+ base",
     workoutType: "Strength",
     trainingMax: {
       required: true,

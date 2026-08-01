@@ -1769,6 +1769,32 @@ The linked migration ledger already contains historical local/remote timestamp d
 migration was applied narrowly rather than using a blanket `supabase db push`, which could have
 replayed unrelated local-only files.
 
+## 2026-08-01 — Higher-Volume 12-Week Strength Waves
+
+The active adaptive template now uses two six-week, Operator-inspired waves instead of beginning
+with low-intensity build weeks and ending in a deload:
+
+- Weeks 1-6 use `80 / 82.5 / 90 / 80 / 82.5 / 90%`; weeks 7-12 use
+  `80 / 85 / 90 / 80 / 85 / 90%`.
+- Base prescriptions never fall below 80% of the existing training max. Five-rep weeks prescribe
+  3-5 sets and 90% weeks prescribe 3-4 sets of 3, with the template selecting the upper set target.
+- Deadlift and the second weekly bench exposure are capped one set lower to contain fatigue. Squat
+  and deadlift training maxes remain unchanged and deliberately conservative.
+- The RPE cap is 8-8.5 with longer 3-5 minute rests. Automatic reviews and the explicit weekly
+  refresh may still move a future load below the base percentage when hard reps, pain, or technique
+  evidence calls for a safety regression; completed workouts are never rewritten.
+- Friday's former `Speed Bench Press` is now labelled as a second bench exposure because 80-90%
+  work is not honestly speed work.
+
+Migration `20260801193000_raise_adaptive_strength_programme_loading.sql` updates only the protected
+template used to calculate upcoming sessions. It preserves assignment dates, training maxes,
+exercise mappings, reviews, manual adjustments, and completed workout history. It was applied to
+the linked `Train and Track` Supabase project as remote migration
+`20260801174056 raise_adaptive_strength_programme_loading`. Live post-write verification found the
+active assignment still at workout index 0 with its 2026-08-03 start date, all 12 weeks present,
+base percentages bounded at 80-90%, the expected set/repetition/rest targets, and unchanged
+assignment training maxes and movement enablement.
+
 ## Suggested Next Steps
 
 Recommended next work, in order:
