@@ -937,6 +937,8 @@ function climbCountLabel(movement: string) {
 export function ClimbForm() {
   const qc = useQueryClient();
   const [form, setForm] = useState<ClimbFormState>(() => blankClimbForm());
+  const [loadedSuggestionId, setLoadedSuggestionId] = useState<string | null>(null);
+  const [loadedPlanTitle, setLoadedPlanTitle] = useState("");
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
   const library = useQuery({
@@ -949,6 +951,14 @@ export function ClimbForm() {
     queryFn: getTrainingLocationsClient,
     staleTime: 5 * 60_000,
   });
+  const nextPlans = useQuery({
+    queryKey: ["next-suggested-workouts"],
+    queryFn: getNextSuggestedWorkoutsClient,
+    staleTime: 30_000,
+  });
+  const climbingPlans = (nextPlans.data ?? []).filter(
+    (plan) => plan.movements.length === 1 && plan.movements[0]?.trackingMode === "climbing",
+  );
   const climbingWallEquipmentId = library.data?.equipmentItems.find(
     (item) =>
       item.isActive &&
@@ -992,6 +1002,59 @@ export function ClimbForm() {
 
   const update = <K extends keyof ClimbFormState>(key: K, value: ClimbFormState[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
+
+  const loadClimbingPlan = useCallback((draft: WorkoutPlanDraft) => {
+    const movement = draft.movements[0];
+    if (!movement || movement.trackingMode !== "climbing") return false;
+    const duration = Math.max(0, Math.round(Number(movement.targets.durationMinutes) || 0));
+    setForm((current) => ({
+      ...current,
+      trainingLocationId: draft.trainingLocationId ?? current.trainingLocationId,
+      movement: CLIMBING_MOVEMENTS.includes(movement.exercise)
+        ? movement.exercise
+        : "Bouldering Session",
+      durationHours: duration >= 60 ? String(Math.floor(duration / 60)) : "",
+      durationMinutes: String(duration % 60),
+      notes: movement.targets.detail,
+    }));
+    setLoadedSuggestionId(draft.suggestedWorkoutId ?? null);
+    setLoadedPlanTitle(draft.title);
+    return true;
+  }, []);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(WORKOUT_PLAN_DRAFT_KEY);
+    const plan = readWorkoutPlanDraft(stored);
+    if (!plan || !loadClimbingPlan(plan)) return;
+    window.localStorage.removeItem(WORKOUT_PLAN_DRAFT_KEY);
+    toast.message("Climbing plan loaded", {
+      description: "The duration and automatic circuit instructions are ready in the Climb logger.",
+    });
+  }, [loadClimbingPlan]);
+
+  const useSavedClimbingPlan = useMutation({
+    mutationFn: async (plan: SavedWorkoutPlan) => {
+      await updateSuggestedWorkoutStatusClient(plan.suggestedWorkoutId, "accepted");
+      return plan;
+    },
+    onSuccess: (plan) => {
+      loadClimbingPlan(plan);
+      qc.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
+      qc.invalidateQueries({ queryKey: ["workout-lifecycle"] });
+      toast.message("Climbing plan loaded");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const skipSavedClimbingPlan = useMutation({
+    mutationFn: (id: string) => updateSuggestedWorkoutStatusClient(id, "skipped"),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
+      qc.invalidateQueries({ queryKey: ["workout-lifecycle"] });
+      toast.message("Climbing plan skipped");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   useEffect(() => {
     if (!climbingLocations.length) {
@@ -1041,7 +1104,16 @@ export function ClimbForm() {
         methodBlocks: [],
       });
     },
-    onSuccess: () => {
+    onSuccess: async (result) => {
+      if (loadedSuggestionId) {
+        try {
+          await completeSuggestedWorkoutClient(loadedSuggestionId, result.sessionId);
+          qc.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
+          qc.invalidateQueries({ queryKey: ["workout-lifecycle"] });
+        } catch {
+          toast.warning("Climb saved, but the plan could not be marked complete.");
+        }
+      }
       toast.success("Climb logged", {
         description: `${climbMovementLabel(form.movement)} · ${totalMinutes} minutes`,
       });
@@ -1050,6 +1122,8 @@ export function ClimbForm() {
         trainingLocationId: current.trainingLocationId,
       }));
       setDuplicateOpen(false);
+      setLoadedSuggestionId(null);
+      setLoadedPlanTitle("");
       qc.invalidateQueries({ queryKey: ["recent-workouts"] });
       qc.invalidateQueries({ queryKey: ["recent-climbs"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
@@ -1101,6 +1175,64 @@ export function ClimbForm() {
 
   return (
     <div className="space-y-4">
+      {!loadedSuggestionId && climbingPlans.length ? (
+        <section className="space-y-2">
+          <div>
+            <h2 className="text-base font-semibold">Next climb</h2>
+            <p className="text-xs text-muted-foreground">
+              Saved climbing circuits stay here until you use or skip them.
+            </p>
+          </div>
+          {climbingPlans.map((plan) => (
+            <Card
+              key={plan.suggestedWorkoutId}
+              className="border-amber-400/25 bg-amber-400/[0.05] p-4"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold">{plan.title}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{plan.basis}</p>
+                </div>
+                <WorkoutLifecycleBadge state={workoutPlanLifecycleState(plan.status)} />
+              </div>
+              <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
+                <Button
+                  type="button"
+                  onClick={() => useSavedClimbingPlan.mutate(plan)}
+                  disabled={useSavedClimbingPlan.isPending || skipSavedClimbingPlan.isPending}
+                >
+                  {useSavedClimbingPlan.isPending &&
+                  useSavedClimbingPlan.variables?.suggestedWorkoutId === plan.suggestedWorkoutId ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  Load climb
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => skipSavedClimbingPlan.mutate(plan.suggestedWorkoutId)}
+                  disabled={useSavedClimbingPlan.isPending || skipSavedClimbingPlan.isPending}
+                >
+                  Skip
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </section>
+      ) : null}
+      {loadedSuggestionId ? (
+        <Card className="border-amber-400/25 bg-amber-400/[0.05] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">{loadedPlanTitle}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Planned circuit loaded · completing this form will complete the saved plan.
+              </p>
+            </div>
+            <WorkoutLifecycleBadge state={workoutPlanLifecycleState("accepted")} />
+          </div>
+        </Card>
+      ) : null}
       <Card className="space-y-5 border-border bg-card p-4 sm:p-5">
         <div>
           <h2 className="text-base font-semibold">Log a climb</h2>

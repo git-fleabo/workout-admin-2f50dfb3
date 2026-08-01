@@ -5,6 +5,7 @@ import { Award, Dumbbell, Mountain, Trophy } from "lucide-react";
 import { ClimbForm, FullWorkoutForm } from "./-workout-form";
 import { OneRMForm } from "./-onerm-form";
 import { PRsView } from "./-prs-view";
+import { readWorkoutPlanDraft, WORKOUT_PLAN_DRAFT_KEY } from "@/lib/workout-plan";
 
 export const Route = createFileRoute("/log")({
   head: () => ({
@@ -20,8 +21,17 @@ export const Route = createFileRoute("/log")({
 });
 
 type Mode = "log" | "climb" | "onerm" | "prs";
+
+function initialMode(): Mode {
+  if (typeof window === "undefined") return "log";
+  const plan = readWorkoutPlanDraft(window.localStorage.getItem(WORKOUT_PLAN_DRAFT_KEY));
+  return plan?.movements.length === 1 && plan.movements[0]?.trackingMode === "climbing"
+    ? "climb"
+    : "log";
+}
+
 function LogPage() {
-  const [mode, setMode] = useState<Mode>("log");
+  const [mode, setMode] = useState<Mode>(initialMode);
 
   return (
     <div className="space-y-5">

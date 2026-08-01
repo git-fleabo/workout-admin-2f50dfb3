@@ -514,7 +514,7 @@ export function readWorkoutPlanDraft(value: string | null): WorkoutPlanDraft | n
           typeof movement.exercise === "string" &&
           typeof movement.workoutType === "string" &&
           Array.isArray(movement.setRows) &&
-          movement.setRows.length > 0 &&
+          (movement.trackingMode === "climbing" || movement.setRows.length > 0) &&
           movement.setRows.every(
             (set) =>
               set.method == null ||

@@ -7,7 +7,12 @@ import {
   type CircuitBuilderConfig,
   type CircuitCandidate,
 } from "../src/lib/circuit-generator.ts";
-import { buildGuidedStrengthSession, buildWorkoutSuggestion } from "../src/lib/workout-plan.ts";
+import { buildClimbingCircuit } from "../src/lib/climbing-circuit-generator.ts";
+import {
+  buildGuidedStrengthSession,
+  buildWorkoutSuggestion,
+  readWorkoutPlanDraft,
+} from "../src/lib/workout-plan.ts";
 
 function circuitCandidate(id: string, name: string, recentHistoryCount = 0): CircuitCandidate {
   return {
@@ -232,6 +237,128 @@ test("very hard guided strength uses five sets and reserves conditioning time", 
   assert.match(result.suggestion.basis, /leave about 12 minutes for conditioning/i);
 });
 
+test("climbing goals select automatic formats and preserve one duration-led activity", () => {
+  const aerobic = buildClimbingCircuit({
+    durationMinutes: 30,
+    goal: "aerobic_endurance",
+    wallType: "commercial",
+    difficulty: "standard",
+  });
+  const emom = buildClimbingCircuit({
+    durationMinutes: 30,
+    goal: "repeated_effort",
+    wallType: "training_board",
+    difficulty: "hard",
+  });
+  const power = buildClimbingCircuit({
+    durationMinutes: 45,
+    goal: "power_endurance",
+    wallType: "commercial",
+    difficulty: "hard",
+  });
+
+  assert.equal(aerobic.format, "continuous");
+  assert.equal(emom.format, "emom");
+  assert.equal(emom.plannedProblems, 18);
+  assert.equal(power.format, "four_by_four");
+  assert.equal(power.plannedProblems, 16);
+  for (const result of [aerobic, emom, power]) {
+    assert.equal(
+      result.phases.reduce((total, phase) => total + phase.durationMinutes, 0),
+      result.durationMinutes,
+    );
+    assert.equal(result.movement.trackingMode, "climbing");
+    assert.equal(result.movement.targets.durationMinutes, String(result.durationMinutes));
+    assert.equal(result.movement.setRows.length, 0);
+    assert.ok(result.movement.targets.detail.includes(result.formatLabel));
+  }
+});
+
+test("climbing difficulty changes EMOM density without changing the total session time", () => {
+  const build = (difficulty: "standard" | "hard" | "very_hard") =>
+    buildClimbingCircuit({
+      durationMinutes: 30,
+      goal: "repeated_effort",
+      wallType: "commercial",
+      difficulty,
+    });
+  const standard = build("standard");
+  const hard = build("hard");
+  const veryHard = build("very_hard");
+
+  assert.equal(standard.plannedProblems, 15);
+  assert.equal(hard.plannedProblems, 18);
+  assert.equal(veryHard.plannedProblems, 20);
+  assert.equal(standard.durationMinutes, veryHard.durationMinutes);
+});
+
+test("short or spray-wall power endurance uses linked work-rest intervals", () => {
+  const result = buildClimbingCircuit({
+    durationMinutes: 25,
+    goal: "power_endurance",
+    wallType: "spray",
+    difficulty: "very_hard",
+  });
+
+  assert.equal(result.format, "linked_intervals");
+  assert.match(result.basis, /you choose the problems/i);
+  assert.equal(
+    result.phases.reduce((total, phase) => total + phase.durationMinutes, 0),
+    25,
+  );
+});
+
+test("every climbing builder combination keeps positive phases inside the requested duration", () => {
+  for (const durationMinutes of [20, 25, 30, 45, 60]) {
+    for (const goal of ["aerobic_endurance", "repeated_effort", "power_endurance"] as const) {
+      for (const wallType of ["commercial", "spray", "training_board"] as const) {
+        for (const difficulty of ["standard", "hard", "very_hard"] as const) {
+          const result = buildClimbingCircuit({ durationMinutes, goal, wallType, difficulty });
+          assert.equal(
+            result.phases.reduce((total, phase) => total + phase.durationMinutes, 0),
+            durationMinutes,
+          );
+          assert.ok(result.phases.every((phase) => phase.durationMinutes > 0));
+        }
+      }
+    }
+  }
+});
+
+test("local plan drafts allow setless climbing without weakening other movement validation", () => {
+  const result = buildClimbingCircuit({
+    durationMinutes: 30,
+    goal: "repeated_effort",
+    wallType: "commercial",
+    difficulty: "hard",
+  });
+  const climbingDraft = {
+    version: 1 as const,
+    title: result.title,
+    locationKind: "gym" as const,
+    basis: result.basis,
+    movements: [result.movement],
+    methodBlocks: [],
+  };
+
+  assert.ok(readWorkoutPlanDraft(JSON.stringify(climbingDraft)));
+  assert.equal(
+    readWorkoutPlanDraft(
+      JSON.stringify({
+        ...climbingDraft,
+        movements: [
+          {
+            ...result.movement,
+            workoutType: "Strength",
+            trackingMode: "weight_reps",
+          },
+        ],
+      }),
+    ),
+    null,
+  );
+});
+
 test("Plan removes the recovery card and keeps the mobile adjustment action contained", () => {
   const planRoute = readFileSync(new URL("../src/routes/plan.tsx", import.meta.url), "utf8");
   const weeklyOverview = readFileSync(
@@ -241,12 +368,14 @@ test("Plan removes the recovery card and keeps the mobile adjustment action cont
 
   assert.doesNotMatch(planRoute, /<WeeklyRecoveryCard/);
   assert.match(planRoute, /Build me a session/);
-  assert.match(planRoute, /Programme recovery is handled by/);
+  assert.match(planRoute, /Programme recovery is\s+handled by/);
   assert.match(planRoute, /intensity: "hard"/);
   assert.doesNotMatch(planRoute, /<WorkoutLifecyclePanel/);
   assert.match(planRoute, /always adds an editable conditioning finisher/);
   assert.match(planRoute, /must keep a conditioning finisher/);
   assert.match(planRoute, /Very hard/);
+  assert.match(planRoute, /Build climbing session/);
+  assert.match(planRoute, /Automatic format selection/);
   assert.match(weeklyOverview, /whitespace-normal/);
   assert.match(weeklyOverview, /Adjust extras/);
 });

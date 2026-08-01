@@ -1830,8 +1830,9 @@ policy/password warnings and unused-index notices remain separate.
 Plan's optional workout area is now a guided `Build me a session` flow designed to sit alongside an
 active programme:
 
-- The request begins with Strength or Conditioning and the Home/Gym location, so location-specific
-  Library availability and equipment remain authoritative.
+- The request begins with Strength, Conditioning, or Climbing. Strength and Conditioning retain the
+  Home/Gym location choice, so location-specific Library availability and equipment remain
+  authoritative.
 - Strength now asks for total duration, full/upper/lower focus, difficulty, equipment, and movement
   exclusions rather than showing an automatic repeat with a manual recent-day anchor. It builds
   from matching recent strength history, reserves 10-15 minutes for conditioning, and refuses to
@@ -1843,6 +1844,16 @@ active programme:
 - Conditioning asks for duration, focus, intensity, format, equipment, impact, and complexity. It
   now defaults to hard, favours eligible movements seen in recent location-matched training, and
   still introduces Library variation where useful. The resulting circuit remains fully editable.
+- Climbing assumes the user is already at a climbing wall and asks only for goal, total duration,
+  wall type, and difficulty. The goal selects the format automatically: aerobic endurance uses
+  continuous blocks, repeated-effort capacity uses EMOM intervals, and power endurance uses either
+  a four-problem circuit across four rounds or linked work/rest intervals when the duration or wall
+  is a better fit.
+- A generated climb remains one duration-led `Bouldering Session` with no strength-style sets. Its
+  exact phases and recovery instructions travel through the existing suggested-workout
+  `target_metrics` JSON. Starting the plan opens the dedicated Climb tab, prefills its duration and
+  notes, and completing the climb closes the saved-plan lifecycle. Saved climbing plans are also
+  available from that tab.
 - Strength set targets now include editable rest guidance. It is stored inside the existing
   `target_metrics` JSON when a suggested workout is saved and reconstructed in the logger, so no
   schema change is needed.
@@ -1873,19 +1884,22 @@ Recommended next work, in order:
 9. Test Plan for Gym Standard/Hard/Very hard with both `Save for later` and `Start this workout`;
    confirm generated strength always includes a Circuit finisher and that exact load, set, rest,
    round, and recovery targets reach the logger.
-10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
-11. Phase 6 lifecycle audit and first visible lifecycle model — implemented across Today, Plan, Log, and History.
-12. Phase 6 climbing-controls audit — implemented. The audit found that specialist controls had already moved into the unified logger, but duration and mode validation were still permissive. Climbing now uses guarded whole minutes (`duration_minutes`) with an explicit conversion example and 720-minute ceiling, requires problems/routes when that mode is selected, scopes gradient to Kilter, prevents stale specialist metrics from leaking into other entries, and converts legacy `hours` rows to minutes when repeating a workout. The corrected 2026-07-09 Bouldering and 2026-07-11 Ropes/Belay rows remain stored as 1.25 legacy hours and reconstruct as 75 minutes.
-13. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
-14. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
-15. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
-16. Tighten the profile-claim bootstrap now that Noam's account is linked.
-17. Programme assignment setup and voluntary execution on top of the seeded Percentage Strength
+10. At a configured climbing wall, test each Climbing goal and wall type, then confirm `Start this
+climb` opens the Climb tab with the generated duration/instructions and that completion closes
+    the saved plan without creating entry sets.
+11. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
+12. Phase 6 lifecycle audit and first visible lifecycle model — implemented across Today, Plan, Log, and History.
+13. Phase 6 climbing-controls audit — implemented. The audit found that specialist controls had already moved into the unified logger, but duration and mode validation were still permissive. Climbing now uses guarded whole minutes (`duration_minutes`) with an explicit conversion example and 720-minute ceiling, requires problems/routes when that mode is selected, scopes gradient to Kilter, prevents stale specialist metrics from leaking into other entries, and converts legacy `hours` rows to minutes when repeating a workout. The corrected 2026-07-09 Bouldering and 2026-07-11 Ropes/Belay rows remain stored as 1.25 legacy hours and reconstruct as 75 minutes.
+14. Test Library `Show inactive`, especially hidden items such as `Rice Bucket` and old climbing entries.
+15. Confirm `Pull-Up`, `Lat Pulldown`, and `Chin-Up` appear separately in the Library and Log movement selector.
+16. Decide whether new master exercises should automatically create `person_exercises` rows for Noam, or whether the app should treat missing rows as enabled by default.
+17. Tighten the profile-claim bootstrap now that Noam's account is linked.
+18. Programme assignment setup and voluntary execution on top of the seeded Percentage Strength
     Blocks — implemented. Today previews the next exact prescription, explicit Start persists it
     without replacing normal workflows, and linked completion advances the assignment atomically.
-18. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
-19. Only when a second user is planned, build People & Access: create/edit people, link an auth user, assign an app profile, and route exercise selection through the existing per-person Library controls.
-20. Circuit Builder authenticated audit — completed locally on 2026-07-22 across Home/Gym,
+19. Keep simplifying future custom app ideas around app profiles rather than duplicating data.
+20. Only when a second user is planned, build People & Access: create/edit people, link an auth user, assign an app profile, and route exercise selection through the existing per-person Library controls.
+21. Circuit Builder authenticated audit — completed locally on 2026-07-22 across Home/Gym,
     bodyweight-only, rep-led, time-led, lock/swap/regenerate/reorder, persistence, completion, History,
     Progress, and repeat. The broad 95-movement catalogue expansion and 30-movement
     kettlebell/dumbbell follow-up are complete. Next decide whether optional live interval timers add
