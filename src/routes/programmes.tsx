@@ -557,7 +557,13 @@ function AssignmentList({
                       <div className="mt-1 flex flex-wrap gap-1">
                         {!exercise.enabled ? <Badge variant="secondary">Disabled</Badge> : null}
                         {exercise.lastDecision ? (
-                          <Badge variant="outline">Next: {exercise.lastDecision}</Badge>
+                          <Badge variant="outline">Automatic: {exercise.lastDecision}</Badge>
+                        ) : null}
+                        {exercise.manualAdjustmentPercent !== 0 ? (
+                          <Badge variant="secondary">
+                            Manual {exercise.manualAdjustmentPercent > 0 ? "+" : ""}
+                            {exercise.manualAdjustmentPercent} pts
+                          </Badge>
                         ) : null}
                       </div>
                       {exercise.slotKey === "weighted_pull_up" ? (

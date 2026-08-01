@@ -23,6 +23,7 @@ const baseExercise = {
   exerciseName: "High Bar Squat",
   trainingMax: 100,
   loadAdjustmentPercent: 0,
+  manualAdjustmentPercent: 0,
   lastDecision: null,
 };
 
@@ -82,4 +83,23 @@ test("programme preview fails closed when an exact load cannot be calculated", (
     }),
     null,
   );
+});
+
+test("manual weekly adjustment layers on top of the automatic review", () => {
+  const movement = buildProgrammeMovementPrescription({
+    entry: baseEntry,
+    exercise: {
+      ...baseExercise,
+      loadAdjustmentPercent: -5,
+      manualAdjustmentPercent: 2.5,
+      lastDecision: "regress",
+    },
+    methodType: "adaptive_strength_12_week",
+    defaultSetChoice: "minimum",
+    defaultRoundingIncrement: 2.5,
+  });
+
+  assert.ok(movement);
+  assert.equal(movement.setRows[0]?.weight, "72.5");
+  assert.match(movement.reason, /72.5% of 100 kg training max/);
 });

@@ -39,6 +39,7 @@ import {
 import { WeeklyPlanOverview } from "@/components/weekly-plan-overview";
 import { WeeklyRecoveryCard } from "@/components/weekly-recovery-card";
 import { WorkoutLifecyclePanel } from "@/components/workout-lifecycle-panel";
+import { ProgrammeRefreshCard } from "@/components/programme-refresh-card";
 import { formatUKDate, todayISO } from "@/lib/date";
 import {
   buildCircuit,
@@ -63,7 +64,11 @@ import {
 } from "@/lib/supabase-plans.browser";
 import { getSupabaseSession } from "@/lib/supabase-public";
 import { getMovementMetricProfile } from "@/lib/movement-metrics";
-import { getUpcomingProgrammeScheduleClient } from "@/lib/supabase-programmes.browser";
+import {
+  getActiveProgrammeRefreshClient,
+  getUpcomingProgrammeScheduleClient,
+  updateProgrammeManualAdjustmentsClient,
+} from "@/lib/supabase-programmes.browser";
 import { listTrainingMethodsClient } from "@/lib/supabase-training-methods.browser";
 import { getWeeklyLoadHistoryClient } from "@/lib/supabase-weekly-load.browser";
 import {
@@ -348,6 +353,30 @@ function PlanPage() {
     queryKey: ["programme-schedule", weeklyPlan.startDate, weeklyPlan.endDate],
     queryFn: () => getUpcomingProgrammeScheduleClient(weeklyPlan.startDate, weeklyPlan.endDate),
     staleTime: 30_000,
+  });
+  const programmeRefresh = useQuery({
+    queryKey: ["programme-refresh"],
+    queryFn: getActiveProgrammeRefreshClient,
+    staleTime: 30_000,
+  });
+  const programmeRefreshMutation = useMutation({
+    mutationFn: ({
+      assignmentId,
+      adjustments,
+    }: {
+      assignmentId: string;
+      adjustments: Array<{ exerciseId: string; manualAdjustmentPercent: number }>;
+    }) => updateProgrammeManualAdjustmentsClient(assignmentId, adjustments),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["programme-refresh"] }),
+        queryClient.invalidateQueries({ queryKey: ["programme-schedule"] }),
+        queryClient.invalidateQueries({ queryKey: ["programme-workout-offers"] }),
+        queryClient.invalidateQueries({ queryKey: ["programme-assignments"] }),
+      ]);
+      toast.success("Upcoming programme sessions refreshed");
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
   const weeklyRecovery = useMemo(
     () =>
@@ -863,6 +892,25 @@ function PlanPage() {
           programmeSessions={programmeSchedule.data ?? []}
           adjustments={weeklyAdjustments}
           onAdjustDay={adjustWeeklyDay}
+        />
+      ) : null}
+
+      {programmeRefresh.error ? (
+        <Card className="border-destructive/35">
+          <CardContent className="p-4 text-sm text-destructive">
+            Upcoming programme adjustments could not be loaded.
+          </CardContent>
+        </Card>
+      ) : programmeRefresh.data ? (
+        <ProgrammeRefreshCard
+          assignment={programmeRefresh.data}
+          saving={programmeRefreshMutation.isPending}
+          onSave={async (adjustments) => {
+            await programmeRefreshMutation.mutateAsync({
+              assignmentId: programmeRefresh.data!.id,
+              adjustments,
+            });
+          }}
         />
       ) : null}
 

@@ -1203,6 +1203,8 @@ export type Database = {
           is_enabled: boolean;
           last_decision: string | null;
           load_adjustment_percent: number;
+          manual_adjusted_at: string | null;
+          manual_adjustment_percent: number;
           notes: string | null;
           one_rm_test_id: string | null;
           program_assignment_id: string;
@@ -1218,6 +1220,8 @@ export type Database = {
           is_enabled?: boolean;
           last_decision?: string | null;
           load_adjustment_percent?: number;
+          manual_adjusted_at?: string | null;
+          manual_adjustment_percent?: number;
           notes?: string | null;
           one_rm_test_id?: string | null;
           program_assignment_id: string;
@@ -1233,6 +1237,8 @@ export type Database = {
           is_enabled?: boolean;
           last_decision?: string | null;
           load_adjustment_percent?: number;
+          manual_adjusted_at?: string | null;
+          manual_adjustment_percent?: number;
           notes?: string | null;
           one_rm_test_id?: string | null;
           program_assignment_id?: string;
@@ -3061,6 +3067,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      apply_programme_manual_adjustments: {
+        Args: { p_adjustments: Json; p_assignment_id: string };
+        Returns: number;
+      };
       complete_suggested_workout: {
         Args: { p_session_id: string; p_workout_id: string };
         Returns: {

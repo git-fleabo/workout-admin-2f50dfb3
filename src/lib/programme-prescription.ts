@@ -26,6 +26,7 @@ export type ProgrammePrescriptionExercise = {
   exerciseName: string;
   trainingMax: number | null;
   loadAdjustmentPercent: number;
+  manualAdjustmentPercent: number;
   lastDecision: AdaptiveDecision | null;
 };
 
@@ -42,7 +43,7 @@ export function buildProgrammeMovementPrescription(input: {
   const plannedIntensity = effectiveIntensityPercent({
     minimum: input.entry.intensityMinPercent ?? input.entry.intensityPercent,
     maximum: input.entry.intensityMaxPercent ?? input.entry.intensityPercent,
-    adjustment: input.exercise.loadAdjustmentPercent,
+    adjustment: input.exercise.loadAdjustmentPercent + input.exercise.manualAdjustmentPercent,
   });
   const setRows = method.buildSetRows({
     minimumSets: input.entry.minSets,

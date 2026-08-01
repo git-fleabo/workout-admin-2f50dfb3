@@ -1743,6 +1743,32 @@ Plan now treats the scheduled programme as its primary job:
 
 No schema migration or data mutation was required.
 
+## 2026-08-01 — Manual Refresh Of Upcoming Programme Sessions
+
+Plan now combines automatic evidence-led adaptation with an explicit weekly override:
+
+- `Refresh upcoming sessions` appears beneath the fixed programme week for the active assignment.
+  Each enabled main lift can be made much lighter, a little lighter, left on the automatic plan, a
+  little heavier, or much heavier in bounded 2.5-percentage-point steps.
+- Automatic `load_adjustment_percent` still comes from completed set RPE, technique, pain, and the
+  programme RPE cap. The new `manual_adjustment_percent` is stored separately and layered on top,
+  so a deliberate weekly choice does not overwrite or misrepresent the latest automatic review.
+- The dialog shows the automatic, manual, and combined percentage-point effects for each lift.
+  Manual overrides persist until changed or reset, update future prescriptions only, and never
+  alter completed workouts, training maxes, or fixed session dates.
+- `apply_programme_manual_adjustments(...)` updates the selected lift overrides atomically as a
+  `SECURITY INVOKER` RPC. Existing assignment/exercise RLS remains authoritative; execution is
+  revoked from `public` and `anon` and granted only to `authenticated`.
+- The SQL in local migration `20260801081254_add_programme_manual_adjustments.sql` was applied to
+  the linked `Train and Track` Supabase project and recorded remotely as
+  `20260801172846 add_programme_manual_adjustments`. Post-write verification found both columns, a
+  non-definer function, anonymous execution denied, authenticated execution granted, all five
+  existing rows at the zero default, and no feature-specific security-advisor findings.
+
+The linked migration ledger already contains historical local/remote timestamp divergence. This
+migration was applied narrowly rather than using a blanket `supabase db push`, which could have
+replayed unrelated local-only files.
+
 ## Suggested Next Steps
 
 Recommended next work, in order:

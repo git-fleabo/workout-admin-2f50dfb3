@@ -1,6 +1,7 @@
 import {
   supabasePublicDelete,
   supabasePublicInsert,
+  supabasePublicRpc,
   supabasePublicSelect,
   supabasePublicUpdate,
 } from "./supabase-public";
@@ -81,6 +82,8 @@ export type ProgrammeAssignmentExercise = {
   trainingMax: number | null;
   enabled: boolean;
   loadAdjustmentPercent: number;
+  manualAdjustmentPercent: number;
+  manualAdjustedAt: string | null;
   lastDecision: AdaptiveDecision | null;
 };
 
@@ -226,6 +229,8 @@ type ProgrammeAssignmentExerciseRecord = {
   training_max: number | string | null;
   is_enabled: boolean;
   load_adjustment_percent: number | string;
+  manual_adjustment_percent: number | string;
+  manual_adjusted_at: string | null;
   last_decision: AdaptiveDecision | null;
 };
 
@@ -373,6 +378,8 @@ function mapAssignment(row: ProgrammeAssignmentRecord): ProgrammeAssignment {
         trainingMax: numberOrNull(exercise.training_max),
         enabled: exercise.is_enabled,
         loadAdjustmentPercent: numberOrNull(exercise.load_adjustment_percent) ?? 0,
+        manualAdjustmentPercent: numberOrNull(exercise.manual_adjustment_percent) ?? 0,
+        manualAdjustedAt: exercise.manual_adjusted_at,
         lastDecision: exercise.last_decision,
       }))
       .sort((left, right) => left.slotKey.localeCompare(right.slotKey)),
@@ -391,7 +398,7 @@ function mapAssignment(row: ProgrammeAssignmentRecord): ProgrammeAssignment {
 export async function listProgrammeAssignmentsClient(): Promise<ProgrammeAssignment[]> {
   const rows = await supabasePublicSelect<ProgrammeAssignmentRecord>("program_assignments", {
     select:
-      "id,program_id,person_id,assigned_by_person_id,status,current_workout_index,started_on,completed_on,notes,created_at,cycle_number,previous_assignment_id,program_assignment_exercises(id,slot_key,exercise_id,exercise_name,training_max,is_enabled,load_adjustment_percent,last_decision),program_assignment_exercise_pools(id,role,exercise_id,exercise_name,is_enabled)",
+      "id,program_id,person_id,assigned_by_person_id,status,current_workout_index,started_on,completed_on,notes,created_at,cycle_number,previous_assignment_id,program_assignment_exercises(id,slot_key,exercise_id,exercise_name,training_max,is_enabled,load_adjustment_percent,manual_adjustment_percent,manual_adjusted_at,last_decision),program_assignment_exercise_pools(id,role,exercise_id,exercise_name,is_enabled)",
     status: "in.(active,paused,complete)",
     order: "created_at.desc",
   });
@@ -962,6 +969,34 @@ export async function setProgrammeExerciseEnabledClient(id: string, enabled: boo
   );
   if (!rows[0]) throw new Error("The programme stream was not updated.");
   return rows[0];
+}
+
+export async function getActiveProgrammeRefreshClient(): Promise<ProgrammeAssignment | null> {
+  const currentPerson = await getCurrentPerson();
+  if (!currentPerson) throw new Error("Connect your training profile first.");
+  return (
+    (await listProgrammeAssignmentsClient()).find(
+      (assignment) => assignment.personId === currentPerson.id && assignment.status === "active",
+    ) ?? null
+  );
+}
+
+export async function updateProgrammeManualAdjustmentsClient(
+  assignmentId: string,
+  adjustments: Array<{ exerciseId: string; manualAdjustmentPercent: number }>,
+) {
+  if (!adjustments.length) throw new Error("Choose at least one programme adjustment.");
+  const supported = new Set([-5, -2.5, 0, 2.5, 5]);
+  if (adjustments.some((adjustment) => !supported.has(adjustment.manualAdjustmentPercent))) {
+    throw new Error("Programme adjustments must use a supported 2.5-point step.");
+  }
+  return supabasePublicRpc<number>("apply_programme_manual_adjustments", {
+    p_assignment_id: assignmentId,
+    p_adjustments: adjustments.map((adjustment) => ({
+      exercise_id: adjustment.exerciseId,
+      manual_adjustment_percent: adjustment.manualAdjustmentPercent,
+    })),
+  });
 }
 
 export async function createNextProgrammeCycleClient(assignmentId: string) {
