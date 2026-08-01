@@ -6,7 +6,7 @@ import type {
   CircuitMovementPattern,
 } from "./circuit-metadata.ts";
 import { getTrackingModeValue } from "./movement-metrics.ts";
-import type { PlannerLocation, PlannerReadiness, WorkoutPlanMovement } from "./workout-plan.ts";
+import type { PlannerLocation, SessionDifficulty, WorkoutPlanMovement } from "./workout-plan.ts";
 
 export const CIRCUIT_FOCUS_OPTIONS = [
   { value: "balanced", label: "Balanced", detail: "A varied full-body mix" },
@@ -20,12 +20,12 @@ export const CIRCUIT_FOCUS_OPTIONS = [
 export type CircuitFocus = (typeof CIRCUIT_FOCUS_OPTIONS)[number]["value"];
 
 export const CIRCUIT_INTENSITY_OPTIONS = [
-  { value: "gentle", label: "Gentle", detail: "Low impact and conservative doses" },
-  { value: "moderate", label: "Moderate", detail: "Steady work with balanced recovery" },
-  { value: "hard", label: "Hard", detail: "Higher doses and shorter recovery" },
+  { value: "standard", label: "Standard", detail: "Balanced doses and recovery" },
+  { value: "hard", label: "Hard", detail: "Top-end doses and shorter recovery" },
+  { value: "very_hard", label: "Very hard", detail: "Top-end doses, extra work and minimal rest" },
 ] as const;
 
-export type CircuitIntensity = (typeof CIRCUIT_INTENSITY_OPTIONS)[number]["value"];
+export type CircuitIntensity = SessionDifficulty;
 
 export const CIRCUIT_FORMAT_OPTIONS = [
   { value: "mixed", label: "Mixed", detail: "Use each movement's natural dose" },
@@ -51,7 +51,6 @@ export type CircuitEquipment = (typeof CIRCUIT_EQUIPMENT_OPTIONS)[number]["value
 export type CircuitBuilderConfig = {
   durationMinutes: number;
   location: PlannerLocation;
-  readiness: PlannerReadiness;
   focus: CircuitFocus;
   intensity: CircuitIntensity;
   format: CircuitFormat;
@@ -160,7 +159,6 @@ function configSeed(config: CircuitBuilderConfig) {
   return [
     config.durationMinutes,
     config.location,
-    config.readiness,
     config.focus,
     config.intensity,
     config.format,
@@ -214,26 +212,20 @@ function formatMatches(mode: CircuitFormat, doseMode: CircuitDoseMode) {
   return doseMode === "reps" || doseMode === "metres";
 }
 
-function readinessIntensity(config: CircuitBuilderConfig): CircuitIntensity {
-  if (config.readiness === "tired") return "gentle";
-  if (config.readiness === "fresh" && config.intensity === "hard") return "hard";
-  return config.intensity;
-}
-
 function difficultyScore(difficulty: CircuitDifficulty, intensity: CircuitIntensity) {
   const ideal: Record<CircuitIntensity, CircuitDifficulty> = {
-    gentle: "beginner",
-    moderate: "intermediate",
+    standard: "intermediate",
     hard: "advanced",
+    very_hard: "advanced",
   };
   return difficulty === ideal[intensity] ? 10 : difficulty === "intermediate" ? 5 : 1;
 }
 
 function impactScore(impact: CircuitImpact, intensity: CircuitIntensity) {
   const ideal: Record<CircuitIntensity, CircuitImpact> = {
-    gentle: "low",
-    moderate: "moderate",
+    standard: "moderate",
     hard: "high",
+    very_hard: "high",
   };
   return impact === ideal[intensity] ? 8 : impact === "low" ? 4 : 1;
 }
@@ -247,15 +239,11 @@ function isEligible(candidate: CircuitCandidate, config: CircuitBuilderConfig) {
   if (config.excludedExerciseIds.includes(candidate.id)) return false;
   if (!equipmentMatches(candidate, config.equipment)) return false;
   if (!formatMatches(config.format, candidate.circuitDoseMode)) return false;
-  const effectiveIntensity = readinessIntensity(config);
-  if (
-    (config.excludeAdvanced || effectiveIntensity === "gentle") &&
-    candidate.circuitDifficulty === "advanced"
-  ) {
+  if (config.excludeAdvanced && candidate.circuitDifficulty === "advanced") {
     return false;
   }
   if (
-    (config.excludeHighImpact || effectiveIntensity !== "hard") &&
+    (config.excludeHighImpact || config.intensity === "standard") &&
     candidate.circuitImpact === "high"
   ) {
     return false;
@@ -274,7 +262,7 @@ function selectionScore(
   selectionIndex: number,
   variation = 0,
 ) {
-  const effectiveIntensity = readinessIntensity(config);
+  const effectiveIntensity = config.intensity;
   const samePatternCount = selected.filter(
     (movement) => movement.circuitPattern === candidate.circuitPattern,
   ).length;
@@ -303,8 +291,7 @@ function selectionScore(
 function doseFor(candidate: CircuitCandidate, intensity: CircuitIntensity) {
   const minimum = Math.max(1, finiteNumber(candidate.circuitDoseMin, 1));
   const maximum = Math.max(minimum, finiteNumber(candidate.circuitDoseMax, minimum));
-  if (intensity === "gentle") return Math.round(minimum);
-  if (intensity === "hard") return Math.round(maximum);
+  if (intensity === "hard" || intensity === "very_hard") return Math.round(maximum);
   return Math.round((minimum + maximum) / 2);
 }
 
@@ -440,7 +427,7 @@ export function buildCircuit(
     selected.push(next);
   }
 
-  const effectiveIntensity = readinessIntensity(normalizedConfig);
+  const effectiveIntensity = normalizedConfig.intensity;
   const selections = selected.map<CircuitSelection>((candidate) => {
     const dose = doseFor(candidate, effectiveIntensity);
     const label = doseLabel(candidate, dose);
@@ -453,13 +440,22 @@ export function buildCircuit(
     };
   });
   const restBetweenMovementsSeconds =
-    effectiveIntensity === "gentle" ? 20 : effectiveIntensity === "hard" ? 10 : 15;
+    effectiveIntensity === "very_hard" ? 5 : effectiveIntensity === "hard" ? 10 : 15;
   const restBetweenRoundsSeconds =
-    effectiveIntensity === "gentle" ? 75 : effectiveIntensity === "hard" ? 45 : 60;
+    effectiveIntensity === "very_hard" ? 30 : effectiveIntensity === "hard" ? 45 : 60;
   const roundWorkSeconds =
     selections.reduce((total, selection) => total + selection.estimatedWorkSeconds, 0) +
     restBetweenMovementsSeconds * Math.max(0, selections.length - 1);
-  const budget = chooseRounds(durationMinutes * 60, roundWorkSeconds, restBetweenRoundsSeconds);
+  const baseBudget = chooseRounds(durationMinutes * 60, roundWorkSeconds, restBetweenRoundsSeconds);
+  const budget =
+    effectiveIntensity === "very_hard"
+      ? {
+          rounds: Math.min(8, baseBudget.rounds + 1),
+          total:
+            roundWorkSeconds * Math.min(8, baseBudget.rounds + 1) +
+            restBetweenRoundsSeconds * Math.max(0, Math.min(8, baseBudget.rounds + 1) - 1),
+        }
+      : baseBudget;
   const estimatedMinutes = Math.max(1, Math.round(budget.total / 60));
   const warnings = [
     movementCount < requestedCount
@@ -472,6 +468,9 @@ export function buildCircuit(
   const focusLabel =
     CIRCUIT_FOCUS_OPTIONS.find((option) => option.value === normalizedConfig.focus)?.label ??
     normalizedConfig.focus;
+  const intensityLabel =
+    CIRCUIT_INTENSITY_OPTIONS.find((option) => option.value === normalizedConfig.intensity)
+      ?.label ?? normalizedConfig.intensity;
 
   const familiarCount = selections.filter(
     (selection) => (selection.candidate.recentHistoryCount ?? 0) > 0,
@@ -480,7 +479,7 @@ export function buildCircuit(
   return {
     ok: true,
     title: `${durationMinutes}-minute ${focusLabel.toLowerCase()} circuit`,
-    basis: `Built from ${eligible.length} eligible ${normalizedConfig.location} movements, prioritising ${familiarCount} movement${familiarCount === 1 ? "" : "s"} from recent training. ${movementCount} movements × ${budget.rounds} rounds, with ${restBetweenMovementsSeconds}s transitions and ${restBetweenRoundsSeconds}s between rounds. Estimated ${estimatedMinutes} minutes.`,
+    basis: `Built at ${intensityLabel.toLowerCase()} difficulty from ${eligible.length} eligible ${normalizedConfig.location} movements, prioritising ${familiarCount} movement${familiarCount === 1 ? "" : "s"} from recent training. ${movementCount} movements × ${budget.rounds} rounds, with ${restBetweenMovementsSeconds}s transitions and ${restBetweenRoundsSeconds}s between rounds. Estimated ${estimatedMinutes} minutes.`,
     movements: selections.map(movementFromSelection),
     selections,
     rounds: budget.rounds,

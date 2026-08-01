@@ -6,7 +6,6 @@ import {
   ArrowDown,
   ArrowRight,
   ArrowUp,
-  BatteryMedium,
   Building2,
   Dumbbell,
   Home,
@@ -36,7 +35,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { WeeklyPlanOverview } from "@/components/weekly-plan-overview";
-import { WorkoutLifecyclePanel } from "@/components/workout-lifecycle-panel";
 import { ProgrammeRefreshCard } from "@/components/programme-refresh-card";
 import { formatUKDate, todayISO } from "@/lib/date";
 import {
@@ -55,11 +53,7 @@ import {
   type CircuitIntensity,
 } from "@/lib/circuit-generator";
 import { getLibraryClient, getRecentLogsClient } from "@/lib/supabase-log.browser";
-import {
-  getRecentWorkoutMethodBlocksClient,
-  getWorkoutLifecycleClient,
-  saveWorkoutPlanClient,
-} from "@/lib/supabase-plans.browser";
+import { saveWorkoutPlanClient } from "@/lib/supabase-plans.browser";
 import { getSupabaseSession } from "@/lib/supabase-public";
 import { getMovementMetricProfile } from "@/lib/movement-metrics";
 import {
@@ -76,19 +70,23 @@ import {
   type WeeklyPlanItemKind,
 } from "@/lib/weekly-plan";
 import {
-  buildWorkoutSuggestion,
-  getWorkoutBasisOptions,
+  buildGuidedStrengthSession,
+  SESSION_DIFFICULTY_OPTIONS,
+  STRENGTH_FOCUS_OPTIONS,
   WORKOUT_PLAN_DRAFT_KEY,
   WORKOUT_PLAN_LOCATION_KEY,
+  type GuidedStrengthBuildResult,
+  type GuidedStrengthCandidate,
   type PlannerLocation,
-  type PlannerReadiness,
+  type SessionDifficulty,
+  type StrengthFocus,
   type WorkoutPlanMovement,
   type WorkoutPlanMethodBlock,
+  type WorkoutPlanSuggestion,
   type WorkoutPlanSet,
   type WorkoutPlanTargets,
 } from "@/lib/workout-plan";
 import { cn } from "@/lib/utils";
-import { readWorkoutDraftSummary, workoutSessionDraftKey } from "@/lib/workout-local-state";
 
 export const Route = createFileRoute("/plan")({
   head: () => ({
@@ -103,33 +101,26 @@ export const Route = createFileRoute("/plan")({
   component: PlanPage,
 });
 
-const STRENGTH_EFFORT: {
-  value: PlannerReadiness;
-  label: string;
-  detail: string;
-  icon: React.ReactNode;
-}[] = [
-  {
-    value: "normal",
-    label: "Standard",
-    detail: "Use the normal evidence-led progression",
-    icon: <BatteryMedium className="h-4 w-4" />,
-  },
-  {
-    value: "fresh",
-    label: "Hard",
-    detail: "Use the productive upper end and add work capacity",
-    icon: <Sparkles className="h-4 w-4" />,
-  },
-];
+type PlannerMode = "strength" | "circuit";
 
-type PlannerMode = "history" | "circuit";
-
-type CircuitBuilderInputs = Omit<
-  CircuitBuilderConfig,
-  "location" | "readiness" | "excludedExerciseIds"
-> & {
+type CircuitBuilderInputs = Omit<CircuitBuilderConfig, "location" | "excludedExerciseIds"> & {
   excludedMovements: string;
+};
+
+type StrengthBuilderInputs = {
+  durationMinutes: number;
+  focus: StrengthFocus;
+  difficulty: SessionDifficulty;
+  equipment: CircuitEquipment[] | null;
+  excludedMovements: string;
+};
+
+const DEFAULT_STRENGTH_INPUTS: StrengthBuilderInputs = {
+  durationMinutes: 60,
+  focus: "full_body",
+  difficulty: "hard",
+  equipment: null,
+  excludedMovements: "",
 };
 
 const DEFAULT_CIRCUIT_INPUTS: CircuitBuilderInputs = {
@@ -193,31 +184,13 @@ function PlanPage() {
     queryFn: () => getWeeklyLoadHistoryClient(90),
     staleTime: 60_000,
   });
-  const lifecycle = useQuery({
-    queryKey: ["workout-lifecycle"],
-    queryFn: () => getWorkoutLifecycleClient(12),
-    staleTime: 30_000,
-  });
-  const [activeDraftPlanId] = useState(
-    () =>
-      readWorkoutDraftSummary(window.localStorage.getItem(workoutSessionDraftKey()))
-        ?.loadedSuggestionId ?? null,
-  );
-  const recentSessionIds = useMemo(
-    () => Array.from(new Set((history.data?.recent ?? []).map((log) => log.id).filter(Boolean))),
-    [history.data?.recent],
-  );
-  const methodHistory = useQuery({
-    queryKey: ["workout-planner-method-history", recentSessionIds],
-    queryFn: () => getRecentWorkoutMethodBlocksClient(recentSessionIds),
-    enabled: recentSessionIds.length > 0,
-    staleTime: 60_000,
-  });
   const [location, setLocation] = useState<PlannerLocation>("gym");
-  const [readiness, setReadiness] = useState<PlannerReadiness>("fresh");
-  const [basisDate, setBasisDate] = useState<string | null>(null);
   const [weeklyAdjustments, setWeeklyAdjustments] = useState<WeeklyPlanAdjustments>({});
-  const [plannerMode, setPlannerMode] = useState<PlannerMode>("history");
+  const [plannerMode, setPlannerMode] = useState<PlannerMode>("strength");
+  const [strengthInputs, setStrengthInputs] =
+    useState<StrengthBuilderInputs>(DEFAULT_STRENGTH_INPUTS);
+  const [strengthBuild, setStrengthBuild] = useState<GuidedStrengthBuildResult | null>(null);
+  const [strengthPlan, setStrengthPlan] = useState<WorkoutPlanSuggestion | null>(null);
   const [circuitInputs, setCircuitInputs] = useState<CircuitBuilderInputs>(DEFAULT_CIRCUIT_INPUTS);
   const [circuitBuild, setCircuitBuild] = useState<CircuitBuildResult | null>(null);
   const [circuitMovementIds, setCircuitMovementIds] = useState<string[]>([]);
@@ -245,6 +218,34 @@ function PlanPage() {
     () => matchingLogs.filter((log) => log.workoutType.trim().toLowerCase() === "strength"),
     [matchingLogs],
   );
+  const guidedStrengthCandidates = useMemo<GuidedStrengthCandidate[]>(() => {
+    const libraryByName = new Map(
+      (library.data?.exercises ?? []).map((exercise) => [
+        exercise.name.trim().toLowerCase(),
+        exercise,
+      ]),
+    );
+    const byExercise = new Map<string, GuidedStrengthCandidate>();
+    for (const log of matchingStrengthLogs) {
+      const key = log.exercise.trim().toLowerCase();
+      const exercise = libraryByName.get(key);
+      if (!exercise) continue;
+      const current = byExercise.get(key);
+      if (!current) {
+        byExercise.set(key, {
+          id: exercise.id,
+          log,
+          focusArea: exercise.focusArea,
+          equipmentGroups: exercise.equipmentCircuitGroups,
+          recentHistoryCount: 1,
+        });
+      } else {
+        current.recentHistoryCount += 1;
+        if (log.date > current.log.date) current.log = log;
+      }
+    }
+    return Array.from(byExercise.values());
+  }, [library.data?.exercises, matchingStrengthLogs]);
   const circuitCandidates = useMemo(() => {
     const historyByMovement = new Map<
       string,
@@ -303,7 +304,6 @@ function PlanPage() {
     return {
       durationMinutes: circuitInputs.durationMinutes,
       location,
-      readiness,
       focus: circuitInputs.focus,
       intensity: circuitInputs.intensity,
       format: circuitInputs.format,
@@ -316,7 +316,7 @@ function PlanPage() {
         )
         .map((candidate) => candidate.id),
     };
-  }, [circuitCandidates, circuitInputs, location, readiness]);
+  }, [circuitCandidates, circuitInputs, location]);
   const circuitSwapOptions = useMemo(
     () =>
       circuitMovementIds.map((_, index) =>
@@ -385,10 +385,6 @@ function PlanPage() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
-  const basisOptions = useMemo(
-    () => getWorkoutBasisOptions(matchingStrengthLogs, location),
-    [location, matchingStrengthLogs],
-  );
   const defaultMetricsByExercise = useMemo(
     () =>
       new Map(
@@ -398,25 +394,6 @@ function PlanPage() {
         ]),
       ),
     [library.data?.exercises],
-  );
-  const suggestion = useMemo(
-    () =>
-      buildWorkoutSuggestion(
-        matchingStrengthLogs,
-        location,
-        readiness,
-        basisDate,
-        methodHistory.data ?? [],
-        defaultMetricsByExercise,
-      ),
-    [
-      basisDate,
-      defaultMetricsByExercise,
-      location,
-      matchingStrengthLogs,
-      methodHistory.data,
-      readiness,
-    ],
   );
   const circuitMethod = useMemo(
     () =>
@@ -429,35 +406,42 @@ function PlanPage() {
       ) ?? null,
     [trainingMethods.data?.items],
   );
-  const generatedCircuitMethodBlocks = useMemo<WorkoutPlanMethodBlock[]>(() => {
+  const circuitMethodBlock = (
+    build: Extract<CircuitBuildResult, { ok: true }>,
+    offset = 0,
+    generatedBy = "circuit_builder",
+  ): WorkoutPlanMethodBlock | null =>
+    circuitMethod
+      ? {
+          trainingMethodId: circuitMethod.id,
+          methodName: circuitMethod.name,
+          family: "exercise_group",
+          memberMovementIndexes: build.movements.map((_, index) => offset + index),
+          rounds: String(build.rounds),
+          restBetweenMovementsSeconds: String(build.restBetweenMovementsSeconds),
+          restBetweenRoundsSeconds: String(build.restBetweenRoundsSeconds),
+          blockDurationMinutes: "",
+          workIntervalSeconds: "",
+          restIntervalSeconds: "",
+          config: {
+            ...circuitMethod.defaultConfig,
+            rounds: build.rounds,
+            movement_count: build.movements.length,
+            rest_between_movements_seconds: build.restBetweenMovementsSeconds,
+            rest_between_rounds_seconds: build.restBetweenRoundsSeconds,
+            generated_by: generatedBy,
+            requested_duration_minutes: build.requestedMinutes,
+            estimated_duration_minutes: build.estimatedMinutes,
+            generation_variation: circuitVariation,
+            locked_movement_count: lockedCircuitIds.length,
+          },
+        }
+      : null;
+  const generatedCircuitMethodBlocks: WorkoutPlanMethodBlock[] = (() => {
     if (!circuitBuild?.ok || !circuitMethod) return [];
-    return [
-      {
-        trainingMethodId: circuitMethod.id,
-        methodName: circuitMethod.name,
-        family: "exercise_group",
-        memberMovementIndexes: circuitBuild.movements.map((_, index) => index),
-        rounds: String(circuitBuild.rounds),
-        restBetweenMovementsSeconds: String(circuitBuild.restBetweenMovementsSeconds),
-        restBetweenRoundsSeconds: String(circuitBuild.restBetweenRoundsSeconds),
-        blockDurationMinutes: "",
-        workIntervalSeconds: "",
-        restIntervalSeconds: "",
-        config: {
-          ...circuitMethod.defaultConfig,
-          rounds: circuitBuild.rounds,
-          movement_count: circuitBuild.movements.length,
-          rest_between_movements_seconds: circuitBuild.restBetweenMovementsSeconds,
-          rest_between_rounds_seconds: circuitBuild.restBetweenRoundsSeconds,
-          generated_by: "circuit_builder",
-          requested_duration_minutes: circuitBuild.requestedMinutes,
-          estimated_duration_minutes: circuitBuild.estimatedMinutes,
-          generation_variation: circuitVariation,
-          locked_movement_count: lockedCircuitIds.length,
-        },
-      },
-    ];
-  }, [circuitBuild, circuitMethod, circuitVariation, lockedCircuitIds.length]);
+    const block = circuitMethodBlock(circuitBuild);
+    return block ? [block] : [];
+  })();
   const activePlan =
     plannerMode === "circuit"
       ? circuitBuild?.ok
@@ -471,27 +455,20 @@ function PlanPage() {
             pattern: "circuit" as const,
           }
         : null
-      : suggestion;
+      : strengthPlan;
   const [movements, setMovements] = useState<WorkoutPlanMovement[]>([]);
   const [methodBlocks, setMethodBlocks] = useState<WorkoutPlanMethodBlock[]>([]);
 
   useEffect(() => {
-    setBasisDate(null);
+    setStrengthBuild(null);
+    setStrengthPlan(null);
     setCircuitBuild(null);
     setCircuitMovementIds([]);
     setLockedCircuitIds([]);
     setCircuitVariation(0);
-    if (plannerMode === "circuit") {
-      setMovements([]);
-      setMethodBlocks([]);
-    }
+    setMovements([]);
+    setMethodBlocks([]);
   }, [location, plannerMode]);
-
-  useEffect(() => {
-    if (basisDate && !basisOptions.some((option) => option.date === basisDate)) {
-      setBasisDate(null);
-    }
-  }, [basisDate, basisOptions]);
 
   useEffect(() => {
     setWeeklyAdjustments(
@@ -500,12 +477,6 @@ function PlanPage() {
       ),
     );
   }, [weeklyPlan.startDate]);
-
-  useEffect(() => {
-    if (plannerMode !== "history") return;
-    setMovements(suggestion?.movements ?? []);
-    setMethodBlocks(suggestion?.methodBlocks ?? []);
-  }, [plannerMode, suggestion]);
 
   useEffect(() => {
     if (plannerMode !== "circuit" || !circuitBuild?.ok) return;
@@ -525,16 +496,100 @@ function PlanPage() {
     });
   };
 
-  const setWorkoutReadiness = (nextReadiness: PlannerReadiness) => {
-    setReadiness(nextReadiness);
-    if (plannerMode === "circuit") {
-      setCircuitBuild(null);
-      setCircuitMovementIds([]);
-      setLockedCircuitIds([]);
-      setCircuitVariation(0);
+  const updateStrengthInputs: React.Dispatch<React.SetStateAction<StrengthBuilderInputs>> = (
+    action,
+  ) => {
+    setStrengthInputs(action);
+    setStrengthBuild(null);
+    setStrengthPlan(null);
+    setMovements([]);
+    setMethodBlocks([]);
+  };
+
+  const generateStrength = () => {
+    if (!circuitMethod) {
+      toast.error("The Circuit training method is required for the conditioning finisher.");
+      return;
+    }
+    const exclusions = strengthInputs.excludedMovements
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean);
+    const excludedStrengthIds = guidedStrengthCandidates
+      .filter((candidate) =>
+        exclusions.some((exclusion) => candidate.log.exercise.toLowerCase().includes(exclusion)),
+      )
+      .map((candidate) => candidate.id);
+    const result = buildGuidedStrengthSession(
+      guidedStrengthCandidates,
+      {
+        durationMinutes: strengthInputs.durationMinutes,
+        location,
+        focus: strengthInputs.focus,
+        difficulty: strengthInputs.difficulty,
+        equipment: strengthInputs.equipment,
+        excludedExerciseIds: excludedStrengthIds,
+      },
+      defaultMetricsByExercise,
+    );
+    setStrengthBuild(result);
+    if (!result.ok) {
+      setStrengthPlan(null);
       setMovements([]);
       setMethodBlocks([]);
+      return;
     }
+    const strengthIds = new Set(result.suggestion.movements.map((movement) => movement.exercise));
+    const finisher = buildCircuit(
+      circuitCandidates,
+      {
+        durationMinutes: result.finisherMinutes,
+        location,
+        focus: "conditioning",
+        intensity: strengthInputs.difficulty,
+        format: "mixed",
+        equipment: strengthInputs.equipment,
+        excludeHighImpact: false,
+        excludeAdvanced: false,
+        excludedExerciseIds: circuitCandidates
+          .filter(
+            (candidate) =>
+              strengthIds.has(candidate.name) ||
+              exclusions.some((exclusion) => candidate.name.toLowerCase().includes(exclusion)),
+          )
+          .map((candidate) => candidate.id),
+      },
+      { movementCount: 3 },
+    );
+    if (!finisher.ok) {
+      setStrengthBuild({
+        ok: false,
+        eligibleCount: finisher.eligibleCount,
+        message: `The strength block is available, but a conditioning finisher could not be built. ${finisher.message}`,
+      });
+      setStrengthPlan(null);
+      setMovements([]);
+      setMethodBlocks([]);
+      return;
+    }
+    const combinedMovements = [...result.suggestion.movements, ...finisher.movements];
+    const block = circuitMethodBlock(
+      finisher,
+      result.suggestion.movements.length,
+      "strength_finisher",
+    );
+    const combinedPlan: WorkoutPlanSuggestion = {
+      ...result.suggestion,
+      basis: `${result.suggestion.basis} Conditioning finisher: ${finisher.movements.length} movements × ${finisher.rounds} rounds with ${finisher.restBetweenRoundsSeconds}s between rounds.`,
+      movements: combinedMovements,
+      methodBlocks: block ? [block] : [],
+    };
+    setStrengthPlan(combinedPlan);
+    setMovements(combinedMovements);
+    setMethodBlocks(combinedPlan.methodBlocks ?? []);
+    toast.success("Strength session built", {
+      description: `${result.suggestion.movements.length} strength movements + ${finisher.estimatedMinutes}-minute conditioning finisher`,
+    });
   };
 
   const generateCircuit = () => {
@@ -743,6 +798,13 @@ function PlanPage() {
       ),
     );
 
+  const updateMovementRest = (movementIndex: number, value: string) =>
+    setMovements((current) =>
+      current.map((movement, index) =>
+        index === movementIndex ? { ...movement, restTime: value } : movement,
+      ),
+    );
+
   const removeSet = (movementIndex: number, setIndex: number) =>
     setMovements((current) =>
       current.map((movement, index) =>
@@ -829,11 +891,22 @@ function PlanPage() {
     mutationFn: async (status: "pending" | "accepted") => {
       const draft = currentDraft();
       if (!draft) throw new Error("Add at least one movement before saving.");
-      return saveWorkoutPlanClient({ draft, readiness, status });
+      if (
+        plannerMode === "strength" &&
+        !draft.methodBlocks?.some((block) => block.config.generated_by === "strength_finisher")
+      ) {
+        throw new Error("Generated strength sessions must keep a conditioning finisher.");
+      }
+      const difficulty =
+        plannerMode === "strength" ? strengthInputs.difficulty : circuitInputs.intensity;
+      return saveWorkoutPlanClient({
+        draft,
+        readiness: difficulty === "standard" ? "normal" : "fresh",
+        status,
+      });
     },
     onSuccess: (draft, status) => {
       queryClient.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
-      queryClient.invalidateQueries({ queryKey: ["workout-lifecycle"] });
       if (status === "accepted") {
         window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(draft));
         navigate({ to: "/log" });
@@ -895,13 +968,6 @@ function PlanPage() {
         </p>
       </div>
 
-      <WorkoutLifecyclePanel
-        records={lifecycle.data ?? []}
-        activeDraftPlanId={activeDraftPlanId}
-        loading={lifecycle.isLoading}
-        error={Boolean(lifecycle.error)}
-      />
-
       <div className="space-y-2">
         <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           What do you want to train?
@@ -909,11 +975,11 @@ function PlanPage() {
         <div className="grid grid-cols-2 gap-2 rounded-xl border border-border bg-secondary/15 p-1.5">
           <button
             type="button"
-            aria-pressed={plannerMode === "history"}
-            onClick={() => setPlannerMode("history")}
+            aria-pressed={plannerMode === "strength"}
+            onClick={() => setPlannerMode("strength")}
             className={cn(
               "rounded-lg px-3 py-3 text-left transition",
-              plannerMode === "history"
+              plannerMode === "strength"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
             )}
@@ -938,7 +1004,7 @@ function PlanPage() {
         </div>
       </div>
 
-      <section className={cn("grid gap-4", plannerMode === "history" && "lg:grid-cols-2")}>
+      <section className="grid gap-4">
         <Card>
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-sm">Where are you training?</CardTitle>
@@ -958,40 +1024,19 @@ function PlanPage() {
             />
           </CardContent>
         </Card>
-
-        {plannerMode === "history" ? (
-          <Card>
-            <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-sm">How hard should it be?</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-2 p-4 pt-2 sm:grid-cols-2">
-              {STRENGTH_EFFORT.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  aria-pressed={readiness === option.value}
-                  onClick={() => setWorkoutReadiness(option.value)}
-                  className={cn(
-                    "rounded-lg border p-3 text-left transition",
-                    readiness === option.value
-                      ? "border-primary/50 bg-primary/10"
-                      : "border-border bg-secondary/20 hover:bg-secondary/40",
-                  )}
-                >
-                  <span className="flex items-center gap-2 text-sm font-medium">
-                    {option.icon} {option.label}
-                  </span>
-                  <span className="mt-1 block text-[11px] text-muted-foreground">
-                    {option.detail}
-                  </span>
-                </button>
-              ))}
-            </CardContent>
-          </Card>
-        ) : null}
       </section>
 
-      {plannerMode === "circuit" ? (
+      {plannerMode === "strength" ? (
+        <StrengthBuilderCard
+          inputs={strengthInputs}
+          onChange={updateStrengthInputs}
+          candidateCount={guidedStrengthCandidates.length}
+          result={strengthBuild}
+          methodAvailable={Boolean(circuitMethod)}
+          loading={library.isLoading || history.isLoading || trainingMethods.isLoading}
+          onBuild={generateStrength}
+        />
+      ) : (
         <CircuitBuilderCard
           inputs={circuitInputs}
           onChange={updateCircuitInputs}
@@ -1001,50 +1046,18 @@ function PlanPage() {
           loading={library.isLoading || trainingMethods.isLoading}
           onBuild={generateCircuit}
         />
-      ) : null}
-
-      {plannerMode === "history" &&
-      !history.isLoading &&
-      !library.isLoading &&
-      basisOptions.length > 0 ? (
-        <Card>
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm">Based on</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Let the app choose, or anchor the request to a recent {location} strength day.
-            </p>
-          </CardHeader>
-          <CardContent className="flex gap-2 overflow-x-auto p-4 pt-2 pb-3 sm:grid sm:grid-cols-2 sm:overflow-visible xl:grid-cols-3">
-            <BasisButton
-              active={basisDate == null}
-              title="Recommended"
-              detail="Use the best recent strength pattern"
-              onClick={() => setBasisDate(null)}
-            />
-            {basisOptions.map((option) => (
-              <BasisButton
-                key={option.date}
-                active={basisDate === option.date}
-                title={formatUKDate(option.date)}
-                detail={option.exercises.join(" · ")}
-                fallback={option.fallbackUsed}
-                onClick={() => setBasisDate(option.date)}
-              />
-            ))}
-          </CardContent>
-        </Card>
-      ) : null}
+      )}
 
       {library.isLoading ||
-      (plannerMode === "history" ? history.isLoading : trainingMethods.isLoading) ? (
+      (plannerMode === "strength" ? history.isLoading : trainingMethods.isLoading) ? (
         <div className="flex items-center justify-center py-24 text-sm text-muted-foreground">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          {plannerMode === "history" ? "Reviewing recent training…" : "Loading circuit library…"}
+          {plannerMode === "strength" ? "Loading strength history…" : "Loading circuit library…"}
         </div>
-      ) : library.error || (plannerMode === "history" ? history.error : trainingMethods.error) ? (
+      ) : library.error || (plannerMode === "strength" ? history.error : trainingMethods.error) ? (
         <Card className="border-destructive/40">
           <CardContent className="p-6 text-sm text-destructive">
-            {plannerMode === "history"
+            {plannerMode === "strength"
               ? "Training history could not be loaded. Please refresh and try again."
               : "The movement library or Circuit method could not be loaded. Please refresh and try again."}
           </CardContent>
@@ -1075,7 +1088,7 @@ function PlanPage() {
                 {activePlan.pattern === "circuit"
                   ? "Generated circuit"
                   : activePlan.pattern === "manual"
-                    ? "Chosen session"
+                    ? "Generated strength session"
                     : activePlan.pattern === "rotation"
                       ? "Pattern rotation"
                       : "Repeat pattern"}
@@ -1096,7 +1109,7 @@ function PlanPage() {
                 <p className="text-xs text-muted-foreground">
                   {plannerMode === "circuit"
                     ? "Lock favourites, swap exercises, change the order, or edit the dose."
-                    : "Edit sets here, or make further changes after opening the logger."}
+                    : "Edit every strength and conditioning target before saving or starting."}
                 </p>
               </div>
               <div className="flex w-full flex-wrap gap-1.5 sm:w-auto sm:justify-end">
@@ -1137,6 +1150,7 @@ function PlanPage() {
                   index={movementIndex}
                   onUpdateSet={updateSet}
                   onUpdateTarget={updateTarget}
+                  onUpdateRest={updateMovementRest}
                   onRemoveSet={removeSet}
                   onAddSet={addSet}
                   onRemoveMovement={() => removeMovement(movementIndex)}
@@ -1168,7 +1182,7 @@ function PlanPage() {
               <p className="text-xs text-muted-foreground">
                 {plannerMode === "circuit"
                   ? "The generated order, rounds, and recovery are stored as a Circuit training block."
-                  : "Methods are only carried forward when they were logged in the chosen source session."}
+                  : "The conditioning finisher is stored as a Circuit block after the strength work."}
               </p>
             </div>
             {methodBlocks.length ? (
@@ -1191,17 +1205,24 @@ function PlanPage() {
                         {methodBlockSummary(block)}
                       </p>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setMethodBlocks((current) =>
-                          current.filter((_, index) => index !== blockIndex),
-                        )
-                      }
-                    >
-                      Remove
-                    </Button>
+                    {plannerMode === "strength" &&
+                    block.config.generated_by === "strength_finisher" ? (
+                      <Badge variant="outline" className="shrink-0 text-[9px]">
+                        Required finisher
+                      </Badge>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setMethodBlocks((current) =>
+                            current.filter((_, index) => index !== blockIndex),
+                          )
+                        }
+                      >
+                        Remove
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1209,7 +1230,7 @@ function PlanPage() {
               <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
                 {plannerMode === "circuit"
                   ? "No Circuit block is attached. Rebuild the circuit or enable the Circuit method in Manage."
-                  : "No exercise-group or timed method was found in this source session. You can still add one in the logger."}
+                  : "No conditioning finisher is attached. Rebuild the session or enable the Circuit method in Manage."}
               </p>
             )}
           </section>
@@ -1230,9 +1251,10 @@ function PlanPage() {
                   </p>
                 ) : (
                   <p className="mt-1">
-                    Below 5 reps: keep the load and add one rep. Comfortable 5s: add 2.5 kg and
-                    restart at 3. Tired: remove one set and reduce load by roughly 10%. You can
-                    still edit every target before saving.
+                    Standard uses normal evidence-led progression. Hard adds one work set; Very hard
+                    adds up to two, with every movement capped at five sets. Reaching 5s allows a
+                    2.5 kg progression, and every generated strength session ends with conditioning.
+                    You can still edit every target before saving.
                   </p>
                 )}
               </div>
@@ -1266,6 +1288,168 @@ function PlanPage() {
         </>
       )}
     </div>
+  );
+}
+
+function StrengthBuilderCard({
+  inputs,
+  onChange,
+  candidateCount,
+  result,
+  methodAvailable,
+  loading,
+  onBuild,
+}: {
+  inputs: StrengthBuilderInputs;
+  onChange: React.Dispatch<React.SetStateAction<StrengthBuilderInputs>>;
+  candidateCount: number;
+  result: GuidedStrengthBuildResult | null;
+  methodAvailable: boolean;
+  loading: boolean;
+  onBuild: () => void;
+}) {
+  const update = <K extends keyof StrengthBuilderInputs>(key: K, value: StrengthBuilderInputs[K]) =>
+    onChange((current) => ({ ...current, [key]: value }));
+  const toggleEquipment = (equipment: CircuitEquipment) => {
+    const current = inputs.equipment ?? [];
+    update(
+      "equipment",
+      current.includes(equipment)
+        ? current.filter((item) => item !== equipment)
+        : [...current, equipment],
+    );
+  };
+
+  return (
+    <Card className="border-cyan-400/20 bg-cyan-400/[0.035]">
+      <CardHeader className="p-4 pb-2">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-sm">Strength brief</CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Answer the questions below. The app builds from relevant recent strength work and
+              always adds an editable conditioning finisher.
+            </p>
+          </div>
+          <Badge variant="outline" className="border-cyan-400/30 text-[10px] text-cyan-200">
+            {candidateCount} previously trained movements
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5 p-4 pt-3">
+        <div className="grid gap-4 lg:grid-cols-[180px_1fr]">
+          <div className="space-y-2">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Total duration
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={30}
+                max={90}
+                step={5}
+                value={inputs.durationMinutes}
+                onChange={(event) =>
+                  update("durationMinutes", Math.max(30, Math.min(90, Number(event.target.value))))
+                }
+              />
+              <span className="text-xs text-muted-foreground">minutes</span>
+            </div>
+          </div>
+          <CircuitChoiceGroup
+            label="Focus"
+            value={inputs.focus}
+            options={STRENGTH_FOCUS_OPTIONS}
+            onChange={(value) => update("focus", value as StrengthFocus)}
+          />
+        </div>
+
+        <CircuitChoiceGroup
+          label="Difficulty"
+          value={inputs.difficulty}
+          options={SESSION_DIFFICULTY_OPTIONS}
+          onChange={(value) => update("difficulty", value as SessionDifficulty)}
+        />
+
+        <div className="space-y-2">
+          <div>
+            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Equipment
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Any available uses everything configured for this location.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <ChoiceChip
+              active={inputs.equipment == null}
+              label="Any available"
+              onClick={() => update("equipment", null)}
+            />
+            <ChoiceChip
+              active={inputs.equipment?.length === 0}
+              label="Bodyweight only"
+              onClick={() => update("equipment", [])}
+            />
+            {CIRCUIT_EQUIPMENT_OPTIONS.map((option) => (
+              <ChoiceChip
+                key={option.value}
+                active={inputs.equipment?.includes(option.value) ?? false}
+                label={option.label}
+                onClick={() => toggleEquipment(option.value)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <label className="block space-y-1.5 text-xs">
+          <span className="font-medium">Exclude movements</span>
+          <Input
+            value={inputs.excludedMovements}
+            onChange={(event) => update("excludedMovements", event.target.value)}
+            placeholder="e.g. Back squat, burpees"
+          />
+          <span className="block text-[10px] text-muted-foreground">
+            Applies to both the strength block and conditioning finisher.
+          </span>
+        </label>
+
+        {result && !result.ok ? (
+          <p className="rounded-lg border border-amber-400/25 bg-amber-400/[0.06] p-3 text-xs text-amber-100">
+            {result.message} ({result.eligibleCount} eligible)
+          </p>
+        ) : result?.ok ? (
+          <p className="rounded-lg border border-cyan-400/20 bg-cyan-400/[0.04] p-3 text-xs text-muted-foreground">
+            Planned split: about {result.strengthMinutes} minutes strength +{" "}
+            {result.finisherMinutes}
+            minutes conditioning.
+          </p>
+        ) : null}
+
+        {!loading && !methodAvailable ? (
+          <p className="text-xs text-amber-200">
+            Enable the system Circuit training method in Manage → Methods. Every generated strength
+            session includes a conditioning finisher.
+          </p>
+        ) : null}
+
+        <Button
+          type="button"
+          className="w-full sm:w-auto"
+          size="lg"
+          disabled={loading || !methodAvailable || candidateCount < 2}
+          onClick={onBuild}
+        >
+          {loading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="mr-2 h-4 w-4" />
+          )}
+          Build strength session
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1560,49 +1744,12 @@ function LocationButton({
   );
 }
 
-function BasisButton({
-  active,
-  title,
-  detail,
-  fallback = false,
-  onClick,
-}: {
-  active: boolean;
-  title: string;
-  detail: string;
-  fallback?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        "w-[78vw] max-w-[300px] shrink-0 rounded-lg border p-3 text-left transition sm:w-auto sm:max-w-none",
-        active
-          ? "border-primary/50 bg-primary/10"
-          : "border-border bg-secondary/20 hover:bg-secondary/40",
-      )}
-    >
-      <span className="flex items-center gap-2 text-sm font-medium">
-        {title}
-        {fallback ? (
-          <Badge variant="outline" className="text-[9px] font-normal">
-            Locationless
-          </Badge>
-        ) : null}
-      </span>
-      <span className="mt-1 line-clamp-2 block text-[11px] text-muted-foreground">{detail}</span>
-    </button>
-  );
-}
-
 function MovementPlanCard({
   movement,
   index,
   onUpdateSet,
   onUpdateTarget,
+  onUpdateRest,
   onRemoveSet,
   onAddSet,
   onRemoveMovement,
@@ -1621,6 +1768,7 @@ function MovementPlanCard({
     key: K,
     value: WorkoutPlanTargets[K],
   ) => void;
+  onUpdateRest: (movementIndex: number, value: string) => void;
   onRemoveSet: (movementIndex: number, setIndex: number) => void;
   onAddSet: (movementIndex: number) => void;
   onRemoveMovement: () => void;
@@ -1779,6 +1927,17 @@ function MovementPlanCard({
           onUpdateTarget={onUpdateTarget}
           onUpdateSet={onUpdateSet}
         />
+        {movement.sourceDate ? (
+          <label className="block space-y-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <span>Rest between sets</span>
+            <Input
+              value={movement.restTime ?? ""}
+              onChange={(event) => onUpdateRest(index, event.target.value)}
+              placeholder="e.g. 3 min"
+              className="normal-case tracking-normal text-foreground"
+            />
+          </label>
+        ) : null}
         {showsSetRows ? (
           <div className="space-y-1.5">
             <div

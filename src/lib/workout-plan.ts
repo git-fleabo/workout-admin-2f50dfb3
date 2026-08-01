@@ -7,7 +7,21 @@ export const WORKOUT_TRAINING_LOCATION_KEY = "training-location-id";
 
 export type PlannerReadiness = "normal" | "fresh" | "tired";
 export type PlannerLocation = "home" | "gym";
+export type SessionDifficulty = "standard" | "hard" | "very_hard";
+export type StrengthFocus = "full_body" | "upper" | "lower";
 export type RecentWorkoutLog = Awaited<ReturnType<typeof getRecentLogsClient>>["recent"][number];
+
+export const SESSION_DIFFICULTY_OPTIONS = [
+  { value: "standard", label: "Standard", detail: "Productive work with normal volume" },
+  { value: "hard", label: "Hard", detail: "Progress where possible and add one work set" },
+  { value: "very_hard", label: "Very hard", detail: "Progress and add up to two work sets" },
+] as const;
+
+export const STRENGTH_FOCUS_OPTIONS = [
+  { value: "full_body", label: "Full body", detail: "Balance upper and lower body" },
+  { value: "upper", label: "Upper body", detail: "Pressing, pulling, arms and grip" },
+  { value: "lower", label: "Lower body", detail: "Squat, hinge and single-leg work" },
+] as const;
 
 export type WorkoutPlanSet = {
   reps: string;
@@ -79,6 +93,32 @@ export type WorkoutBasisOption = {
   exercises: string[];
   fallbackUsed: boolean;
 };
+
+export type GuidedStrengthCandidate = {
+  id: string;
+  log: RecentWorkoutLog;
+  focusArea: string;
+  equipmentGroups: string[];
+  recentHistoryCount: number;
+};
+
+export type GuidedStrengthConfig = {
+  durationMinutes: number;
+  location: PlannerLocation;
+  focus: StrengthFocus;
+  difficulty: SessionDifficulty;
+  equipment: string[] | null;
+  excludedExerciseIds: string[];
+};
+
+export type GuidedStrengthBuildResult =
+  | {
+      ok: true;
+      suggestion: WorkoutPlanSuggestion;
+      strengthMinutes: number;
+      finisherMinutes: number;
+    }
+  | { ok: false; message: string; eligibleCount: number };
 
 type TrainingDay = { date: string; movements: RecentWorkoutLog[] };
 
@@ -202,9 +242,12 @@ export function getWorkoutBasisOptions(
 
 function suggestMovement(
   log: RecentWorkoutLog,
-  readiness: PlannerReadiness,
+  request: PlannerReadiness | SessionDifficulty,
   defaultMetric = "",
 ): WorkoutPlanMovement {
+  const recovery = request === "tired";
+  const difficulty: SessionDifficulty =
+    request === "fresh" ? "hard" : request === "normal" || recovery ? "standard" : request;
   let rows = setRowsFor(log);
   let preserveSetMethods = true;
   const weightedRows = rows.filter((set) => numberOrNull(set.weight) != null);
@@ -218,14 +261,14 @@ function suggestMovement(
   const comfortable = loggedRpe.length > 0 && Math.max(...loggedRpe) <= 8;
 
   let reason = "Repeats the most recent set pattern for this movement.";
-  if (readiness === "tired") {
+  if (recovery) {
     preserveSetMethods = false;
     rows = rows.slice(0, Math.max(1, rows.length - 1)).map((set) => {
       const load = numberOrNull(set.weight);
       return { ...set, weight: load == null ? set.weight : String(roundLoad(load * 0.9)), rpe: "" };
     });
     reason = "Recovery option: one fewer set and about 10% less load than last time.";
-  } else if (weightedRows.length > 0 && allAtFive && (comfortable || readiness === "fresh")) {
+  } else if (weightedRows.length > 0 && allAtFive && (comfortable || difficulty !== "standard")) {
     preserveSetMethods = false;
     rows = rows.map((set) => {
       const load = numberOrNull(set.weight);
@@ -238,7 +281,7 @@ function suggestMovement(
     });
     reason = comfortable
       ? "All recorded sets reached 5+ reps at RPE 8 or below, so load moves up 2.5 kg and reps reset to 3."
-      : "You requested a hard session and reached 5+ reps last time, so load moves up 2.5 kg and reps reset to 3.";
+      : `You requested a ${difficulty === "very_hard" ? "very hard" : "hard"} session and reached 5+ reps last time, so load moves up 2.5 kg and reps reset to 3.`;
   } else if (weightedRows.length > 0 && reps.length > 0 && reps.some((value) => value < 5)) {
     preserveSetMethods = false;
     rows = rows.map((set) => {
@@ -255,18 +298,20 @@ function suggestMovement(
       "Repeats the load because 5 reps were reached but no comfortable RPE (8 or below) was logged.";
   }
 
-  if (readiness === "fresh" && rows.length > 0 && rows.length < 5) {
+  const additionalSets = difficulty === "very_hard" ? 2 : difficulty === "hard" ? 1 : 0;
+  if (!recovery && additionalSets > 0 && rows.length > 0 && rows.length < 5) {
     const finalSet = rows[rows.length - 1];
+    const added = Math.min(additionalSets, 5 - rows.length);
     rows = [
       ...rows,
-      {
+      ...Array.from({ length: added }, () => ({
         ...finalSet,
         rpe: "",
         method: undefined,
-      },
+      })),
     ];
     preserveSetMethods = false;
-    reason += " Hard-session request adds one work set, capped at five total sets.";
+    reason += ` ${difficulty === "very_hard" ? "Very-hard" : "Hard"} request adds ${added === 1 ? "one work set" : `${added} work sets`}, capped at five total sets.`;
   }
 
   if (!preserveSetMethods) rows = rows.map((set) => ({ ...set, method: undefined }));
@@ -283,7 +328,90 @@ function suggestMovement(
     targets: targetsForLog(log, trackingMode),
     sourceDate: log.date,
     reason,
+    restTime: recovery ? "3 min" : difficulty === "very_hard" ? "2.5 min" : "3 min",
     setRows: rows,
+  };
+}
+
+function strengthRegion(candidate: GuidedStrengthCandidate): "upper" | "lower" | "other" {
+  const value =
+    `${candidate.focusArea} ${candidate.log.focusArea} ${candidate.log.exercise}`.toLowerCase();
+  if (/leg|lower|quad|hamstring|glute|calf|squat|deadlift|hinge|lunge/.test(value)) return "lower";
+  if (/upper|chest|back|shoulder|arm|bicep|tricep|press|row|pull|grip/.test(value)) return "upper";
+  return "other";
+}
+
+function strengthEquipmentMatches(candidate: GuidedStrengthCandidate, allowed: string[] | null) {
+  if (allowed == null) return true;
+  if (!candidate.equipmentGroups.length) return true;
+  return candidate.equipmentGroups.every((group) => allowed.includes(group));
+}
+
+export function buildGuidedStrengthSession(
+  candidates: GuidedStrengthCandidate[],
+  config: GuidedStrengthConfig,
+  defaultMetricsByExercise: ReadonlyMap<string, string> = new Map(),
+): GuidedStrengthBuildResult {
+  const durationMinutes = Math.min(90, Math.max(30, Math.round(config.durationMinutes)));
+  const finisherMinutes = durationMinutes >= 75 ? 15 : durationMinutes >= 50 ? 12 : 10;
+  const strengthMinutes = durationMinutes - finisherMinutes;
+  const targetCount = Math.min(5, Math.max(2, Math.round(strengthMinutes / 13)));
+  const eligible = candidates.filter(
+    (candidate) =>
+      !config.excludedExerciseIds.includes(candidate.id) &&
+      strengthEquipmentMatches(candidate, config.equipment) &&
+      (config.focus === "full_body" || strengthRegion(candidate) === config.focus),
+  );
+  if (eligible.length < 2) {
+    return {
+      ok: false,
+      eligibleCount: eligible.length,
+      message:
+        "Fewer than two previously logged strength movements match this brief. Allow more equipment, change focus, or relax an exclusion.",
+    };
+  }
+  const ranked = [...eligible].sort(
+    (left, right) =>
+      right.recentHistoryCount - left.recentHistoryCount ||
+      right.log.date.localeCompare(left.log.date) ||
+      left.log.exercise.localeCompare(right.log.exercise),
+  );
+  const selected: GuidedStrengthCandidate[] = [];
+  if (config.focus === "full_body") {
+    const upper = ranked.find((candidate) => strengthRegion(candidate) === "upper");
+    const lower = ranked.find((candidate) => strengthRegion(candidate) === "lower");
+    if (lower) selected.push(lower);
+    if (upper && upper.id !== lower?.id) selected.push(upper);
+  }
+  for (const candidate of ranked) {
+    if (selected.length >= targetCount) break;
+    if (!selected.some((item) => item.id === candidate.id)) selected.push(candidate);
+  }
+  const locationLabel = config.location === "home" ? "Home" : "Gym";
+  const focusLabel = STRENGTH_FOCUS_OPTIONS.find((option) => option.value === config.focus)?.label;
+  const difficultyLabel = SESSION_DIFFICULTY_OPTIONS.find(
+    (option) => option.value === config.difficulty,
+  )?.label;
+  return {
+    ok: true,
+    strengthMinutes,
+    finisherMinutes,
+    suggestion: {
+      version: 1,
+      title: `${locationLabel} ${focusLabel?.toLowerCase()} strength + conditioning`,
+      locationKind: config.location,
+      basis: `Built from ${eligible.length} eligible movements in recent ${locationLabel.toLowerCase()} strength history. ${selected.length} strength movements use the ${difficultyLabel?.toLowerCase()} progression and leave about ${finisherMinutes} minutes for conditioning.`,
+      fallbackUsed: false,
+      pattern: "manual",
+      movements: selected.map((candidate) =>
+        suggestMovement(
+          candidate.log,
+          config.difficulty,
+          defaultMetricsByExercise.get(candidate.log.exercise.trim().toLowerCase()) ?? "",
+        ),
+      ),
+      methodBlocks: [],
+    },
   };
 }
 

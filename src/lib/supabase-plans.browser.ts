@@ -167,7 +167,8 @@ function metricText(metrics: Record<string, unknown> | null, key: string) {
   return typeof value === "number" || typeof value === "string" ? String(value) : "";
 }
 
-function targetMetricsForSave(targets: WorkoutPlanMovement["targets"]) {
+function targetMetricsForSave(movement: WorkoutPlanMovement) {
+  const targets = movement.targets;
   return {
     ...(toNumber(targets.durationMinutes) == null
       ? {}
@@ -177,6 +178,7 @@ function targetMetricsForSave(targets: WorkoutPlanMovement["targets"]) {
     ...(toNumber(targets.rounds) == null ? {} : { rounds: toNumber(targets.rounds) }),
     ...(toNumber(targets.height) == null ? {} : { height: toNumber(targets.height) }),
     ...(targets.detail.trim() ? { detail: targets.detail.trim() } : {}),
+    ...(movement.restTime?.trim() ? { rest_time: movement.restTime.trim() } : {}),
   };
 }
 
@@ -236,6 +238,7 @@ function movementFromRow(entry: SuggestedEntryRow): WorkoutPlanMovement {
     },
     sourceDate: entry.source_date ?? "",
     reason: entry.reason ?? "",
+    restTime: metricText(entry.target_metrics, "rest_time"),
     setRows: sets.map((set) => ({
       reps: asText(set.reps),
       weight: asText(set.weight),
@@ -344,7 +347,7 @@ export async function saveWorkoutPlanClient({
         source_date: movement.sourceDate || null,
         reason: movement.reason || null,
         tracking_mode: movement.trackingMode,
-        target_metrics: targetMetricsForSave(movement.targets),
+        target_metrics: targetMetricsForSave(movement),
       });
       const entry = entries[0];
       if (!entry) throw new Error(`${movement.exercise} was not saved to the plan.`);

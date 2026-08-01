@@ -1832,13 +1832,23 @@ active programme:
 
 - The request begins with Strength or Conditioning and the Home/Gym location, so location-specific
   Library availability and equipment remain authoritative.
-- Strength uses only recent strength sessions from the selected location. `Standard` retains the
-  existing evidence-led progression; `Hard` uses the productive upper end and adds one work set,
-  capped at five total sets. The recent-session anchor, movement order, swaps, sets, weights, reps,
-  rest, methods, additions, and removals remain editable before saving or starting.
+- Strength now asks for total duration, full/upper/lower focus, difficulty, equipment, and movement
+  exclusions rather than showing an automatic repeat with a manual recent-day anchor. It builds
+  from matching recent strength history, reserves 10-15 minutes for conditioning, and refuses to
+  produce a strength-only result when a valid finisher cannot be formed.
+- Strength and Conditioning share `Standard`, `Hard`, and `Very hard`. Standard uses normal
+  evidence-led progression and balanced circuit doses. Hard adds one bounded strength set and uses
+  top-end circuit doses. Very hard adds up to two strength sets (still capped at five), uses top-end
+  conditioning doses, adds a round where the eight-round cap allows, and shortens circuit recovery.
 - Conditioning asks for duration, focus, intensity, format, equipment, impact, and complexity. It
   now defaults to hard, favours eligible movements seen in recent location-matched training, and
   still introduces Library variation where useful. The resulting circuit remains fully editable.
+- Strength set targets now include editable rest guidance. It is stored inside the existing
+  `target_metrics` JSON when a suggested workout is saved and reconstructed in the logger, so no
+  schema change is needed.
+- The explanatory Workout lifecycle and Recent plan activity panel has been removed from Plan.
+  Today remains the home for ready work, the logger owns the in-progress draft, and History owns
+  completed sessions; Plan stays focused on the programme ahead and session generation.
 - The standalone recovery-decision card has been removed. Programme recovery continues through the
   existing automatic RPE, pain, and technique checkpoints plus the explicit `Update programme`
   controls; the additional-session brief does not rewrite that programme evidence.
@@ -1860,7 +1870,9 @@ Recommended next work, in order:
 6. Test the duplicate-log warning by trying to save the same movement twice on the same date.
 7. Test a one-movement save plus Home and Gym multi-movement saves from the deployed authenticated app, including mixed-weight sets, and confirm the location appears in History.
 8. Test Progress for Bench Press across multiple periods and Home/Gym, including the new mixed-weight workout.
-9. Test Plan for Gym Normal/Tired with both `Save for later` and `Start this workout`; confirm the Next Workout card, location, exact set targets, Skip action, and completed-session link.
+9. Test Plan for Gym Standard/Hard/Very hard with both `Save for later` and `Start this workout`;
+   confirm generated strength always includes a Circuit finisher and that exact load, set, rest,
+   round, and recovery targets reach the logger.
 10. Log enough explicit Home/Gym full workouts to replace the planner's locationless-history fallback with trustworthy location-specific patterns.
 11. Phase 6 lifecycle audit and first visible lifecycle model — implemented across Today, Plan, Log, and History.
 12. Phase 6 climbing-controls audit — implemented. The audit found that specialist controls had already moved into the unified logger, but duration and mode validation were still permissive. Climbing now uses guarded whole minutes (`duration_minutes`) with an explicit conversion example and 720-minute ceiling, requires problems/routes when that mode is selected, scopes gradient to Kilter, prevents stale specialist metrics from leaking into other entries, and converts legacy `hours` rows to minutes when repeating a workout. The corrected 2026-07-09 Bouldering and 2026-07-11 Ropes/Belay rows remain stored as 1.25 legacy hours and reconstruct as 75 minutes.
