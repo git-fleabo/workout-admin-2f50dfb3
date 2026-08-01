@@ -4,9 +4,9 @@ import type {
   CircuitImpact,
   CircuitMetadata,
   CircuitMovementPattern,
-} from "./circuit-metadata";
-import { getTrackingModeValue } from "./movement-metrics";
-import type { PlannerLocation, PlannerReadiness, WorkoutPlanMovement } from "./workout-plan";
+} from "./circuit-metadata.ts";
+import { getTrackingModeValue } from "./movement-metrics.ts";
+import type { PlannerLocation, PlannerReadiness, WorkoutPlanMovement } from "./workout-plan.ts";
 
 export const CIRCUIT_FOCUS_OPTIONS = [
   { value: "balanced", label: "Balanced", detail: "A varied full-body mix" },
@@ -71,6 +71,8 @@ export type CircuitCandidate = CircuitMetadata & {
   metric: string;
   locationScope: PlannerLocation | "both";
   availableLocationKinds: Array<PlannerLocation | "other">;
+  recentHistoryCount?: number;
+  lastPerformedDate?: string | null;
 };
 
 export type CircuitSelection = {
@@ -281,12 +283,14 @@ function selectionScore(
       ? BALANCED_PATTERN_ORDER[selectionIndex % BALANCED_PATTERN_ORDER.length]
       : FOCUS_PATTERNS[config.focus][selectionIndex % FOCUS_PATTERNS[config.focus].length];
   const suitability = candidate.circuitSuitability === "preferred" ? 28 : 12;
+  const familiarity = Math.min(18, (candidate.recentHistoryCount ?? 0) * 4);
   const focus = focusMatch(candidate.circuitPattern, config.focus) ? 26 : 0;
   const balance = candidate.circuitPattern === desiredPattern ? 18 : 0;
   const diversityPenalty = samePatternCount * 35;
   const stableTieBreak = stableHash(`${configSeed(config)}|${variation}|${candidate.id}`) % 10;
   return (
     suitability +
+    familiarity +
     focus +
     balance +
     difficultyScore(candidate.circuitDifficulty, effectiveIntensity) +
@@ -324,6 +328,9 @@ function doseLabel(candidate: CircuitCandidate, dose: number) {
 
 function selectionReason(candidate: CircuitCandidate, config: CircuitBuilderConfig, dose: string) {
   const reasons = [
+    candidate.recentHistoryCount
+      ? `used ${candidate.recentHistoryCount} time${candidate.recentHistoryCount === 1 ? "" : "s"} in recent training`
+      : "adds a Library variation",
     candidate.circuitSuitability === "preferred" ? "preferred circuit movement" : null,
     focusMatch(candidate.circuitPattern, config.focus)
       ? `${candidate.circuitPattern.replace("_", " ")} pattern fits ${config.focus.replace("_", " ")} focus`
@@ -466,10 +473,14 @@ export function buildCircuit(
     CIRCUIT_FOCUS_OPTIONS.find((option) => option.value === normalizedConfig.focus)?.label ??
     normalizedConfig.focus;
 
+  const familiarCount = selections.filter(
+    (selection) => (selection.candidate.recentHistoryCount ?? 0) > 0,
+  ).length;
+
   return {
     ok: true,
     title: `${durationMinutes}-minute ${focusLabel.toLowerCase()} circuit`,
-    basis: `Built deterministically from ${eligible.length} eligible ${normalizedConfig.location} movements. ${movementCount} movements × ${budget.rounds} rounds, with ${restBetweenMovementsSeconds}s transitions and ${restBetweenRoundsSeconds}s between rounds. Estimated ${estimatedMinutes} minutes.`,
+    basis: `Built from ${eligible.length} eligible ${normalizedConfig.location} movements, prioritising ${familiarCount} movement${familiarCount === 1 ? "" : "s"} from recent training. ${movementCount} movements × ${budget.rounds} rounds, with ${restBetweenMovementsSeconds}s transitions and ${restBetweenRoundsSeconds}s between rounds. Estimated ${estimatedMinutes} minutes.`,
     movements: selections.map(movementFromSelection),
     selections,
     rounds: budget.rounds,

@@ -1,5 +1,5 @@
-import type { getRecentLogsClient, WorkoutSetMethodInput } from "./supabase-log.browser";
-import { getTrackingModeValue, type TrackingMode } from "./movement-metrics";
+import type { getRecentLogsClient, WorkoutSetMethodInput } from "./supabase-log.browser.ts";
+import { getTrackingModeValue, type TrackingMode } from "./movement-metrics.ts";
 
 export const WORKOUT_PLAN_DRAFT_KEY = "workout-plan-draft";
 export const WORKOUT_PLAN_LOCATION_KEY = "workout-plan-location";
@@ -238,7 +238,7 @@ function suggestMovement(
     });
     reason = comfortable
       ? "All recorded sets reached 5+ reps at RPE 8 or below, so load moves up 2.5 kg and reps reset to 3."
-      : "You marked yourself fresh and reached 5+ reps last time, so load moves up 2.5 kg and reps reset to 3.";
+      : "You requested a hard session and reached 5+ reps last time, so load moves up 2.5 kg and reps reset to 3.";
   } else if (weightedRows.length > 0 && reps.length > 0 && reps.some((value) => value < 5)) {
     preserveSetMethods = false;
     rows = rows.map((set) => {
@@ -253,6 +253,20 @@ function suggestMovement(
   } else if (weightedRows.length > 0 && allAtFive && !comfortable) {
     reason =
       "Repeats the load because 5 reps were reached but no comfortable RPE (8 or below) was logged.";
+  }
+
+  if (readiness === "fresh" && rows.length > 0 && rows.length < 5) {
+    const finalSet = rows[rows.length - 1];
+    rows = [
+      ...rows,
+      {
+        ...finalSet,
+        rpe: "",
+        method: undefined,
+      },
+    ];
+    preserveSetMethods = false;
+    reason += " Hard-session request adds one work set, capped at five total sets.";
   }
 
   if (!preserveSetMethods) rows = rows.map((set) => ({ ...set, method: undefined }));

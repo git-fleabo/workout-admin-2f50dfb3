@@ -1825,6 +1825,28 @@ execution denied, authenticated execution granted, and `SECURITY INVOKER` preser
 security and performance advisors reported no feature-specific findings; the pre-existing profile
 policy/password warnings and unused-index notices remain separate.
 
+## 2026-08-01 — Guided Additional Session Builder
+
+Plan's optional workout area is now a guided `Build me a session` flow designed to sit alongside an
+active programme:
+
+- The request begins with Strength or Conditioning and the Home/Gym location, so location-specific
+  Library availability and equipment remain authoritative.
+- Strength uses only recent strength sessions from the selected location. `Standard` retains the
+  existing evidence-led progression; `Hard` uses the productive upper end and adds one work set,
+  capped at five total sets. The recent-session anchor, movement order, swaps, sets, weights, reps,
+  rest, methods, additions, and removals remain editable before saving or starting.
+- Conditioning asks for duration, focus, intensity, format, equipment, impact, and complexity. It
+  now defaults to hard, favours eligible movements seen in recent location-matched training, and
+  still introduces Library variation where useful. The resulting circuit remains fully editable.
+- The standalone recovery-decision card has been removed. Programme recovery continues through the
+  existing automatic RPE, pain, and technique checkpoints plus the explicit `Update programme`
+  controls; the additional-session brief does not rewrite that programme evidence.
+- The seven-day programme action uses a shorter mobile label and a wrapping, width-constrained
+  button so `Adjust other training` cannot escape its day card.
+
+No schema migration or data mutation was required.
+
 ## Suggested Next Steps
 
 Recommended next work, in order:

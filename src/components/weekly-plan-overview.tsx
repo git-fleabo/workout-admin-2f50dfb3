@@ -206,11 +206,18 @@ export function WeeklyPlanOverview({
               <Button
                 variant="ghost"
                 size="sm"
-                className="mt-2 h-7 px-1.5 text-[10px] text-muted-foreground"
+                className="mt-2 h-auto min-h-7 w-full min-w-0 justify-start whitespace-normal px-1.5 py-1 text-left text-[10px] leading-tight text-muted-foreground"
                 onClick={() => setEditingDate(day.date)}
               >
-                <Pencil className="mr-1 h-3 w-3" />
-                {scheduledProgrammeSessions.length ? "Adjust other training" : "Adjust day"}
+                <Pencil className="mr-1 h-3 w-3 shrink-0" />
+                {scheduledProgrammeSessions.length ? (
+                  <>
+                    <span className="sm:hidden">Adjust extras</span>
+                    <span className="hidden sm:inline">Adjust other training</span>
+                  </>
+                ) : (
+                  "Adjust day"
+                )}
               </Button>
             </div>
           );
