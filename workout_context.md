@@ -1795,6 +1795,36 @@ active assignment still at workout index 0 with its 2026-08-03 start date, all 1
 base percentages bounded at 80-90%, the expected set/repetition/rest targets, and unchanged
 assignment training maxes and movement enablement.
 
+## 2026-08-01 — Lower-Body Frequency And Editable Training Maxes
+
+The adaptive 12-week template now guarantees a second lower-body exposure every week without
+turning Friday into another maximal-volume day:
+
+- Odd weeks add three Friday squat sets, so squat is practised on Monday and Friday.
+- Even weeks add three Friday deadlift sets, so deadlift is practised on Wednesday and Friday.
+- The second exposure follows that week's existing 80-90% loading and five-rep/triple structure,
+  RPE cap, adjustment range, and long-rest guidance. The existing cautious squat and deadlift
+  training maxes remain unchanged until the user explicitly edits them.
+
+The Plan `Refresh upcoming sessions` control is now a general `Update programme` editor for every
+active percentage-based programme assignment with training maxes. Each enabled lift exposes both
+its training max and its bounded manual percentage adjustment. Saving uses the atomic,
+assignment-scoped `SECURITY INVOKER` RPC `apply_programme_exercise_updates(...)`; it updates the
+calculation inputs and invalidates all upcoming programme queries so unstarted sessions immediately
+recalculate. Completed workouts, already-started drafts, scheduled dates, reviews, and exercise
+mappings are not rewritten.
+
+Local migration
+`20260801193100_add_programme_training_max_updates_and_lower_body_frequency.sql` contains both the
+protected update RPC and the deterministic Friday template additions. It was applied to the linked
+`Train and Track` Supabase project as remote migration
+`20260801181719 add_programme_training_max_updates_and_lower_body_frequency`. Live verification
+found one added Friday exposure in every week, two squat sessions in every odd week, two deadlift
+sessions in every even week, unchanged active-assignment state and training maxes, anonymous RPC
+execution denied, authenticated execution granted, and `SECURITY INVOKER` preserved. Supabase's
+security and performance advisors reported no feature-specific findings; the pre-existing profile
+policy/password warnings and unused-index notices remain separate.
+
 ## Suggested Next Steps
 
 Recommended next work, in order:

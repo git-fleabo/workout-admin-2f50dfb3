@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -42,7 +43,11 @@ export function ProgrammeRefreshCard({
   assignment: ProgrammeAssignment;
   saving: boolean;
   onSave: (
-    adjustments: Array<{ exerciseId: string; manualAdjustmentPercent: number }>,
+    updates: Array<{
+      exerciseId: string;
+      trainingMax: number;
+      manualAdjustmentPercent: number;
+    }>,
   ) => Promise<void>;
 }) {
   const exercises = useMemo(
@@ -51,20 +56,36 @@ export function ProgrammeRefreshCard({
     [assignment.exercises],
   );
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<Record<string, number>>({});
+  const [draftAdjustments, setDraftAdjustments] = useState<Record<string, number>>({});
+  const [draftTrainingMaxes, setDraftTrainingMaxes] = useState<Record<string, string>>({});
   const activeOverrides = exercises.filter((exercise) => exercise.manualAdjustmentPercent !== 0);
   const changed = exercises.flatMap((exercise) => {
-    const next = draft[exercise.id] ?? exercise.manualAdjustmentPercent;
-    return next === exercise.manualAdjustmentPercent
+    const nextAdjustment = draftAdjustments[exercise.id] ?? exercise.manualAdjustmentPercent;
+    const nextTrainingMax = Number(draftTrainingMaxes[exercise.id] ?? exercise.trainingMax);
+    return nextAdjustment === exercise.manualAdjustmentPercent &&
+      nextTrainingMax === exercise.trainingMax
       ? []
-      : [{ exerciseId: exercise.id, manualAdjustmentPercent: next }];
+      : [
+          {
+            exerciseId: exercise.id,
+            trainingMax: nextTrainingMax,
+            manualAdjustmentPercent: nextAdjustment,
+          },
+        ];
+  });
+  const hasInvalidTrainingMax = exercises.some((exercise) => {
+    const value = Number(draftTrainingMaxes[exercise.id] ?? exercise.trainingMax);
+    return !Number.isFinite(value) || value < 0.5 || value > 1000;
   });
 
   const openReview = () => {
-    setDraft(
+    setDraftAdjustments(
       Object.fromEntries(
         exercises.map((exercise) => [exercise.id, exercise.manualAdjustmentPercent]),
       ),
+    );
+    setDraftTrainingMaxes(
+      Object.fromEntries(exercises.map((exercise) => [exercise.id, String(exercise.trainingMax)])),
     );
     setOpen(true);
   };
@@ -94,8 +115,8 @@ export function ProgrammeRefreshCard({
                 </Badge>
               </div>
               <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">
-                Review each main lift after a week that felt too hard or too easy. Your logged RPE,
-                pain, and technique still drive the automatic adjustment underneath.
+                Amend a training max or review a lift after a week that felt too hard or too easy.
+                Every unstarted programme session is recalculated from the saved values.
               </p>
               {activeOverrides.length ? (
                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -109,7 +130,7 @@ export function ProgrammeRefreshCard({
             </div>
           </div>
           <Button variant="outline" onClick={openReview} disabled={!exercises.length}>
-            <SlidersHorizontal className="mr-2 h-4 w-4" /> Update sessions
+            <SlidersHorizontal className="mr-2 h-4 w-4" /> Update programme
           </Button>
         </CardContent>
       </Card>
@@ -117,17 +138,18 @@ export function ProgrammeRefreshCard({
       <Dialog open={open} onOpenChange={(nextOpen) => !saving && setOpen(nextOpen)}>
         <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Update upcoming sessions</DialogTitle>
+            <DialogTitle>Update programme</DialogTitle>
             <DialogDescription>
-              Adjust lifts independently. This changes future prescriptions only—not completed
-              workouts, training maxes, or scheduled dates.
+              Amend training maxes and load adjustments independently. Upcoming, unstarted
+              prescriptions refresh immediately; completed workouts, started drafts, and scheduled
+              dates do not change.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             {exercises.map((exercise) => {
               const automatic = exercise.loadAdjustmentPercent;
-              const manual = draft[exercise.id] ?? exercise.manualAdjustmentPercent;
+              const manual = draftAdjustments[exercise.id] ?? exercise.manualAdjustmentPercent;
               const combined = automatic + manual;
               return (
                 <div
@@ -147,10 +169,37 @@ export function ProgrammeRefreshCard({
                       Combined {points(combined)}
                     </Badge>
                   </div>
+                  <label
+                    className="mt-3 block text-xs font-medium"
+                    htmlFor={`training-max-${exercise.id}`}
+                  >
+                    Training max (kg)
+                  </label>
+                  <Input
+                    id={`training-max-${exercise.id}`}
+                    data-testid={`programme-training-max-${exercise.slotKey}`}
+                    className="mt-1"
+                    type="number"
+                    min="0.5"
+                    max="1000"
+                    step="0.5"
+                    inputMode="decimal"
+                    value={draftTrainingMaxes[exercise.id] ?? String(exercise.trainingMax)}
+                    onChange={(event) =>
+                      setDraftTrainingMaxes((current) => ({
+                        ...current,
+                        [exercise.id]: event.target.value,
+                      }))
+                    }
+                  />
+                  <p className="mt-3 text-xs font-medium">Upcoming load adjustment</p>
                   <Select
                     value={String(manual)}
                     onValueChange={(value) =>
-                      setDraft((current) => ({ ...current, [exercise.id]: Number(value) }))
+                      setDraftAdjustments((current) => ({
+                        ...current,
+                        [exercise.id]: Number(value),
+                      }))
                     }
                   >
                     <SelectTrigger className="mt-3">
@@ -170,17 +219,18 @@ export function ProgrammeRefreshCard({
           </div>
 
           <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.05] p-3 text-xs leading-relaxed text-muted-foreground">
-            Manual changes stay active until you update or reset them. Use the lighter options if
-            pain or technique deteriorated; do not use this control to train through pain.
+            A training-max change is the new basis for every later percentage calculation in this
+            programme. Manual load changes stay active until reset. Use the lighter options if pain
+            or technique deteriorated; do not use either control to train through pain.
           </div>
 
           <DialogFooter>
             <Button variant="ghost" onClick={() => setOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={save} disabled={saving || !changed.length}>
+            <Button onClick={save} disabled={saving || !changed.length || hasInvalidTrainingMax}>
               {saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Apply to upcoming sessions
+              Refresh upcoming sessions
             </Button>
           </DialogFooter>
         </DialogContent>

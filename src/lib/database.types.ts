@@ -3067,6 +3067,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      apply_programme_exercise_updates: {
+        Args: { p_assignment_id: string; p_updates: Json };
+        Returns: number;
+      };
       apply_programme_manual_adjustments: {
         Args: { p_adjustments: Json; p_assignment_id: string };
         Returns: number;

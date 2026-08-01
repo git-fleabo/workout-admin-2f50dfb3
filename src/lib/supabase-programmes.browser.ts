@@ -999,6 +999,39 @@ export async function updateProgrammeManualAdjustmentsClient(
   });
 }
 
+export async function updateProgrammeExerciseSettingsClient(
+  assignmentId: string,
+  updates: Array<{
+    exerciseId: string;
+    trainingMax: number;
+    manualAdjustmentPercent: number;
+  }>,
+) {
+  if (!updates.length) throw new Error("Change at least one training max or load adjustment.");
+  const supportedAdjustments = new Set([-5, -2.5, 0, 2.5, 5]);
+  if (
+    updates.some(
+      (update) =>
+        !Number.isFinite(update.trainingMax) ||
+        update.trainingMax < 0.5 ||
+        update.trainingMax > 1000,
+    )
+  ) {
+    throw new Error("Training maxes must be between 0.5 and 1000 kg.");
+  }
+  if (updates.some((update) => !supportedAdjustments.has(update.manualAdjustmentPercent))) {
+    throw new Error("Programme adjustments must use a supported 2.5-point step.");
+  }
+  return supabasePublicRpc<number>("apply_programme_exercise_updates", {
+    p_assignment_id: assignmentId,
+    p_updates: updates.map((update) => ({
+      exercise_id: update.exerciseId,
+      training_max: update.trainingMax,
+      manual_adjustment_percent: update.manualAdjustmentPercent,
+    })),
+  });
+}
+
 export async function createNextProgrammeCycleClient(assignmentId: string) {
   const currentPerson = await getCurrentPerson();
   if (!currentPerson) throw new Error("Connect your training profile first.");

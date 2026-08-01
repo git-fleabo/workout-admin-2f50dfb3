@@ -67,7 +67,7 @@ import { getMovementMetricProfile } from "@/lib/movement-metrics";
 import {
   getActiveProgrammeRefreshClient,
   getUpcomingProgrammeScheduleClient,
-  updateProgrammeManualAdjustmentsClient,
+  updateProgrammeExerciseSettingsClient,
 } from "@/lib/supabase-programmes.browser";
 import { listTrainingMethodsClient } from "@/lib/supabase-training-methods.browser";
 import { getWeeklyLoadHistoryClient } from "@/lib/supabase-weekly-load.browser";
@@ -362,11 +362,15 @@ function PlanPage() {
   const programmeRefreshMutation = useMutation({
     mutationFn: ({
       assignmentId,
-      adjustments,
+      updates,
     }: {
       assignmentId: string;
-      adjustments: Array<{ exerciseId: string; manualAdjustmentPercent: number }>;
-    }) => updateProgrammeManualAdjustmentsClient(assignmentId, adjustments),
+      updates: Array<{
+        exerciseId: string;
+        trainingMax: number;
+        manualAdjustmentPercent: number;
+      }>;
+    }) => updateProgrammeExerciseSettingsClient(assignmentId, updates),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["programme-refresh"] }),
@@ -905,10 +909,10 @@ function PlanPage() {
         <ProgrammeRefreshCard
           assignment={programmeRefresh.data}
           saving={programmeRefreshMutation.isPending}
-          onSave={async (adjustments) => {
+          onSave={async (updates) => {
             await programmeRefreshMutation.mutateAsync({
               assignmentId: programmeRefresh.data!.id,
-              adjustments,
+              updates,
             });
           }}
         />
