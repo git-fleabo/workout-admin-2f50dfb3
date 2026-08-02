@@ -93,9 +93,12 @@ export function suggestedRestForIntensity(intensityPercent: number | null) {
   return "120–150s";
 }
 
-export function nextCycleTrainingMax(slotKey: string, current: number | null) {
+export function programmeWeightIncrementKg(focusArea: string | null | undefined) {
+  const normalized = (focusArea ?? "").trim().toLowerCase();
+  return normalized.includes("lower") || normalized.includes("posterior chain") ? 5 : 2.5;
+}
+
+export function nextCycleTrainingMax(focusArea: string | null | undefined, current: number | null) {
   if (current == null) return null;
-  if (slotKey === "seated_dumbbell_press") return current + 1;
-  if (slotKey === "weighted_pull_up") return current;
-  return current + 2.5;
+  return current + programmeWeightIncrementKg(focusArea);
 }

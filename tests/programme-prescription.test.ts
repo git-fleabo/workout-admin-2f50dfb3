@@ -21,6 +21,7 @@ const baseEntry = {
 
 const baseExercise = {
   exerciseName: "High Bar Squat",
+  focusArea: "Lower Body",
   trainingMax: 100,
   loadAdjustmentPercent: 0,
   manualAdjustmentPercent: 0,
@@ -33,7 +34,6 @@ test("programme preview builds the same exact set prescription used by Today", (
     exercise: baseExercise,
     methodType: "adaptive_strength_12_week",
     defaultSetChoice: "minimum",
-    defaultRoundingIncrement: 2.5,
   });
 
   assert.ok(movement);
@@ -62,7 +62,6 @@ test("programme preview applies the latest adaptive review and explicit rest", (
     },
     methodType: "adaptive_strength_12_week",
     defaultSetChoice: "maximum",
-    defaultRoundingIncrement: 2.5,
   });
 
   assert.ok(movement);
@@ -79,7 +78,6 @@ test("programme preview fails closed when an exact load cannot be calculated", (
       exercise: { ...baseExercise, trainingMax: null },
       methodType: "adaptive_strength_12_week",
       defaultSetChoice: "minimum",
-      defaultRoundingIncrement: 2.5,
     }),
     null,
   );
@@ -96,10 +94,27 @@ test("manual weekly adjustment layers on top of the automatic review", () => {
     },
     methodType: "adaptive_strength_12_week",
     defaultSetChoice: "minimum",
-    defaultRoundingIncrement: 2.5,
   });
 
   assert.ok(movement);
-  assert.equal(movement.setRows[0]?.weight, "72.5");
+  assert.equal(movement.setRows[0]?.weight, "75");
   assert.match(movement.reason, /72.5% of 100 kg training max/);
+});
+
+test("programme prescriptions use 2.5 kg upper-body and 5 kg lower-body steps", () => {
+  const upper = buildProgrammeMovementPrescription({
+    entry: { ...baseEntry, intensityPercent: 72.5, intensityMinPercent: 72.5 },
+    exercise: { ...baseExercise, exerciseName: "Bench Press", focusArea: "Push" },
+    methodType: "percentage_strength",
+    defaultSetChoice: "minimum",
+  });
+  const lower = buildProgrammeMovementPrescription({
+    entry: { ...baseEntry, intensityPercent: 72.5, intensityMinPercent: 72.5 },
+    exercise: baseExercise,
+    methodType: "percentage_strength",
+    defaultSetChoice: "minimum",
+  });
+
+  assert.equal(upper?.setRows[0]?.weight, "72.5");
+  assert.equal(lower?.setRows[0]?.weight, "75");
 });

@@ -1,5 +1,6 @@
 import {
   effectiveIntensityPercent,
+  programmeWeightIncrementKg,
   suggestedRestForIntensity,
   type AdaptiveDecision,
 } from "./adaptive-strength.ts";
@@ -24,6 +25,7 @@ export type ProgrammePrescriptionEntry = {
 
 export type ProgrammePrescriptionExercise = {
   exerciseName: string;
+  focusArea: string | null;
   trainingMax: number | null;
   loadAdjustmentPercent: number;
   manualAdjustmentPercent: number;
@@ -35,7 +37,6 @@ export function buildProgrammeMovementPrescription(input: {
   exercise: ProgrammePrescriptionExercise;
   methodType: string | null;
   defaultSetChoice: string | null;
-  defaultRoundingIncrement: number | null;
 }): WorkoutPlanMovement | null {
   const method = getProgrammeMethodSetup(input.methodType);
   if (!method) return null;
@@ -53,7 +54,7 @@ export function buildProgrammeMovementPrescription(input: {
     setChoice: input.defaultSetChoice,
     intensityPercent: plannedIntensity,
     trainingMax: input.exercise.trainingMax,
-    roundingIncrement: input.entry.roundingIncrement ?? input.defaultRoundingIncrement,
+    roundingIncrement: programmeWeightIncrementKg(input.exercise.focusArea),
   });
   if (!setRows.length) return null;
 

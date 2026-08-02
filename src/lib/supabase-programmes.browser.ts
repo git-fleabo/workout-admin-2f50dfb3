@@ -79,6 +79,7 @@ export type ProgrammeAssignmentExercise = {
   slotKey: string;
   exerciseId: string | null;
   exerciseName: string;
+  focusArea: string | null;
   trainingMax: number | null;
   enabled: boolean;
   loadAdjustmentPercent: number;
@@ -226,6 +227,7 @@ type ProgrammeAssignmentExerciseRecord = {
   slot_key: string;
   exercise_id: string | null;
   exercise_name: string;
+  exercises: { focus_area: string | null } | null;
   training_max: number | string | null;
   is_enabled: boolean;
   load_adjustment_percent: number | string;
@@ -375,6 +377,7 @@ function mapAssignment(row: ProgrammeAssignmentRecord): ProgrammeAssignment {
         slotKey: exercise.slot_key,
         exerciseId: exercise.exercise_id,
         exerciseName: exercise.exercise_name,
+        focusArea: exercise.exercises?.focus_area ?? null,
         trainingMax: numberOrNull(exercise.training_max),
         enabled: exercise.is_enabled,
         loadAdjustmentPercent: numberOrNull(exercise.load_adjustment_percent) ?? 0,
@@ -398,7 +401,7 @@ function mapAssignment(row: ProgrammeAssignmentRecord): ProgrammeAssignment {
 export async function listProgrammeAssignmentsClient(): Promise<ProgrammeAssignment[]> {
   const rows = await supabasePublicSelect<ProgrammeAssignmentRecord>("program_assignments", {
     select:
-      "id,program_id,person_id,assigned_by_person_id,status,current_workout_index,started_on,completed_on,notes,created_at,cycle_number,previous_assignment_id,program_assignment_exercises(id,slot_key,exercise_id,exercise_name,training_max,is_enabled,load_adjustment_percent,manual_adjustment_percent,manual_adjusted_at,last_decision),program_assignment_exercise_pools(id,role,exercise_id,exercise_name,is_enabled)",
+      "id,program_id,person_id,assigned_by_person_id,status,current_workout_index,started_on,completed_on,notes,created_at,cycle_number,previous_assignment_id,program_assignment_exercises(id,slot_key,exercise_id,exercise_name,training_max,is_enabled,load_adjustment_percent,manual_adjustment_percent,manual_adjusted_at,last_decision,exercises(focus_area)),program_assignment_exercise_pools(id,role,exercise_id,exercise_name,is_enabled)",
     status: "in.(active,paused,complete)",
     order: "created_at.desc",
   });
@@ -454,7 +457,6 @@ export async function getUpcomingProgrammeScheduleClient(
           exercise: mapping,
           methodType: template.methodType,
           defaultSetChoice: template.defaultSetChoice,
-          defaultRoundingIncrement: template.roundingIncrement,
         });
         return movement ? [movement] : [];
       });
@@ -654,7 +656,6 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
         exercise: mapping,
         methodType: template.methodType,
         defaultSetChoice: template.defaultSetChoice,
-        defaultRoundingIncrement: template.roundingIncrement,
       });
       if (!movement) {
         invalid = true;
@@ -681,7 +682,7 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
       weekNumber: workout.weekNumber,
       sessionNumber: workout.sessionNumber,
       methodType: template.methodType,
-      basis: `${sequenceLabel}. Loads are calculated from this assignment's training maxes and rounded to the template increment.`,
+      basis: `${sequenceLabel}. Loads are calculated from this assignment's training maxes and rounded in 2.5 kg upper-body or 5 kg lower-body steps.`,
       movements,
       exerciseIds,
       selections,
@@ -1070,7 +1071,7 @@ export async function createNextProgrammeCycleClient(assignmentId: string) {
         slot_key: exercise.slotKey,
         exercise_id: exercise.exerciseId,
         exercise_name: exercise.exerciseName,
-        training_max: nextCycleTrainingMax(exercise.slotKey, exercise.trainingMax),
+        training_max: nextCycleTrainingMax(exercise.focusArea, exercise.trainingMax),
         is_enabled: exercise.enabled,
         load_adjustment_percent: 0,
         last_decision: null,

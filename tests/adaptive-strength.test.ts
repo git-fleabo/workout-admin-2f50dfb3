@@ -6,6 +6,7 @@ import {
   decideAdaptiveProgression,
   effectiveIntensityPercent,
   nextCycleTrainingMax,
+  programmeWeightIncrementKg,
   programmeWorkoutIsDue,
   programmeWorkoutScheduledDate,
   suggestedRestForIntensity,
@@ -76,12 +77,17 @@ test("effective percentage starts at the safe end and never exceeds its range", 
   assert.equal(effectiveIntensityPercent({ minimum: 75, maximum: 80, adjustment: 10 }), 80);
 });
 
-test("next cycle uses the agreed lift-specific training max steps", () => {
-  assert.equal(nextCycleTrainingMax("bench_press", 75), 77.5);
-  assert.equal(nextCycleTrainingMax("high_bar_squat", 65), 67.5);
-  assert.equal(nextCycleTrainingMax("deadlift", 87.5), 90);
-  assert.equal(nextCycleTrainingMax("seated_dumbbell_press", 20), 21);
-  assert.equal(nextCycleTrainingMax("weighted_pull_up", 30), 30);
+test("programme load and next-cycle increments follow upper/lower focus", () => {
+  assert.equal(programmeWeightIncrementKg("Push"), 2.5);
+  assert.equal(programmeWeightIncrementKg("Pull"), 2.5);
+  assert.equal(programmeWeightIncrementKg("Upper Body"), 2.5);
+  assert.equal(programmeWeightIncrementKg("Lower Body"), 5);
+  assert.equal(programmeWeightIncrementKg("Posterior Chain"), 5);
+  assert.equal(nextCycleTrainingMax("Push", 75), 77.5);
+  assert.equal(nextCycleTrainingMax("Lower Body", 65), 70);
+  assert.equal(nextCycleTrainingMax("Posterior Chain", 87.5), 92.5);
+  assert.equal(nextCycleTrainingMax("Upper Body", 20), 22.5);
+  assert.equal(nextCycleTrainingMax("Pull", 30), 32.5);
 });
 
 test("programme workouts stay hidden until their scheduled Mon/Wed/Fri date", () => {

@@ -368,11 +368,7 @@ function ProgrammeTemplatesPage() {
                   <TemplateStat
                     icon={<Dumbbell className="h-4 w-4" />}
                     label="Rounding"
-                    value={
-                      selected.roundingIncrement != null
-                        ? `Nearest ${selected.roundingIncrement} kg`
-                        : "No default"
-                    }
+                    value="Upper 2.5 kg · Lower 5 kg"
                   />
                 </CardContent>
               </Card>

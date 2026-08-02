@@ -1808,6 +1808,11 @@ turning Friday into another maximal-volume day:
   RPE cap, adjustment range, and long-rest guidance. The existing cautious squat and deadlift
   training maxes remain unchanged until the user explicitly edits them.
 
+All percentage-based programmes use the mapped Library movement's focus area for load increments.
+Upper-body prescriptions and next-cycle Training Max progression use 2.5 kg steps; lower-body and
+posterior-chain movements use 5 kg steps. The same rule drives Plan previews and Today offers, so
+template-level legacy rounding values cannot make those surfaces disagree.
+
 The Plan `Refresh upcoming sessions` control is now a general `Update programme` editor for every
 active percentage-based programme assignment with training maxes. Each enabled lift exposes both
 its training max and its bounded manual percentage adjustment. Saving uses the atomic,
