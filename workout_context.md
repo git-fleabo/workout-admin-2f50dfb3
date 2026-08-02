@@ -1038,6 +1038,8 @@ Workout counts should count distinct workout days, not individual exercise rows.
 
 Dashboard workout counts/details should include any completed non-climbing session with completed entries, regardless of `source_sheet`. This keeps manually sent Strength Block Builder sessions visible in the dashboard when they already appear in History.
 
+The Dashboard climbing summary uses a trailing 30-day window for sessions, hours, and recorded problems/routes so it does not appear empty immediately after a calendar-month rollover. Its latest grade is the most recent non-empty recorded grade and remains independent of the latest climb, since time-only climbs may omit grade.
+
 Clicking a day in the Dashboard `This Week` calendar opens a compact activity review whose fields follow each movement's Library tracking profile and recorded metrics. Weighted work shows sets, total reps, top load, and volume; reps-only work omits load; holds show attempts and hold times; duration, distance/time, conditioning, carries, mobility, power, and climbing each use their own relevant labels. The day total counts a session-level duration once rather than repeating it for every movement, and falls back to recorded entry durations when the session has no total.
 
 The dashboard should remain focused. Weekly workout and weekly active-minute goals should stay visible. Do not reintroduce a bulky active-goals panel without a fresh decision.

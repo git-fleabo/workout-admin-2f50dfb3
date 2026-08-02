@@ -109,10 +109,11 @@ export type DashboardData = {
   bodyweight: BodyweightPoint[];
   recentPRs: PRItem[];
   climbing: {
-    sessionsThisMonth: number;
-    hoursThisMonth: number;
-    bouldersThisMonth: number;
-    latestClimb: { date: string; grade: string; name: string } | null;
+    sessionsLast30Days: number;
+    hoursLast30Days: number;
+    bouldersLast30Days: number;
+    latestGrade: string | null;
+    latestClimb: { date: string; name: string } | null;
   };
   strength: {
     bestLift: { name: string; value: number; date: string } | null;
@@ -486,6 +487,9 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
   const now = new Date();
   const thisWeekStart = startOfWeekUTC(now);
   const thisMonthStart = startOfMonthUTC(now);
+  const recentClimbStart = new Date(now);
+  recentClimbStart.setUTCDate(recentClimbStart.getUTCDate() - 29);
+  recentClimbStart.setUTCHours(0, 0, 0, 0);
   const todayISO = toISODateString(now);
 
   const weekDays: WeekDay[] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(
@@ -556,10 +560,13 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
   let firstWorkoutDate: Date | null = null;
   let climbingHoursThisMonth = 0;
   let climbingSessionsThisMonth = 0;
-  let bouldersThisMonth = 0;
+  let climbingHoursLast30Days = 0;
+  let climbingSessionsLast30Days = 0;
+  let bouldersLast30Days = 0;
   let totalClimbHours = 0;
   let totalClimbSessions = 0;
-  let latestClimb: { date: string; grade: string; name: string } | null = null;
+  let latestClimb: { date: string; name: string } | null = null;
+  let latestGrade: { date: string; value: string } | null = null;
   const countedWorkoutDates = new Set<string>();
   const countedThisWeekWorkoutDates = new Set<string>();
   const countedWeekWorkoutDates = new Set<string>();
@@ -603,7 +610,12 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
       if (monthStart.getTime() === thisMonthStart.getTime()) {
         climbingHoursThisMonth += hoursSafe;
         climbingSessionsThisMonth += 1;
-        bouldersThisMonth += entries.reduce(
+      }
+
+      if (date >= recentClimbStart && date <= now) {
+        climbingHoursLast30Days += hoursSafe;
+        climbingSessionsLast30Days += 1;
+        bouldersLast30Days += entries.reduce(
           (total, entry) => total + (metricNumber(entry.entry_metrics, "boulders") ?? 0),
           0,
         );
@@ -632,10 +644,14 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
       if (!latestClimb || dateISO > latestClimb.date) {
         latestClimb = {
           date: dateISO,
-          grade:
-            entries.map((entry) => metricText(entry.entry_metrics, "grade")).find(Boolean) ?? "",
           name: primary?.name ?? session.title ?? "Climbing",
         };
+      }
+      const recordedGrade = entries
+        .map((entry) => metricText(entry.entry_metrics, "grade"))
+        .find(Boolean);
+      if (recordedGrade && (!latestGrade || dateISO > latestGrade.date)) {
+        latestGrade = { date: dateISO, value: recordedGrade };
       }
       continue;
     }
@@ -842,9 +858,10 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
     bodyweight,
     recentPRs: prs.slice(0, 8),
     climbing: {
-      sessionsThisMonth: climbingSessionsThisMonth,
-      hoursThisMonth: Math.round(climbingHoursThisMonth * 10) / 10,
-      bouldersThisMonth,
+      sessionsLast30Days: climbingSessionsLast30Days,
+      hoursLast30Days: Math.round(climbingHoursLast30Days * 10) / 10,
+      bouldersLast30Days,
+      latestGrade: latestGrade?.value ?? null,
       latestClimb,
     },
     strength: {

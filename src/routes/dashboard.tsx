@@ -521,19 +521,16 @@ function ClimbingSummary({ data }: { data: Data }) {
   return (
     <Panel title="Climbing Summary" icon={<Mountain className="h-4 w-4" />} accent="amber">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
-        <Stat label="Sessions" value={fmt(c.sessionsThisMonth)} />
-        <Stat label="Hours" value={fmt(c.hoursThisMonth, "h")} />
-        <Stat label="Boulders" value={fmt(c.bouldersThisMonth)} />
-        <Stat label="Latest grade" value={c.latestClimb?.grade || "—"} />
+        <Stat label="Sessions · 30d" value={fmt(c.sessionsLast30Days)} />
+        <Stat label="Hours · 30d" value={fmt(c.hoursLast30Days, "h")} />
+        <Stat label="Problems · 30d" value={fmt(c.bouldersLast30Days)} />
+        <Stat label="Latest grade" value={c.latestGrade || "—"} />
       </dl>
       <div className="mt-3 rounded-md border border-border/60 bg-secondary/20 p-2.5 text-xs text-muted-foreground">
         {c.latestClimb ? (
           <>
-            Last climb:{" "}
-            <span className="text-foreground">
-              {c.latestClimb.name || c.latestClimb.grade || "Session"}
-            </span>{" "}
-            · {formatUKDate(c.latestClimb.date)}
+            Last climb: <span className="text-foreground">{c.latestClimb.name || "Session"}</span> ·{" "}
+            {formatUKDate(c.latestClimb.date)}
           </>
         ) : (
           "No climbing logged yet."
