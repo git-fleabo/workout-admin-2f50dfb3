@@ -840,12 +840,7 @@ function ProgressPage() {
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-4 border-b border-border pb-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Exercise Progress</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Charts and history adapt to how the selected exercise is tracked.
-          </p>
-        </div>
+        <h1 className="text-2xl font-semibold tracking-tight">Exercise Progress</h1>
         <ExercisePicker exercises={locationExercises} value={exerciseId} onChange={setExerciseId} />
       </header>
 
@@ -980,19 +975,6 @@ function ProgressPage() {
             ))}
           </section>
 
-          {metricProfile === "weighted" || metricProfile === "reps" ? (
-            <MethodComparison summaries={analysis.methodBreakdown} />
-          ) : null}
-
-          {metricProfile === "weighted" || metricProfile === "reps" ? (
-            <PlannedActualHistory
-              comparisons={visibleComparisons}
-              isLoading={plannedActual.isLoading}
-              hasError={Boolean(plannedActual.error)}
-              onSelectSession={setSelectedSessionId}
-            />
-          ) : null}
-
           <ProfileCharts
             profile={metricProfile}
             points={analysis.current}
@@ -1002,6 +984,23 @@ function ProgressPage() {
             positionMeasurementDirection={exercise?.positionMeasurementDirection ?? ""}
             onSelectSession={setSelectedSessionId}
           />
+
+          {metricProfile === "weighted" || metricProfile === "reps" ? (
+            <details className="rounded-xl border border-border bg-card/40 p-3">
+              <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
+                Deeper analysis: methods and plan comparison
+              </summary>
+              <div className="mt-4 space-y-4">
+                <MethodComparison summaries={analysis.methodBreakdown} />
+                <PlannedActualHistory
+                  comparisons={visibleComparisons}
+                  isLoading={plannedActual.isLoading}
+                  hasError={Boolean(plannedActual.error)}
+                  onSelectSession={setSelectedSessionId}
+                />
+              </div>
+            </details>
+          ) : null}
 
           <SetHistory
             points={analysis.current}
@@ -1425,11 +1424,13 @@ function StatCard({
         <p
           className={cn(
             "mt-1 truncate text-[11px] text-muted-foreground",
-            change != null &&
+            label !== "Volume" &&
+              change != null &&
               ((changeDirection === "up" && change > 0) ||
                 (changeDirection === "down" && change < 0)) &&
               "text-emerald-400",
-            change != null &&
+            label !== "Volume" &&
+              change != null &&
               ((changeDirection === "up" && change < 0) ||
                 (changeDirection === "down" && change > 0)) &&
               "text-amber-400",

@@ -981,9 +981,6 @@ function PlanPage() {
     <div className="space-y-6">
       <header className="border-b border-border pb-4">
         <h1 className="text-2xl font-semibold tracking-tight">Plan</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          See exactly what is coming in your programme, alongside the rest of your training week.
-        </p>
       </header>
 
       {!history.isLoading && !library.isLoading && !history.error && !library.error ? (
@@ -1038,7 +1035,7 @@ function PlanPage() {
             className={cn(
               "rounded-lg px-3 py-3 text-left transition",
               plannerMode === "strength"
-                ? "bg-background text-foreground shadow-sm"
+                ? "border border-primary/35 bg-primary/10 text-primary shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -1052,7 +1049,7 @@ function PlanPage() {
             className={cn(
               "rounded-lg px-3 py-3 text-left transition",
               plannerMode === "circuit"
-                ? "bg-background text-foreground shadow-sm"
+                ? "border border-amber-400/35 bg-amber-400/10 text-amber-200 shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -1066,7 +1063,7 @@ function PlanPage() {
             className={cn(
               "rounded-lg px-3 py-3 text-left transition",
               plannerMode === "climbing"
-                ? "bg-background text-foreground shadow-sm"
+                ? "border border-orange-400/35 bg-orange-400/10 text-orange-200 shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >

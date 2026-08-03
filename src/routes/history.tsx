@@ -200,7 +200,37 @@ function HistoryPage() {
       items.push(entry);
       map.set(entry.date, items);
     }
-    return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+    return Array.from(map.entries())
+      .map(([date, entries]) => {
+        const sessionGroups = new Map<string, TimelineEntry[]>();
+        for (const entry of entries) {
+          const key =
+            entry.kind === "workout" && entry.sessionId
+              ? `session:${entry.sessionId}`
+              : `entry:${entry.id}`;
+          sessionGroups.set(key, [...(sessionGroups.get(key) ?? []), entry]);
+        }
+        const sessions = Array.from(sessionGroups.values()).map((members) => {
+          if (members.length === 1) return members[0];
+          const first = members[0];
+          return {
+            ...first,
+            id: `session-${first.sessionId}`,
+            title: first.subtitle || "Workout",
+            subtitle: `${members.length} movements`,
+            details: members.map((member) =>
+              [member.title, ...member.details].filter(Boolean).join(" · "),
+            ),
+            notes: members
+              .map((member) => member.notes)
+              .filter(Boolean)
+              .join("\n"),
+            isPr: members.some((member) => member.isPr),
+          } satisfies TimelineEntry;
+        });
+        return [date, sessions] as const;
+      })
+      .sort((a, b) => b[0].localeCompare(a[0]));
   }, [periodEntries]);
 
   const summary = useMemo(() => {
@@ -329,7 +359,9 @@ function HistoryPage() {
                 <CalendarDays className="h-4 w-4" />
                 <span>{formatUKDate(date)}</span>
                 <span className="h-px flex-1 bg-border" />
-                <span>{entries.length}</span>
+                <span>
+                  {entries.length} session{entries.length === 1 ? "" : "s"}
+                </span>
               </div>
               <div className="grid gap-2">
                 {entries.map((entry) => {

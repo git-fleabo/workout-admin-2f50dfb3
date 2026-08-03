@@ -15,7 +15,6 @@ import {
   Loader2,
   MapPin,
   RefreshCw,
-  Sparkles,
   Target,
   TriangleAlert,
 } from "lucide-react";
@@ -119,30 +118,33 @@ function WeeklyReviewPage() {
 
   const canMoveForward = data.weekStart < currentWeekStart;
   const rangeLabel = `${formatUKDateShort(data.weekStart)}–${formatUKDate(data.reviewEnd)}`;
+  const missingTrainingTime = data.summary.sessions > 0 && data.summary.minutes <= 0;
 
   const stats = [
     {
       label: "Sessions",
       value: data.summary.sessions.toLocaleString(),
-      change: signed(data.comparison.sessionDelta),
+      change: `${signed(data.comparison.sessionDelta)} vs comparison`,
       icon: Dumbbell,
     },
     {
       label: "Active days",
       value: data.summary.activeDays.toLocaleString(),
-      change: signed(data.comparison.activeDayDelta),
+      change: `${signed(data.comparison.activeDayDelta)} vs comparison`,
       icon: CalendarDays,
     },
     {
       label: "Training time",
-      value: `${data.summary.minutes.toLocaleString()} min`,
-      change: signed(data.comparison.minuteDelta, " min"),
+      value: missingTrainingTime ? "Not recorded" : `${data.summary.minutes.toLocaleString()} min`,
+      change: missingTrainingTime
+        ? "Add workout durations"
+        : `${signed(data.comparison.minuteDelta, " min")} vs comparison`,
       icon: Clock3,
     },
     {
       label: "Strength work",
       value: volume(data.summary.strengthVolume),
-      change: signed(data.comparison.volumeDelta, " kg"),
+      change: `${signed(data.comparison.volumeDelta, " kg")} vs comparison`,
       icon: Gauge,
     },
   ];
@@ -151,9 +153,6 @@ function WeeklyReviewPage() {
     <div className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
         <div>
-          <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
-            <Sparkles className="h-3.5 w-3.5" /> Weekly review
-          </div>
           <h1 className="text-2xl font-semibold tracking-tight">What happened, and what next?</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {data.isCurrentWeek ? "This week so far" : "Completed week"} · {rangeLabel}
@@ -200,7 +199,7 @@ function WeeklyReviewPage() {
               <stat.icon className="h-4 w-4 text-primary" />
             </div>
             <p className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">{stat.value}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">{stat.change} vs comparison</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">{stat.change}</p>
           </Card>
         ))}
       </div>
@@ -224,7 +223,13 @@ function WeeklyReviewPage() {
             </div>
             <Target className="h-5 w-5 text-primary" />
           </div>
-          <Progress className="mt-4 h-2.5" value={data.adherence.percentage ?? 0} />
+          {data.adherence.percentage == null ? (
+            <p className="mt-4 rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+              Adherence appears once a workout has a planned date.
+            </p>
+          ) : (
+            <Progress className="mt-4 h-2.5" value={data.adherence.percentage} />
+          )}
           <div className="mt-4 grid grid-cols-3 gap-2 text-center">
             {[
               ["Completed", data.adherence.completed],
@@ -253,7 +258,13 @@ function WeeklyReviewPage() {
             </div>
             <Target className="h-5 w-5 text-fuchsia-300" />
           </div>
-          <Progress className="mt-4 h-2.5" value={data.programmeAdherence.percentage ?? 0} />
+          {data.programmeAdherence.percentage == null ? (
+            <p className="mt-4 rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+              Adherence appears when a programme session is due.
+            </p>
+          ) : (
+            <Progress className="mt-4 h-2.5" value={data.programmeAdherence.percentage} />
+          )}
           <div className="mt-4 grid grid-cols-3 gap-2 text-center">
             {[
               ["Due", data.programmeAdherence.due],

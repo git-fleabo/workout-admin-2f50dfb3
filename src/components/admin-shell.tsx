@@ -99,7 +99,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           </div>
           <div className="flex-1">
             <h1 className="text-base font-semibold leading-none sm:text-lg">Training Tracker</h1>
-            <p className="mt-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground/60">
+            <p className="mt-1 hidden text-[10px] font-mono uppercase tracking-wider text-muted-foreground/60 sm:block">
               {APP_BUILD_LABEL}
             </p>
           </div>
@@ -137,7 +137,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </div>
         <nav
           aria-label="Primary navigation"
-          className="mx-auto grid max-w-6xl grid-cols-4 gap-1 px-3 pb-3 sm:flex sm:px-5"
+          className="mx-auto hidden max-w-6xl gap-1 px-5 pb-3 sm:flex"
         >
           {NAV.map((item) => {
             const active = pathMatches(pathname, item);
@@ -186,7 +186,28 @@ export function AdminShell({ children }: { children: ReactNode }) {
         ) : null}
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 pb-24 pt-6 sm:px-6">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6 sm:pb-24">{children}</main>
+      <nav
+        aria-label="Primary navigation"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-border bg-background/95 px-2 pt-2 shadow-[0_-10px_30px_rgba(0,0,0,0.24)] backdrop-blur sm:hidden [padding-bottom:calc(env(safe-area-inset-bottom)+0.5rem)]"
+      >
+        {NAV.map((item) => {
+          const active = pathMatches(pathname, item);
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              aria-current={active ? "page" : undefined}
+              className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg text-[11px] font-medium transition ${
+                active ? "bg-primary/10 text-primary" : "text-muted-foreground"
+              }`}
+            >
+              {item.icon}
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }

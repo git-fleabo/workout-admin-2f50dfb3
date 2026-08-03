@@ -3,6 +3,26 @@
 The canonical, detailed handoff for this repository is [`workout_context.md`](workout_context.md).
 Read that file before database, programme, Library, logging, or deployment work.
 
+## 2026-08-03 Navigation And Visual Hierarchy Refresh
+
+- Mobile uses a persistent bottom navigation for Today, Log, Plan, and Review; desktop keeps the
+  existing header navigation.
+- History groups workout movements into their parent session, while preserving individual climbing,
+  strength-test, and bodyweight entries.
+- Plan and Dashboard use readable vertical week agendas on narrow screens instead of compressed or
+  horizontally scrolling seven-day cards.
+- Dashboard and Weekly Review label missing workout duration as not recorded and avoid presenting an
+  empty adherence bar as measured zero progress.
+- Progress puts the decision, headline statistics, and charts first; method and plan comparisons are
+  available in a collapsed deeper-analysis section.
+- Logger location and mode selection are more explicit, and the review/finish action stays available
+  above mobile navigation without using the completion gradient while disabled.
+- Settings removes speculative placeholders, moves Data Quality into Maintenance, and collapses the
+  block-height reference. Library cards are quieter on mobile and destructive actions live in a
+  secondary menu.
+- Page-specific colour remains a restrained semantic accent system rather than separate full-page
+  themes. Decorative subtitles were removed where they did not explain an action or data state.
+
 ## 2026-07-28 Adaptive Strength Engine
 
 The repository now contains a local implementation of the agreed reusable 12-week adaptive strength

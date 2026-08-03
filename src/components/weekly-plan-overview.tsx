@@ -142,7 +142,7 @@ export function WeeklyPlanOverview({
         </Badge>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-7 sm:overflow-visible">
+      <div className="grid gap-2 sm:grid-cols-7">
         {plan.days.map((day, index) => {
           const plannedItems = adjustments[day.date] ?? day.inferredItems;
           const scheduledProgrammeSessions = programmeSessions.filter(
@@ -153,7 +153,7 @@ export function WeeklyPlanOverview({
             <div
               key={day.date}
               className={cn(
-                "min-h-[142px] w-[126px] shrink-0 rounded-xl border p-3 sm:w-auto",
+                "min-h-0 w-full rounded-xl border p-3 sm:min-h-[142px]",
                 index === 0 ? "border-fuchsia-400/30 bg-fuchsia-400/[0.06]" : "border-border",
               )}
             >

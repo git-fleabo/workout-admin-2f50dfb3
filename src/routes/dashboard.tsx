@@ -99,6 +99,7 @@ function DashboardPage() {
   const minuteGoal = data.goals?.weeklyMinutes ?? DEFAULT_MINUTE_GOAL;
   const weeklyGoalPct = percentage(data.kpis.workoutsThisWeek, weeklyGoal);
   const minuteGoalPct = percentage(data.kpis.minutesThisWeek, minuteGoal);
+  const hasUnrecordedMinutes = data.kpis.workoutsThisWeek > 0 && data.kpis.minutesThisWeek <= 0;
 
   return (
     <div className="space-y-4">
@@ -107,7 +108,10 @@ function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground">
-            {data.kpis.workoutsThisWeek} workouts · {Math.round(data.kpis.minutesThisWeek || 0)} min
+            {data.kpis.workoutsThisWeek} workouts ·{" "}
+            {hasUnrecordedMinutes
+              ? "duration not recorded"
+              : `${Math.round(data.kpis.minutesThisWeek || 0)} min`}{" "}
             · {data.kpis.activeDaysThisWeek} active days this week
           </p>
         </div>
@@ -115,7 +119,12 @@ function DashboardPage() {
           <span className="hidden sm:inline">
             Week starting <span className="text-foreground">{weekStartLabel}</span>
           </span>
-          <Button asChild variant="outline" size="sm" className="h-8">
+          <Button
+            asChild
+            variant="secondary"
+            size="sm"
+            className="h-8 border border-primary/30 bg-primary/10 text-primary hover:bg-primary/15"
+          >
             <Link to="/weekly-review">
               <Sparkles className="h-3.5 w-3.5" /> Weekly review
             </Link>
@@ -154,10 +163,14 @@ function DashboardPage() {
         <StatusTile
           icon={<Clock className="h-3.5 w-3.5" />}
           label="Minute goal"
-          value={`${Math.round(data.kpis.minutesThisWeek || 0)}/${minuteGoal}`}
-          hint="min"
+          value={
+            hasUnrecordedMinutes
+              ? "Not recorded"
+              : `${Math.round(data.kpis.minutesThisWeek || 0)}/${minuteGoal}`
+          }
+          hint={hasUnrecordedMinutes ? "add workout durations" : "min"}
           accent="amber"
-          progressPct={minuteGoalPct}
+          progressPct={hasUnrecordedMinutes ? undefined : minuteGoalPct}
         />
         <StatusTile
           icon={<TrendIcon className="h-3.5 w-3.5" />}
@@ -168,12 +181,9 @@ function DashboardPage() {
         />
       </section>
 
-      {/* Weekly snapshot + Calendar */}
-      <section className="grid gap-4 lg:grid-cols-3">
-        <WeeklySnapshot data={data} />
-        <div className="lg:col-span-2">
-          <WeekCalendar data={data} />
-        </div>
+      {/* Calendar */}
+      <section>
+        <WeekCalendar data={data} />
       </section>
 
       {/* Climbing + Strength */}
@@ -339,44 +349,6 @@ function ProgressRing({ pct }: { pct: number }) {
   );
 }
 
-function WeeklySnapshot({ data }: { data: Data }) {
-  const weeklyGoal = data.goals?.weeklyWorkouts ?? DEFAULT_WEEKLY_GOAL;
-  const pct = percentage(data.kpis.workoutsThisWeek || 0, weeklyGoal);
-  return (
-    <Panel title="Weekly Snapshot" icon={<Activity className="h-4 w-4" />} accent="primary">
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-        <Stat label="Workouts" value={data.kpis.workoutsThisWeek.toString()} />
-        <Stat label="Minutes" value={fmt(Math.round(data.kpis.minutesThisWeek || 0))} />
-        <Stat label="Active days" value={`${data.kpis.activeDaysThisWeek}/7`} />
-        <Stat label="Goal" value={`${weeklyGoal} workouts`} />
-      </dl>
-      <div className="mt-3 space-y-1">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>
-            {data.kpis.workoutsThisWeek} of {weeklyGoal} workouts
-          </span>
-          <span>{pct}%</span>
-        </div>
-        <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary">
-          <div
-            className="h-full rounded-full shadow-[0_0_10px_oklch(0.86_0.19_130/0.4)] transition-all"
-            style={{ width: `${pct}%`, backgroundImage: "var(--gradient-primary)" }}
-          />
-        </div>
-      </div>
-    </Panel>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-2 border-b border-border/40 py-1.5 last:border-0">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="font-medium">{value}</dd>
-    </div>
-  );
-}
-
 function WeekCalendar({ data }: { data: Data }) {
   const [openDate, setOpenDate] = React.useState<string | null>(null);
   const openDay = openDate ? (data.weekDays.find((d) => d.date === openDate) ?? null) : null;
@@ -384,7 +356,7 @@ function WeekCalendar({ data }: { data: Data }) {
 
   return (
     <Panel title="This Week" icon={<CalendarRange className="h-4 w-4" />} accent="primary">
-      <div className="grid grid-cols-7 gap-1.5">
+      <div className="grid gap-2 sm:grid-cols-7 sm:gap-1.5">
         {data.weekDays.map((d) => {
           const credited = d.workouts > 0;
           const logged = d.exercises.length > 0;
@@ -398,7 +370,7 @@ function WeekCalendar({ data }: { data: Data }) {
               type="button"
               onClick={() => interactive && setOpenDate(d.date)}
               disabled={!interactive}
-              className={`flex min-h-[110px] flex-col rounded-md border p-2 text-center transition ${
+              className={`grid min-h-0 grid-cols-[3.5rem_1fr_auto] items-center rounded-md border p-2 text-left transition sm:flex sm:min-h-[110px] sm:flex-col sm:text-center ${
                 d.isToday ? "border-primary/60 bg-primary/5" : "border-border bg-secondary/20"
               } ${interactive ? "cursor-pointer hover:border-primary/50 hover:bg-primary/5" : "cursor-default"} ${
                 future ? "opacity-40" : ""
@@ -406,28 +378,30 @@ function WeekCalendar({ data }: { data: Data }) {
             >
               <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 {d.label}
-              </div>
-              <div className="mt-0.5 text-lg font-bold leading-none">
-                {Number(d.date.slice(8, 10))}
+                <span className="ml-1 text-base font-bold text-foreground sm:ml-0 sm:mt-0.5 sm:block sm:text-lg sm:leading-none">
+                  {Number(d.date.slice(8, 10))}
+                </span>
               </div>
               <div
-                className={`mx-auto mt-1 h-2 w-2 rounded-full ${
+                className={`hidden h-2 w-2 rounded-full sm:mx-auto sm:mt-1 sm:block ${
                   credited ? "bg-primary" : climbingOnly ? "bg-amber-400" : "bg-border"
                 }`}
               />
               <div
-                className={`mt-1 text-[11px] font-medium ${
+                className={`text-[11px] font-medium sm:mt-1 ${
                   credited ? "text-primary" : "text-muted-foreground"
                 }`}
               >
                 {credited
-                  ? `${d.workouts}× · ${Math.round(d.minutes)}m`
+                  ? d.minutes > 0
+                    ? `${d.workouts}× · ${Math.round(d.minutes)}m`
+                    : `${d.workouts}× · time —`
                   : logged
                     ? `${Math.round(d.minutes)}m`
                     : "Rest"}
               </div>
               {logged && (
-                <ul className="mt-1 space-y-0.5 text-left text-[10px] leading-tight text-muted-foreground">
+                <ul className="hidden space-y-0.5 text-left text-[10px] leading-tight text-muted-foreground sm:mt-1 sm:block">
                   {d.exercises.slice(0, 4).map((ex) => (
                     <li key={ex} className="truncate" title={ex}>
                       · {ex}
@@ -438,6 +412,9 @@ function WeekCalendar({ data }: { data: Data }) {
                   )}
                 </ul>
               )}
+              <span
+                className={`h-2 w-2 rounded-full sm:hidden ${credited ? "bg-primary" : climbingOnly ? "bg-amber-400" : "bg-border"}`}
+              />
             </button>
           );
         })}
@@ -451,7 +428,7 @@ function WeekCalendar({ data }: { data: Data }) {
                 <DialogTitle>{formatUKDate(openDay.date)}</DialogTitle>
                 <DialogDescription>
                   {openDay.workouts > 0
-                    ? `${openDay.workouts} workout${openDay.workouts === 1 ? "" : "s"} · ${Math.round(openDay.minutes)} min`
+                    ? `${openDay.workouts} workout${openDay.workouts === 1 ? "" : "s"} · ${openDay.minutes > 0 ? `${Math.round(openDay.minutes)} min` : "duration not recorded"}`
                     : openDay.entries.length > 0
                       ? `${Math.round(openDay.minutes)} min logged`
                       : "Rest day"}
@@ -504,6 +481,15 @@ function WeekCalendar({ data }: { data: Data }) {
         </DialogContent>
       </Dialog>
     </Panel>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2 border-b border-border/40 py-1.5 last:border-0">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="font-medium">{value}</dd>
+    </div>
   );
 }
 

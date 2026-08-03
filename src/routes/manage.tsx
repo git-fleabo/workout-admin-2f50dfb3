@@ -8,13 +8,9 @@ import {
   MapPin,
   Repeat2,
   Ruler,
-  Settings2,
-  SlidersHorizontal,
   Target,
-  UserRoundCog,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { BLOCK_HEIGHT_OPTIONS } from "@/lib/position-measurements";
 
@@ -47,20 +43,7 @@ type ManageLink = {
   accent: string;
 };
 
-type PlannedItem = {
-  title: string;
-  description: string;
-  icon: typeof BookOpen;
-};
-
 const TRAINING_SETUP: ManageLink[] = [
-  {
-    title: "Data Quality",
-    description: "Review historical ambiguity, provenance and calculation safety.",
-    to: "/data-quality",
-    icon: DatabaseZap,
-    accent: "text-cyan-300 bg-cyan-400/10 border-cyan-400/20",
-  },
   {
     title: "Exercise Library",
     description: "Movements, tracking types, availability and training locations.",
@@ -105,16 +88,13 @@ const TRAINING_SETUP: ManageLink[] = [
   },
 ];
 
-const PLANNED: PlannedItem[] = [
+const MAINTENANCE: ManageLink[] = [
   {
-    title: "Preferences",
-    description: "Units, week start, defaults and recommendation behaviour.",
-    icon: SlidersHorizontal,
-  },
-  {
-    title: "People & Access",
-    description: "Managed people, app access and coaching relationships.",
-    icon: UserRoundCog,
+    title: "Data Quality",
+    description: "Review historical ambiguity, provenance and calculation safety.",
+    to: "/data-quality",
+    icon: DatabaseZap,
+    accent: "text-cyan-300 bg-cyan-400/10 border-cyan-400/20",
   },
 ];
 
@@ -122,14 +102,7 @@ function SettingsPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <header className="border-b border-border pb-5">
-        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-amber-300">
-          <Settings2 className="h-4 w-4" /> App configuration
-        </div>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Manage the libraries, rules and targets that shape your training. Everyday logging,
-          planning and review stay in the main navigation.
-        </p>
+        <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
       </header>
 
       <section className="space-y-3" aria-labelledby="training-setup-heading">
@@ -137,9 +110,6 @@ function SettingsPage() {
           <h2 id="training-setup-heading" className="text-lg font-semibold">
             Training setup
           </h2>
-          <p className="text-sm text-muted-foreground">
-            The libraries and rules used across Today, Plan and Log.
-          </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {TRAINING_SETUP.map((item) => {
@@ -175,8 +145,8 @@ function SettingsPage() {
             Personal equipment references used by selected exercises in the logger.
           </p>
         </div>
-        <Card className="overflow-hidden">
-          <div className="flex items-start gap-4 border-b border-border p-4">
+        <details className="overflow-hidden rounded-xl border border-border bg-card">
+          <summary className="flex cursor-pointer list-none items-start gap-4 p-4">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-amber-400/20 bg-amber-400/10 text-amber-300">
               <Ruler className="h-5 w-5" />
             </span>
@@ -186,7 +156,7 @@ function SettingsPage() {
                 Stack from bottom to top. FB = foam block · CB = cork block.
               </p>
             </div>
-          </div>
+          </summary>
           <div className="grid sm:grid-cols-2">
             {BLOCK_HEIGHT_OPTIONS.map((option, index) => (
               <div
@@ -200,41 +170,33 @@ function SettingsPage() {
               </div>
             ))}
           </div>
-        </Card>
+        </details>
       </section>
 
-      <section className="space-y-3" aria-labelledby="coming-next-heading">
-        <div>
-          <h2 id="coming-next-heading" className="text-lg font-semibold">
-            Coming next
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Reserved homes for the next administration features as they become useful.
-          </p>
-        </div>
+      <section className="space-y-3" aria-labelledby="maintenance-heading">
+        <h2 id="maintenance-heading" className="text-lg font-semibold">
+          Maintenance
+        </h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          {PLANNED.map((item) => {
+          {MAINTENANCE.map((item) => {
             const Icon = item.icon;
             return (
-              <Card
-                key={item.title}
-                className="flex items-start gap-4 border-dashed p-4 opacity-70"
-              >
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-muted-foreground">
-                  <Icon className="h-5 w-5" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-2">
+              <Link key={item.to} to={item.to} className="group rounded-xl focus:outline-none">
+                <Card className="flex h-full items-start gap-4 p-4 transition-colors group-hover:border-foreground/25 group-hover:bg-accent/35">
+                  <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${item.accent}`}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
                     <span className="font-medium">{item.title}</span>
-                    <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
-                      Planned
-                    </Badge>
+                    <span className="mt-1 block text-sm leading-relaxed text-muted-foreground">
+                      {item.description}
+                    </span>
                   </span>
-                  <span className="mt-1 block text-sm leading-relaxed text-muted-foreground">
-                    {item.description}
-                  </span>
-                </span>
-              </Card>
+                  <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                </Card>
+              </Link>
             );
           })}
         </div>

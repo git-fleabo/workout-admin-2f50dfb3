@@ -36,10 +36,7 @@ function LogPage() {
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Log Training</h1>
-          <p className="text-sm text-muted-foreground">Log a workout, climb or strength test.</p>
-        </div>
+        <h1 className="text-2xl font-semibold tracking-tight">Log Training</h1>
       </header>
 
       <ModeSwitch mode={mode} onChange={setMode} />
@@ -88,7 +85,7 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
             onClick={() => onChange(t.id)}
             className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium transition sm:text-sm ${
               active
-                ? "bg-card text-foreground shadow"
+                ? "bg-card text-foreground shadow ring-1 ring-border"
                 : "text-muted-foreground hover:text-foreground"
             }`}
             style={

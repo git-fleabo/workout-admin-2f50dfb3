@@ -7,6 +7,7 @@ import {
   Check,
   ChevronsUpDown,
   Loader2,
+  MoreHorizontal,
   Pencil,
   Plus,
   Search,
@@ -21,6 +22,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command,
@@ -402,7 +410,6 @@ function LibraryPage() {
       );
     });
   }, [circuitFilter, list.data, locationFilter, search, typeFilter]);
-  const filtersActive = Boolean(search.trim() || typeFilter || locationFilter || circuitFilter);
 
   const addMutation = useMutation({
     mutationFn: (fields: typeof BLANK) => addExerciseClient(fields, effectivePersonId || undefined),
@@ -468,6 +475,10 @@ function LibraryPage() {
   return (
     <div className="space-y-5">
       <SettingsBackLink />
+      <header className="flex items-end justify-between border-b border-border pb-3">
+        <h1 className="text-2xl font-semibold tracking-tight">Exercise Library</h1>
+        <span className="text-sm text-muted-foreground">{filtered.length} movements</span>
+      </header>
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-1 min-w-[200px] flex-col gap-1">
           <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -585,12 +596,6 @@ function LibraryPage() {
         Quick log pins a movement to the top of the movement picker when logging a workout.
       </p>
 
-      {filtersActive && (
-        <p className="-mt-2 text-xs text-muted-foreground">
-          {filtered.length} movement{filtered.length !== 1 ? "s" : ""}
-        </p>
-      )}
-
       <div>
         {list.isLoading ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -655,7 +660,7 @@ function LibraryPage() {
                           </span>
                         )}
                         <span
-                          className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${circuitChipClass(ex.circuitSuitability)}`}
+                          className={`hidden rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider sm:inline ${circuitChipClass(ex.circuitSuitability)}`}
                         >
                           {ex.circuitSuitability === "excluded"
                             ? "No circuits"
@@ -669,7 +674,7 @@ function LibraryPage() {
                               : "Gym"}
                         </span>
                         <span
-                          className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${
+                          className={`hidden rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider sm:inline ${
                             ex.availableLocationNames.length
                               ? "border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-300"
                               : "border-amber-400/25 bg-amber-400/[0.08] text-amber-300"
@@ -704,14 +709,14 @@ function LibraryPage() {
                           .filter(Boolean)
                           .join(" · ") || "—"}
                       </p>
-                      <p className="mt-1 text-[11px] text-muted-foreground/80">
+                      <p className="mt-1 hidden text-[11px] text-muted-foreground/80 sm:block">
                         {circuitOptionLabel(CIRCUIT_MOVEMENT_PATTERN_OPTIONS, ex.circuitPattern)} ·{" "}
                         {circuitOptionLabel(CIRCUIT_DIFFICULTY_OPTIONS, ex.circuitDifficulty)} ·{" "}
                         {circuitOptionLabel(CIRCUIT_IMPACT_OPTIONS, ex.circuitImpact)} impact ·{" "}
                         {circuitDoseLabel(ex)}
                       </p>
                       {ex.notes && (
-                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground/90">
+                        <p className="mt-1 hidden line-clamp-2 text-xs text-muted-foreground/90 sm:block">
                           {ex.notes}
                         </p>
                       )}
@@ -759,7 +764,7 @@ function LibraryPage() {
                       )}
                       {ex.active && (
                         <div className="flex items-center gap-2 rounded-md border border-border px-2 py-1">
-                          <span className="text-xs text-muted-foreground">Use</span>
+                          <span className="text-xs text-muted-foreground">Enabled</span>
                           <Switch
                             checked={ex.enabled}
                             onCheckedChange={(enabled) =>
@@ -780,27 +785,29 @@ function LibraryPage() {
                         <Activity className="h-4 w-4" />
                         {isSelected ? "Hide" : "History"}
                       </Button>
-                      <div className="flex items-center gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setEditor({ mode: "edit", row: ex })}
-                          aria-label="Edit"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        {ex.active && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setPendingDelete(ex)}
-                            aria-label="Delete"
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" aria-label={`Actions for ${ex.name}`}>
+                            <MoreHorizontal className="h-4 w-4" />
                           </Button>
-                        )}
-                      </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setEditor({ mode: "edit", row: ex })}>
+                            <Pencil className="h-4 w-4" /> Edit
+                          </DropdownMenuItem>
+                          {ex.active && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => setPendingDelete(ex)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" /> Delete permanently
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </Card>
                   {isSelected && (

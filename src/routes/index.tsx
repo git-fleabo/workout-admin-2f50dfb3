@@ -360,13 +360,10 @@ function TodayPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <header className="border-b border-border pb-4">
-        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-amber-300">
+        <h1 className="text-3xl font-semibold tracking-tight">What are you doing today?</h1>
+        <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
           <CalendarCheck2 className="h-4 w-4" /> {formatUKDate(today)}
         </div>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">What are you doing today?</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Pick up where you left off, use a planned workout, or start fresh.
-        </p>
       </header>
 
       {draft ? (
@@ -823,7 +820,7 @@ function TodayPage() {
               </div>
 
               <div className="mt-4 divide-y divide-border rounded-lg border border-border bg-background/30">
-                {recommendation.movements.slice(0, 4).map((movement) => (
+                {recommendation.movements.slice(0, 2).map((movement) => (
                   <div key={movement.exercise} className="p-3">
                     <div className="flex flex-wrap items-baseline justify-between gap-1">
                       <p className="text-sm font-medium">{movement.exercise}</p>
@@ -834,9 +831,9 @@ function TodayPage() {
                     </p>
                   </div>
                 ))}
-                {recommendation.movements.length > 4 ? (
+                {recommendation.movements.length > 2 ? (
                   <p className="p-3 text-xs text-muted-foreground">
-                    +{recommendation.movements.length - 4} more movements in Plan
+                    +{recommendation.movements.length - 2} more movements in Plan
                   </p>
                 ) : null}
               </div>
