@@ -23,6 +23,18 @@ Read that file before database, programme, Library, logging, or deployment work.
 - Page-specific colour remains a restrained semantic accent system rather than separate full-page
   themes. Decorative subtitles were removed where they did not explain an action or data state.
 
+## 2026-08-03 Monthly And Annual Training Stories
+
+- History adds one compact narrative recap when Month or Year is selected; Week and Quarter remain
+  unchanged.
+- Stories are derived from the existing timeline and summarise active days, parent sessions,
+  movement variety or repetition, the busiest month, recorded training time, climbing, and PRs when
+  those facts are available.
+- Movement rows from one workout count as one parent session, and the story always describes the
+  whole period even when the visible History list is filtered.
+- The logger remains deliberately focused: no timer, plate-loading tool, or warm-up calculator was
+  added.
+
 ## 2026-07-28 Adaptive Strength Engine
 
 The repository now contains a local implementation of the agreed reusable 12-week adaptive strength

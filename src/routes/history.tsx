@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Award,
+  BookOpenText,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -35,6 +36,7 @@ import {
   type TimelineKind,
 } from "@/lib/supabase-timeline.browser";
 import { cn } from "@/lib/utils";
+import { buildTrainingStory, type TrainingStory } from "@/lib/training-story";
 import { DeleteConfirmDialog, type DeleteTarget } from "./-form-bits";
 
 export const Route = createFileRoute("/history")({
@@ -185,13 +187,20 @@ function HistoryPage() {
   const startISO = toISODate(start);
   const endISO = toISODate(end);
 
-  const periodEntries = useMemo(() => {
+  const allPeriodEntries = useMemo(() => {
     const rows = timeline.data?.entries ?? [];
-    return rows.filter((entry) => {
-      if (entry.date < startISO || entry.date > endISO) return false;
-      return filter === "all" || entry.kind === filter;
-    });
-  }, [timeline.data?.entries, startISO, endISO, filter]);
+    return rows.filter((entry) => entry.date >= startISO && entry.date <= endISO);
+  }, [timeline.data?.entries, startISO, endISO]);
+
+  const periodEntries = useMemo(
+    () => allPeriodEntries.filter((entry) => filter === "all" || entry.kind === filter),
+    [allPeriodEntries, filter],
+  );
+
+  const story = useMemo(
+    () => (mode === "month" || mode === "year" ? buildTrainingStory(allPeriodEntries, mode) : null),
+    [allPeriodEntries, mode],
+  );
 
   const grouped = useMemo(() => {
     const map = new Map<string, TimelineEntry[]>();
@@ -346,6 +355,17 @@ function HistoryPage() {
         <StatTile label="PRs" value={summary.prs.toString()} />
       </section>
 
+      {story ? (
+        <TrainingStoryCard
+          story={story}
+          title={
+            mode === "year"
+              ? `${start.getUTCFullYear()} in training`
+              : `${periodLabel(start, mode)} story`
+          }
+        />
+      ) : null}
+
       {grouped.length === 0 ? (
         <Card className="flex flex-col items-center justify-center gap-2 p-10 text-center text-sm text-muted-foreground">
           <Search className="h-5 w-5" />
@@ -479,6 +499,27 @@ function StatTile({ label, value }: { label: string; value: string }) {
     <Card className="border-rose-500/20 bg-rose-500/[0.04] p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-1 text-xl font-semibold">{value}</p>
+    </Card>
+  );
+}
+
+function TrainingStoryCard({ story, title }: { story: TrainingStory; title: string }) {
+  return (
+    <Card className="border-violet-400/25 bg-gradient-to-br from-violet-400/[0.08] to-transparent p-4">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 rounded-lg border border-violet-400/20 bg-violet-400/10 p-2 text-violet-300">
+          <BookOpenText className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-violet-100">{title}</h2>
+          <p className="mt-1 text-sm leading-relaxed text-foreground/90">{story.lead}</p>
+          {story.highlights.length ? (
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              {story.highlights.join(" ")}
+            </p>
+          ) : null}
+        </div>
+      </div>
     </Card>
   );
 }
