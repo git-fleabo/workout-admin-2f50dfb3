@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowDown,
@@ -108,6 +108,34 @@ const CLIMBING_WORKOUT_TYPE = "Climbing";
 const CLIMBING_WALL_EQUIPMENT_NAME = "Climbing wall";
 const CLASS_WORKOUT_TYPE = "Class";
 const MOBILITY_WORKOUT_TYPE = "Mobility/Flexibility";
+
+function useCompleteSuggestedWorkoutMutation(queryClient: QueryClient) {
+  return useMutation({
+    mutationFn: ({ workoutId, sessionId }: { workoutId: string; sessionId: string }) =>
+      completeSuggestedWorkoutClient(workoutId, sessionId),
+    onMutate: async ({ workoutId }) => {
+      await queryClient.cancelQueries({ queryKey: ["next-suggested-workouts"] });
+      const previousPlans = queryClient.getQueryData<SavedWorkoutPlan[]>([
+        "next-suggested-workouts",
+      ]);
+      queryClient.setQueryData<SavedWorkoutPlan[]>(["next-suggested-workouts"], (plans) =>
+        plans?.filter((plan) => plan.suggestedWorkoutId !== workoutId),
+      );
+      return { previousPlans };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousPlans !== undefined) {
+        queryClient.setQueryData(["next-suggested-workouts"], context.previousPlans);
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
+      void queryClient.invalidateQueries({ queryKey: ["workout-lifecycle"] });
+      void queryClient.invalidateQueries({ queryKey: ["programme-workout-offers"] });
+      void queryClient.invalidateQueries({ queryKey: ["programme-assignments"] });
+    },
+  });
+}
 
 function coerceExerciseEquipment(exercise: unknown) {
   if (!exercise || typeof exercise !== "object" || !("equipment" in exercise)) return "";
@@ -853,6 +881,7 @@ function climbCountLabel(movement: string) {
 
 export function ClimbForm() {
   const qc = useQueryClient();
+  const completeSuggestedWorkoutMutation = useCompleteSuggestedWorkoutMutation(qc);
   const [form, setForm] = useState<ClimbFormState>(() => blankClimbForm());
   const [loadedSuggestionId, setLoadedSuggestionId] = useState<string | null>(null);
   const [loadedPlanTitle, setLoadedPlanTitle] = useState("");
@@ -1030,9 +1059,10 @@ export function ClimbForm() {
       }
       if (loadedSuggestionId) {
         try {
-          await completeSuggestedWorkoutClient(loadedSuggestionId, result.sessionId);
-          qc.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
-          qc.invalidateQueries({ queryKey: ["workout-lifecycle"] });
+          await completeSuggestedWorkoutMutation.mutateAsync({
+            workoutId: loadedSuggestionId,
+            sessionId: result.sessionId,
+          });
         } catch {
           toast.warning("Climb saved, but the plan could not be marked complete.");
         }
@@ -1378,6 +1408,7 @@ export function ClimbForm() {
 
 export function FullWorkoutForm() {
   const qc = useQueryClient();
+  const completeSuggestedWorkoutMutation = useCompleteSuggestedWorkoutMutation(qc);
   const lastCompletedStorageKey = useMemo(lastCompletedWorkoutKey, []);
   const lib = useQuery({ queryKey: ["library"], queryFn: getLibraryClient });
   const recent = useQuery({
@@ -2134,11 +2165,10 @@ export function FullWorkoutForm() {
       window.localStorage.removeItem(draftStorageKey);
       if (loadedSuggestionId && !result.wasCorrection) {
         try {
-          await completeSuggestedWorkoutClient(loadedSuggestionId, result.sessionId);
-          qc.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
-          qc.invalidateQueries({ queryKey: ["workout-lifecycle"] });
-          qc.invalidateQueries({ queryKey: ["programme-workout-offers"] });
-          qc.invalidateQueries({ queryKey: ["programme-assignments"] });
+          await completeSuggestedWorkoutMutation.mutateAsync({
+            workoutId: loadedSuggestionId,
+            sessionId: result.sessionId,
+          });
         } catch {
           toast.warning("Workout saved, but the plan could not be marked complete.");
         }
