@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "react";
+import { useFieldArray, useForm, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -73,6 +75,7 @@ import { useFavoriteExercises } from "@/hooks/use-favorite-exercises";
 import { useMethodBlockEditor } from "@/hooks/use-method-block-editor";
 import { useRecentSessionTemplates } from "@/hooks/use-recent-session-templates";
 import { useWorkoutDraft } from "@/hooks/use-workout-draft";
+import { workoutSessionSchema } from "./workout-session-schema";
 import {
   getMovementMetricProfile,
   type MetricProfile,
@@ -274,7 +277,7 @@ export type WorkoutSetMethodState = {
   config: Record<string, number | string | boolean>;
 };
 
-type SessionFormState = {
+export type SessionFormState = {
   date: string;
   title: string;
   trainingLocationId: string;
@@ -1425,7 +1428,27 @@ export function FullWorkoutForm() {
     queryKey: ["training-methods", "workout-composer"],
     queryFn: () => listTrainingMethodsClient(),
   });
-  const [form, setForm] = useState<SessionFormState>(() => blankSession());
+  const formMethods = useForm<SessionFormState>({
+    defaultValues: blankSession(),
+    resolver: zodResolver(workoutSessionSchema),
+    mode: "onSubmit",
+  });
+  const { control, getValues, reset } = formMethods;
+  const watchedForm = useWatch({ control });
+  const form = watchedForm as SessionFormState;
+  const setForm = useCallback(
+    (next: SetStateAction<SessionFormState>) => {
+      const current = getValues();
+      reset(typeof next === "function" ? next(current) : next);
+    },
+    [getValues, reset],
+  );
+  const {
+    fields: entryFields,
+    append: appendEntry,
+    move: moveEntryField,
+    remove: removeEntryField,
+  } = useFieldArray({ control, name: "entries" });
   const [initialFormLoaded, setInitialFormLoaded] = useState(false);
   const [loadedSuggestionId, setLoadedSuggestionId] = useState<string | null>(null);
   const [finishSummaryOpen, setFinishSummaryOpen] = useState(false);
@@ -1641,7 +1664,7 @@ export function FullWorkoutForm() {
       setLoadedSuggestionId(draft.suggestedWorkoutId ?? null);
       setEditingSessionId(null);
     },
-    [locations.data],
+    [locations.data, setForm],
   );
 
   useEffect(() => {
@@ -1711,6 +1734,7 @@ export function FullWorkoutForm() {
     locations.data,
     recent.data,
     recentWorkoutLogs,
+    setForm,
     setDraftSavedAt,
   ]);
 
@@ -1749,7 +1773,7 @@ export function FullWorkoutForm() {
     if (selected) {
       setForm((current) => ({ ...current, trainingLocationId: selected.id }));
     }
-  }, [form.trainingLocationId, initialFormLoaded, locations.data]);
+  }, [form.trainingLocationId, initialFormLoaded, locations.data, setForm]);
 
   const update = <K extends keyof SessionFormState>(k: K, v: SessionFormState[K]) =>
     setForm((current) => ({ ...current, [k]: v }));
