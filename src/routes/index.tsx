@@ -172,7 +172,7 @@ function availableProgrammeLocations(
   );
 }
 
-function TodayPage() {
+export function TodayPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<WorkoutLocalSummary | null>(null);
