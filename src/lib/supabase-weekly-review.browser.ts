@@ -732,6 +732,10 @@ export async function getWeeklyReviewClient(anchor?: string): Promise<WeeklyRevi
       programmeAdherence,
       prs: weeklyPRs,
     }),
-    sessions: currentSessions.map(({ volume: _volume, ...session }) => session),
+    sessions: currentSessions.map((session) => {
+      const { volume, ...publicSession } = session;
+      void volume;
+      return publicSession;
+    }),
   };
 }

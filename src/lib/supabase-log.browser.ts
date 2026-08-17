@@ -164,19 +164,6 @@ type SessionEntryRecord = {
   } | null;
 };
 
-type SessionRecord = {
-  id: string;
-  session_date: string;
-  title: string | null;
-  completed: boolean;
-  duration_minutes: number | string | null;
-  intensity: string | null;
-  rpe: number | string | null;
-  notes: string | null;
-  activity_types: { name: string | null } | null;
-  session_entries: SessionEntryRecord[] | null;
-};
-
 type SessionMethodBlockRecord = {
   session_id: string;
   training_method_id: string;
@@ -394,34 +381,6 @@ function repsPerSet(totalReps: number | null, sets: number | null) {
   return Math.ceil(totalReps / sets);
 }
 
-function hasMetricValue(metric: {
-  metric_value?: number | null;
-  metric_text?: string | null;
-  metric_unit?: string | null;
-}) {
-  return (
-    metric.metric_value != null ||
-    Boolean(metric.metric_text?.trim()) ||
-    Boolean(metric.metric_unit?.trim())
-  );
-}
-
-function metricRow(metric: {
-  session_entry_id: string;
-  metric_key: string;
-  metric_value?: number | null;
-  metric_text?: string | null;
-  metric_unit?: string | null;
-}) {
-  return {
-    session_entry_id: metric.session_entry_id,
-    metric_key: metric.metric_key,
-    metric_value: metric.metric_value ?? null,
-    metric_text: metric.metric_text ?? null,
-    metric_unit: metric.metric_unit ?? null,
-  };
-}
-
 function slugify(value: string) {
   return value
     .trim()
@@ -436,13 +395,6 @@ async function requirePerson() {
   const person = (await getCurrentPerson()) ?? (await claimNoamProfile());
   if (!person) throw new Error("Link this login to your profile first.");
   return person;
-}
-
-async function listActivityTypes() {
-  return supabasePublicSelect<ActivityTypeRecord>("activity_types", {
-    select: "id,name,slug,sort_order",
-    order: "sort_order.asc,name.asc",
-  });
 }
 
 async function getOrCreateActivityType(name: string) {
@@ -524,10 +476,6 @@ export async function getTrainingLocationsClient(): Promise<TrainingLocation[]> 
     ...row,
     equipmentItemIds: equipmentByLocation.get(row.id) ?? [],
   }));
-}
-
-function firstSet(entry: SessionEntryRecord) {
-  return entry.entry_sets?.[0];
 }
 
 function metricValue(metrics: EntryMetricRecord[] | null | undefined, key: string) {
@@ -1292,7 +1240,11 @@ export async function getPRsClient() {
       }))
       .sort((a, b) => a.exercise.localeCompare(b.exercise)),
     skills: Array.from(skillBest.values())
-      .map(({ assistanceAmount, ...row }) => row)
+      .map((row) => {
+        const { assistanceAmount, ...publicRow } = row;
+        void assistanceAmount;
+        return publicRow;
+      })
       .sort(
         (a, b) =>
           a.skill.localeCompare(b.skill) ||

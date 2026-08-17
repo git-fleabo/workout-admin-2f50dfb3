@@ -1,6 +1,19 @@
 import { z } from "zod";
 
 const stringRecordSchema = z.record(z.union([z.string(), z.number(), z.boolean()]));
+const loadSemanticsSchema = z.union([
+  z.literal(""),
+  z.enum([
+    "total_external_load",
+    "per_implement_load",
+    "combined_implement_load",
+    "added_bodyweight_load",
+    "assistance",
+    "bodyweight_contribution",
+    "none",
+    "unknown",
+  ]),
+]);
 
 const setSegmentSchema = z.object({
   reps: z.string(),
@@ -57,7 +70,7 @@ const workoutEntrySchema = z.object({
   climbingBoulders: z.string(),
   climbingMaxGrade: z.string(),
   climbingGradient: z.string(),
-  loadSemantics: z.string(),
+  loadSemantics: loadSemanticsSchema,
   distance: z.string(),
   distanceUnit: z.string(),
   rounds: z.string(),

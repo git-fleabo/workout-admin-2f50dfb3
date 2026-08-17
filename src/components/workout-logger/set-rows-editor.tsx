@@ -133,7 +133,6 @@ export function SetRowsEditor({
   onChange,
   onCopyPrevious,
   onRepeat,
-  onAddBlank,
   onRemove,
   onAddMethod,
   onAddSegment,
@@ -156,7 +155,6 @@ export function SetRowsEditor({
   ) => void;
   onCopyPrevious: () => void;
   onRepeat: () => void;
-  onAddBlank?: () => void;
   onRemove?: (setIndex: number) => void;
   onAddMethod: (setIndex: number, method: TrainingMethod) => void;
   onAddSegment: (setIndex: number) => void;

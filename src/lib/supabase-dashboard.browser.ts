@@ -825,7 +825,14 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
     }
   }
 
-  prs.push(...Array.from(skillPRs.values()).map(({ valueNumber, assistanceAmount, ...pr }) => pr));
+  prs.push(
+    ...Array.from(skillPRs.values()).map((pr) => {
+      const { valueNumber, assistanceAmount, ...publicPr } = pr;
+      void valueNumber;
+      void assistanceAmount;
+      return publicPr;
+    }),
+  );
   prs.sort((a, b) => b.date.localeCompare(a.date));
 
   const weeksTraining = firstWorkoutDate

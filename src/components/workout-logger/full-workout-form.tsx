@@ -20,7 +20,6 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
@@ -55,13 +54,11 @@ import {
 import {
   addWorkoutSessionClient,
   BOARD_GRADIENTS,
-  deleteSessionClient,
   findDuplicateLogClient,
   getLibraryClient,
   getRecentLogsClient,
   getTrainingLocationsClient,
   replaceWorkoutSessionClient,
-  REST_OPTIONS,
 } from "@/lib/supabase-log.browser";
 import { formatUKDate, todayISO } from "@/lib/date";
 import {
@@ -83,12 +80,7 @@ import {
   profileUsesLoad,
   profileUsesStandardSets,
 } from "@/lib/movement-metrics";
-import {
-  CLIMBING_TRACKING_MODES,
-  climbingMetricIssue,
-  MAX_CLIMBING_MINUTES,
-  supportsClimbingGradient,
-} from "@/lib/climbing-metrics";
+import { climbingMetricIssue, supportsClimbingGradient } from "@/lib/climbing-metrics";
 import {
   readWorkoutPlanDraft,
   WORKOUT_PLAN_DRAFT_KEY,
@@ -101,25 +93,12 @@ import {
   listTrainingMethodsClient,
   type TrainingMethod,
 } from "@/lib/supabase-training-methods.browser";
-import {
-  BLOCK_HEIGHT_OPTIONS,
-  blockHeightOption,
-  formatPositionMeasurementDirection,
-} from "@/lib/position-measurements";
 import { MethodBlockDialog } from "./method-block-dialog";
 import { MovementPicker } from "./movement-picker";
 import { SetRowsEditor } from "./set-rows-editor";
 import { MetricFields, PositionMeasurementField } from "./metric-fields";
 import type { LoadSemantics } from "@/lib/data-quality";
-import {
-  DateInput,
-  DeleteConfirmDialog,
-  Field,
-  SimpleSelect,
-  RecentList,
-  type DeleteTarget,
-  type RecentEntry,
-} from "./form-bits";
+import { DateInput, Field, SimpleSelect } from "./form-bits";
 
 const today = todayISO;
 const SKILL_WORKOUT_TYPE = "Skills/Calisthenics";
@@ -151,16 +130,6 @@ const GRIP_LOAD_TYPES = [
   "Added weight",
   "Assistance/counterweight",
   "Implement weight",
-];
-const FALLBACK_WORKOUT_TYPES = [
-  "Strength",
-  "Cardio",
-  CLIMBING_WORKOUT_TYPE,
-  YOGA_WORKOUT_TYPE,
-  MOBILITY_WORKOUT_TYPE,
-  SKILL_WORKOUT_TYPE,
-  GRIP_WORKOUT_TYPE,
-  "Other",
 ];
 const FALLBACK_MOVEMENTS: Array<{
   workoutType: string;
@@ -827,13 +796,6 @@ function buildRecentSessionTemplates(
       };
     })
     .slice(0, 4);
-}
-
-function recentSetRepSummary(sets: string, reps: string) {
-  return [
-    sets ? `${sets} ${sets === "1" ? "set" : "sets"}` : "",
-    reps ? `${reps} total ${reps === "1" ? "rep" : "reps"}` : "",
-  ];
 }
 
 type ClimbFormState = {
@@ -1927,29 +1889,6 @@ export function FullWorkoutForm() {
         };
       }),
     }));
-  const addBlankSet = (entryIndex: number) =>
-    setForm((current) => ({
-      ...current,
-      entries: current.entries.map((entry, i) =>
-        i === entryIndex ? { ...entry, setRows: [...entry.setRows, blankSet()] } : entry,
-      ),
-    }));
-  const removeSet = (entryIndex: number, setIndex: number) =>
-    setForm((current) => ({
-      ...current,
-      entries: current.entries.map((entry, i) =>
-        i === entryIndex
-          ? {
-              ...entry,
-              setRows:
-                entry.setRows.length === 1
-                  ? entry.setRows
-                  : entry.setRows.filter((_, j) => j !== setIndex),
-            }
-          : entry,
-      ),
-    }));
-
   const addSetMethod = (entryIndex: number, setIndex: number, method: TrainingMethod) => {
     const set = form.entries[entryIndex]?.setRows[setIndex];
     if (!set) return;
