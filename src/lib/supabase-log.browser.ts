@@ -22,6 +22,8 @@ import {
   type DataShape,
   type LoadSemantics,
 } from "./data-quality";
+import { workoutSessionDraftKey } from "./workout-local-state";
+import { enqueueWorkoutSave, isLikelyOfflineError } from "./workout-offline-queue";
 
 export const REST_OPTIONS = [
   "0–30s",
@@ -657,7 +659,10 @@ export async function findDuplicateLogClient(data: DuplicateLogInput) {
   return rows[0] ?? null;
 }
 
-export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
+export async function addWorkoutSessionClient(
+  data: WorkoutSessionInput,
+  options: { queueWhenOffline?: boolean } = {},
+) {
   const person = await requirePerson();
   data.entries.forEach((entry) => validatedFeel(entry.feel));
   const entries = data.entries.filter((entry) => entry.exercise.trim());
@@ -890,7 +895,7 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
       config: block.config,
     }));
 
-  const sessionId = await supabasePublicRpc<string>("save_workout", {
+  const rpcBody = {
     p_person_id: person.id,
     p_session: {
       activity_type_id: null,
@@ -905,9 +910,21 @@ export async function addWorkoutSessionClient(data: WorkoutSessionInput) {
     },
     p_entries: rpcEntries,
     p_method_blocks: methodBlocks,
-  });
-  if (!sessionId) throw new Error("Workout was not saved.");
-  return { ok: true, row: "Supabase", sessionId };
+  };
+
+  try {
+    const sessionId = await supabasePublicRpc<string>("save_workout", rpcBody);
+    if (!sessionId) throw new Error("Workout was not saved.");
+    return { ok: true, row: "Supabase", sessionId, queued: false as const };
+  } catch (error) {
+    if (!options.queueWhenOffline || !isLikelyOfflineError(error)) throw error;
+    enqueueWorkoutSave({
+      personId: person.id,
+      rpcBody,
+      draftKey: workoutSessionDraftKey(),
+    });
+    return { ok: true, row: "Offline queue", sessionId: null, queued: true as const };
+  }
 }
 
 export async function replaceWorkoutSessionClient(
@@ -929,7 +946,7 @@ export async function replaceWorkoutSessionClient(
     person_id: `eq.${person.id}`,
     completed_session_id: `eq.${originalSessionId}`,
   });
-  const replacement = await addWorkoutSessionClient(data);
+  const replacement = await addWorkoutSessionClient(data, { queueWhenOffline: false });
 
   try {
     const deleted = await supabasePublicDelete<{ id: string }>("sessions", {

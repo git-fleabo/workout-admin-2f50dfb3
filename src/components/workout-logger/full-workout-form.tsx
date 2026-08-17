@@ -1022,6 +1022,12 @@ export function ClimbForm() {
       });
     },
     onSuccess: async (result) => {
+      if (result.queued) {
+        toast.info("Climb queued for sync", {
+          description: "It is saved on this device and will upload when you are back online.",
+        });
+        return;
+      }
       if (loadedSuggestionId) {
         try {
           await completeSuggestedWorkoutClient(loadedSuggestionId, result.sessionId);
@@ -2118,6 +2124,13 @@ export function FullWorkoutForm() {
       return { ...result, wasCorrection: false, planRelinkFailed: false };
     },
     onSuccess: async (result) => {
+      if (result.queued) {
+        setFinishSummaryOpen(false);
+        toast.info("Workout queued for sync", {
+          description: "It is saved on this device and will upload when you are back online.",
+        });
+        return;
+      }
       window.localStorage.removeItem(draftStorageKey);
       if (loadedSuggestionId && !result.wasCorrection) {
         try {

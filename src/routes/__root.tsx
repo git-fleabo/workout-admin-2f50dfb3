@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { flushQueuedWorkoutSaves } from "../lib/workout-offline-queue";
 import { SupabaseAuthGate } from "../components/supabase-auth-gate";
 import { AdminShell } from "../components/admin-shell";
 import { Toaster } from "../components/ui/sonner";
@@ -153,6 +154,20 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch((error) => {
+        console.warn("Offline app shell could not be registered", error);
+      });
+    }
+    const flush = () => {
+      void flushQueuedWorkoutSaves();
+    };
+    flush();
+    window.addEventListener("online", flush);
+    return () => window.removeEventListener("online", flush);
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
