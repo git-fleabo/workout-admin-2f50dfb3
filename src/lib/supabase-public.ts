@@ -1,3 +1,10 @@
+// Deliberately kept as a small hand-rolled browser client for now. The data
+// layer currently relies on its PostgREST parameter contract, explicit
+// 401/refresh retry, and the legacy `supabase-session` storage key. Replacing
+// it with supabase-js would require a coordinated migration of every
+// `*.browser.ts` module plus auth and local-state compatibility work; do not
+// introduce a second client until that migration can be completed and tested
+// module by module.
 const SUPABASE_URL = "https://dvcdghmcqqfvlbzufpyy.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_iqg20-V7vRrN97WXoG1miw_Jw8QR2uk";
 const SESSION_KEY = "supabase-session";
