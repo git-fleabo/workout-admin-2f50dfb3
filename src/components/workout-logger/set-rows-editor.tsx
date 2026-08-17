@@ -1,4 +1,5 @@
 import { Copy, Layers3, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { useFieldArray, type Control } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,10 +14,19 @@ import {
 import { formatUKDate } from "@/lib/date";
 import type { TrainingMethod } from "@/lib/supabase-training-methods.browser";
 import type {
+  SessionFormState,
   WorkoutSetMethodState,
   WorkoutSetSegmentState,
   WorkoutSetState,
 } from "./full-workout-form";
+
+const blankSet = (): WorkoutSetState => ({
+  reps: "",
+  weight: "",
+  durationSeconds: "",
+  rpe: "",
+  completed: true,
+});
 
 function setSummary(set: WorkoutSetState, usesLoad: boolean) {
   const load = usesLoad && set.weight ? `${set.weight} kg` : "";
@@ -112,6 +122,8 @@ function setMethodCopy(method: WorkoutSetMethodState) {
 }
 
 export function SetRowsEditor({
+  control,
+  entryIndex,
   rows,
   usesLoad,
   valueKind = "reps",
@@ -129,6 +141,8 @@ export function SetRowsEditor({
   onRemoveSegment,
   onRemoveMethod,
 }: {
+  control: Control<SessionFormState>;
+  entryIndex: number;
   rows: WorkoutSetState[];
   usesLoad: boolean;
   valueKind?: "reps" | "duration";
@@ -142,8 +156,8 @@ export function SetRowsEditor({
   ) => void;
   onCopyPrevious: () => void;
   onRepeat: () => void;
-  onAddBlank: () => void;
-  onRemove: (setIndex: number) => void;
+  onAddBlank?: () => void;
+  onRemove?: (setIndex: number) => void;
   onAddMethod: (setIndex: number, method: TrainingMethod) => void;
   onAddSegment: (setIndex: number) => void;
   onUpdateSegment: <K extends keyof WorkoutSetSegmentState>(
@@ -155,6 +169,16 @@ export function SetRowsEditor({
   onRemoveSegment: (setIndex: number, segmentIndex: number) => void;
   onRemoveMethod: (setIndex: number) => void;
 }) {
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: `entries.${entryIndex}.setRows` as never,
+  });
+  const addBlank = () => append(blankSet());
+  const removeSet = (setIndex: number) => {
+    if (rows.length === 1) return;
+    remove(setIndex);
+    onRemove?.(setIndex);
+  };
   return (
     <div className="space-y-3 rounded-lg border border-border bg-secondary/20 p-3">
       {previousWorkout ? (
@@ -203,7 +227,7 @@ export function SetRowsEditor({
         <span />
       </div>
       {rows.map((set, setIndex) => (
-        <div key={setIndex} className="space-y-2">
+        <div key={fields[setIndex]?.id ?? setIndex} className="space-y-2">
           <div
             className={`rounded-md border border-border/70 bg-background p-2 sm:grid sm:items-center sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0 ${
               usesLoad ? "sm:grid-cols-[32px_1fr_1fr_1fr_32px]" : "sm:grid-cols-[32px_1fr_1fr_32px]"
@@ -219,7 +243,7 @@ export function SetRowsEditor({
                 variant="ghost"
                 className="h-8 w-8 text-muted-foreground"
                 disabled={rows.length === 1}
-                onClick={() => onRemove(setIndex)}
+                onClick={() => removeSet(setIndex)}
                 aria-label={`Remove set ${setIndex + 1}`}
               >
                 <Trash2 className="h-4 w-4" />
@@ -291,7 +315,7 @@ export function SetRowsEditor({
               variant="ghost"
               className="hidden h-8 w-8 text-muted-foreground sm:inline-flex"
               disabled={rows.length === 1}
-              onClick={() => onRemove(setIndex)}
+              onClick={() => removeSet(setIndex)}
               aria-label={`Remove set ${setIndex + 1}`}
             >
               <Trash2 className="h-4 w-4" />
@@ -486,7 +510,7 @@ export function SetRowsEditor({
         <Button type="button" variant="outline" size="sm" onClick={onRepeat}>
           <RotateCcw className="mr-1 h-3.5 w-3.5" /> Repeat last set
         </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={onAddBlank}>
+        <Button type="button" variant="ghost" size="sm" onClick={addBlank}>
           <Plus className="mr-1 h-4 w-4" /> Add blank set
         </Button>
       </div>

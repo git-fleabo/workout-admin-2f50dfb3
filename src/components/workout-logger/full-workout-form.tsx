@@ -1433,7 +1433,7 @@ export function FullWorkoutForm() {
     resolver: zodResolver(workoutSessionSchema),
     mode: "onSubmit",
   });
-  const { control, getValues, reset } = formMethods;
+  const { control, getValues, reset, setValue } = formMethods;
   const watchedForm = useWatch({ control });
   const form = watchedForm as SessionFormState;
   const setForm = useCallback(
@@ -1776,14 +1776,9 @@ export function FullWorkoutForm() {
   }, [form.trainingLocationId, initialFormLoaded, locations.data, setForm]);
 
   const update = <K extends keyof SessionFormState>(k: K, v: SessionFormState[K]) =>
-    setForm((current) => ({ ...current, [k]: v }));
+    setValue(k as never, v as never, { shouldDirty: true });
   const updateEntry = <K extends keyof FormState>(index: number, key: K, value: FormState[K]) =>
-    setForm((current) => ({
-      ...current,
-      entries: current.entries.map((entry, i) =>
-        i === index ? { ...entry, [key]: value } : entry,
-      ),
-    }));
+    setValue(`entries.${index}.${String(key)}` as never, value as never, { shouldDirty: true });
   const selectEntryExercise = (index: number, name: string) => {
     const selected = libraryExercises.find((exercise) => exercise.name === name);
     const selectedProfile = getMovementMetricProfile({
@@ -1792,84 +1787,76 @@ export function FullWorkoutForm() {
       defaultMetric: selected?.metric,
     });
 
-    setForm((current) => {
-      const currentEntry = current.entries[index];
-      if (!currentEntry) return current;
+    const currentEntry = form.entries[index];
+    if (!currentEntry) return;
 
-      const nextEntry: FormState = {
-        ...currentEntry,
-        exercise: name,
-        workoutType: selected?.workoutType ?? "Other",
-        entryKind:
-          selected?.workoutType === SKILL_WORKOUT_TYPE
-            ? "Skill"
-            : selected?.workoutType === GRIP_WORKOUT_TYPE
-              ? GRIP_WORKOUT_TYPE
-              : "Workout",
-        distanceUnit:
-          selectedProfile === "mobility_position"
-            ? "cm"
-            : selectedProfile === "carry"
-              ? "m"
-              : selectedProfile === "time"
-                ? "km"
-                : "",
-        climbingTrackingMode: selectedProfile === "climbing" ? "Problems / routes" : "",
-        climbingGradient: supportsClimbingGradient(name) ? currentEntry.climbingGradient : "",
-        positionMeasurementCm: selected?.positionMeasurementGuide
-          ? currentEntry.positionMeasurementCm
-          : "",
-        positionMeasurementSetup: selected?.positionMeasurementGuide
-          ? currentEntry.positionMeasurementSetup
-          : "",
-        loadSemantics: "",
-        setRows: [blankSet()],
-      };
+    const nextEntry: FormState = {
+      ...currentEntry,
+      exercise: name,
+      workoutType: selected?.workoutType ?? "Other",
+      entryKind:
+        selected?.workoutType === SKILL_WORKOUT_TYPE
+          ? "Skill"
+          : selected?.workoutType === GRIP_WORKOUT_TYPE
+            ? GRIP_WORKOUT_TYPE
+            : "Workout",
+      distanceUnit:
+        selectedProfile === "mobility_position"
+          ? "cm"
+          : selectedProfile === "carry"
+            ? "m"
+            : selectedProfile === "time"
+              ? "km"
+              : "",
+      climbingTrackingMode: selectedProfile === "climbing" ? "Problems / routes" : "",
+      climbingGradient: supportsClimbingGradient(name) ? currentEntry.climbingGradient : "",
+      positionMeasurementCm: selected?.positionMeasurementGuide
+        ? currentEntry.positionMeasurementCm
+        : "",
+      positionMeasurementSetup: selected?.positionMeasurementGuide
+        ? currentEntry.positionMeasurementSetup
+        : "",
+      loadSemantics: "",
+      setRows: [blankSet()],
+    };
 
-      return {
-        ...current,
-        entries: current.entries.map((entry, entryIndex) =>
-          entryIndex === index ? nextEntry : entry,
-        ),
-        methodBlocks: profileSupportsAdvancedMethods(selectedProfile)
-          ? current.methodBlocks
-          : removeMovementFromMethodBlocks(current.methodBlocks, currentEntry.clientId),
-      };
-    });
+    setValue(`entries.${index}` as never, nextEntry as never, { shouldDirty: true });
+    if (!profileSupportsAdvancedMethods(selectedProfile)) {
+      setValue(
+        "methodBlocks" as never,
+        removeMovementFromMethodBlocks(form.methodBlocks, currentEntry.clientId) as never,
+        { shouldDirty: true },
+      );
+    }
   };
-  const addEntry = () =>
-    setForm((current) => ({
-      ...current,
-      entries: [...current.entries, blankSessionEntry()],
+  const addEntry = () => appendEntry(blankSessionEntry());
+  const moveEntry = (fromIndex: number, direction: -1 | 1) => {
+    const toIndex = fromIndex + direction;
+    if (toIndex < 0 || toIndex >= form.entries.length) return;
+    const entries = [...form.entries];
+    [entries[fromIndex], entries[toIndex]] = [entries[toIndex], entries[fromIndex]];
+    const order = new Map(entries.map((entry, index) => [entry.clientId, index]));
+    const methodBlocks = form.methodBlocks.map((block) => ({
+      ...block,
+      memberClientIds: [...block.memberClientIds].sort(
+        (left, right) => (order.get(left) ?? 0) - (order.get(right) ?? 0),
+      ),
     }));
-  const moveEntry = (fromIndex: number, direction: -1 | 1) =>
-    setForm((current) => {
-      const toIndex = fromIndex + direction;
-      if (toIndex < 0 || toIndex >= current.entries.length) return current;
-      const entries = [...current.entries];
-      [entries[fromIndex], entries[toIndex]] = [entries[toIndex], entries[fromIndex]];
-      const order = new Map(entries.map((entry, index) => [entry.clientId, index]));
-      const methodBlocks = current.methodBlocks.map((block) => ({
-        ...block,
-        memberClientIds: [...block.memberClientIds].sort(
-          (left, right) => (order.get(left) ?? 0) - (order.get(right) ?? 0),
-        ),
-      }));
-      return { ...current, entries, methodBlocks };
-    });
-  const removeEntry = (index: number) =>
-    setForm((current) => {
-      if (current.entries.length === 1) return current;
-      const removedId = current.entries[index]?.clientId;
-      const methodBlocks = removedId
-        ? removeMovementFromMethodBlocks(current.methodBlocks, removedId)
-        : current.methodBlocks;
-      return {
-        ...current,
-        entries: current.entries.filter((_, i) => i !== index),
-        methodBlocks,
-      };
-    });
+    moveEntryField(fromIndex, toIndex);
+    setValue("methodBlocks" as never, methodBlocks as never, { shouldDirty: true });
+  };
+  const removeEntry = (index: number) => {
+    if (form.entries.length === 1) return;
+    const removedId = form.entries[index]?.clientId;
+    removeEntryField(index);
+    if (removedId) {
+      setValue(
+        "methodBlocks" as never,
+        removeMovementFromMethodBlocks(form.methodBlocks, removedId) as never,
+        { shouldDirty: true },
+      );
+    }
+  };
   const saveMethodBlock = (block: WorkoutMethodBlockState) => {
     setForm((current) => ({
       ...current,
@@ -2591,7 +2578,9 @@ export function FullWorkoutForm() {
         </p>
       </div>
       <div className="space-y-3">
-        {form.entries.map((entry, index) => {
+        {entryFields.map((field, index) => {
+          const entry = form.entries[index];
+          if (!entry) return null;
           const methodBlock = form.methodBlocks.find((block) =>
             block.memberClientIds.includes(entry.clientId),
           );
@@ -2615,7 +2604,7 @@ export function FullWorkoutForm() {
 
           return (
             <Card
-              key={entry.clientId}
+              key={field.id}
               className={`space-y-4 bg-card p-4 ${
                 methodBlock ? "border-indigo-400/35" : "border-border"
               }`}
@@ -2719,6 +2708,8 @@ export function FullWorkoutForm() {
                 hasPlannedTimedSets) ? (
                 <div className="space-y-3">
                   <SetRowsEditor
+                    control={control}
+                    entryIndex={index}
                     rows={entry.setRows}
                     usesLoad={profileUsesLoad(profile)}
                     valueKind={
@@ -2746,8 +2737,6 @@ export function FullWorkoutForm() {
                     onChange={(setIndex, key, value) => updateSet(index, setIndex, key, value)}
                     onCopyPrevious={() => copyPreviousWorkout(index, entry.exercise)}
                     onRepeat={() => repeatLastSet(index)}
-                    onAddBlank={() => addBlankSet(index)}
-                    onRemove={(setIndex) => removeSet(index, setIndex)}
                     onAddMethod={(setIndex, method) => addSetMethod(index, setIndex, method)}
                     onAddSegment={(setIndex) => addSetSegment(index, setIndex)}
                     onUpdateSegment={(setIndex, segmentIndex, key, value) =>
