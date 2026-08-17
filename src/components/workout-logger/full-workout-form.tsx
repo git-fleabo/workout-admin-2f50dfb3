@@ -71,6 +71,7 @@ import {
 import { lastCompletedWorkoutKey, WORKOUT_REPEAT_SESSION_KEY } from "@/lib/workout-local-state";
 import { useFavoriteExercises } from "@/hooks/use-favorite-exercises";
 import { useMethodBlockEditor } from "@/hooks/use-method-block-editor";
+import { useRecentSessionTemplates } from "@/hooks/use-recent-session-templates";
 import { useWorkoutDraft } from "@/hooks/use-workout-draft";
 import {
   getMovementMetricProfile,
@@ -285,7 +286,7 @@ type SessionFormState = {
   methodBlocks: WorkoutMethodBlockState[];
 };
 
-type RecentSessionTemplate = {
+export type RecentSessionTemplate = {
   id: string;
   date: string;
   title: string;
@@ -1473,23 +1474,12 @@ export function FullWorkoutForm() {
     () => new Set(libraryExercises.map((exercise) => exercise.name.toLowerCase())),
     [libraryExercises],
   );
-  const recentExerciseNames = useMemo(() => {
-    const completed = recentWorkoutLogs.filter((item) => item.completed && item.exercise);
-    const locationMatches = selectedLocationKind
-      ? completed.filter((item) => item.trainingLocation?.kind === selectedLocationKind)
-      : completed;
-    const source = locationMatches.length > 0 ? locationMatches : completed;
-    return Array.from(new Set(source.map((item) => item.exercise))).slice(0, 10);
-  }, [recentWorkoutLogs, selectedLocationKind]);
-  const recentSessionTemplates = useMemo(
-    () =>
-      buildRecentSessionTemplates(
-        recentWorkoutLogs,
-        selectedLocationKind,
-        new Set(libraryExercises.map((exercise) => exercise.name.toLowerCase())),
-      ),
-    [libraryExercises, recentWorkoutLogs, selectedLocationKind],
-  );
+  const { recentExerciseNames, recentSessionTemplates } = useRecentSessionTemplates({
+    logs: recentWorkoutLogs,
+    locationKind: selectedLocationKind,
+    allowedExerciseNames: new Set(libraryExercises.map((exercise) => exercise.name.toLowerCase())),
+    buildTemplates: buildRecentSessionTemplates,
+  });
   const exerciseGroupMethods = useMemo(
     () =>
       (methods.data?.items ?? []).filter(
