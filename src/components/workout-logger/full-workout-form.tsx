@@ -74,6 +74,7 @@ import {
   workoutSessionDraftKey,
 } from "@/lib/workout-local-state";
 import { useFavoriteExercises } from "@/hooks/use-favorite-exercises";
+import { useMethodBlockEditor } from "@/hooks/use-method-block-editor";
 import {
   getMovementMetricProfile,
   type MetricProfile,
@@ -1440,9 +1441,12 @@ export function FullWorkoutForm() {
   const [pendingRecentSession, setPendingRecentSession] = useState<RecentSessionTemplate | null>(
     null,
   );
-  const [methodBlockEditor, setMethodBlockEditor] = useState<MethodBlockEditorState>({
-    mode: "closed",
-  });
+  const {
+    state: methodBlockEditor,
+    openCreate,
+    openEdit,
+    close: closeMethodBlockEditor,
+  } = useMethodBlockEditor();
   const allLibraryExercises =
     lib.data?.exercises && lib.data.exercises.length > 0 ? lib.data.exercises : FALLBACK_MOVEMENTS;
   const workoutLibraryExercises = useMemo(
@@ -1875,7 +1879,7 @@ export function FullWorkoutForm() {
           ? current.methodBlocks.map((item) => (item.id === block.id ? block : item))
           : [...current.methodBlocks, block],
     }));
-    setMethodBlockEditor({ mode: "closed" });
+    closeMethodBlockEditor();
   };
   const removeMethodBlock = (blockId: string) =>
     setForm((current) => ({
@@ -2947,7 +2951,7 @@ export function FullWorkoutForm() {
                 variant="outline"
                 size="sm"
                 className="w-full"
-                onClick={() => setMethodBlockEditor({ mode: "create" })}
+                onClick={openCreate}
                 disabled={workoutEntries.length < 1 || blockMethods.length === 0}
               >
                 <Plus className="mr-1 h-3.5 w-3.5" /> Add grouped or timed method
@@ -3012,7 +3016,7 @@ export function FullWorkoutForm() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => setMethodBlockEditor({ mode: "edit", blockId: block.id })}
+                        onClick={() => openEdit(block.id)}
                       >
                         <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
                       </Button>
@@ -3188,7 +3192,7 @@ export function FullWorkoutForm() {
         methods={blockMethods}
         entries={advancedMethodEntries}
         blocks={form.methodBlocks}
-        onClose={() => setMethodBlockEditor({ mode: "closed" })}
+        onClose={closeMethodBlockEditor}
         onSave={saveMethodBlock}
       />
 
