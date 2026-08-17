@@ -3,6 +3,22 @@
 The canonical, detailed handoff for this repository is [`workout_context.md`](workout_context.md).
 Read that file before database, programme, Library, logging, or deployment work.
 
+## 2026-08-17 Supabase Hardening And Schema Cleanup
+
+- The linked Training Admin project has no remaining `simple_strength_*` tables. They were empty,
+  unused by workout-admin, and removed by
+  `supabase/migrations/20260817105254_remove_unused_simple_strength_schema.sql`.
+- The generated Simple Strength definitions were removed from `src/lib/database.types.ts`.
+- `supabase/migrations/20260817103920_add_explicit_authenticated_roles_to_workout_policies.sql`
+  makes the workout suggestion/method policies explicitly authenticated-only.
+- `supabase/migrations/20260817104538_revoke_anon_workout_table_privileges.sql` removes all anon
+  table privileges from the suggestion and method tables. Live verification confirmed no effective
+  anon privileges while authenticated access remains available.
+- The linked Supabase migration ledger contains historical versions absent from this checkout. The
+  two 2026-08-17 migrations were applied narrowly through the linked SQL API and recorded in the
+  remote ledger; do not run a blanket `supabase db push` until the migration-history divergence is
+  deliberately reconciled.
+
 ## 2026-08-03 Navigation And Visual Hierarchy Refresh
 
 - Mobile uses a persistent bottom navigation for Today, Log, Plan, and Review; desktop keeps the

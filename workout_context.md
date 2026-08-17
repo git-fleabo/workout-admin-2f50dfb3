@@ -1,6 +1,6 @@
 # Workout App Context
 
-Last updated: 2026-07-28
+Last updated: 2026-08-17
 
 This file is the handoff document for the Training Tracker workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
 
@@ -25,6 +25,25 @@ Product direction:
 - Seeded percentage strength templates are `Operator Style Strength Block` and `Fighter Style Strength Block`.
 - Operator runs 3 sessions/week. Fighter runs 2 sessions/week and is better for clients who need more room for conditioning, sport, running, climbing, or other training.
 - Programme UI is intentionally deferred until the schema and seed data are stable.
+
+## 2026-08-17 Supabase Hardening And Schema Cleanup
+
+- The linked Training Admin database no longer contains the 11 empty, unused `simple_strength_*`
+  prototype tables. Their internal foreign-key dependencies were checked before removal, and no
+  remaining tables or foreign keys reference them.
+- The cleanup is tracked in
+  `supabase/migrations/20260817105254_remove_unused_simple_strength_schema.sql`; historical
+  migration records for the former prototype remain untouched.
+- The generated Simple Strength table definitions were removed from `src/lib/database.types.ts`.
+- Workout suggestion and method policies are explicitly `TO authenticated` in
+  `supabase/migrations/20260817103920_add_explicit_authenticated_roles_to_workout_policies.sql`.
+- `supabase/migrations/20260817104538_revoke_anon_workout_table_privileges.sql` revokes all table
+  privileges from `anon` on suggested workouts, training methods, person training methods, and
+  session method blocks. Live verification confirmed no effective anon privileges and preserved
+  authenticated access.
+- The linked migration ledger contains older remote versions whose SQL files are absent from this
+  checkout. The two 2026-08-17 changes were applied narrowly and recorded remotely; resolve that
+  divergence deliberately before using a blanket `supabase db push`.
 
 ## Local Repos And Folders
 
@@ -161,6 +180,12 @@ Important data files:
 - `supabase/migrations/20260723064459_link_exercises_to_equipment.sql`: structured many-to-many exercise equipment requirements, managed-person RLS/grants, conservative legacy backfill, and eight missing catalogue items.
 - `supabase/migrations/20260723123014_add_kettlebell_dumbbell_exercises.sql`: idempotent 15-kettlebell / 15-dumbbell catalogue expansion, active-person enablement, exact equipment links, and Barbell-only Deadlift cleanup.
 - `supabase/migrations/20260727220740_normalize_yoga_climbing_activity_rows.sql`: applied guarded repair that preserves Yoga/Climbing RPE as an activity metric before removing a redundant no-dose set.
+- `supabase/migrations/20260817103920_add_explicit_authenticated_roles_to_workout_policies.sql`:
+  explicit authenticated roles for the suggestion and training-method policies.
+- `supabase/migrations/20260817104538_revoke_anon_workout_table_privileges.sql`: removes all anon
+  table privileges from authenticated-only suggestion and method tables.
+- `supabase/migrations/20260817105254_remove_unused_simple_strength_schema.sql`: removes the
+  empty, unused Simple Strength prototype tables from the linked schema.
 - `supabase/migrations/20260714150600_add_daily_rotation.sql`: configurable daily-practice pool, persisted per-date assignments, completion state, RLS, grants, and indexes.
 - `supabase/migrations/20260716072606_add_structured_goals.sql`: applied additive structured-goal fields for goal type, linked exercise, canonical measurement, numeric target/unit, starting value, and deadline.
 - `supabase/approved_logging_library_updates.sql`: idempotent data update script for approved library/logging changes.
@@ -190,6 +215,13 @@ Implementation status:
 - Applied migration `20260727164150_interactive_data_quality_repairs.sql` turns `/data-quality` into a guarded repair workspace. An authenticated approved admin can link an unlinked movement, enter missing duration/final RPE, classify load meaning, clear stale native spreadsheet labels, or remove a strictly empty set. Every action validates managed-person access, creates a private before-row snapshot, and records a public audit event atomically. Aggregate reconstruction, duplicate/alias changes, empty movement deletion, and same-day session merging remain review-only.
 - Yoga and Climbing now have an explicit setless activity contract in the logger: duration and RPE are stored as entry metrics, a single-activity log also mirrors them onto its parent session, and the shared saver no longer manufactures an RPE-only fallback set. Dashboard, History, Timeline, Weekly Review, and recent-log reconstruction read the activity RPE metric.
 - Applied migration `20260727220740_normalize_yoga_climbing_activity_rows.sql` adds a guarded audited repair for existing redundant Yoga/Climbing sets. A live read-only audit on 2026-07-27 found five Climbing and two Yoga sets that satisfy the repair preconditions. One Climbing and two Yoga entries with no child data lack complete session-level time/RPE and correctly remain review issues. The function/grant audit confirmed authenticated-only wrapper access, anonymous denial, and an empty definer search path; no workout rows were changed while applying it. Post-migration advisors reported no new migration-specific issue; the existing `person_app_profiles` no-policy notice, leaked-password-protection notice, and unused-index information remain unrelated.
+- Applied migrations `20260817103920_add_explicit_authenticated_roles_to_workout_policies.sql`,
+  `20260817104538_revoke_anon_workout_table_privileges.sql`, and
+  `20260817105254_remove_unused_simple_strength_schema.sql` complete the August hardening pass.
+  Live checks confirmed authenticated access remains available for suggested workouts and method
+  blocks, anon has no effective privileges on those tables, and the former Simple Strength tables
+  and dependencies are gone. The linked migration ledger still has older remote-only entries, so
+  these migrations were applied narrowly rather than through blanket `supabase db push`.
 - `supabase db push --linked --dry-run` could not validate the local migration set because the linked ledger contains older versions absent from this checkout. The new migration was instead applied and verified through the linked Supabase migration API; do not repair the older migration-history drift without resolving it deliberately.
 - Manage links to the live `/data-quality` audit and repair workspace. The Library exposes a personal Quick toggle, and the workout picker presents that shortlist separately.
 - Active workout saving is wired to the atomic RPC and writes native rows without `source_sheet` / `source_row`. Exercise and goal creation also stopped allocating spreadsheet rows.
