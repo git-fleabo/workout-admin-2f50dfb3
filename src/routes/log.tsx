@@ -2,9 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Award, Dumbbell, Mountain, Trophy } from "lucide-react";
 
-import { ClimbForm, FullWorkoutForm } from "./-workout-form";
-import { OneRMForm } from "./-onerm-form";
-import { PRsView } from "./-prs-view";
+import { ClimbForm, FullWorkoutForm } from "@/components/workout-logger/full-workout-form";
+import { OneRMForm } from "@/components/workout-logger/onerm-form";
+import { PRsView } from "@/components/workout-logger/prs-view";
 import { readWorkoutPlanDraft, WORKOUT_PLAN_DRAFT_KEY } from "@/lib/workout-plan";
 
 export const Route = createFileRoute("/log")({

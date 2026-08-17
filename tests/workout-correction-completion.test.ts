@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const formSource = readFileSync("src/routes/-workout-form.tsx", "utf8");
+const formSource = readFileSync("src/components/workout-logger/full-workout-form.tsx", "utf8");
 const migration = readFileSync(
   "supabase/migrations/20260724175412_repair_corrected_workout_completion.sql",
   "utf8",

@@ -127,7 +127,7 @@ import {
   RecentList,
   type DeleteTarget,
   type RecentEntry,
-} from "./-form-bits";
+} from "./form-bits";
 
 const today = todayISO;
 const SKILL_WORKOUT_TYPE = "Skills/Calisthenics";

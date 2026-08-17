@@ -28,7 +28,7 @@ import {
   Field,
   SimpleSelect,
   type DeleteTarget,
-} from "./-form-bits";
+} from "./form-bits";
 
 const today = todayISO;
 

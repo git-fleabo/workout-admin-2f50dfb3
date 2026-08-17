@@ -37,7 +37,7 @@ import {
 } from "@/lib/supabase-timeline.browser";
 import { cn } from "@/lib/utils";
 import { buildTrainingStory, type TrainingStory } from "@/lib/training-story";
-import { DeleteConfirmDialog, type DeleteTarget } from "./-form-bits";
+import { DeleteConfirmDialog, type DeleteTarget } from "@/components/workout-logger/form-bits";
 
 export const Route = createFileRoute("/history")({
   head: () => ({
