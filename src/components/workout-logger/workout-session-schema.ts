@@ -29,7 +29,7 @@ const workoutSetSchema = z.object({
 
 const workoutEntrySchema = z.object({
   clientId: z.string(),
-  date: z.string(),
+  date: z.string().min(1, "Date is required"),
   entryKind: z.string(),
   workoutType: z.string(),
   focusArea: z.string(),
@@ -88,7 +88,7 @@ const methodBlockSchema = z.object({
 export const workoutSessionSchema = z.object({
   date: z.string(),
   title: z.string(),
-  trainingLocationId: z.string(),
+  trainingLocationId: z.string().min(1, "Training location is required"),
   duration: z.string(),
   intensity: z.string(),
   rpe: z.string(),

@@ -1433,7 +1433,14 @@ export function FullWorkoutForm() {
     resolver: zodResolver(workoutSessionSchema),
     mode: "onSubmit",
   });
-  const { control, getValues, reset, setValue } = formMethods;
+  const {
+    control,
+    formState: { errors },
+    getValues,
+    reset,
+    setValue,
+    trigger,
+  } = formMethods;
   const watchedForm = useWatch({ control });
   const form = watchedForm as SessionFormState;
   const setForm = useCallback(
@@ -1452,6 +1459,7 @@ export function FullWorkoutForm() {
   const [initialFormLoaded, setInitialFormLoaded] = useState(false);
   const [loadedSuggestionId, setLoadedSuggestionId] = useState<string | null>(null);
   const [finishSummaryOpen, setFinishSummaryOpen] = useState(false);
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
   const [uncategorizedConfirmed, setUncategorizedConfirmed] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [lastCompletedWorkout, setLastCompletedWorkout] = useState<StoredCompletedWorkout | null>(
@@ -2272,6 +2280,15 @@ export function FullWorkoutForm() {
     !dumbbellSemanticsMissing &&
     climbingIssues.length === 0 &&
     !mutate.isPending;
+  const reviewAndFinish = async () => {
+    const schemaValid = await trigger();
+    if (!schemaValid || !canSubmit) {
+      setShowValidationErrors(true);
+      return;
+    }
+    setShowValidationErrors(false);
+    setFinishSummaryOpen(true);
+  };
   const hasDraftContent = sessionHasDraftContent(form);
   const draftTime = draftSavedAt
     ? new Date(draftSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -3028,8 +3045,8 @@ export function FullWorkoutForm() {
       <div className="sticky bottom-20 z-10 rounded-xl border border-border bg-background/95 p-2 shadow-xl backdrop-blur sm:bottom-3">
         <p className="sr-only">Finished workouts appear in History and on the Dashboard.</p>
         <Button
-          onClick={() => setFinishSummaryOpen(true)}
-          disabled={!canSubmit}
+          onClick={() => void reviewAndFinish()}
+          disabled={mutate.isPending}
           className={`h-12 w-full text-base font-semibold ${canSubmit ? "text-primary-foreground" : "bg-muted text-muted-foreground"}`}
           style={canSubmit ? { backgroundImage: "var(--gradient-primary)" } : undefined}
         >
@@ -3037,6 +3054,19 @@ export function FullWorkoutForm() {
           {editingSessionId ? "Review correction" : "Review and finish"}
         </Button>
       </div>
+      {showValidationErrors && Object.keys(errors).length > 0 ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-destructive/30 bg-destructive/[0.08] px-3 py-2 text-xs text-destructive"
+        >
+          <p className="font-medium">Review the highlighted session fields before finishing.</p>
+          {errors.date?.message ? <p>{String(errors.date.message)}</p> : null}
+          {errors.trainingLocationId?.message ? (
+            <p>{String(errors.trainingLocationId.message)}</p>
+          ) : null}
+          {errors.entries?.message ? <p>{String(errors.entries.message)}</p> : null}
+        </div>
+      ) : null}
       {incompleteSetMethod ? (
         <p className="text-center text-xs text-amber-300">
           Add load and reps to every segment before finishing.
