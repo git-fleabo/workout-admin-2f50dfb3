@@ -71,9 +71,9 @@ import {
 import {
   lastCompletedWorkoutKey,
   WORKOUT_REPEAT_SESSION_KEY,
-  workoutFavoritesKey,
   workoutSessionDraftKey,
 } from "@/lib/workout-local-state";
+import { useFavoriteExercises } from "@/hooks/use-favorite-exercises";
 import {
   getMovementMetricProfile,
   type MetricProfile,
@@ -575,18 +575,6 @@ function sessionHasDraftContent(form: SessionFormState) {
     form.methodBlocks.length > 0 ||
     form.entries.some(entryHasDraftContent),
   );
-}
-
-function readWorkoutFavorites(value: string | null) {
-  if (!value) return [];
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    return Array.isArray(parsed)
-      ? parsed.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
-      : [];
-  } catch {
-    return [];
-  }
 }
 
 function setRowsFromRecentLog(log: RecentWorkoutLog): WorkoutSetState[] {
@@ -1420,7 +1408,6 @@ export function ClimbForm() {
 export function FullWorkoutForm() {
   const qc = useQueryClient();
   const draftStorageKey = useMemo(workoutSessionDraftKey, []);
-  const favoritesStorageKey = useMemo(workoutFavoritesKey, []);
   const lastCompletedStorageKey = useMemo(lastCompletedWorkoutKey, []);
   const lib = useQuery({ queryKey: ["library"], queryFn: getLibraryClient });
   const recent = useQuery({
@@ -1450,8 +1437,6 @@ export function FullWorkoutForm() {
   const [lastCompletedWorkout, setLastCompletedWorkout] = useState<StoredCompletedWorkout | null>(
     null,
   );
-  const [favoriteExercises, setFavoriteExercises] = useState<string[]>([]);
-  const [favoritesLoaded, setFavoritesLoaded] = useState(false);
   const [pendingRecentSession, setPendingRecentSession] = useState<RecentSessionTemplate | null>(
     null,
   );
@@ -1573,10 +1558,7 @@ export function FullWorkoutForm() {
     [methods.data?.items],
   );
 
-  useEffect(() => {
-    setFavoriteExercises(readWorkoutFavorites(window.localStorage.getItem(favoritesStorageKey)));
-    setFavoritesLoaded(true);
-  }, [favoritesStorageKey]);
+  const { favoriteExercises, toggleFavoriteExercise } = useFavoriteExercises();
 
   useEffect(() => {
     const stored = window.localStorage.getItem(lastCompletedStorageKey);
@@ -1584,11 +1566,6 @@ export function FullWorkoutForm() {
     setLastCompletedWorkout(completed);
     if (stored && !completed) window.localStorage.removeItem(lastCompletedStorageKey);
   }, [lastCompletedStorageKey]);
-
-  useEffect(() => {
-    if (!favoritesLoaded) return;
-    window.localStorage.setItem(favoritesStorageKey, JSON.stringify(favoriteExercises));
-  }, [favoriteExercises, favoritesLoaded, favoritesStorageKey]);
 
   const loadPlanIntoForm = useCallback(
     (draft: WorkoutPlanDraft) => {
@@ -2093,16 +2070,6 @@ export function FullWorkoutForm() {
     toast.message("Previous workout copied", {
       description: `${exerciseName} targets now match ${formatUKDate(previous.date)}.`,
     });
-  };
-
-  const toggleFavoriteExercise = (exerciseName: string) => {
-    const normalized = exerciseName.trim().toLowerCase();
-    if (!normalized) return;
-    setFavoriteExercises((current) =>
-      current.some((item) => item.toLowerCase() === normalized)
-        ? current.filter((item) => item.toLowerCase() !== normalized)
-        : [...current, exerciseName],
-    );
   };
 
   const loadRecentSession = (session: RecentSessionTemplate) => {
