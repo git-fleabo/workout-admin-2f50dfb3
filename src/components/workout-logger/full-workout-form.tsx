@@ -68,13 +68,10 @@ import {
   updateSuggestedWorkoutStatusClient,
   type SavedWorkoutPlan,
 } from "@/lib/supabase-plans.browser";
-import {
-  lastCompletedWorkoutKey,
-  WORKOUT_REPEAT_SESSION_KEY,
-  workoutSessionDraftKey,
-} from "@/lib/workout-local-state";
+import { lastCompletedWorkoutKey, WORKOUT_REPEAT_SESSION_KEY } from "@/lib/workout-local-state";
 import { useFavoriteExercises } from "@/hooks/use-favorite-exercises";
 import { useMethodBlockEditor } from "@/hooks/use-method-block-editor";
+import { useWorkoutDraft } from "@/hooks/use-workout-draft";
 import {
   getMovementMetricProfile,
   type MetricProfile,
@@ -1408,7 +1405,6 @@ export function ClimbForm() {
 
 export function FullWorkoutForm() {
   const qc = useQueryClient();
-  const draftStorageKey = useMemo(workoutSessionDraftKey, []);
   const lastCompletedStorageKey = useMemo(lastCompletedWorkoutKey, []);
   const lib = useQuery({ queryKey: ["library"], queryFn: getLibraryClient });
   const recent = useQuery({
@@ -1430,8 +1426,6 @@ export function FullWorkoutForm() {
   const [form, setForm] = useState<SessionFormState>(() => blankSession());
   const [initialFormLoaded, setInitialFormLoaded] = useState(false);
   const [loadedSuggestionId, setLoadedSuggestionId] = useState<string | null>(null);
-  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
-  const [discardDraftOpen, setDiscardDraftOpen] = useState(false);
   const [finishSummaryOpen, setFinishSummaryOpen] = useState(false);
   const [uncategorizedConfirmed, setUncategorizedConfirmed] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -1563,6 +1557,24 @@ export function FullWorkoutForm() {
   );
 
   const { favoriteExercises, toggleFavoriteExercise } = useFavoriteExercises();
+  const {
+    storageKey: draftStorageKey,
+    draftSavedAt,
+    setDraftSavedAt,
+    discardDraftOpen,
+    setDiscardDraftOpen,
+    discardDraft,
+  } = useWorkoutDraft({
+    form,
+    initialFormLoaded,
+    loadedSuggestionId,
+    editingSessionId,
+    setForm,
+    setLoadedSuggestionId,
+    setEditingSessionId,
+    blankForm: blankSession,
+    hasDraftContent: sessionHasDraftContent,
+  });
 
   useEffect(() => {
     const stored = window.localStorage.getItem(lastCompletedStorageKey);
@@ -1708,26 +1720,8 @@ export function FullWorkoutForm() {
     locations.data,
     recent.data,
     recentWorkoutLogs,
+    setDraftSavedAt,
   ]);
-
-  useEffect(() => {
-    if (!initialFormLoaded) return;
-    if (!sessionHasDraftContent(form)) {
-      window.localStorage.removeItem(draftStorageKey);
-      setDraftSavedAt(null);
-      return;
-    }
-    const savedAt = new Date().toISOString();
-    const draft: StoredWorkoutSessionDraft = {
-      version: 1,
-      savedAt,
-      form,
-      loadedSuggestionId,
-      editingSessionId,
-    };
-    window.localStorage.setItem(draftStorageKey, JSON.stringify(draft));
-    setDraftSavedAt(savedAt);
-  }, [draftStorageKey, editingSessionId, form, initialFormLoaded, loadedSuggestionId]);
 
   const useSavedPlan = useMutation({
     mutationFn: async (plan: SavedWorkoutPlan) => {
@@ -1765,16 +1759,6 @@ export function FullWorkoutForm() {
       setForm((current) => ({ ...current, trainingLocationId: selected.id }));
     }
   }, [form.trainingLocationId, initialFormLoaded, locations.data]);
-
-  const discardDraft = () => {
-    window.localStorage.removeItem(draftStorageKey);
-    setForm(blankSession());
-    setLoadedSuggestionId(null);
-    setEditingSessionId(null);
-    setDraftSavedAt(null);
-    setDiscardDraftOpen(false);
-    toast.message("Workout draft discarded");
-  };
 
   const update = <K extends keyof SessionFormState>(k: K, v: SessionFormState[K]) =>
     setForm((current) => ({ ...current, [k]: v }));
