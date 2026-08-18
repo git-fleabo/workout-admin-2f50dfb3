@@ -80,7 +80,12 @@ import {
   profileUsesLoad,
   profileUsesStandardSets,
 } from "@/lib/movement-metrics";
-import { climbingMetricIssue, supportsClimbingGradient } from "@/lib/climbing-metrics";
+import {
+  climbingMetricIssue,
+  CLIMBING_GRADE_SYSTEMS,
+  CLIMBING_SEND_TYPES,
+  supportsClimbingGradient,
+} from "@/lib/climbing-metrics";
 import {
   readWorkoutPlanDraft,
   WORKOUT_PLAN_DRAFT_KEY,
@@ -215,6 +220,9 @@ export type FormState = {
   climbingHours: string;
   climbingBoulders: string;
   climbingMaxGrade: string;
+  climbingGradeSystem: string;
+  climbingSendType: string;
+  climbingIsProject: boolean;
   climbingGradient: string;
   loadSemantics: LoadSemantics | "";
   distance: string;
@@ -345,6 +353,9 @@ const blank = (defaultWorkoutType = ""): FormState => ({
   climbingHours: "",
   climbingBoulders: "",
   climbingMaxGrade: "",
+  climbingGradeSystem: "",
+  climbingSendType: "",
+  climbingIsProject: false,
   climbingGradient: "",
   loadSemantics: "",
   distance: "",
@@ -741,6 +752,9 @@ function entryFromRecentLog(log: RecentWorkoutLog): FormState {
         : "Problems / routes"
       : "",
     climbingMaxGrade: log.climbingMaxGrade,
+    climbingGradeSystem: log.climbingGradeSystem,
+    climbingSendType: log.climbingSendType,
+    climbingIsProject: log.climbingIsProject,
     climbingGradient: supportsClimbingGradient(log.exercise) ? log.climbingGradient : "",
     loadSemantics: (log.loadSemantics ?? "") as LoadSemantics | "",
     setRows: setRowsFromRecentLog(log),
@@ -834,6 +848,9 @@ type ClimbFormState = {
   durationMinutes: string;
   problemsOrRoutes: string;
   grade: string;
+  gradeSystem: string;
+  sendType: string;
+  isProject: boolean;
   gradient: string;
   rpe: string;
   notes: string;
@@ -847,6 +864,9 @@ const blankClimbForm = (): ClimbFormState => ({
   durationMinutes: "",
   problemsOrRoutes: "",
   grade: "",
+  gradeSystem: "",
+  sendType: "",
+  isProject: false,
   gradient: "",
   rpe: "",
   notes: "",
@@ -935,6 +955,8 @@ export function ClimbForm() {
           minutes: String(totalMinutes),
           trackingMode,
           problemsOrRoutes: form.problemsOrRoutes,
+          gradeSystem: form.gradeSystem,
+          sendType: form.sendType,
         });
   const rpe = Number(form.rpe);
   const rpeIssue =
@@ -1044,6 +1066,9 @@ export function ClimbForm() {
             climbingTrackingMode: trackingMode,
             climbingBoulders: form.problemsOrRoutes,
             climbingMaxGrade: form.grade,
+            climbingGradeSystem: form.gradeSystem,
+            climbingSendType: form.sendType,
+            climbingIsProject: form.isProject,
             climbingGradient: supportsClimbingGradient(form.movement) ? form.gradient : "",
           },
         ],
@@ -1323,6 +1348,33 @@ export function ClimbForm() {
             />
           </Field>
         </div>
+
+        {form.problemsOrRoutes.trim() ? (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="Grade system (optional)">
+              <SimpleSelect
+                value={form.gradeSystem}
+                onChange={(value) => update("gradeSystem", value)}
+                options={["", ...CLIMBING_GRADE_SYSTEMS]}
+              />
+            </Field>
+            <Field label="Send type (optional)">
+              <SimpleSelect
+                value={form.sendType}
+                onChange={(value) => update("sendType", value)}
+                options={["", ...CLIMBING_SEND_TYPES]}
+              />
+            </Field>
+            <label className="flex items-center gap-2 self-end pb-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.isProject}
+                onChange={(event) => update("isProject", event.target.checked)}
+              />
+              Project climb
+            </label>
+          </div>
+        ) : null}
 
         <div
           className={`grid gap-3 ${supportsClimbingGradient(form.movement) ? "grid-cols-2" : ""}`}
@@ -2235,6 +2287,8 @@ export function FullWorkoutForm() {
         minutes: entry.duration,
         trackingMode: entry.climbingTrackingMode,
         problemsOrRoutes: entry.climbingBoulders,
+        gradeSystem: entry.climbingGradeSystem,
+        sendType: entry.climbingSendType,
       }),
     )
     .filter(Boolean);
@@ -2839,6 +2893,8 @@ export function FullWorkoutForm() {
                             minutes: entry.duration,
                             trackingMode: entry.climbingTrackingMode,
                             problemsOrRoutes: entry.climbingBoulders,
+                            gradeSystem: entry.climbingGradeSystem,
+                            sendType: entry.climbingSendType,
                           })
                         : null
                     }

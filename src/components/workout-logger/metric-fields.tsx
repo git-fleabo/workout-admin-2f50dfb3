@@ -10,6 +10,8 @@ import {
 import { BOARD_GRADIENTS, REST_OPTIONS } from "@/lib/supabase-log.browser";
 import {
   CLIMBING_TRACKING_MODES,
+  CLIMBING_GRADE_SYSTEMS,
+  CLIMBING_SEND_TYPES,
   MAX_CLIMBING_MINUTES,
   supportsClimbingGradient,
 } from "@/lib/climbing-metrics";
@@ -388,29 +390,31 @@ export function MetricFields({
             />
           </Field>
           {form.climbingTrackingMode !== "Time only" ? (
-            <Field label="Problems / routes">
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={1}
-                step={1}
-                value={form.climbingBoulders}
-                onChange={(event) => update("climbingBoulders", event.target.value)}
-              />
-            </Field>
+            <>
+              <Field label="Problems / routes">
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  step={1}
+                  value={form.climbingBoulders}
+                  onChange={(event) => update("climbingBoulders", event.target.value)}
+                />
+              </Field>
+              <Field label="Grade (optional)">
+                <Input
+                  value={form.climbingMaxGrade}
+                  onChange={(event) => update("climbingMaxGrade", event.target.value)}
+                  placeholder="V5, 6b+"
+                />
+              </Field>
+            </>
           ) : null}
         </div>
         <p className="text-xs text-muted-foreground">
           Enter total minutes — for example, 1h 15m is 75.
         </p>
         <div className={`grid gap-3 ${showGradient ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
-          <Field label="Max grade">
-            <Input
-              value={form.climbingMaxGrade}
-              onChange={(event) => update("climbingMaxGrade", event.target.value)}
-              placeholder="V5, 6b+, 7A..."
-            />
-          </Field>
           {showGradient ? (
             <Field label="Gradient">
               <SimpleSelect
@@ -435,6 +439,32 @@ export function MetricFields({
             />
           </Field>
         </div>
+        {form.climbingTrackingMode === "Problems / routes" ? (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="Grade system (optional)">
+              <SimpleSelect
+                value={form.climbingGradeSystem}
+                onChange={(value) => update("climbingGradeSystem", value)}
+                options={["", ...CLIMBING_GRADE_SYSTEMS]}
+              />
+            </Field>
+            <Field label="Send type (optional)">
+              <SimpleSelect
+                value={form.climbingSendType}
+                onChange={(value) => update("climbingSendType", value)}
+                options={["", ...CLIMBING_SEND_TYPES]}
+              />
+            </Field>
+            <label className="flex items-center gap-2 self-end pb-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.climbingIsProject}
+                onChange={(event) => update("climbingIsProject", event.target.checked)}
+              />
+              Project climb
+            </label>
+          </div>
+        ) : null}
         {validationIssue ? (
           <p className="text-xs font-medium text-destructive">{validationIssue}</p>
         ) : null}

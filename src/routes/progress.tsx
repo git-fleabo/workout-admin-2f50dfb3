@@ -70,6 +70,8 @@ import { getMovementMetricProfile, type MetricProfile } from "@/lib/movement-met
 import type { ExerciseMethodUse, ExerciseSessionPoint, LibraryRow } from "@/lib/training-types";
 import { cn } from "@/lib/utils";
 import { formatPositionMeasurementDirection } from "@/lib/position-measurements";
+import { climbingGradeProgress, openClimbingProjects } from "@/lib/climbing-metrics";
+import { getClimbingProgressClient } from "@/lib/supabase-climbing.browser";
 
 type ProgressSearch = {
   exercise?: string;
@@ -650,6 +652,19 @@ function ProgressPage() {
     queryFn: getLoggedExerciseKeysClient,
     staleTime: 5 * 60_000,
   });
+  const climbingProgress = useQuery({
+    queryKey: ["climbing-progress"],
+    queryFn: getClimbingProgressClient,
+    staleTime: 60_000,
+  });
+  const gradeProgress = useMemo(
+    () => climbingGradeProgress(climbingProgress.data ?? []),
+    [climbingProgress.data],
+  );
+  const projects = useMemo(
+    () => openClimbingProjects(climbingProgress.data ?? []),
+    [climbingProgress.data],
+  );
   const exercises = useMemo(() => {
     const loggedIds = new Set(loggedExercises.data?.ids ?? []);
     const loggedNames = new Set(loggedExercises.data?.names ?? []);
@@ -843,6 +858,52 @@ function ProgressPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Exercise Progress</h1>
         <ExercisePicker exercises={locationExercises} value={exerciseId} onChange={setExerciseId} />
       </header>
+
+      {gradeProgress.length || projects.length ? (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.5fr)]">
+          {gradeProgress.length ? (
+            <Card>
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="text-sm">Climbing grade progress</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-2">
+                <ResponsiveContainer width="100%" height={190}>
+                  <BarChart data={gradeProgress} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis hide />
+                    <Tooltip formatter={(value) => [value, "Highest grade"]} />
+                    <Bar
+                      dataKey="highestGrade"
+                      name="Highest grade"
+                      fill="var(--color-chart-2)"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          ) : null}
+          {projects.length ? (
+            <Card>
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="text-sm">Open climbing projects</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 p-4 pt-2 text-sm">
+                {projects.map((project) => (
+                  <div
+                    key={`${project.gradeSystem ?? ""}-${project.grade}`}
+                    className="flex justify-between gap-3"
+                  >
+                    <span className="font-medium">{project.grade}</span>
+                    <span className="text-muted-foreground">{project.gradeSystem ?? "Grade"}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-secondary/40 p-1">

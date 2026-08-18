@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { climbingMetricIssue, supportsClimbingGradient } from "../src/lib/climbing-metrics.ts";
+import {
+  climbingGradeProgress,
+  climbingMetricIssue,
+  openClimbingProjects,
+  supportsClimbingGradient,
+} from "../src/lib/climbing-metrics.ts";
 import {
   classifySessionGroups,
   comparableVolume,
@@ -375,4 +380,29 @@ test("setless activity repair preserves RPE before deleting a redundant set", ()
   assert.match(repair, /p_action = 'delete_redundant_activity_set'/i);
   assert.match(repair, /security invoker/i);
   assert.doesNotMatch(repair, /\btruncate\b/i);
+});
+
+test("climbing grade progress keeps the highest grade for each month", () => {
+  assert.deepEqual(
+    climbingGradeProgress([
+      { date: "2026-01-04", grade: "V3", gradeSystem: "V-scale" },
+      { date: "2026-01-20", grade: "V5", gradeSystem: "V-scale" },
+      { date: "2026-02-02", grade: "6b+", gradeSystem: "Font" },
+      { date: "bad", grade: "V9", gradeSystem: "V-scale" },
+    ]),
+    [
+      { month: "2026-01", highestGrade: "V5", gradeSystem: "V-scale" },
+      { month: "2026-02", highestGrade: "6b+", gradeSystem: "Font" },
+    ],
+  );
+});
+
+test("climbing projects close only after a later redpoint at the same grade", () => {
+  const entries = [
+    { date: "2026-01-01", grade: "V5", gradeSystem: "V-scale", isProject: true },
+    { date: "2026-01-04", grade: "V5", gradeSystem: "V-scale", sendType: "attempt" },
+    { date: "2026-02-01", grade: "V5", gradeSystem: "V-scale", sendType: "redpoint" },
+    { date: "2026-01-10", grade: "6b+", gradeSystem: "Font", isProject: true },
+  ];
+  assert.deepEqual(openClimbingProjects(entries), [entries[3]]);
 });

@@ -239,6 +239,9 @@ export type WorkoutLogInput = {
   climbingBoulders?: string;
   climbingTrackingMode?: string;
   climbingMaxGrade?: string;
+  climbingGradeSystem?: string;
+  climbingSendType?: string;
+  climbingIsProject?: boolean;
   climbingGradient?: string;
   loadSemantics?: LoadSemantics | "";
   setRows?: WorkoutSetInput[];
@@ -601,6 +604,9 @@ export async function getRecentLogsClient(limit = 15) {
         climbingBoulders: metricValue(metrics, "boulders"),
         climbingTrackingMode: metricValue(metrics, "tracking_mode"),
         climbingMaxGrade: metricValue(metrics, "grade"),
+        climbingGradeSystem: metricValue(metrics, "grade_system"),
+        climbingSendType: metricValue(metrics, "send_type"),
+        climbingIsProject: metricValue(metrics, "is_project") === "1",
         climbingGradient: metricValue(metrics, "gradient"),
         assistanceType: set?.assistance_type ?? "",
         assistanceDetail: set?.assistance_detail ?? "",
@@ -849,6 +855,31 @@ export async function addWorkoutSessionClient(
           metric_key: "grade",
           metric_text:
             entryData.workoutType === "Climbing" ? entryData.climbingMaxGrade || null : null,
+        },
+        {
+          metric_key: "grade_system",
+          metric_text:
+            entryData.workoutType === "Climbing" &&
+            entryData.climbingTrackingMode === "Problems / routes"
+              ? entryData.climbingGradeSystem || null
+              : null,
+        },
+        {
+          metric_key: "send_type",
+          metric_text:
+            entryData.workoutType === "Climbing" &&
+            entryData.climbingTrackingMode === "Problems / routes"
+              ? entryData.climbingSendType || null
+              : null,
+        },
+        {
+          metric_key: "is_project",
+          metric_value:
+            entryData.workoutType === "Climbing" &&
+            entryData.climbingTrackingMode === "Problems / routes" &&
+            entryData.climbingIsProject
+              ? 1
+              : null,
         },
         {
           metric_key: "gradient",
