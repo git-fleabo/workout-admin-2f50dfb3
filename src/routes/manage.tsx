@@ -13,6 +13,9 @@ import {
 
 import { Card } from "@/components/ui/card";
 import { BLOCK_HEIGHT_OPTIONS } from "@/lib/position-measurements";
+import { downloadPersonalData } from "@/lib/supabase-export.browser";
+import { useState } from "react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/manage")({
   head: () => ({
@@ -99,6 +102,18 @@ const MAINTENANCE: ManageLink[] = [
 ];
 
 function SettingsPage() {
+  const [exporting, setExporting] = useState<"json" | "csv" | null>(null);
+  const exportData = async (format: "json" | "csv") => {
+    setExporting(format);
+    try {
+      await downloadPersonalData(format);
+      toast.success(format === "json" ? "JSON export downloaded" : "CSV export downloaded");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The export could not be created.");
+    } finally {
+      setExporting(null);
+    }
+  };
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <header className="border-b border-border pb-5">
@@ -200,6 +215,34 @@ function SettingsPage() {
             );
           })}
         </div>
+      </section>
+      <section className="space-y-3" aria-labelledby="data-export-heading">
+        <div>
+          <h2 id="data-export-heading" className="text-lg font-semibold">
+            Your data
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Download a local copy of the data attached to this training profile.
+          </p>
+        </div>
+        <Card className="flex flex-wrap items-center gap-3 p-4">
+          <button
+            type="button"
+            className="rounded-lg border border-border px-3 py-2 text-sm hover:bg-accent"
+            disabled={Boolean(exporting)}
+            onClick={() => void exportData("json")}
+          >
+            {exporting === "json" ? "Preparing…" : "Download my data (JSON)"}
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-border px-3 py-2 text-sm hover:bg-accent"
+            disabled={Boolean(exporting)}
+            onClick={() => void exportData("csv")}
+          >
+            {exporting === "csv" ? "Preparing…" : "Download sessions (CSV)"}
+          </button>
+        </Card>
       </section>
     </div>
   );
