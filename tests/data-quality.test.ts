@@ -8,6 +8,7 @@ import {
   openClimbingProjects,
   supportsClimbingGradient,
 } from "../src/lib/climbing-metrics.ts";
+import { buildTrainingHeatmap } from "../src/lib/training-heatmap.ts";
 import {
   classifySessionGroups,
   comparableVolume,
@@ -405,4 +406,18 @@ test("climbing projects close only after a later redpoint at the same grade", ()
     { date: "2026-01-10", grade: "6b+", gradeSystem: "Font", isProject: true },
   ];
   assert.deepEqual(openClimbingProjects(entries), [entries[3]]);
+});
+
+test("training heatmap counts one session per active day and ignores non-session history", () => {
+  const heatmap = buildTrainingHeatmap(
+    [
+      { date: "2026-08-18", kind: "workout", sessionId: "s1" },
+      { date: "2026-08-18", kind: "workout", sessionId: "s1" },
+      { date: "2026-08-18", kind: "climb", sessionId: "s2" },
+      { date: "2026-08-18", kind: "one_rm", sessionId: null },
+    ],
+    "2026-08-18",
+  );
+  assert.equal(heatmap.length, 365);
+  assert.equal(heatmap.at(-1)?.sessions, 2);
 });

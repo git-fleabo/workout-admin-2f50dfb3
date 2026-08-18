@@ -38,6 +38,7 @@ import {
 import { cn } from "@/lib/utils";
 import { buildTrainingStory, type TrainingStory } from "@/lib/training-story";
 import { DeleteConfirmDialog, type DeleteTarget } from "@/components/workout-logger/form-bits";
+import { buildTrainingHeatmap } from "@/lib/training-heatmap";
 
 export const Route = createFileRoute("/history")({
   head: () => ({
@@ -259,6 +260,10 @@ function HistoryPage() {
       prs,
     };
   }, [periodEntries]);
+  const heatmap = useMemo(
+    () => buildTrainingHeatmap(timeline.data?.entries ?? [], toISODate(new Date())),
+    [timeline.data?.entries],
+  );
 
   const changeMode = (nextMode: PeriodMode) => {
     setMode(nextMode);
@@ -354,6 +359,37 @@ function HistoryPage() {
         <StatTile label="Climbing" value={`${summary.climbHours}h`} />
         <StatTile label="PRs" value={summary.prs.toString()} />
       </section>
+
+      <Card className="p-4">
+        <div className="flex items-baseline justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold">Training consistency</h2>
+            <p className="text-xs text-muted-foreground">Sessions logged in the last 12 months</p>
+          </div>
+          <span className="text-xs text-muted-foreground">Less · More</span>
+        </div>
+        <div
+          className="mt-3 grid max-w-full grid-flow-col grid-rows-7 gap-1 overflow-x-auto pb-1"
+          aria-label="Training activity over the last 12 months"
+        >
+          {heatmap.map((day) => (
+            <span
+              key={day.date}
+              title={`${day.date}: ${day.sessions} session${day.sessions === 1 ? "" : "s"}`}
+              className={cn(
+                "h-3 w-3 rounded-sm border border-border/40",
+                day.sessions === 0
+                  ? "bg-muted/40"
+                  : day.sessions === 1
+                    ? "bg-emerald-400/40"
+                    : day.sessions === 2
+                      ? "bg-emerald-400/65"
+                      : "bg-emerald-400",
+              )}
+            />
+          ))}
+        </div>
+      </Card>
 
       {story ? (
         <TrainingStoryCard
