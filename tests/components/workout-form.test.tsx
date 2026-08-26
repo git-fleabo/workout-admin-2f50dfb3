@@ -164,6 +164,24 @@ describe("FullWorkoutForm draft lifecycle", () => {
       expect(window.localStorage.getItem(draftKey)).toBeNull();
     });
   });
+
+  it("keeps set number fields focused while entering multi-digit values", async () => {
+    renderWithQueries(<FullWorkoutForm />);
+    await screen.findByText("Your workout");
+    const user = await chooseBenchPress();
+
+    const weight = screen.getByRole("textbox", { name: "Set 1 weight" });
+    await user.click(weight);
+    await user.type(weight, "72.5");
+    expect(weight).toHaveValue("72.5");
+    expect(document.activeElement).toBe(weight);
+
+    const reps = screen.getByRole("spinbutton", { name: "Set 1 reps" });
+    await user.click(reps);
+    await user.type(reps, "10");
+    expect(reps).toHaveValue(10);
+    expect(document.activeElement).toBe(reps);
+  });
 });
 
 describe("ClimbForm duplicate-session warning", () => {

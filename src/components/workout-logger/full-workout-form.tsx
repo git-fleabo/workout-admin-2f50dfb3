@@ -1937,19 +1937,11 @@ export function FullWorkoutForm() {
     key: K,
     value: WorkoutSetState[K],
   ) =>
-    setForm((current) => ({
-      ...current,
-      entries: current.entries.map((entry, i) =>
-        i === entryIndex
-          ? {
-              ...entry,
-              setRows: entry.setRows.map((set, j) =>
-                j === setIndex ? { ...set, [key]: value } : set,
-              ),
-            }
-          : entry,
-      ),
-    }));
+    setValue(
+      `entries.${entryIndex}.setRows.${setIndex}.${String(key)}` as never,
+      value as never,
+      { shouldDirty: true },
+    );
   const repeatLastSet = (entryIndex: number) =>
     setForm((current) => ({
       ...current,
