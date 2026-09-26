@@ -61,7 +61,7 @@ import { SettingsBackLink } from "@/components/settings-back-link";
 export const Route = createFileRoute("/locations")({
   head: () => ({
     meta: [
-      { title: "Training locations · Training Tracker" },
+      { title: "Training locations · train n track" },
       {
         name: "description",
         content: "Manage the locations available when planning and logging training.",

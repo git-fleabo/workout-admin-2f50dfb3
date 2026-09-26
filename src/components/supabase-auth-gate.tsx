@@ -118,7 +118,7 @@ export function SupabaseAuthGate({ children }: { children: ReactNode }) {
             <LogIn className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-base font-semibold leading-tight">Training Tracker</h1>
+            <h1 className="text-base font-semibold leading-tight">train n track</h1>
             <p className="text-xs text-muted-foreground">
               {recoveryToken ? "Set a new password" : "Sign in with your approved account"}
             </p>

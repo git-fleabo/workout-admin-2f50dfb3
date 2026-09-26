@@ -50,7 +50,7 @@ import { getDashboardDataClient, type DashboardData } from "@/lib/supabase-dashb
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
-      { title: "Dashboard · Training Tracker" },
+      { title: "Dashboard · train n track" },
       {
         name: "description",
         content:

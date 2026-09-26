@@ -1,6 +1,6 @@
 {
-  "name": "Training Tracker",
-  "short_name": "Training",
+  "name": "train n track",
+  "short_name": "train n track",
   "description": "Log and track your regular and calisthenics workouts.",
   "start_url": "/",
   "display": "standalone",

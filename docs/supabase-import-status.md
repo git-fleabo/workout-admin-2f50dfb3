@@ -7,7 +7,7 @@
 
 Supabase project:
 
-- Name: `Training Admin`
+- Name: `train n track`
 - Project ID: `dvcdghmcqqfvlbzufpyy`
 - URL: `https://dvcdghmcqqfvlbzufpyy.supabase.co`
 

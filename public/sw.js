@@ -1,4 +1,5 @@
-const SHELL_CACHE = "training-tracker-shell-v1";
+const SHELL_CACHE = "train-n-track-shell-v1";
+const LEGACY_SHELL_CACHE_PREFIX = "training-tracker-shell-";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -14,7 +15,12 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key.startsWith("training-tracker-shell-") && key !== SHELL_CACHE)
+            .filter(
+              (key) =>
+                (key.startsWith("train-n-track-shell-") ||
+                  key.startsWith(LEGACY_SHELL_CACHE_PREFIX)) &&
+                key !== SHELL_CACHE,
+            )
             .map((key) => caches.delete(key)),
         ),
       )

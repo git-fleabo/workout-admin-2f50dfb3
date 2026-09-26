@@ -36,7 +36,7 @@ import { formatUKDate } from "@/lib/date";
 export const Route = createFileRoute("/data-quality")({
   head: () => ({
     meta: [
-      { title: "Data Quality · Training Tracker" },
+      { title: "Data Quality · train n track" },
       {
         name: "description",
         content: "Review and safely repair historical workout data quality.",

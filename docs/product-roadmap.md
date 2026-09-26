@@ -1,10 +1,10 @@
-# Training Admin Product Roadmap
+# train n track Product Roadmap
 
 Last updated: 2026-07-22
 
 ## Product Direction
 
-Training Admin should be organised around the training loop rather than around database categories:
+train n track should be organised around the training loop rather than around database categories:
 
 1. Decide what to do next.
 2. Log the work with minimal friction.

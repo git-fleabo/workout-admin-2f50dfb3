@@ -2,7 +2,7 @@
 
 Last updated: 2026-08-17
 
-This file is the handoff document for the Training Tracker workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
+This file is the handoff document for the train n track workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
 
 ## Project Status
 
@@ -28,7 +28,7 @@ Product direction:
 
 ## 2026-08-17 Supabase Hardening And Schema Cleanup
 
-- The linked Training Admin database no longer contains the 11 empty, unused `simple_strength_*`
+- The linked train n track database no longer contains the 11 empty, unused `simple_strength_*`
   prototype tables. Their internal foreign-key dependencies were checked before removal, and no
   remaining tables or foreign keys reference them.
 - The cleanup is tracked in
@@ -124,7 +124,7 @@ Known Lovable preview reference found in metadata:
 
 ### Shared Training Database
 
-This app uses the shared Training Admin Supabase database. Before database, auth, RLS, schema, migration, or cross-app data work, read:
+This app uses the shared train n track Supabase database. Before database, auth, RLS, schema, migration, or cross-app data work, read:
 
 - /Users/noam/Documents/Codex/SHARED_TRAINING_DATABASE_CONTEXT.md
 
@@ -132,7 +132,7 @@ Shared project ref/id: dvcdghmcqqfvlbzufpyy.
 
 Supabase project:
 
-- Name: `Training Admin`
+- Name: `train n track`
 - Project/ref/id: `dvcdghmcqqfvlbzufpyy`
 - URL: `https://dvcdghmcqqfvlbzufpyy.supabase.co`
 - Region: `eu-west-1`
@@ -1301,7 +1301,7 @@ history for long-term goals. A configured starting value changes the progress-ba
 not replace the measured current value. Reaching a target exposes Mark complete but does not
 silently update the goal lifecycle.
 
-Migration `20260716072606_add_structured_goals` was applied to the shared Training Admin project on
+Migration `20260716072606_add_structured_goals` was applied to the shared train n track project on
 2026-07-16 through a linked single-file SQL execution because the checkout's older migration history
 does not align one-to-one with the live history. The exact migration version was then recorded as
 applied. Verification confirmed all eight columns, four constraints, the partial exercise index,
@@ -1794,7 +1794,7 @@ Plan now combines automatic evidence-led adaptation with an explicit weekly over
   `SECURITY INVOKER` RPC. Existing assignment/exercise RLS remains authoritative; execution is
   revoked from `public` and `anon` and granted only to `authenticated`.
 - The SQL in local migration `20260801081254_add_programme_manual_adjustments.sql` was applied to
-  the linked `Train and Track` Supabase project and recorded remotely as
+  the linked `train n track` Supabase project and recorded remotely as
   `20260801172846 add_programme_manual_adjustments`. Post-write verification found both columns, a
   non-definer function, anonymous execution denied, authenticated execution granted, all five
   existing rows at the zero default, and no feature-specific security-advisor findings.
@@ -1823,7 +1823,7 @@ with low-intensity build weeks and ending in a deload:
 Migration `20260801193000_raise_adaptive_strength_programme_loading.sql` updates only the protected
 template used to calculate upcoming sessions. It preserves assignment dates, training maxes,
 exercise mappings, reviews, manual adjustments, and completed workout history. It was applied to
-the linked `Train and Track` Supabase project as remote migration
+the linked `train n track` Supabase project as remote migration
 `20260801174056 raise_adaptive_strength_programme_loading`. Live post-write verification found the
 active assignment still at workout index 0 with its 2026-08-03 start date, all 12 weeks present,
 base percentages bounded at 80-90%, the expected set/repetition/rest targets, and unchanged
@@ -1856,7 +1856,7 @@ mappings are not rewritten.
 Local migration
 `20260801193100_add_programme_training_max_updates_and_lower_body_frequency.sql` contains both the
 protected update RPC and the deterministic Friday template additions. It was applied to the linked
-`Train and Track` Supabase project as remote migration
+`train n track` Supabase project as remote migration
 `20260801181719 add_programme_training_max_updates_and_lower_body_frequency`. Live verification
 found one added Friday exposure in every week, two squat sessions in every odd week, two deadlift
 sessions in every even week, unchanged active-assignment state and training maxes, anonymous RPC

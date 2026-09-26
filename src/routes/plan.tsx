@@ -101,7 +101,7 @@ import {
 export const Route = createFileRoute("/plan")({
   head: () => ({
     meta: [
-      { title: "Plan Next Workout · Training Tracker" },
+      { title: "Plan Next Workout · train n track" },
       {
         name: "description",
         content: "Preview your programme week or plan an additional workout.",

@@ -1,11 +1,11 @@
-# Workout Admin Project Context
+# train n track Project Context
 
 The canonical, detailed handoff for this repository is [`workout_context.md`](workout_context.md).
 Read that file before database, programme, Library, logging, or deployment work.
 
 ## 2026-08-17 Supabase Hardening And Schema Cleanup
 
-- The linked Training Admin project has no remaining `simple_strength_*` tables. They were empty,
+- The linked train n track project has no remaining `simple_strength_*` tables. They were empty,
   unused by workout-admin, and removed by
   `supabase/migrations/20260817105254_remove_unused_simple_strength_schema.sql`.
 - The generated Simple Strength definitions were removed from `src/lib/database.types.ts`.
@@ -69,7 +69,7 @@ programme:
 
 The additive schema and template seed are tracked in
 `supabase/migrations/20260728214855_adaptive_strength_programme_engine.sql`. It is applied to the
-linked Training Admin project and verified for template counts, intensity caps, RLS, policies, grants,
+linked train n track project and verified for template counts, intensity caps, RLS, policies, grants,
 and migration-ledger presence. See `workout_context.md` for architecture, exact design decisions, and
 validation details.
 

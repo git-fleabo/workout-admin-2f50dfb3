@@ -1,8 +1,8 @@
-# Training Admin data cleanup
+# train n track data cleanup
 
 Completed: 24 July 2026
 
-Supabase project: `Training Admin` (`dvcdghmcqqfvlbzufpyy`)
+Supabase project: `train n track` (`dvcdghmcqqfvlbzufpyy`)
 
 Cleanup checksum: `workout-history-cleanup-v1-2026-07-24`
 

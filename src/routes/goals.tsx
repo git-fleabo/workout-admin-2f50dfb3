@@ -93,7 +93,7 @@ import { SettingsBackLink } from "@/components/settings-back-link";
 export const Route = createFileRoute("/goals")({
   head: () => ({
     meta: [
-      { title: "Goals · Training Tracker" },
+      { title: "Goals · train n track" },
       {
         name: "description",
         content: "Set, structure and track training goals stored in Supabase.",

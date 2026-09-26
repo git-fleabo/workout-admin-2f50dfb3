@@ -66,7 +66,7 @@ import { SettingsBackLink } from "@/components/settings-back-link";
 export const Route = createFileRoute("/programmes")({
   head: () => ({
     meta: [
-      { title: "Programme templates · Training Tracker" },
+      { title: "Programme templates · train n track" },
       {
         name: "description",
         content: "Review reusable training programme templates.",

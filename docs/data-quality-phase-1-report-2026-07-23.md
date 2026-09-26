@@ -1,7 +1,7 @@
 # Data Quality Phase 1: Architecture and Dry-Run Report
 
 - Audit captured: `2026-07-23T18:03:36Z`
-- Supabase project: `Training Admin` (`dvcdghmcqqfvlbzufpyy`)
+- Supabase project: `train n track` (`dvcdghmcqqfvlbzufpyy`)
 - Database: PostgreSQL `17.6.1.127`, `eu-west-1`, `ACTIVE_HEALTHY`
 - Repository base commit: `fc9fbab`
 - Audit branch: `codex/data-quality-dry-run-audit`

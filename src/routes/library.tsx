@@ -112,7 +112,7 @@ import {
 export const Route = createFileRoute("/library")({
   head: () => ({
     meta: [
-      { title: "Exercise Library · Training Tracker" },
+      { title: "Exercise Library · train n track" },
       {
         name: "description",
         content: "Add, edit and remove movements in the Supabase exercise library.",
