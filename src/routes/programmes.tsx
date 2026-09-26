@@ -46,7 +46,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { listLibraryClient } from "@/lib/supabase-library.browser";
 import { listManagedPeopleClient, type PersonRecord } from "@/lib/supabase-people.browser";
-import { getProgrammeMethodSetup } from "@/lib/programme-methods";
+import { getProgrammeMethodSetup, JACKED_DUMBBELL_METHOD } from "@/lib/programme-methods";
 import {
   createNextProgrammeCycleClient,
   createProgrammeAssignmentClient,
@@ -69,7 +69,7 @@ export const Route = createFileRoute("/programmes")({
       { title: "Programme templates · Training Tracker" },
       {
         name: "description",
-        content: "Review reusable percentage-based strength programme templates.",
+        content: "Review reusable training programme templates.",
       },
     ],
   }),
@@ -229,8 +229,8 @@ function ProgrammeTemplatesPage() {
         </div>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">Programme templates</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-          Review reusable training blocks, map their movement slots to a person’s Library, and start
-          or pause an assignment without changing the protected template.
+          Review reusable training blocks, configure any required movement mappings, and start or
+          pause an assignment without changing the protected template.
         </p>
       </header>
 
@@ -363,12 +363,20 @@ function ProgrammeTemplatesPage() {
                   <TemplateStat
                     icon={<Gauge className="h-4 w-4" />}
                     label="Load basis"
-                    value={titleCase(selected.percentBase)}
+                    value={
+                      selected.methodType === JACKED_DUMBBELL_METHOD
+                        ? "Ignitor-set path"
+                        : titleCase(selected.percentBase)
+                    }
                   />
                   <TemplateStat
                     icon={<Dumbbell className="h-4 w-4" />}
-                    label="Rounding"
-                    value="Upper 2.5 kg · Lower 5 kg"
+                    label={selected.methodType === JACKED_DUMBBELL_METHOD ? "Tracking" : "Rounding"}
+                    value={
+                      selected.methodType === JACKED_DUMBBELL_METHOD
+                        ? "Editable box-score sets"
+                        : "Upper 2.5 kg · Lower 5 kg"
+                    }
                   />
                 </CardContent>
               </Card>
@@ -377,9 +385,9 @@ function ProgrammeTemplatesPage() {
                 <CardContent className="flex gap-3 p-4 text-sm text-muted-foreground">
                   <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
                   <p>
-                    Templates remain protected and read only. A programme assignment stores the
-                    person, start date, movement mappings, and training maxes. It does not add
-                    sessions to Today or Plan, or advance the programme yet.
+                    {selected.methodType === JACKED_DUMBBELL_METHOD
+                      ? "This protected template can be assigned directly. On each scheduled training day, Today offers the named movements as editable rows for the actual JACKED path, sets, reps, and dumbbell load."
+                      : "Templates remain protected and read only. An assignment stores the person, start date, movement mappings, and training maxes; scheduled sessions then appear in Today and Plan."}
                   </p>
                 </CardContent>
               </Card>
@@ -575,6 +583,12 @@ function AssignmentList({
                       ) : null}
                     </div>
                   ))}
+                  {!assignment.exercises.length &&
+                  template?.methodType === JACKED_DUMBBELL_METHOD ? (
+                    <p className="text-sm text-muted-foreground sm:col-span-2">
+                      Direct programme movements · no Library mapping or training max required.
+                    </p>
+                  ) : null}
                 </div>
                 {assignment.pools.length ? (
                   <p className="mt-3 text-xs text-muted-foreground">
@@ -665,15 +679,17 @@ function ProgrammeSetupDialog({
   );
   const selectedIds = slots.map((slot) => slotSetup[slot.key]?.exerciseId).filter(Boolean);
   const duplicateExercise = new Set(selectedIds).size !== selectedIds.length;
+  const isDirectProgramme = template.methodType === JACKED_DUMBBELL_METHOD;
   const isComplete =
     Boolean(personId && startedOn) &&
-    slots.length > 0 &&
-    slots.every((slot) => {
-      const setup = slotSetup[slot.key];
-      if (!setup?.exerciseId) return slot.isOptional;
-      if (!methodSetup?.trainingMax?.required) return true;
-      return Number(setup.trainingMax) >= methodSetup.trainingMax.minimum;
-    }) &&
+    (isDirectProgramme ||
+      (slots.length > 0 &&
+        slots.every((slot) => {
+          const setup = slotSetup[slot.key];
+          if (!setup?.exerciseId) return slot.isOptional;
+          if (!methodSetup?.trainingMax?.required) return true;
+          return Number(setup.trainingMax) >= methodSetup.trainingMax.minimum;
+        }))) &&
     !duplicateExercise;
 
   useEffect(() => {
@@ -784,7 +800,9 @@ function ProgrammeSetupDialog({
         <DialogHeader>
           <DialogTitle>Set up {template.name}</DialogTitle>
           <DialogDescription>
-            Choose who is training and map the first lift. Additional lifts are optional.
+            {isDirectProgramme
+              ? "Choose who is training and when the programme starts. Its named movements load directly into the workout logger."
+              : "Choose who is training and map the first lift. Additional lifts are optional."}
           </DialogDescription>
         </DialogHeader>
 
@@ -896,90 +914,97 @@ function ProgrammeSetupDialog({
           </div>
         ) : null}
 
-        <div className="space-y-3">
-          <div>
-            <h3 className="text-sm font-semibold">Movement mappings</h3>
-            <p className="text-xs text-muted-foreground">
-              {methodSetup?.trainingMax
-                ? `Choose enabled Strength movements. Each selected lift needs a ${methodSetup.trainingMax.label.toLowerCase()} in ${methodSetup.trainingMax.unit}.`
-                : "Choose enabled Strength movements. Only the first lift is required."}
-            </p>
-          </div>
-          {library.isLoading ? (
-            <div className="flex items-center py-5 text-sm text-muted-foreground">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading Library…
+        {!isDirectProgramme ? (
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-sm font-semibold">Movement mappings</h3>
+              <p className="text-xs text-muted-foreground">
+                {methodSetup?.trainingMax
+                  ? `Choose enabled Strength movements. Each selected lift needs a ${methodSetup.trainingMax.label.toLowerCase()} in ${methodSetup.trainingMax.unit}.`
+                  : "Choose enabled Strength movements. Only the first lift is required."}
+              </p>
             </div>
-          ) : !enabledExercises.length ? (
-            <Card className="border-dashed p-4 text-sm text-muted-foreground">
-              This person has no enabled Strength movements. Enable Strength movements in Library
-              first.
-            </Card>
-          ) : (
-            slots.map((slot) => (
-              <div
-                key={slot.key}
-                className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-[1fr_150px]"
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor={`slot-${slot.key}`}>{slot.label}</Label>
-                    <Badge variant={slot.isOptional ? "secondary" : "outline"}>
-                      {slot.isOptional ? "Optional" : "Required"}
-                    </Badge>
-                  </div>
-                  <Select
-                    value={slotSetup[slot.key]?.exerciseId ?? ""}
-                    onValueChange={(value) =>
-                      updateSlot(
-                        slot.key,
-                        value === "not_included"
-                          ? { exerciseId: "", trainingMax: "" }
-                          : { exerciseId: value },
-                      )
-                    }
-                  >
-                    <SelectTrigger id={`slot-${slot.key}`}>
-                      <SelectValue placeholder="Choose Library movement" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {slot.isOptional ? (
-                        <SelectItem value="not_included">Not included</SelectItem>
-                      ) : null}
-                      {enabledExercises.map((exercise) => (
-                        <SelectItem key={exercise.id} value={exercise.id}>
-                          {exercise.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {methodSetup?.trainingMax ? (
-                  <div className="space-y-2">
-                    <Label htmlFor={`training-max-${slot.key}`}>
-                      {methodSetup.trainingMax.label} ({methodSetup.trainingMax.unit})
-                    </Label>
-                    <Input
-                      id={`training-max-${slot.key}`}
-                      type="number"
-                      min={methodSetup.trainingMax.minimum}
-                      step={methodSetup.trainingMax.step}
-                      inputMode="decimal"
-                      value={slotSetup[slot.key]?.trainingMax ?? ""}
-                      disabled={!slotSetup[slot.key]?.exerciseId}
-                      onChange={(event) =>
-                        updateSlot(slot.key, { trainingMax: event.target.value })
-                      }
-                      placeholder="e.g. 100"
-                    />
-                  </div>
-                ) : null}
+            {library.isLoading ? (
+              <div className="flex items-center py-5 text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading Library…
               </div>
-            ))
-          )}
-          {duplicateExercise ? (
-            <p className="text-xs text-destructive">Choose a different movement for each slot.</p>
-          ) : null}
-        </div>
+            ) : !enabledExercises.length ? (
+              <Card className="border-dashed p-4 text-sm text-muted-foreground">
+                This person has no enabled Strength movements. Enable Strength movements in Library
+                first.
+              </Card>
+            ) : (
+              slots.map((slot) => (
+                <div
+                  key={slot.key}
+                  className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-[1fr_150px]"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor={`slot-${slot.key}`}>{slot.label}</Label>
+                      <Badge variant={slot.isOptional ? "secondary" : "outline"}>
+                        {slot.isOptional ? "Optional" : "Required"}
+                      </Badge>
+                    </div>
+                    <Select
+                      value={slotSetup[slot.key]?.exerciseId ?? ""}
+                      onValueChange={(value) =>
+                        updateSlot(
+                          slot.key,
+                          value === "not_included"
+                            ? { exerciseId: "", trainingMax: "" }
+                            : { exerciseId: value },
+                        )
+                      }
+                    >
+                      <SelectTrigger id={`slot-${slot.key}`}>
+                        <SelectValue placeholder="Choose Library movement" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {slot.isOptional ? (
+                          <SelectItem value="not_included">Not included</SelectItem>
+                        ) : null}
+                        {enabledExercises.map((exercise) => (
+                          <SelectItem key={exercise.id} value={exercise.id}>
+                            {exercise.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {methodSetup?.trainingMax ? (
+                    <div className="space-y-2">
+                      <Label htmlFor={`training-max-${slot.key}`}>
+                        {methodSetup.trainingMax.label} ({methodSetup.trainingMax.unit})
+                      </Label>
+                      <Input
+                        id={`training-max-${slot.key}`}
+                        type="number"
+                        min={methodSetup.trainingMax.minimum}
+                        step={methodSetup.trainingMax.step}
+                        inputMode="decimal"
+                        value={slotSetup[slot.key]?.trainingMax ?? ""}
+                        disabled={!slotSetup[slot.key]?.exerciseId}
+                        onChange={(event) =>
+                          updateSlot(slot.key, { trainingMax: event.target.value })
+                        }
+                        placeholder="e.g. 100"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ))
+            )}
+            {duplicateExercise ? (
+              <p className="text-xs text-destructive">Choose a different movement for each slot.</p>
+            ) : null}
+          </div>
+        ) : (
+          <Card className="border-dashed p-4 text-sm text-muted-foreground">
+            This programme uses its original movement names and path-based prescriptions. You can
+            edit the loaded sets, reps and dumbbell weights in the logger as you train.
+          </Card>
+        )}
 
         <div className="space-y-2 pt-2">
           <Label htmlFor="programme-notes">Notes (optional)</Label>

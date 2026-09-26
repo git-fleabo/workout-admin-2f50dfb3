@@ -29,6 +29,8 @@ export type ProgrammePrescriptionSet = {
   completed: boolean;
 };
 
+export const JACKED_DUMBBELL_METHOD = "jacked_dumbbell";
+
 function selectedValue(minimum: number | null, maximum: number | null, choice: string | null) {
   if (choice === "maximum") return maximum ?? minimum;
   return minimum ?? maximum;
@@ -66,6 +68,16 @@ function buildPercentageStrengthSets(
   }));
 }
 
+function buildJackedDumbbellSets(input: ProgrammePrescriptionInput): ProgrammePrescriptionSet[] {
+  const sets = selectedValue(input.minimumSets, input.maximumSets, input.setChoice) ?? 1;
+  return Array.from({ length: Math.max(1, sets) }, () => ({
+    reps: "",
+    weight: "",
+    rpe: "",
+    completed: true,
+  }));
+}
+
 // Assignment setup is dispatched by programs.method_type. New methodologies can reuse the
 // programme/assignment lifecycle and add only the fields and renderer they need here.
 const PROGRAMME_METHOD_SETUPS: Record<string, ProgrammeMethodSetup> = {
@@ -92,6 +104,12 @@ const PROGRAMME_METHOD_SETUPS: Record<string, ProgrammeMethodSetup> = {
       step: 0.5,
     },
     buildSetRows: buildPercentageStrengthSets,
+  },
+  [JACKED_DUMBBELL_METHOD]: {
+    label: "JACKED dumbbell",
+    workoutType: "Strength",
+    trainingMax: null,
+    buildSetRows: buildJackedDumbbellSets,
   },
 };
 

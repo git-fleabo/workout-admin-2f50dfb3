@@ -5,7 +5,7 @@ import {
   supabasePublicSelect,
   supabasePublicUpdate,
 } from "./supabase-public";
-import { getProgrammeMethodSetup } from "./programme-methods";
+import { getProgrammeMethodSetup, JACKED_DUMBBELL_METHOD } from "./programme-methods";
 import { buildProgrammeMovementPrescription } from "./programme-prescription";
 import { getCurrentPerson } from "./supabase-people.browser";
 import { listLibraryClient } from "./supabase-library.browser";
@@ -153,7 +153,7 @@ export type ProgrammeWorkoutOffer = {
   methodType: string;
   basis: string;
   movements: WorkoutPlanMovement[];
-  exerciseIds: string[];
+  exerciseIds: Array<string | null>;
   selections: ProgrammeSelectionOffer[];
 };
 
@@ -451,6 +451,23 @@ export async function getUpcomingProgrammeScheduleClient(
       const movements = workout.entries.flatMap((entry) => {
         if (entry.selectionRole) return [];
         const mapping = entry.slotKey ? mappingBySlot.get(entry.slotKey) : null;
+        if (!entry.slotKey && template.methodType === JACKED_DUMBBELL_METHOD) {
+          if (entry.isOptional) return [];
+          const movement = buildProgrammeMovementPrescription({
+            entry,
+            exercise: {
+              exerciseName: entry.name,
+              focusArea: null,
+              trainingMax: null,
+              loadAdjustmentPercent: 0,
+              manualAdjustmentPercent: 0,
+              lastDecision: null,
+            },
+            methodType: template.methodType,
+            defaultSetChoice: template.defaultSetChoice,
+          });
+          return movement ? [movement] : [];
+        }
         if (!mapping?.enabled) return [];
         const movement = buildProgrammeMovementPrescription({
           entry,
@@ -502,7 +519,14 @@ export async function getUpcomingProgrammeScheduleClient(
 export async function createProgrammeAssignmentClient(input: ProgrammeAssignmentInput) {
   const currentPerson = await getCurrentPerson();
   if (!currentPerson) throw new Error("Connect your training profile first.");
-  if (!input.exercises.length) throw new Error("Map the programme exercises first.");
+  if (!input.exercises.length) {
+    const template = (await listProgrammeTemplatesClient()).find(
+      (candidate) => candidate.id === input.programId,
+    );
+    if (template?.methodType !== JACKED_DUMBBELL_METHOD) {
+      throw new Error("Map the programme exercises first.");
+    }
+  }
 
   const existing = await supabasePublicSelect<Pick<ProgrammeAssignmentRecord, "id">>(
     "program_assignments",
@@ -529,17 +553,19 @@ export async function createProgrammeAssignmentClient(input: ProgrammeAssignment
   if (!assignment) throw new Error("The programme assignment was not created.");
 
   try {
-    await supabasePublicInsert<ProgrammeAssignmentExerciseRecord>(
-      "program_assignment_exercises",
-      input.exercises.map((exercise) => ({
-        program_assignment_id: assignment.id,
-        slot_key: exercise.slotKey,
-        exercise_id: exercise.exerciseId,
-        exercise_name: exercise.exerciseName,
-        training_max: exercise.trainingMax,
-        is_enabled: exercise.enabled ?? true,
-      })),
-    );
+    if (input.exercises.length) {
+      await supabasePublicInsert<ProgrammeAssignmentExerciseRecord>(
+        "program_assignment_exercises",
+        input.exercises.map((exercise) => ({
+          program_assignment_id: assignment.id,
+          slot_key: exercise.slotKey,
+          exercise_id: exercise.exerciseId,
+          exercise_name: exercise.exerciseName,
+          training_max: exercise.trainingMax,
+          is_enabled: exercise.enabled ?? true,
+        })),
+      );
+    }
     if (input.pools?.length) {
       await supabasePublicInsert<ProgrammeExercisePoolRecord>(
         "program_assignment_exercise_pools",
@@ -628,7 +654,7 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
     const mappingBySlot = new Map(
       assignment.exercises.map((exercise) => [exercise.slotKey, exercise]),
     );
-    const exerciseIds: string[] = [];
+    const exerciseIds: Array<string | null> = [];
     const movements: WorkoutPlanMovement[] = [];
     const selections: ProgrammeSelectionOffer[] = [];
     let invalid = false;
@@ -643,6 +669,29 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
             (pool) => pool.enabled && pool.role === entry.selectionRole,
           ),
         });
+        continue;
+      }
+      if (!entry.slotKey && template.methodType === JACKED_DUMBBELL_METHOD) {
+        if (entry.isOptional) continue;
+        const movement = buildProgrammeMovementPrescription({
+          entry,
+          exercise: {
+            exerciseName: entry.name,
+            focusArea: null,
+            trainingMax: null,
+            loadAdjustmentPercent: 0,
+            manualAdjustmentPercent: 0,
+            lastDecision: null,
+          },
+          methodType: template.methodType,
+          defaultSetChoice: template.defaultSetChoice,
+        });
+        if (!movement) {
+          invalid = true;
+          break;
+        }
+        exerciseIds.push(null);
+        movements.push(movement);
         continue;
       }
       const mapping = entry.slotKey ? mappingBySlot.get(entry.slotKey) : null;
@@ -682,7 +731,10 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
       weekNumber: workout.weekNumber,
       sessionNumber: workout.sessionNumber,
       methodType: template.methodType,
-      basis: `${sequenceLabel}. Loads are calculated from this assignment's training maxes and rounded in 2.5 kg upper-body or 5 kg lower-body steps.`,
+      basis:
+        template.methodType === JACKED_DUMBBELL_METHOD
+          ? `${sequenceLabel}. Choose the dumbbell load from the source programme's ignitor-set path, then add and record work sets until its box score is reached.`
+          : `${sequenceLabel}. Loads are calculated from this assignment's training maxes and rounded in 2.5 kg upper-body or 5 kg lower-body steps.`,
       movements,
       exerciseIds,
       selections,
@@ -713,6 +765,7 @@ export async function startProgrammeWorkoutClient(
   }
   const locationKind: PlannerLocation = location.kind;
   for (const exerciseId of offer.exerciseIds) {
+    if (!exerciseId) continue;
     const mappedExercise = libraryById.get(exerciseId);
     if (!mappedExercise?.availableLocationIds.includes(location.id)) {
       throw new Error(
@@ -827,8 +880,8 @@ export async function startProgrammeWorkoutClient(
         movement.setRows.map((set, setIndex) => ({
           suggested_workout_entry_id: entry.id,
           set_number: setIndex + 1,
-          reps: Number(set.reps),
-          weight: Number(set.weight),
+          reps: set.reps.trim() ? Number(set.reps) : null,
+          weight: set.weight.trim() ? Number(set.weight) : null,
           duration_seconds: null,
           rpe: null,
           completed: true,
@@ -1064,19 +1117,21 @@ export async function createNextProgrammeCycleClient(assignmentId: string) {
   const next = inserted[0];
   if (!next) throw new Error("The next programme cycle was not created.");
   try {
-    await supabasePublicInsert(
-      "program_assignment_exercises",
-      source.exercises.map((exercise) => ({
-        program_assignment_id: next.id,
-        slot_key: exercise.slotKey,
-        exercise_id: exercise.exerciseId,
-        exercise_name: exercise.exerciseName,
-        training_max: nextCycleTrainingMax(exercise.focusArea, exercise.trainingMax),
-        is_enabled: exercise.enabled,
-        load_adjustment_percent: 0,
-        last_decision: null,
-      })),
-    );
+    if (source.exercises.length) {
+      await supabasePublicInsert(
+        "program_assignment_exercises",
+        source.exercises.map((exercise) => ({
+          program_assignment_id: next.id,
+          slot_key: exercise.slotKey,
+          exercise_id: exercise.exerciseId,
+          exercise_name: exercise.exerciseName,
+          training_max: nextCycleTrainingMax(exercise.focusArea, exercise.trainingMax),
+          is_enabled: exercise.enabled,
+          load_adjustment_percent: 0,
+          last_decision: null,
+        })),
+      );
+    }
     if (source.pools.length) {
       await supabasePublicInsert(
         "program_assignment_exercise_pools",

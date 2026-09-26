@@ -118,3 +118,35 @@ test("programme prescriptions use 2.5 kg upper-body and 5 kg lower-body steps", 
   assert.equal(upper?.setRows[0]?.weight, "72.5");
   assert.equal(lower?.setRows[0]?.weight, "75");
 });
+
+test("JACKED dumbbell prescriptions load an editable path-based set", () => {
+  const movement = buildProgrammeMovementPrescription({
+    entry: {
+      ...baseEntry,
+      minSets: 1,
+      maxSets: 1,
+      minReps: null,
+      maxReps: null,
+      intensityPercent: null,
+      intensityMinPercent: null,
+      intensityMaxPercent: null,
+      rpeCap: null,
+      rest: "60–90 seconds",
+      notes: "Use the source programme's ignitor-set path and box score.",
+    },
+    exercise: {
+      ...baseExercise,
+      exerciseName: "DB Bench Press",
+      trainingMax: null,
+    },
+    methodType: "jacked_dumbbell",
+    defaultSetChoice: "minimum",
+  });
+
+  assert.ok(movement);
+  assert.equal(movement.exercise, "DB Bench Press");
+  assert.equal(movement.setRows.length, 1);
+  assert.equal(movement.setRows[0]?.reps, "");
+  assert.equal(movement.setRows[0]?.weight, "");
+  assert.match(movement.reason, /ignitor-set path and box score/);
+});
