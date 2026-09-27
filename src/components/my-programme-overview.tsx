@@ -137,7 +137,7 @@ export function MyProgrammeOverview() {
             {next ? (
               <div className="rounded-lg border border-primary/25 bg-primary/5 p-3">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Up next
+                  Next to complete
                 </p>
                 <p className="mt-1 font-medium">
                   {next.weekNumber ? `Week ${next.weekNumber} · ` : ""}
@@ -149,58 +149,63 @@ export function MyProgrammeOverview() {
               </div>
             ) : null}
 
-            <Accordion
-              key={active.id}
-              type="single"
-              collapsible
-              defaultValue={currentWeek ? `week-${currentWeek.week}` : undefined}
-            >
-              {weeks.map((week) => (
-                <AccordionItem key={week.week} value={`week-${week.week}`}>
-                  <AccordionTrigger className="hover:no-underline">
-                    <span className="flex flex-1 flex-wrap items-center gap-2 pr-2">
-                      {week.status === "done" ? (
-                        <Check className="h-4 w-4 text-emerald-400" />
-                      ) : week.status === "current" ? (
-                        <Circle className="h-4 w-4 text-primary" />
-                      ) : (
-                        <Circle className="h-4 w-4 text-muted-foreground/50" />
-                      )}
-                      <span>Week {week.week}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {week.completed}/{week.total} done
+            <details className="rounded-lg border border-border px-3 py-2">
+              <summary className="cursor-pointer text-sm font-medium">
+                View all {weeks.length} weeks
+              </summary>
+              <Accordion
+                key={active.id}
+                type="single"
+                collapsible
+                defaultValue={currentWeek ? `week-${currentWeek.week}` : undefined}
+              >
+                {weeks.map((week) => (
+                  <AccordionItem key={week.week} value={`week-${week.week}`}>
+                    <AccordionTrigger className="hover:no-underline">
+                      <span className="flex flex-1 flex-wrap items-center gap-2 pr-2">
+                        {week.status === "done" ? (
+                          <Check className="h-4 w-4 text-emerald-400" />
+                        ) : week.status === "current" ? (
+                          <Circle className="h-4 w-4 text-primary" />
+                        ) : (
+                          <Circle className="h-4 w-4 text-muted-foreground/50" />
+                        )}
+                        <span>Week {week.week}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {week.completed}/{week.total} done
+                        </span>
+                        {week.status === "current" ? (
+                          <Badge variant="secondary">Current</Badge>
+                        ) : null}
                       </span>
-                      {week.status === "current" ? (
-                        <Badge variant="secondary">Current</Badge>
-                      ) : null}
-                    </span>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <ol className="space-y-2 pl-1">
-                      {week.workouts.map((workout) => {
-                        const done = workout.sequenceIndex < completed;
-                        const isNext = workout.sequenceIndex === completed;
-                        return (
-                          <li key={workout.id} className="flex items-center gap-2 text-sm">
-                            {done ? (
-                              <Check className="h-4 w-4 text-emerald-400" />
-                            ) : isNext ? (
-                              <Circle className="h-4 w-4 text-primary" />
-                            ) : (
-                              <Circle className="h-4 w-4 text-muted-foreground/50" />
-                            )}
-                            <span className={done ? "text-muted-foreground" : ""}>
-                              {workout.name}
-                            </span>
-                            {isNext ? <span className="text-xs text-primary">Up next</span> : null}
-                          </li>
-                        );
-                      })}
-                    </ol>
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <ol className="space-y-2 pl-1">
+                        {week.workouts.map((workout) => {
+                          const done = workout.sequenceIndex < completed;
+                          const isNext = workout.sequenceIndex === completed;
+                          return (
+                            <li key={workout.id} className="flex items-center gap-2 text-sm">
+                              {done ? (
+                                <Check className="h-4 w-4 text-emerald-400" />
+                              ) : isNext ? (
+                                <Circle className="h-4 w-4 text-primary" />
+                              ) : (
+                                <Circle className="h-4 w-4 text-muted-foreground/50" />
+                              )}
+                              <span className={done ? "text-muted-foreground" : ""}>
+                                {workout.name}
+                              </span>
+                              {isNext ? <span className="text-xs text-primary">Next</span> : null}
+                            </li>
+                          );
+                        })}
+                      </ol>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            </details>
 
             <div className="flex flex-wrap gap-2 border-t border-border pt-4">
               <AlertDialog>
