@@ -398,14 +398,29 @@ function mapAssignment(row: ProgrammeAssignmentRecord): ProgrammeAssignment {
   };
 }
 
-export async function listProgrammeAssignmentsClient(): Promise<ProgrammeAssignment[]> {
+export async function listProgrammeAssignmentsClient(
+  includeArchived = false,
+): Promise<ProgrammeAssignment[]> {
   const rows = await supabasePublicSelect<ProgrammeAssignmentRecord>("program_assignments", {
     select:
       "id,program_id,person_id,assigned_by_person_id,status,current_workout_index,started_on,completed_on,notes,created_at,cycle_number,previous_assignment_id,program_assignment_exercises(id,slot_key,exercise_id,exercise_name,training_max,is_enabled,load_adjustment_percent,manual_adjustment_percent,manual_adjusted_at,last_decision,exercises(focus_area)),program_assignment_exercise_pools(id,role,exercise_id,exercise_name,is_enabled)",
-    status: "in.(active,paused,complete)",
+    status: includeArchived ? undefined : "in.(active,paused,complete)",
     order: "created_at.desc",
   });
   return rows.map(mapAssignment);
+}
+
+export async function getMyProgrammeOverviewClient() {
+  const person = await getCurrentPerson();
+  if (!person) throw new Error("Connect your training profile first.");
+  const [assignments, templates] = await Promise.all([
+    listProgrammeAssignmentsClient(true),
+    listProgrammeTemplatesClient(),
+  ]);
+  return {
+    assignments: assignments.filter((assignment) => assignment.personId === person.id),
+    templates,
+  };
 }
 
 export async function getUpcomingProgrammeScheduleClient(
@@ -539,6 +554,12 @@ export async function createProgrammeAssignmentClient(input: ProgrammeAssignment
     },
   );
   if (existing[0]) throw new Error("This person already has an active or paused assignment.");
+  if (input.status === "active") {
+    const active = (await listProgrammeAssignmentsClient()).some(
+      (assignment) => assignment.personId === input.personId && assignment.status === "active",
+    );
+    if (active) throw new Error("End your current programme before starting another one.");
+  }
 
   const inserted = await supabasePublicInsert<ProgrammeAssignmentRecord>("program_assignments", {
     program_id: input.programId,
@@ -593,6 +614,21 @@ export async function setProgrammeAssignmentStatusClient(
   id: string,
   status: "active" | "paused" | "archived",
 ) {
+  if (status === "active") {
+    const assignments = await listProgrammeAssignmentsClient();
+    const source = assignments.find((assignment) => assignment.id === id);
+    if (!source) throw new Error("The programme assignment could not be found.");
+    if (
+      assignments.some(
+        (assignment) =>
+          assignment.personId === source.personId &&
+          assignment.id !== source.id &&
+          assignment.status === "active",
+      )
+    ) {
+      throw new Error("End your current programme before resuming this one.");
+    }
+  }
   const rows = await supabasePublicUpdate<ProgrammeAssignmentRecord>(
     "program_assignments",
     { id: `eq.${id}` },
@@ -610,6 +646,14 @@ export async function setProgrammeAssignmentStatusClient(
     );
   }
   return mapAssignment(rows[0]);
+}
+
+export async function changeProgrammeRunClient(assignmentId: string, action: "restart" | "end") {
+  return supabasePublicRpc<string>("change_programme_run", {
+    p_assignment_id: assignmentId,
+    p_action: action,
+    p_started_on: todayISO(),
+  });
 }
 
 export async function getCurrentProgrammeWorkoutOffersClient(): Promise<ProgrammeWorkoutOffer[]> {
@@ -1096,12 +1140,9 @@ export async function createNextProgrammeCycleClient(assignmentId: string) {
     throw new Error("Complete the current 12-week cycle before creating the next one.");
   }
   const active = (await listProgrammeAssignmentsClient()).some(
-    (assignment) =>
-      assignment.personId === source.personId &&
-      assignment.programId === source.programId &&
-      (assignment.status === "active" || assignment.status === "paused"),
+    (assignment) => assignment.personId === source.personId && assignment.status === "active",
   );
-  if (active) throw new Error("This person already has an active or paused cycle.");
+  if (active) throw new Error("End your current programme before starting another one.");
 
   const inserted = await supabasePublicInsert<ProgrammeAssignmentRecord>("program_assignments", {
     program_id: source.programId,

@@ -22,6 +22,17 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -50,6 +61,7 @@ import { getProgrammeMethodSetup, JACKED_DUMBBELL_METHOD } from "@/lib/programme
 import {
   createNextProgrammeCycleClient,
   createProgrammeAssignmentClient,
+  changeProgrammeRunClient,
   listProgrammeAssignmentsClient,
   listProgrammeTemplatesClient,
   setProgrammeAssignmentStatusClient,
@@ -66,10 +78,10 @@ import { SettingsBackLink } from "@/components/settings-back-link";
 export const Route = createFileRoute("/programmes")({
   head: () => ({
     meta: [
-      { title: "Programme templates · Train & Track" },
+      { title: "Programmes · Train & Track" },
       {
         name: "description",
-        content: "Review reusable training programme templates.",
+        content: "Browse training programmes and manage your current plan.",
       },
     ],
   }),
@@ -163,7 +175,7 @@ function ProgrammeTemplatesPage() {
   });
   const assignments = useQuery({
     queryKey: ["programme-assignments"],
-    queryFn: listProgrammeAssignmentsClient,
+    queryFn: () => listProgrammeAssignmentsClient(),
   });
   const people = useQuery({
     queryKey: ["managed-people"],
@@ -173,12 +185,23 @@ function ProgrammeTemplatesPage() {
   const [setupTemplate, setSetupTemplate] = useState<ProgrammeTemplate | null>(null);
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: "active" | "paused" | "archived" }) =>
-      setProgrammeAssignmentStatusClient(id, status),
+    mutationFn: async ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: "active" | "paused" | "archived";
+    }) => {
+      const source = assignments.data?.find((assignment) => assignment.id === id);
+      if (status === "archived" && source?.status === "active") {
+        return changeProgrammeRunClient(id, "end");
+      }
+      return setProgrammeAssignmentStatusClient(id, status);
+    },
     onSuccess: (_, variables) => {
       toast.success(
         variables.status === "archived"
-          ? "Programme archived"
+          ? "Programme ended"
           : variables.status === "paused"
             ? "Programme paused"
             : "Programme resumed",
@@ -186,6 +209,9 @@ function ProgrammeTemplatesPage() {
       void queryClient.invalidateQueries({ queryKey: ["programme-assignments"] });
       void queryClient.invalidateQueries({ queryKey: ["programme-workout-offers"] });
       void queryClient.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
+      void queryClient.invalidateQueries({ queryKey: ["my-programme-overview"] });
+      void queryClient.invalidateQueries({ queryKey: ["programme-schedule"] });
+      void queryClient.invalidateQueries({ queryKey: ["programme-refresh"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -205,17 +231,20 @@ function ProgrammeTemplatesPage() {
       toast.success("Next 12-week cycle created");
       void queryClient.invalidateQueries({ queryKey: ["programme-assignments"] });
       void queryClient.invalidateQueries({ queryKey: ["programme-workout-offers"] });
+      void queryClient.invalidateQueries({ queryKey: ["my-programme-overview"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
   useEffect(() => {
+    if (assignments.isLoading) return;
     if (selectedId && templates.data?.some((template) => template.id === selectedId)) return;
+    const current = assignments.data?.find((assignment) => assignment.status === "active");
     const adaptive = templates.data?.find(
       (template) => template.methodType === ADAPTIVE_STRENGTH_METHOD,
     );
-    setSelectedId((adaptive ?? templates.data?.[0])?.id ?? "");
-  }, [selectedId, templates.data]);
+    setSelectedId(current?.programId ?? (adaptive ?? templates.data?.[0])?.id ?? "");
+  }, [assignments.data, assignments.isLoading, selectedId, templates.data]);
 
   const selected = templates.data?.find((template) => template.id === selectedId) ?? null;
   const weeks = useMemo(() => (selected ? weekGroups(selected) : []), [selected]);
@@ -227,10 +256,9 @@ function ProgrammeTemplatesPage() {
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-fuchsia-300">
           <Layers3 className="h-4 w-4" /> Training setup
         </div>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Programme templates</h1>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Programmes</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-          Review reusable training blocks, configure any required movement mappings, and start or
-          pause an assignment without changing the protected template.
+          Browse training plans and manage the ones you have started.
         </p>
       </header>
 
@@ -263,10 +291,10 @@ function ProgrammeTemplatesPage() {
           <section className="space-y-3" aria-labelledby="choose-template-heading">
             <div>
               <h2 id="choose-template-heading" className="text-lg font-semibold">
-                Choose a template to review
+                Browse programmes
               </h2>
               <p className="text-sm text-muted-foreground">
-                Compare the weekly cadence before opening the full prescription.
+                Open a plan to see its weeks and sessions.
               </p>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
@@ -437,6 +465,8 @@ function ProgrammeTemplatesPage() {
           onCreated={() => {
             setSetupTemplate(null);
             void queryClient.invalidateQueries({ queryKey: ["programme-assignments"] });
+            void queryClient.invalidateQueries({ queryKey: ["my-programme-overview"] });
+            void queryClient.invalidateQueries({ queryKey: ["programme-workout-offers"] });
           }}
         />
       ) : null}
@@ -473,10 +503,10 @@ function AssignmentList({
     <section className="space-y-3" aria-labelledby="assigned-programmes-heading">
       <div>
         <h2 id="assigned-programmes-heading" className="text-lg font-semibold">
-          Assigned programmes
+          Current and paused programmes
         </h2>
         <p className="text-sm text-muted-foreground">
-          Active, paused, and recently completed cycles. Archived assignments leave this list.
+          Your current, paused, and completed runs. Ended runs remain on Plan under past programmes.
         </p>
       </div>
       {error ? (
@@ -536,16 +566,30 @@ function AssignmentList({
                         )}
                       </Button>
                     ) : null}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      title="Archive programme"
-                      aria-label="Archive programme"
-                      disabled={changing}
-                      onClick={() => onStatusChange(assignment.id, "archived")}
-                    >
-                      <Archive className="h-4 w-4" />
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="ghost" disabled={changing}>
+                          <Archive className="mr-1.5 h-4 w-4" /> End
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>End this programme?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            It will leave your current plans. Completed workouts and this run remain
+                            in your history.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Keep programme</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => onStatusChange(assignment.id, "archived")}
+                          >
+                            End programme
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
