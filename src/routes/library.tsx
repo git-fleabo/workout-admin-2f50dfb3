@@ -123,9 +123,7 @@ export const Route = createFileRoute("/library")({
 });
 
 type EditorState =
-  | { mode: "closed" }
-  | { mode: "create" }
-  | { mode: "edit"; row: LibraryClientRow };
+  { mode: "closed" } | { mode: "create" } | { mode: "edit"; row: LibraryClientRow };
 
 const BLANK: Omit<LibraryRow, "row"> & { equipmentItemIds: string[] } = {
   workoutType: "",
@@ -378,11 +376,10 @@ function circuitChipClass(suitability: CircuitSuitability) {
 function LibraryPage() {
   const qc = useQueryClient();
 
-  const [selectedPersonId, setSelectedPersonId] = useState<string>("");
   const [showInactive, setShowInactive] = useState(false);
   const list = useQuery({
-    queryKey: ["library", selectedPersonId, showInactive],
-    queryFn: () => listLibraryClient(selectedPersonId || undefined, showInactive),
+    queryKey: ["library", showInactive],
+    queryFn: () => listLibraryClient(undefined, showInactive),
   });
 
   const [search, setSearch] = useState("");
@@ -393,7 +390,7 @@ function LibraryPage() {
   const [pendingDelete, setPendingDelete] = useState<LibraryClientRow | null>(null);
   const [selected, setSelected] = useState<LibraryClientRow | null>(null);
 
-  const effectivePersonId = list.data?.selectedPersonId ?? selectedPersonId;
+  const effectivePersonId = list.data?.selectedPersonId ?? "";
 
   const filtered = useMemo(() => {
     const items = list.data?.items ?? [];
@@ -547,31 +544,6 @@ function LibraryPage() {
             </SelectContent>
           </Select>
         </div>
-        {(list.data?.people.length ?? 0) > 1 && (
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Person
-            </Label>
-            <Select
-              value={effectivePersonId || ""}
-              onValueChange={(v) => {
-                setSelected(null);
-                setSelectedPersonId(v);
-              }}
-            >
-              <SelectTrigger className="h-10 w-[150px]">
-                <SelectValue placeholder="Person" />
-              </SelectTrigger>
-              <SelectContent>
-                {list.data?.people.map((person) => (
-                  <SelectItem key={person.id} value={person.id}>
-                    {person.display_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
         <div className="flex h-10 items-center gap-2 rounded-md border border-border px-3">
           <Switch
             checked={showInactive}

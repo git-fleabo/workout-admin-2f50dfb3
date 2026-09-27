@@ -85,6 +85,24 @@ export function programmeWorkoutScheduledDate(
   return start.toISOString().slice(0, 10);
 }
 
+export function programmeWorkoutWindowDate(input: {
+  scheduledDate: string | null;
+  startDate: string;
+  endDate: string;
+  isCurrent: boolean;
+  includeOverdueCurrent?: boolean;
+}) {
+  const { scheduledDate, startDate, endDate, isCurrent, includeOverdueCurrent = false } = input;
+  if (!scheduledDate) return null;
+  if (scheduledDate >= startDate && scheduledDate <= endDate) {
+    return { date: scheduledDate, isCatchUp: false };
+  }
+  if (includeOverdueCurrent && isCurrent && scheduledDate < startDate) {
+    return { date: startDate, isCatchUp: true };
+  }
+  return null;
+}
+
 export function suggestedRestForIntensity(intensityPercent: number | null) {
   if (intensityPercent == null) return "";
   if (intensityPercent >= 87.5) return "210–240s";

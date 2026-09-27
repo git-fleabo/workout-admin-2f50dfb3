@@ -377,7 +377,10 @@ function PlanPage() {
   );
   const programmeSchedule = useQuery({
     queryKey: ["programme-schedule", weeklyPlan.startDate, weeklyPlan.endDate],
-    queryFn: () => getUpcomingProgrammeScheduleClient(weeklyPlan.startDate, weeklyPlan.endDate),
+    queryFn: () =>
+      getUpcomingProgrammeScheduleClient(weeklyPlan.startDate, weeklyPlan.endDate, ["active"], {
+        includeOverdueCurrent: true,
+      }),
     staleTime: 30_000,
   });
   const programmeRefresh = useQuery({

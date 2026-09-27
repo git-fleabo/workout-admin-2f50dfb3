@@ -321,75 +321,87 @@ function HistoryPage() {
         </div>
       </header>
 
-      <section className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-lg border border-border p-1">
-          {PERIODS.map((period) => (
-            <Button
-              key={period.value}
-              type="button"
-              variant={mode === period.value ? "secondary" : "ghost"}
-              size="sm"
-              className="h-8"
-              onClick={() => changeMode(period.value)}
-            >
-              {period.label}
-            </Button>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {FILTERS.map((item) => (
-            <Button
-              key={item.value}
-              type="button"
-              variant={filter === item.value ? "secondary" : "outline"}
-              size="sm"
-              className="h-8"
-              onClick={() => setFilter(item.value)}
-            >
-              {item.label}
-            </Button>
-          ))}
-        </div>
-      </section>
+      <details className="rounded-xl border border-border bg-card/40 p-4">
+        <summary className="cursor-pointer text-sm font-medium">
+          Summary and filters
+          {mode !== "month" || filter !== "all" ? (
+            <span className="ml-2 text-xs font-normal text-primary">Custom view</span>
+          ) : null}
+        </summary>
+        <div className="mt-4 space-y-4 border-t border-border pt-4">
+          <section className="flex flex-wrap items-center justify-between gap-3">
+            <div className="inline-flex rounded-lg border border-border p-1">
+              {PERIODS.map((period) => (
+                <Button
+                  key={period.value}
+                  type="button"
+                  variant={mode === period.value ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-8"
+                  onClick={() => changeMode(period.value)}
+                >
+                  {period.label}
+                </Button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {FILTERS.map((item) => (
+                <Button
+                  key={item.value}
+                  type="button"
+                  variant={filter === item.value ? "secondary" : "outline"}
+                  size="sm"
+                  className="h-8"
+                  onClick={() => setFilter(item.value)}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </div>
+          </section>
 
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <StatTile label="Entries" value={summary.entries.toString()} />
-        <StatTile label="Active days" value={summary.activeDays.toString()} />
-        <StatTile label="Workouts" value={summary.workouts.toString()} />
-        <StatTile label="Climbing" value={`${summary.climbHours}h`} />
-        <StatTile label="PRs" value={summary.prs.toString()} />
-      </section>
+          <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            <StatTile label="Entries" value={summary.entries.toString()} />
+            <StatTile label="Active days" value={summary.activeDays.toString()} />
+            <StatTile label="Workouts" value={summary.workouts.toString()} />
+            <StatTile label="Climbing" value={`${summary.climbHours}h`} />
+            <StatTile label="PRs" value={summary.prs.toString()} />
+          </section>
 
-      <Card className="p-4">
-        <div className="flex items-baseline justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold">Training consistency</h2>
-            <p className="text-xs text-muted-foreground">Sessions logged in the last 12 months</p>
+          <div className="rounded-lg border border-border bg-background/40 p-4">
+            <div className="flex items-baseline justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold">Training consistency</h2>
+                <p className="text-xs text-muted-foreground">
+                  Sessions logged in the last 12 months
+                </p>
+              </div>
+              <span className="text-xs text-muted-foreground">Less · More</span>
+            </div>
+            <div
+              className="mt-3 grid max-w-full grid-flow-col grid-rows-7 gap-1 overflow-x-auto pb-1"
+              aria-label="Training activity over the last 12 months"
+            >
+              {heatmap.map((day) => (
+                <span
+                  key={day.date}
+                  title={`${day.date}: ${day.sessions} session${day.sessions === 1 ? "" : "s"}`}
+                  className={cn(
+                    "h-3 w-3 rounded-sm border border-border/40",
+                    day.sessions === 0
+                      ? "bg-muted/40"
+                      : day.sessions === 1
+                        ? "bg-emerald-400/40"
+                        : day.sessions === 2
+                          ? "bg-emerald-400/65"
+                          : "bg-emerald-400",
+                  )}
+                />
+              ))}
+            </div>
           </div>
-          <span className="text-xs text-muted-foreground">Less · More</span>
         </div>
-        <div
-          className="mt-3 grid max-w-full grid-flow-col grid-rows-7 gap-1 overflow-x-auto pb-1"
-          aria-label="Training activity over the last 12 months"
-        >
-          {heatmap.map((day) => (
-            <span
-              key={day.date}
-              title={`${day.date}: ${day.sessions} session${day.sessions === 1 ? "" : "s"}`}
-              className={cn(
-                "h-3 w-3 rounded-sm border border-border/40",
-                day.sessions === 0
-                  ? "bg-muted/40"
-                  : day.sessions === 1
-                    ? "bg-emerald-400/40"
-                    : day.sessions === 2
-                      ? "bg-emerald-400/65"
-                      : "bg-emerald-400",
-              )}
-            />
-          ))}
-        </div>
-      </Card>
+      </details>
 
       {story ? (
         <TrainingStoryCard

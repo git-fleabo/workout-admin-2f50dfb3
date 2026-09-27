@@ -38,18 +38,18 @@ const NAV: NavItem[] = [
     icon: <ClipboardList className="h-4 w-4" />,
   },
   {
-    to: "/dashboard",
+    to: "/weekly-review",
     label: "Review",
     icon: <ChartNoAxesCombined className="h-4 w-4" />,
-    relatedPaths: ["/weekly-review", "/progress", "/history"],
+    relatedPaths: ["/dashboard", "/progress", "/history"],
   },
 ];
 
 const REVIEW_NAV: Omit<NavItem, "icon">[] = [
   {
-    to: "/dashboard",
-    label: "Overview",
-    relatedPaths: ["/weekly-review"],
+    to: "/weekly-review",
+    label: "This week",
+    relatedPaths: ["/dashboard"],
   },
   {
     to: "/progress",

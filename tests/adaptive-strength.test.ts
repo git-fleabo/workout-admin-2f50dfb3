@@ -9,6 +9,7 @@ import {
   programmeWeightIncrementKg,
   programmeWorkoutIsDue,
   programmeWorkoutScheduledDate,
+  programmeWorkoutWindowDate,
   suggestedRestForIntensity,
 } from "../src/lib/adaptive-strength.ts";
 
@@ -52,6 +53,29 @@ test("adaptive review progresses only with complete low-pain quality evidence", 
       pain: 4,
     }),
     "regress",
+  );
+});
+
+test("an overdue current programme session moves into the planning window", () => {
+  assert.deepEqual(
+    programmeWorkoutWindowDate({
+      scheduledDate: "2026-09-20",
+      startDate: "2026-09-27",
+      endDate: "2026-10-03",
+      isCurrent: true,
+      includeOverdueCurrent: true,
+    }),
+    { date: "2026-09-27", isCatchUp: true },
+  );
+  assert.equal(
+    programmeWorkoutWindowDate({
+      scheduledDate: "2026-09-20",
+      startDate: "2026-09-27",
+      endDate: "2026-10-03",
+      isCurrent: false,
+      includeOverdueCurrent: true,
+    }),
+    null,
   );
 });
 

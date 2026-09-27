@@ -62,7 +62,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { calculateGoalProgress, type GoalProgress } from "@/lib/goal-progress";
 import {
   getGoalMetricOptions,
@@ -104,8 +103,7 @@ export const Route = createFileRoute("/goals")({
 });
 
 const PERIODS = ["week", "month", "quarter", "year", "static"] as const;
-const STATUS_TABS: Array<{ value: GoalStatus; label: string }> = [
-  { value: "active", label: "Active" },
+const PAST_STATUSES: Array<{ value: Exclude<GoalStatus, "active">; label: string }> = [
   { value: "paused", label: "Paused" },
   { value: "complete", label: "Completed" },
   { value: "archived", label: "Archived" },
@@ -171,7 +169,6 @@ function GoalsPage() {
 
   const [editor, setEditor] = useState<EditorState>({ mode: "closed" });
   const [pendingDelete, setPendingDelete] = useState<GoalRow | null>(null);
-  const [statusTab, setStatusTab] = useState<GoalStatus>("active");
   const exercises = useMemo(
     () => (library.data?.exercises ?? []) as GoalExercise[],
     [library.data?.exercises],
@@ -325,20 +322,9 @@ function GoalsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const counts = useMemo(
-    () =>
-      STATUS_TABS.reduce(
-        (result, status) => {
-          result[status.value] = items.filter((item) => item.status === status.value).length;
-          return result;
-        },
-        {} as Record<GoalStatus, number>,
-      ),
-    [items],
-  );
   const grouped = useMemo(() => {
     const buckets = new Map<string, GoalRow[]>();
-    for (const item of items.filter((goal) => goal.status === statusTab)) {
+    for (const item of items.filter((goal) => goal.status === "active")) {
       const rawPeriod = (item.period || "other").toLowerCase();
       const key = PERIOD_ORDER.includes(rawPeriod) ? rawPeriod : "other";
       const bucket = buckets.get(key) ?? [];
@@ -348,7 +334,39 @@ function GoalsPage() {
     return Array.from(buckets.entries()).sort(
       (a, b) => PERIOD_ORDER.indexOf(a[0]) - PERIOD_ORDER.indexOf(b[0]),
     );
-  }, [items, statusTab]);
+  }, [items]);
+  const pastGroups = useMemo(
+    () =>
+      PAST_STATUSES.map((status) => ({
+        ...status,
+        items: items.filter((goal) => goal.status === status.value),
+      })).filter((group) => group.items.length > 0),
+    [items],
+  );
+
+  const renderGoalCard = (goal: GoalRow) => (
+    <GoalCard
+      key={goal.id}
+      goal={goal}
+      exercise={exerciseById.get(goal.exerciseId)}
+      progress={goalProgressById.get(goal.id)}
+      progressLoading={
+        activity.isLoading || (Boolean(goal.exerciseId) && loadingHistoryIds.has(goal.exerciseId))
+      }
+      progressError={
+        (goal.goalType === "consistency" && activity.isError) ||
+        (Boolean(goal.exerciseId) && failedHistoryIds.has(goal.exerciseId))
+      }
+      onEdit={() => setEditor({ mode: "edit", row: goal })}
+      onDelete={() => setPendingDelete(goal)}
+      onStatus={(status) => statusMutation.mutate({ id: goal.id, status })}
+      onCheckin={() => checkinMutation.mutate(goal.id)}
+      onDeleteCheckin={(id) => deleteCheckinMutation.mutate(id)}
+      checkinPending={checkinMutation.variables === goal.id && checkinMutation.isPending}
+      deletingCheckinId={deleteCheckinMutation.isPending ? deleteCheckinMutation.variables : null}
+      statusPending={statusMutation.variables?.id === goal.id && statusMutation.isPending}
+    />
+  );
 
   return (
     <div className="space-y-5">
@@ -408,26 +426,9 @@ function GoalsPage() {
         </Card>
       ) : (
         <>
-          <Tabs value={statusTab} onValueChange={(value) => setStatusTab(value as GoalStatus)}>
-            <TabsList className="grid h-auto w-full grid-cols-4">
-              {STATUS_TABS.map((status) => (
-                <TabsTrigger
-                  key={status.value}
-                  value={status.value}
-                  className="gap-1 px-2 text-xs sm:text-sm"
-                >
-                  <span className="hidden sm:inline">{status.label}</span>
-                  <span className="sm:hidden">{status.label.slice(0, 4)}</span>
-                  <span className="text-[10px] text-muted-foreground">{counts[status.value]}</span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-
           {grouped.length === 0 ? (
             <Card className="p-6 text-sm text-muted-foreground">
-              No {STATUS_TABS.find((status) => status.value === statusTab)?.label.toLowerCase()}{" "}
-              goals.
+              No active goals. Add one when you have something you want to track.
             </Card>
           ) : (
             <div className="space-y-5">
@@ -441,42 +442,32 @@ function GoalsPage() {
                       {periodItems.length} {periodItems.length === 1 ? "goal" : "goals"}
                     </span>
                   </div>
-                  <div className="grid gap-3 lg:grid-cols-2">
-                    {periodItems.map((goal) => (
-                      <GoalCard
-                        key={goal.id}
-                        goal={goal}
-                        exercise={exerciseById.get(goal.exerciseId)}
-                        progress={goalProgressById.get(goal.id)}
-                        progressLoading={
-                          activity.isLoading ||
-                          (Boolean(goal.exerciseId) && loadingHistoryIds.has(goal.exerciseId))
-                        }
-                        progressError={
-                          (goal.goalType === "consistency" && activity.isError) ||
-                          (Boolean(goal.exerciseId) && failedHistoryIds.has(goal.exerciseId))
-                        }
-                        onEdit={() => setEditor({ mode: "edit", row: goal })}
-                        onDelete={() => setPendingDelete(goal)}
-                        onStatus={(status) => statusMutation.mutate({ id: goal.id, status })}
-                        onCheckin={() => checkinMutation.mutate(goal.id)}
-                        onDeleteCheckin={(id) => deleteCheckinMutation.mutate(id)}
-                        checkinPending={
-                          checkinMutation.variables === goal.id && checkinMutation.isPending
-                        }
-                        deletingCheckinId={
-                          deleteCheckinMutation.isPending ? deleteCheckinMutation.variables : null
-                        }
-                        statusPending={
-                          statusMutation.variables?.id === goal.id && statusMutation.isPending
-                        }
-                      />
-                    ))}
-                  </div>
+                  <div className="grid gap-3 lg:grid-cols-2">{periodItems.map(renderGoalCard)}</div>
                 </section>
               ))}
             </div>
           )}
+
+          {pastGroups.length ? (
+            <details className="rounded-xl border border-border bg-card/40 p-4">
+              <summary className="cursor-pointer text-sm font-medium">
+                Past and paused goals (
+                {pastGroups.reduce((sum, group) => sum + group.items.length, 0)})
+              </summary>
+              <div className="mt-4 space-y-5 border-t border-border pt-4">
+                {pastGroups.map((group) => (
+                  <section key={group.value} className="space-y-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      {group.label}
+                    </h3>
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      {group.items.map(renderGoalCard)}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            </details>
+          ) : null}
         </>
       )}
 
