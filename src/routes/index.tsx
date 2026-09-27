@@ -427,110 +427,12 @@ export function TodayPage() {
         </Card>
       ) : null}
 
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-base font-semibold">Daily practice</h2>
-          <p className="text-xs text-muted-foreground">
-            One small movement selected from your rotation for today.
-          </p>
-        </div>
-        {dailyRotation.isLoading ? (
-          <LoadingRow label="Choosing today's practice…" />
-        ) : dailyRotation.error ? (
-          <ErrorCard label="Today's daily practice could not be loaded." />
-        ) : dailyRotation.data?.rotation ? (
-          <Card
-            className={
-              dailyRotation.data.rotation.completedAt
-                ? "border-emerald-400/35 bg-emerald-400/[0.06]"
-                : "border-violet-400/35 bg-violet-400/[0.06]"
-            }
-          >
-            <CardContent className="p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 gap-3">
-                  {dailyRotation.data.rotation.completedAt ? (
-                    <CircleCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
-                  ) : (
-                    <Shuffle className="mt-0.5 h-5 w-5 shrink-0 text-violet-300" />
-                  )}
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold">{dailyRotation.data.rotation.item.name}</p>
-                      {dailyRotation.data.rotation.item.target ? (
-                        <Badge variant="outline" className="border-violet-400/30 text-violet-100">
-                          {dailyRotation.data.rotation.item.target}
-                        </Badge>
-                      ) : null}
-                    </div>
-                    {dailyRotation.data.rotation.item.cue ? (
-                      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                        {dailyRotation.data.rotation.item.cue}
-                      </p>
-                    ) : null}
-                    {dailyRotation.data.rotation.completedAt ? (
-                      <p className="mt-2 text-[11px] font-medium text-emerald-300">Done today</p>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
-                  <Button
-                    variant={dailyRotation.data.rotation.completedAt ? "outline" : "default"}
-                    onClick={() =>
-                      dailyRotationMutation.mutate({
-                        assignmentId: dailyRotation.data.rotation!.assignmentId,
-                        completed: !dailyRotation.data.rotation!.completedAt,
-                      })
-                    }
-                    disabled={dailyRotationMutation.isPending}
-                  >
-                    {dailyRotationMutation.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <CircleCheck className="mr-2 h-4 w-4" />
-                    )}
-                    {dailyRotation.data.rotation.completedAt ? "Undo" : "Done today"}
-                  </Button>
-                  <Button asChild variant="outline">
-                    <Link to="/rotation">
-                      <Settings2 className="mr-2 h-4 w-4" /> Manage
-                    </Link>
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-medium">
-                  {dailyRotation.data?.hasConfiguredItems
-                    ? "No daily practice scheduled today"
-                    : "Set up your daily rotation"}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {dailyRotation.data?.hasConfiguredItems
-                    ? "Your active items are paused or set for other days."
-                    : "Add movements such as one-arm hangs, handstands or mobility drills."}
-                </p>
-              </div>
-              <Button asChild variant="outline" className="shrink-0">
-                <Link to="/rotation">
-                  <Settings2 className="mr-2 h-4 w-4" /> Configure
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-      </section>
-
       {programmeOffers.error ? (
         <section className="space-y-3">
           <div>
-            <h2 className="text-base font-semibold">Programme session</h2>
+            <h2 className="text-base font-semibold">Today&apos;s programme</h2>
             <p className="text-xs text-muted-foreground">
-              Optional guidance from your active block.
+              Your next programme session could not be loaded.
             </p>
           </div>
           <ErrorCard label="The active programme session could not be loaded." />
@@ -538,10 +440,9 @@ export function TodayPage() {
       ) : programmeOffers.data?.length ? (
         <section className="space-y-3">
           <div>
-            <h2 className="text-base font-semibold">Programme session</h2>
+            <h2 className="text-base font-semibold">Today&apos;s programme</h2>
             <p className="text-xs text-muted-foreground">
-              Completely optional. It advances only after you start and complete this linked
-              workout.
+              Your next session. Progress advances only after you complete the linked workout.
             </p>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
@@ -572,7 +473,7 @@ export function TodayPage() {
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-semibold">{offer.programmeName}</p>
-                          <Badge variant="outline">Optional</Badge>
+                          <Badge variant="outline">Due</Badge>
                           <Badge variant="secondary">
                             {offer.workoutNumber}/{offer.totalWorkouts}
                           </Badge>
@@ -702,18 +603,28 @@ export function TodayPage() {
                       </div>
                     ) : null}
 
-                    <Button
-                      className="mt-3 w-full"
-                      onClick={() => selectedLocation && startProgramme(offer, selectedLocation.id)}
-                      disabled={!selectedLocation || Boolean(startingProgrammeId)}
-                    >
-                      {startingProgrammeId === offer.assignmentId ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Play className="mr-2 h-4 w-4" />
-                      )}
-                      {draft ? "Resume draft first" : "Start programme session"}
-                    </Button>
+                    {draft ? (
+                      <Button asChild className="mt-3 w-full">
+                        <Link to="/log">
+                          <RotateCcw className="mr-2 h-4 w-4" /> Resume current workout
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button
+                        className="mt-3 w-full"
+                        onClick={() =>
+                          selectedLocation && startProgramme(offer, selectedLocation.id)
+                        }
+                        disabled={!selectedLocation || Boolean(startingProgrammeId)}
+                      >
+                        {startingProgrammeId === offer.assignmentId ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Play className="mr-2 h-4 w-4" />
+                        )}
+                        Start this session
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               );
@@ -721,6 +632,104 @@ export function TodayPage() {
           </div>
         </section>
       ) : null}
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">Daily practice</h2>
+          <p className="text-xs text-muted-foreground">
+            One small movement selected from your rotation for today.
+          </p>
+        </div>
+        {dailyRotation.isLoading ? (
+          <LoadingRow label="Choosing today's practice…" />
+        ) : dailyRotation.error ? (
+          <ErrorCard label="Today's daily practice could not be loaded." />
+        ) : dailyRotation.data?.rotation ? (
+          <Card
+            className={
+              dailyRotation.data.rotation.completedAt
+                ? "border-emerald-400/35 bg-emerald-400/[0.06]"
+                : "border-violet-400/35 bg-violet-400/[0.06]"
+            }
+          >
+            <CardContent className="p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 gap-3">
+                  {dailyRotation.data.rotation.completedAt ? (
+                    <CircleCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
+                  ) : (
+                    <Shuffle className="mt-0.5 h-5 w-5 shrink-0 text-violet-300" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold">{dailyRotation.data.rotation.item.name}</p>
+                      {dailyRotation.data.rotation.item.target ? (
+                        <Badge variant="outline" className="border-violet-400/30 text-violet-100">
+                          {dailyRotation.data.rotation.item.target}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    {dailyRotation.data.rotation.item.cue ? (
+                      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                        {dailyRotation.data.rotation.item.cue}
+                      </p>
+                    ) : null}
+                    {dailyRotation.data.rotation.completedAt ? (
+                      <p className="mt-2 text-[11px] font-medium text-emerald-300">Done today</p>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
+                  <Button
+                    variant={dailyRotation.data.rotation.completedAt ? "outline" : "default"}
+                    onClick={() =>
+                      dailyRotationMutation.mutate({
+                        assignmentId: dailyRotation.data.rotation!.assignmentId,
+                        completed: !dailyRotation.data.rotation!.completedAt,
+                      })
+                    }
+                    disabled={dailyRotationMutation.isPending}
+                  >
+                    {dailyRotationMutation.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <CircleCheck className="mr-2 h-4 w-4" />
+                    )}
+                    {dailyRotation.data.rotation.completedAt ? "Undo" : "Done today"}
+                  </Button>
+                  <Button asChild variant="outline">
+                    <Link to="/rotation">
+                      <Settings2 className="mr-2 h-4 w-4" /> Manage
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium">
+                  {dailyRotation.data?.hasConfiguredItems
+                    ? "No daily practice scheduled today"
+                    : "Set up your daily rotation"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {dailyRotation.data?.hasConfiguredItems
+                    ? "Your active items are paused or set for other days."
+                    : "Add movements such as one-arm hangs, handstands or mobility drills."}
+                </p>
+              </div>
+              <Button asChild variant="outline" className="shrink-0">
+                <Link to="/rotation">
+                  <Settings2 className="mr-2 h-4 w-4" /> Configure
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </section>
 
       <section className="space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
