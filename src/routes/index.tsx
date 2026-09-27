@@ -166,8 +166,9 @@ function availableProgrammeLocations(
   return locations.filter(
     (location) =>
       (location.kind === "home" || location.kind === "gym") &&
-      offer.exerciseIds.every((exerciseId) =>
-        byId.get(exerciseId)?.availableLocationIds.includes(location.id),
+      offer.exerciseIds.every(
+        (exerciseId) =>
+          exerciseId === null || byId.get(exerciseId)?.availableLocationIds.includes(location.id),
       ),
   );
 }

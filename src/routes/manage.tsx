@@ -83,8 +83,8 @@ const TRAINING_SETUP: ManageLink[] = [
     accent: "text-sky-300 bg-sky-400/10 border-sky-400/20",
   },
   {
-    title: "Programme Templates",
-    description: "Review reusable strength blocks, weekly structure and prescriptions.",
+    title: "Programmes",
+    description: "Browse plans and manage your current programme.",
     to: "/programmes",
     icon: Dumbbell,
     accent: "text-fuchsia-300 bg-fuchsia-400/10 border-fuchsia-400/20",
