@@ -1,10 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Award, Dumbbell, Mountain, Trophy } from "lucide-react";
+import { Dumbbell, Mountain, Trophy } from "lucide-react";
 
 import { ClimbForm, FullWorkoutForm } from "@/components/workout-logger/full-workout-form";
 import { OneRMForm } from "@/components/workout-logger/onerm-form";
-import { PRsView } from "@/components/workout-logger/prs-view";
 import { readWorkoutPlanDraft, WORKOUT_PLAN_DRAFT_KEY } from "@/lib/workout-plan";
 
 export const Route = createFileRoute("/log")({
@@ -20,7 +19,7 @@ export const Route = createFileRoute("/log")({
   component: LogPage,
 });
 
-type Mode = "log" | "climb" | "onerm" | "prs";
+type Mode = "log" | "climb" | "onerm";
 
 function initialMode(): Mode {
   if (typeof window === "undefined") return "log";
@@ -45,7 +44,6 @@ function LogPage() {
         {mode === "log" && <FullWorkoutForm key="log-session" />}
         {mode === "climb" && <ClimbForm />}
         {mode === "onerm" && <OneRMForm />}
-        {mode === "prs" && <PRsView />}
       </div>
     </div>
   );
@@ -71,11 +69,10 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
       icon: <Trophy className="h-4 w-4" />,
       color: "oklch(0.72 0.14 25)",
     },
-    { id: "prs", label: "PRs", icon: <Award className="h-4 w-4" />, color: "oklch(0.72 0.14 300)" },
   ];
 
   return (
-    <div className="grid grid-cols-4 gap-1 rounded-xl border border-border bg-secondary/40 p-1">
+    <div className="grid grid-cols-3 gap-1 rounded-xl border border-border bg-secondary/40 p-1">
       {tabs.map((t) => {
         const active = mode === t.id;
         return (

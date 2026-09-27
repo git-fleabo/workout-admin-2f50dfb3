@@ -134,8 +134,8 @@ export function WeeklyPlanOverview({
             <CalendarRange className="h-4 w-4 text-fuchsia-300" /> Your next 7 days
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Programme sessions stay in order. If you miss a date, the next unfinished session moves
-            to today so you can continue without skipping ahead.
+            Dates are suggestions. Your next unfinished programme session stays available until you
+            complete it or choose to skip ahead.
           </p>
         </div>
         <Badge variant="outline" className="text-[10px]">

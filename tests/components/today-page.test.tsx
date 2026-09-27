@@ -6,6 +6,11 @@ import type { ReactNode } from "react";
 const mocks = vi.hoisted(() => ({
   plans: [] as unknown[],
   programmeOffers: [] as unknown[],
+  programmeOverview: {
+    assignments: [] as unknown[],
+    templates: [] as unknown[],
+    skippedWorkoutIds: [] as string[],
+  },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -34,6 +39,7 @@ vi.mock("@/lib/supabase-plans.browser", () => ({
 
 vi.mock("@/lib/supabase-programmes.browser", () => ({
   getCurrentProgrammeWorkoutOffersClient: vi.fn(async () => mocks.programmeOffers),
+  getMyProgrammeOverviewClient: vi.fn(async () => mocks.programmeOverview),
   startProgrammeWorkoutClient: vi.fn(),
 }));
 
@@ -75,6 +81,7 @@ const programmeOffer = {
   programmeName: "Base Strength",
   workoutNumber: 1,
   totalWorkouts: 12,
+  scheduledDate: null,
   weekNumber: 1,
   sessionNumber: 1,
   workoutName: "Session A",
@@ -87,6 +94,9 @@ describe("TodayPage branching", () => {
   beforeEach(() => {
     mocks.plans = [];
     mocks.programmeOffers = [];
+    mocks.programmeOverview.assignments = [];
+    mocks.programmeOverview.templates = [];
+    mocks.programmeOverview.skippedWorkoutIds = [];
     window.localStorage.clear();
   });
 
@@ -103,22 +113,35 @@ describe("TodayPage branching", () => {
     expect(screen.getByRole("button", { name: "Start workout" })).toBeInTheDocument();
   });
 
-  it("puts a due programme session before daily practice with one start action", async () => {
+  it("puts the next programme session before daily practice with return choices", async () => {
     mocks.programmeOffers = [programmeOffer];
 
     renderToday();
 
     const programmeHeading = await screen.findByRole("heading", {
-      name: "Today's programme",
+      name: "Your programme",
     });
-    const dailyPracticeHeading = screen.getByRole("heading", { name: "Daily practice" });
+    const dailyPracticeHeading = screen.getByRole("heading", {
+      name: "Daily practice reminder",
+    });
 
     expect(
       programmeHeading.compareDocumentPosition(dailyPracticeHeading) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(screen.getByText("Base Strength")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Start this session" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue with this session" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ease back in" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Skip ahead" })).toBeInTheDocument();
+  });
+
+  it("offers a gentle return after a long break", async () => {
+    mocks.programmeOffers = [{ ...programmeOffer, scheduledDate: "2020-01-01" }];
+
+    renderToday();
+
+    expect(await screen.findByText("Picking up after a break?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ease back in" })).toBeInTheDocument();
   });
 
   it("restores a resumable draft before showing empty next-workout state", async () => {

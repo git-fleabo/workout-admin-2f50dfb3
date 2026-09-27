@@ -61,16 +61,6 @@ export function effectiveIntensityPercent(input: {
   return Math.max(0, Math.min(adjusted, ceiling));
 }
 
-export function programmeWorkoutIsDue(
-  startedOn: string | null,
-  weekNumber: number | null,
-  dayNumber: number | null,
-  currentDate: string,
-) {
-  const scheduledDate = programmeWorkoutScheduledDate(startedOn, weekNumber, dayNumber);
-  return scheduledDate == null || scheduledDate <= currentDate;
-}
-
 export function programmeWorkoutScheduledDate(
   startedOn: string | null,
   weekNumber: number | null,

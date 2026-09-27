@@ -213,11 +213,11 @@ function WeeklyReviewPage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Plan adherence
+                Extra workout plans
               </p>
               <h2 className="mt-1 text-lg font-semibold">
                 {data.adherence.percentage == null
-                  ? "No dated plans"
+                  ? "No extra plans"
                   : `${data.adherence.percentage}% completed`}
               </h2>
             </div>
@@ -225,7 +225,7 @@ function WeeklyReviewPage() {
           </div>
           {data.adherence.percentage == null ? (
             <p className="mt-4 rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-              Adherence appears once a workout has a planned date.
+              Extra workouts you plan outside the programme appear here.
             </p>
           ) : (
             <Progress className="mt-4 h-2.5" value={data.adherence.percentage} />
@@ -248,41 +248,21 @@ function WeeklyReviewPage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Programme adherence
+                Programme activity
               </p>
               <h2 className="mt-1 text-lg font-semibold">
-                {data.programmeAdherence.percentage == null
-                  ? "No sessions due"
-                  : `${data.programmeAdherence.percentage}% completed`}
+                {data.programmeCompletedThisWeek} completed this week
               </h2>
             </div>
             <Target className="h-5 w-5 text-fuchsia-300" />
           </div>
-          {data.programmeAdherence.percentage == null ? (
-            <p className="mt-4 rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-              Adherence appears when a programme session is due.
-            </p>
-          ) : (
-            <Progress className="mt-4 h-2.5" value={data.programmeAdherence.percentage} />
-          )}
-          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-            {[
-              ["Due", data.programmeAdherence.due],
-              ["On time", data.programmeAdherence.onTime],
-              ["Late", data.programmeAdherence.late],
-              ["Outstanding", data.programmeAdherence.outstanding],
-              ["Missed", data.programmeAdherence.missed],
-              ["Skipped", data.programmeAdherence.skipped],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-lg bg-muted/40 px-2 py-2">
-                <p className="text-base font-semibold">{value}</p>
-                <p className="text-[10px] text-muted-foreground">{label}</p>
-              </div>
-            ))}
-          </div>
-          <p className="mt-3 text-[11px] text-muted-foreground">
-            Fixed programme dates count even when a session was never started.
+          <p className="mt-4 text-sm text-muted-foreground">
+            Suggested dates guide the programme. Your next unfinished session stays available in
+            Today until you complete it or explicitly skip ahead.
           </p>
+          <Button asChild variant="outline" size="sm" className="mt-4">
+            <Link to="/plan">View my programme</Link>
+          </Button>
         </Card>
 
         <Card className="p-5">
@@ -335,19 +315,17 @@ function WeeklyReviewPage() {
         <div className="border-b border-border bg-primary/5 p-5">
           <div className="flex items-center gap-2">
             <Lightbulb className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">Three useful next moves</h2>
+            <h2 className="text-lg font-semibold">Suggested next step</h2>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Each suggestion is tied to evidence from this review, not a hidden score.
+            A practical choice based on your logged training.
           </p>
         </div>
-        <div className="grid gap-px bg-border md:grid-cols-3">
-          {data.actions.map((action, index) => (
-            <div key={action.title} className="bg-card p-5">
+        <div className="bg-card p-5">
+          {data.actions.slice(0, 1).map((action) => (
+            <div key={action.title}>
               <div className="flex items-start gap-3">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                  {index + 1}
-                </span>
+                <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                 <div>
                   <h3 className="text-sm font-semibold">{action.title}</h3>
                   <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
@@ -361,6 +339,19 @@ function WeeklyReviewPage() {
             </div>
           ))}
         </div>
+        {data.actions.length > 1 ? (
+          <details className="border-t border-border px-5 py-3">
+            <summary className="cursor-pointer text-sm font-medium">More suggestions</summary>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              {data.actions.slice(1).map((action) => (
+                <div key={action.title} className="rounded-lg border border-border p-3">
+                  <p className="text-sm font-semibold">{action.title}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{action.detail}</p>
+                </div>
+              ))}
+            </div>
+          </details>
+        ) : null}
         <div className="flex flex-wrap gap-2 border-t border-border p-4">
           <Button asChild size="sm">
             <Link to="/plan">
