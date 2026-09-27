@@ -87,6 +87,7 @@ describe("TodayPage branching", () => {
   beforeEach(() => {
     mocks.plans = [];
     mocks.programmeOffers = [];
+    window.localStorage.clear();
   });
 
   afterEach(() => {
@@ -102,13 +103,22 @@ describe("TodayPage branching", () => {
     expect(screen.getByRole("button", { name: "Start workout" })).toBeInTheDocument();
   });
 
-  it("shows a due programme session when programme offers are available", async () => {
+  it("puts a due programme session before daily practice with one start action", async () => {
     mocks.programmeOffers = [programmeOffer];
 
     renderToday();
 
-    expect(await screen.findByText("Programme session")).toBeInTheDocument();
+    const programmeHeading = await screen.findByRole("heading", {
+      name: "Today's programme",
+    });
+    const dailyPracticeHeading = screen.getByRole("heading", { name: "Daily practice" });
+
+    expect(
+      programmeHeading.compareDocumentPosition(dailyPracticeHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(screen.getByText("Base Strength")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start this session" })).toBeInTheDocument();
   });
 
   it("restores a resumable draft before showing empty next-workout state", async () => {
