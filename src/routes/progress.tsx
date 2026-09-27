@@ -82,7 +82,7 @@ export const Route = createFileRoute("/progress")({
     typeof search.exercise === "string" ? { exercise: search.exercise } : {},
   head: () => ({
     meta: [
-      { title: "Exercise Progress · train n track" },
+      { title: "Exercise Progress · Train & Track" },
       {
         name: "description",
         content: "Review exercise load, estimated strength, training volume and methods over time.",

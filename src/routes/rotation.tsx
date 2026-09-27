@@ -59,7 +59,7 @@ import { SettingsBackLink } from "@/components/settings-back-link";
 export const Route = createFileRoute("/rotation")({
   head: () => ({
     meta: [
-      { title: "Daily rotation · train n track" },
+      { title: "Daily rotation · Train & Track" },
       {
         name: "description",
         content: "Configure the movements that rotate onto the Today screen.",

@@ -35,7 +35,7 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/weekly-review")({
   head: () => ({
     meta: [
-      { title: "Weekly Review · train n track" },
+      { title: "Weekly Review · Train & Track" },
       {
         name: "description",
         content: "Review training consistency, plan adherence, recovery signals, and next actions.",

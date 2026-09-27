@@ -82,14 +82,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "theme-color", content: "#262932" },
-      { title: "train n track" },
+      { title: "Train & Track" },
       {
         name: "description",
         content:
           "Log and track your regular and calisthenics workouts with this mobile-friendly exercise tracker.",
       },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "train n track" },
+      { property: "og:title", content: "Train & Track" },
       {
         property: "og:description",
         content:
@@ -98,7 +98,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "train n track" },
+      { name: "twitter:title", content: "Train & Track" },
       {
         name: "twitter:description",
         content:

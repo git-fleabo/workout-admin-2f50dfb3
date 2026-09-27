@@ -98,7 +98,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <ShieldCheck className="h-5 w-5" />
           </div>
           <div className="flex-1">
-            <h1 className="text-base font-semibold leading-none sm:text-lg">train n track</h1>
+            <h1 className="text-base font-semibold leading-none sm:text-lg">Train &amp; Track</h1>
             <p className="mt-1 hidden text-[10px] font-mono uppercase tracking-wider text-muted-foreground/60 sm:block">
               {APP_BUILD_LABEL}
             </p>

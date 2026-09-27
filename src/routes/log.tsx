@@ -10,7 +10,7 @@ import { readWorkoutPlanDraft, WORKOUT_PLAN_DRAFT_KEY } from "@/lib/workout-plan
 export const Route = createFileRoute("/log")({
   head: () => ({
     meta: [
-      { title: "Log Training · train n track" },
+      { title: "Log Training · Train & Track" },
       {
         name: "description",
         content: "Log workouts, calisthenics, grip, climbing and strength tests.",

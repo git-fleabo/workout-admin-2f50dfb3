@@ -43,7 +43,7 @@ import { buildTrainingHeatmap } from "@/lib/training-heatmap";
 export const Route = createFileRoute("/history")({
   head: () => ({
     meta: [
-      { title: "History · train n track" },
+      { title: "History · Train & Track" },
       {
         name: "description",
         content:

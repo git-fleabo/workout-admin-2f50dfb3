@@ -79,7 +79,7 @@ import { workoutPlanLifecycleState } from "@/lib/workout-lifecycle";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Today · train n track" },
+      { title: "Today · Train & Track" },
       { name: "description", content: "Choose, resume or review today's workout." },
     ],
   }),
