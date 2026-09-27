@@ -1005,29 +1005,33 @@ function PlanPage() {
           </CardContent>
         </Card>
       ) : programmeRefresh.data ? (
-        <ProgrammeRefreshCard
-          assignment={programmeRefresh.data}
-          saving={programmeRefreshMutation.isPending}
-          onSave={async (updates) => {
-            await programmeRefreshMutation.mutateAsync({
-              assignmentId: programmeRefresh.data!.id,
-              updates,
-            });
-          }}
-        />
+        <details className="rounded-xl border border-border bg-card/30 p-4">
+          <summary className="cursor-pointer text-sm font-semibold">
+            Adjust future programme targets
+          </summary>
+          <div className="mt-4">
+            <ProgrammeRefreshCard
+              assignment={programmeRefresh.data}
+              saving={programmeRefreshMutation.isPending}
+              onSave={async (updates) => {
+                await programmeRefreshMutation.mutateAsync({
+                  assignmentId: programmeRefresh.data!.id,
+                  updates,
+                });
+              }}
+            />
+          </div>
+        </details>
       ) : null}
 
       <details id="next-workout-builder" className="scroll-mt-24 border-t border-border pt-5">
-        <summary className="cursor-pointer text-base font-semibold">
-          Add a workout outside the programme
-        </summary>
+        <summary className="cursor-pointer text-base font-semibold">Plan another workout</summary>
         <div className="space-y-6 pt-4">
           <div>
             <h2 className="text-base font-semibold">Build me a session</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Request strength, conditioning or climbing around your programme.{" "}
-              <span>Programme recovery is handled by</span> its RPE, pain and technique checkpoints;
-              this brief controls the extra session you want now.
+              Build an extra strength, conditioning or climbing session. Review the movements and
+              targets before saving it.
             </p>
           </div>
 

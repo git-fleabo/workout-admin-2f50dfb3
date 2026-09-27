@@ -7,7 +7,6 @@ import {
   effectiveIntensityPercent,
   nextCycleTrainingMax,
   programmeWeightIncrementKg,
-  programmeWorkoutIsDue,
   programmeWorkoutScheduledDate,
   programmeWorkoutWindowDate,
   suggestedRestForIntensity,
@@ -112,16 +111,6 @@ test("programme load and next-cycle increments follow upper/lower focus", () => 
   assert.equal(nextCycleTrainingMax("Posterior Chain", 87.5), 92.5);
   assert.equal(nextCycleTrainingMax("Upper Body", 20), 22.5);
   assert.equal(nextCycleTrainingMax("Pull", 30), 32.5);
-});
-
-test("programme workouts stay hidden until their scheduled Mon/Wed/Fri date", () => {
-  assert.equal(programmeWorkoutIsDue("2026-08-03", 1, 1, "2026-07-29"), false);
-  assert.equal(programmeWorkoutIsDue("2026-08-03", 1, 1, "2026-08-03"), true);
-  assert.equal(programmeWorkoutIsDue("2026-08-03", 1, 3, "2026-08-04"), false);
-  assert.equal(programmeWorkoutIsDue("2026-08-03", 1, 3, "2026-08-05"), true);
-  assert.equal(programmeWorkoutIsDue("2026-08-03", 2, 1, "2026-08-09"), false);
-  assert.equal(programmeWorkoutIsDue("2026-08-03", 2, 1, "2026-08-10"), true);
-  assert.equal(programmeWorkoutIsDue(null, 1, 1, "2026-07-29"), true);
 });
 
 test("programme workout dates follow the assignment's Mon/Wed/Fri cadence", () => {

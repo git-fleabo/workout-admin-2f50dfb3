@@ -48,26 +48,32 @@ type ManageLink = {
 
 const TRAINING_SETUP: ManageLink[] = [
   {
-    title: "Goals",
-    description: "Create, update and track your active training goals.",
-    to: "/goals",
-    icon: Target,
-    accent: "text-amber-300 bg-amber-400/10 border-amber-400/20",
-  },
-  {
     title: "Programmes",
     description: "Browse plans and manage your current programme.",
     to: "/programmes",
     icon: Dumbbell,
     accent: "text-fuchsia-300 bg-fuchsia-400/10 border-fuchsia-400/20",
   },
+];
+
+const OPTIONAL_FEATURES: ManageLink[] = [
+  {
+    title: "Goals",
+    description: "Track a goal alongside your programme when it is useful.",
+    to: "/goals",
+    icon: Target,
+    accent: "text-amber-300 bg-amber-400/10 border-amber-400/20",
+  },
   {
     title: "Daily Rotation",
-    description: "Choose the small practices that can rotate onto the Today screen.",
+    description: "Choose small practices to remind yourself about on Today.",
     to: "/rotation",
     icon: Repeat2,
     accent: "text-violet-300 bg-violet-400/10 border-violet-400/20",
   },
+];
+
+const ADVANCED_SETTINGS: ManageLink[] = [
   {
     title: "Training Locations",
     description: "Manage training places and the equipment available at each one.",
@@ -75,9 +81,6 @@ const TRAINING_SETUP: ManageLink[] = [
     icon: MapPin,
     accent: "text-sky-300 bg-sky-400/10 border-sky-400/20",
   },
-];
-
-const ADVANCED_SETTINGS: ManageLink[] = [
   {
     title: "Exercise Library",
     description: "Movements, tracking types, availability and training locations.",
@@ -150,6 +153,36 @@ function SettingsPage() {
           })}
         </div>
       </section>
+
+      <details className="rounded-xl border border-border bg-card/40 p-4">
+        <summary className="cursor-pointer text-base font-semibold">Optional extras</summary>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Keep these available without making them part of every workout.
+        </p>
+        <div className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
+          {OPTIONAL_FEATURES.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link key={item.to} to={item.to} className="group rounded-xl focus:outline-none">
+                <Card className="flex h-full items-start gap-4 p-4 transition-colors group-hover:border-foreground/25 group-hover:bg-accent/35">
+                  <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${item.accent}`}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="font-medium">{item.title}</span>
+                    <span className="mt-1 block text-sm leading-relaxed text-muted-foreground">
+                      {item.description}
+                    </span>
+                  </span>
+                  <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                </Card>
+              </Link>
+            );
+          })}
+        </div>
+      </details>
 
       <section className="space-y-3" aria-labelledby="measurement-guides-heading">
         <div>

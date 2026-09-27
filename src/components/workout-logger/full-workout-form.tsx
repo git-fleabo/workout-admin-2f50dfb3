@@ -253,9 +253,7 @@ export type WorkoutMethodBlockState = {
 };
 
 export type MethodBlockEditorState =
-  | { mode: "closed" }
-  | { mode: "create" }
-  | { mode: "edit"; blockId: string };
+  { mode: "closed" } | { mode: "create" } | { mode: "edit"; blockId: string };
 
 export type WorkoutSetState = {
   reps: string;
@@ -2500,7 +2498,7 @@ export function FullWorkoutForm() {
             </Badge>
             {hasDraftContent ? (
               <span className="text-[10px] text-muted-foreground">
-                {draftTime ? `Autosaved ${draftTime}` : "Autosaving…"}
+                {draftTime ? `Autosaved ${draftTime} on this device` : "Autosaving on this device…"}
               </span>
             ) : null}
           </div>

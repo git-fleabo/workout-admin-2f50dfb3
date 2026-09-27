@@ -11,11 +11,11 @@ import { getCurrentPerson } from "./supabase-people.browser";
 import { listLibraryClient } from "./supabase-library.browser";
 import { getTrackingModeValue } from "./movement-metrics";
 import { todayISO } from "./date";
+import { easierProgrammeMovements } from "./programme-return";
 import {
   adjustmentForDecision,
   decideAdaptiveProgression,
   nextCycleTrainingMax,
-  programmeWorkoutIsDue,
   programmeWorkoutScheduledDate,
   programmeWorkoutWindowDate,
   type AdaptiveDecision,
@@ -149,6 +149,7 @@ export type ProgrammeWorkoutOffer = {
   workoutName: string;
   workoutNumber: number;
   totalWorkouts: number;
+  scheduledDate: string | null;
   weekNumber: number | null;
   sessionNumber: number | null;
   methodType: string;
@@ -420,10 +421,34 @@ export async function getMyProgrammeOverviewClient() {
     listProgrammeAssignmentsClient(true),
     listProgrammeTemplatesClient(),
   ]);
+  const active = assignments.find(
+    (assignment) => assignment.personId === person.id && assignment.status === "active",
+  );
+  const skippedPlans = active
+    ? await supabasePublicSelect<{ program_workout_id: string | null }>("suggested_workouts", {
+        select: "program_workout_id",
+        person_id: `eq.${person.id}`,
+        program_assignment_id: `eq.${active.id}`,
+        status: "eq.skipped",
+      })
+    : [];
   return {
     assignments: assignments.filter((assignment) => assignment.personId === person.id),
     templates,
+    skippedWorkoutIds: skippedPlans.flatMap((plan) =>
+      plan.program_workout_id ? [plan.program_workout_id] : [],
+    ),
   };
+}
+
+export async function chooseNextProgrammeSessionClient(
+  assignmentId: string,
+  targetWorkoutId: string,
+) {
+  return supabasePublicRpc<number>("choose_next_programme_session", {
+    p_assignment_id: assignmentId,
+    p_target_workout_id: targetWorkoutId,
+  });
 }
 
 export async function getUpcomingProgrammeScheduleClient(
@@ -696,16 +721,6 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
     const workout = template?.workouts[assignment.currentWorkoutIndex];
     const method = getProgrammeMethodSetup(template?.methodType ?? null);
     if (!template || !workout || !method || !template.methodType) continue;
-    if (
-      !programmeWorkoutIsDue(
-        assignment.startedOn,
-        workout.weekNumber,
-        workout.dayNumber,
-        todayISO(),
-      )
-    ) {
-      continue;
-    }
     if (linkedKeys.has(`${assignment.id}:${workout.id}`)) continue;
 
     const mappingBySlot = new Map(
@@ -785,6 +800,11 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
       workoutName: workout.name,
       workoutNumber: assignment.currentWorkoutIndex + 1,
       totalWorkouts: template.workouts.length,
+      scheduledDate: programmeWorkoutScheduledDate(
+        assignment.startedOn,
+        workout.weekNumber,
+        workout.dayNumber,
+      ),
       weekNumber: workout.weekNumber,
       sessionNumber: workout.sessionNumber,
       methodType: template.methodType,
@@ -805,6 +825,7 @@ export async function startProgrammeWorkoutClient(
   assignmentId: string,
   trainingLocationId: string,
   selectedExerciseIds: Partial<Record<ProgrammeSelectionRole, string>> = {},
+  easier = false,
 ): Promise<WorkoutPlanDraft> {
   const currentPerson = await getCurrentPerson();
   if (!currentPerson) throw new Error("Connect your training profile first.");
@@ -894,17 +915,23 @@ export async function startProgrammeWorkoutClient(
   }
   const power = selectedMovements.filter((item) => item.role === "power");
   const afterMain = selectedMovements.filter((item) => item.role !== "power");
-  const selectedPlanMovements = [
+  const standardMovements = [
     ...power.map((item) => item.movement),
     ...offer.movements,
     ...afterMain.map((item) => item.movement),
   ];
+  const selectedPlanMovements = easier
+    ? easierProgrammeMovements(standardMovements)
+    : standardMovements;
   const selectedPlanExerciseIds = [
     ...power.map((item) => item.exerciseId),
     ...offer.exerciseIds,
     ...afterMain.map((item) => item.exerciseId),
   ];
   const title = `${offer.programmeName} · ${offer.workoutName}`;
+  const basis = easier
+    ? `${offer.basis} Easier return option: one fewer set where possible and about 10% lighter loads. Edit freely before saving; your programme settings stay the same.`
+    : offer.basis;
   const inserted = await supabasePublicInsert<{ id: string }>("suggested_workouts", {
     person_id: currentPerson.id,
     program_assignment_id: offer.assignmentId,
@@ -913,7 +940,7 @@ export async function startProgrammeWorkoutClient(
     suggested_for: new Date().toISOString().slice(0, 10),
     status: "accepted",
     title,
-    basis: offer.basis,
+    basis,
   });
   const workout = inserted[0];
   if (!workout) throw new Error("The programme session was not started.");
@@ -958,7 +985,7 @@ export async function startProgrammeWorkoutClient(
     title,
     locationKind,
     trainingLocationId: location.id,
-    basis: offer.basis,
+    basis,
     movements: selectedPlanMovements,
     methodBlocks: [],
   };

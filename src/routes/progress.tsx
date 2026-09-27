@@ -35,6 +35,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SessionDetailDialog } from "@/components/session-detail-dialog";
+import { PRsView } from "@/components/workout-logger/prs-view";
 import {
   Command,
   CommandEmpty,
@@ -1070,6 +1071,12 @@ function ProgressPage() {
           />
         </>
       )}
+      <details className="rounded-xl border border-border bg-card/40 p-4">
+        <summary className="cursor-pointer text-sm font-medium">Personal bests</summary>
+        <div className="mt-4 border-t border-border pt-4">
+          <PRsView />
+        </div>
+      </details>
       <SessionDetailDialog
         sessionId={selectedSessionId}
         onOpenChange={(open) => !open && setSelectedSessionId(null)}
@@ -1553,8 +1560,7 @@ function PerformanceChart({
           margin={{ top: 12, right: 12, left: -12, bottom: 0 }}
           onClick={(state) => {
             const payload = state?.activePayload?.[0]?.payload as
-              | { sessionId?: string }
-              | undefined;
+              { sessionId?: string } | undefined;
             if (payload?.sessionId) onSelectSession(payload.sessionId);
           }}
           className="cursor-pointer"
@@ -1623,8 +1629,7 @@ function HoldPerformanceChart({
           margin={{ top: 12, right: 12, left: -12, bottom: 0 }}
           onClick={(state) => {
             const payload = state?.activePayload?.[0]?.payload as
-              | { sessionId?: string }
-              | undefined;
+              { sessionId?: string } | undefined;
             if (payload?.sessionId) onSelectSession(payload.sessionId);
           }}
           className="cursor-pointer"
@@ -1767,8 +1772,7 @@ function MetricTrendChart({
           margin={{ top: 12, right: 12, left: -12, bottom: 0 }}
           onClick={(state) => {
             const payload = state?.activePayload?.[0]?.payload as
-              | { sessionId?: string }
-              | undefined;
+              { sessionId?: string } | undefined;
             if (payload?.sessionId) onSelectSession(payload.sessionId);
           }}
           className="cursor-pointer"

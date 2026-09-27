@@ -55,9 +55,11 @@ import {
 } from "@/lib/supabase-plans.browser";
 import {
   getCurrentProgrammeWorkoutOffersClient,
+  getMyProgrammeOverviewClient,
   startProgrammeWorkoutClient,
   type ProgrammeWorkoutOffer,
 } from "@/lib/supabase-programmes.browser";
+import { daysSinceSuggestedSession } from "@/lib/programme-return";
 import {
   lastCompletedWorkoutKey,
   readCompletedWorkoutSummary,
@@ -190,6 +192,7 @@ export function TodayPage() {
   const [recommendationLocation, setRecommendationLocation] = useState<PlannerLocation>("gym");
   const [startingRecommendation, setStartingRecommendation] = useState(false);
   const [discardDraftOpen, setDiscardDraftOpen] = useState(false);
+  const [otherWaysOpen, setOtherWaysOpen] = useState(false);
   const plans = useQuery({
     queryKey: ["next-suggested-workouts"],
     queryFn: getNextSuggestedWorkoutsClient,
@@ -198,6 +201,13 @@ export function TodayPage() {
     queryKey: ["programme-workout-offers"],
     queryFn: getCurrentProgrammeWorkoutOffersClient,
   });
+  const programmeOverview = useQuery({
+    queryKey: ["my-programme-overview"],
+    queryFn: getMyProgrammeOverviewClient,
+    staleTime: 30_000,
+  });
+  const linkedProgrammePlans = plans.data?.filter((plan) => plan.programAssignmentId) ?? [];
+  const extraPlans = plans.data?.filter((plan) => !plan.programAssignmentId) ?? [];
   const recent = useQuery({
     queryKey: ["recent-workouts", 300],
     queryFn: () => getRecentLogsClient(300),
@@ -208,6 +218,18 @@ export function TodayPage() {
     staleTime: 5 * 60_000,
   });
   const today = todayISO();
+  const activeProgramme = programmeOverview.data?.assignments.find(
+    (assignment) => assignment.status === "active",
+  );
+  const activeTemplate = programmeOverview.data?.templates.find(
+    (template) => template.id === activeProgramme?.programId,
+  );
+  const skippedProgrammeSessions =
+    activeTemplate?.workouts.filter(
+      (workout) =>
+        workout.sequenceIndex < (activeProgramme?.currentWorkoutIndex ?? 0) &&
+        programmeOverview.data?.skippedWorkoutIds.includes(workout.id),
+    ).length ?? 0;
   const dailyRotation = useQuery({
     queryKey: ["daily-rotation-today", today],
     queryFn: () => getTodayDailyRotationClient(today),
@@ -290,7 +312,11 @@ export function TodayPage() {
     }
   };
 
-  const startProgramme = async (offer: ProgrammeWorkoutOffer, trainingLocationId: string) => {
+  const startProgramme = async (
+    offer: ProgrammeWorkoutOffer,
+    trainingLocationId: string,
+    easier = false,
+  ) => {
     if (draft) {
       toast.message("Resume or discard your draft first", {
         description: "Your unfinished workout is being kept safe.",
@@ -303,6 +329,7 @@ export function TodayPage() {
         offer.assignmentId,
         trainingLocationId,
         programmeSelections[offer.assignmentId] ?? {},
+        easier,
       );
       window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(saved));
       await Promise.all([
@@ -383,7 +410,7 @@ export function TodayPage() {
                     : "Workout details in progress"}
                 </p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Last saved at {formatTime(draft.savedAt)}
+                  Last saved at {formatTime(draft.savedAt)} · on this device
                 </p>
               </div>
             </div>
@@ -430,7 +457,7 @@ export function TodayPage() {
       {programmeOffers.error ? (
         <section className="space-y-3">
           <div>
-            <h2 className="text-base font-semibold">Today&apos;s programme</h2>
+            <h2 className="text-base font-semibold">Your programme</h2>
             <p className="text-xs text-muted-foreground">
               Your next programme session could not be loaded.
             </p>
@@ -440,13 +467,14 @@ export function TodayPage() {
       ) : programmeOffers.data?.length ? (
         <section className="space-y-3">
           <div>
-            <h2 className="text-base font-semibold">Today&apos;s programme</h2>
+            <h2 className="text-base font-semibold">Your programme</h2>
             <p className="text-xs text-muted-foreground">
-              Your next session. Progress advances only after you complete the linked workout.
+              Your next session stays available. Suggested dates are guidance, so train when ready.
             </p>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             {programmeOffers.data.map((offer) => {
+              const daysOverdue = daysSinceSuggestedSession(offer.scheduledDate, today);
               const availableLocations = availableProgrammeLocations(
                 offer,
                 library.data?.exercises ?? [],
@@ -473,7 +501,7 @@ export function TodayPage() {
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-semibold">{offer.programmeName}</p>
-                          <Badge variant="outline">Due</Badge>
+                          <Badge variant="outline">Next</Badge>
                           <Badge variant="secondary">
                             {offer.workoutNumber}/{offer.totalWorkouts}
                           </Badge>
@@ -487,6 +515,23 @@ export function TodayPage() {
                       </div>
                       <Layers3 className="h-5 w-5 shrink-0 text-fuchsia-300" />
                     </div>
+
+                    {activeProgramme?.id === offer.assignmentId ? (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {activeProgramme.currentWorkoutIndex - skippedProgrammeSessions} completed
+                        {skippedProgrammeSessions ? ` · ${skippedProgrammeSessions} skipped` : ""}
+                        {` · Session ${offer.workoutNumber} of ${offer.totalWorkouts}`}
+                      </p>
+                    ) : null}
+                    {daysOverdue >= 7 ? (
+                      <div className="mt-3 rounded-lg border border-amber-400/25 bg-amber-400/[0.06] p-3 text-xs">
+                        <p className="font-medium">Picking up after a break?</p>
+                        <p className="mt-1 text-muted-foreground">
+                          Continue here, start an easier version, or choose a later session. Your
+                          completed workouts stay saved.
+                        </p>
+                      </div>
+                    ) : null}
 
                     <div className="mt-4 divide-y divide-border rounded-lg border border-border bg-background/30">
                       {offer.movements.map((movement) => (
@@ -610,20 +655,40 @@ export function TodayPage() {
                         </Link>
                       </Button>
                     ) : (
-                      <Button
-                        className="mt-3 w-full"
-                        onClick={() =>
-                          selectedLocation && startProgramme(offer, selectedLocation.id)
-                        }
-                        disabled={!selectedLocation || Boolean(startingProgrammeId)}
-                      >
-                        {startingProgrammeId === offer.assignmentId ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Play className="mr-2 h-4 w-4" />
-                        )}
-                        Start this session
-                      </Button>
+                      <div className="mt-3 space-y-2">
+                        <Button
+                          className="w-full"
+                          onClick={() =>
+                            selectedLocation && startProgramme(offer, selectedLocation.id)
+                          }
+                          disabled={!selectedLocation || Boolean(startingProgrammeId)}
+                        >
+                          {startingProgrammeId === offer.assignmentId ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Play className="mr-2 h-4 w-4" />
+                          )}
+                          Continue with this session
+                        </Button>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() =>
+                              selectedLocation && startProgramme(offer, selectedLocation.id, true)
+                            }
+                            disabled={!selectedLocation || Boolean(startingProgrammeId)}
+                          >
+                            Ease back in
+                          </Button>
+                          <Button asChild variant="ghost">
+                            <Link to="/plan">Skip ahead</Link>
+                          </Button>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Ease back in suggests one fewer set where possible and lighter loads. Edit
+                          every target in the log.
+                        </p>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -633,9 +698,31 @@ export function TodayPage() {
         </section>
       ) : null}
 
+      {linkedProgrammePlans.length && !programmeOffers.data?.length ? (
+        <section className="space-y-3">
+          <h2 className="text-base font-semibold">Your programme workout is ready</h2>
+          {linkedProgrammePlans.map((plan) => (
+            <Card key={plan.suggestedWorkoutId} className="border-fuchsia-400/30 p-4">
+              <p className="font-semibold">{plan.title}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {plan.movements.length} movements ·{" "}
+                {plan.movements.map((movement) => movement.exercise).join(", ")}
+              </p>
+              <Button
+                className="mt-3 w-full"
+                onClick={() => startPlan(plan)}
+                disabled={Boolean(startingPlanId)}
+              >
+                {draft ? "Resume draft first" : "Open programme workout"}
+              </Button>
+            </Card>
+          ))}
+        </section>
+      ) : null}
+
       <section className="space-y-3">
         <div>
-          <h2 className="text-base font-semibold">Daily practice</h2>
+          <h2 className="text-base font-semibold">Daily practice reminder</h2>
           <p className="text-xs text-muted-foreground">
             One small movement selected from your rotation for today.
           </p>
@@ -731,208 +818,225 @@ export function TodayPage() {
         )}
       </section>
 
-      <section className="space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-base font-semibold">Next workout</h2>
-            <p className="text-xs text-muted-foreground">
-              Saved plans appear first; otherwise recent history provides a starting point.
-            </p>
-          </div>
-          {!plans.data?.length ? (
-            <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-secondary/30 p-1">
-              {(["home", "gym"] as PlannerLocation[]).map((location) => (
-                <button
-                  key={location}
-                  type="button"
-                  onClick={() => setRecommendationLocation(location)}
-                  className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium capitalize transition ${
-                    recommendationLocation === location
-                      ? "bg-card text-foreground shadow"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {location === "home" ? (
-                    <Home className="h-3.5 w-3.5" />
-                  ) : (
-                    <Building2 className="h-3.5 w-3.5" />
-                  )}
-                  {location}
-                </button>
-              ))}
+      <details
+        key={activeProgramme ? "programme" : "no-programme"}
+        open={!activeProgramme || otherWaysOpen}
+        onToggle={(event) => {
+          if (activeProgramme) setOtherWaysOpen(event.currentTarget.open);
+        }}
+        className="rounded-xl border border-border bg-card/30 p-4"
+      >
+        <summary className="cursor-pointer text-sm font-semibold">
+          {activeProgramme ? "Other ways to train" : "Choose a workout"}
+        </summary>
+        <div className="mt-4 space-y-5">
+          <section className="space-y-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-base font-semibold">Next workout</h2>
+                <p className="text-xs text-muted-foreground">
+                  Saved plans appear first; otherwise recent history provides a starting point.
+                </p>
+              </div>
+              {!extraPlans.length ? (
+                <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-secondary/30 p-1">
+                  {(["home", "gym"] as PlannerLocation[]).map((location) => (
+                    <button
+                      key={location}
+                      type="button"
+                      onClick={() => setRecommendationLocation(location)}
+                      className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium capitalize transition ${
+                        recommendationLocation === location
+                          ? "bg-card text-foreground shadow"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {location === "home" ? (
+                        <Home className="h-3.5 w-3.5" />
+                      ) : (
+                        <Building2 className="h-3.5 w-3.5" />
+                      )}
+                      {location}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </div>
-        {plans.isLoading || recent.isLoading || library.isLoading ? (
-          <LoadingRow label="Loading saved workouts…" />
-        ) : plans.error || recent.error || library.error ? (
-          <ErrorCard label="The next workout could not be loaded." />
-        ) : plans.data?.length ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            {plans.data.map((plan) => (
-              <Card key={plan.suggestedWorkoutId} className="border-cyan-400/25">
-                <CardContent className="p-4">
+            {plans.isLoading || recent.isLoading || library.isLoading ? (
+              <LoadingRow label="Loading saved workouts…" />
+            ) : plans.error || recent.error || library.error ? (
+              <ErrorCard label="The next workout could not be loaded." />
+            ) : extraPlans.length ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                {extraPlans.map((plan) => (
+                  <Card key={plan.suggestedWorkoutId} className="border-cyan-400/25">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold">{plan.title}</p>
+                            {plan.programAssignmentId ? (
+                              <Badge variant="secondary">Programme</Badge>
+                            ) : null}
+                            <Badge variant="outline" className="capitalize">
+                              <MapPin className="mr-1 h-3 w-3" /> {plan.locationKind}
+                            </Badge>
+                            <WorkoutLifecycleBadge
+                              state={workoutPlanLifecycleState(
+                                plan.status,
+                                plan.suggestedWorkoutId,
+                                draft?.loadedSuggestionId,
+                              )}
+                            />
+                          </div>
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {plan.movements.length} movements ·{" "}
+                            {plan.movements.map((movement) => movement.exercise).join(", ")}
+                          </p>
+                        </div>
+                        <Dumbbell className="h-5 w-5 shrink-0 text-cyan-300" />
+                      </div>
+                      <Button
+                        className="mt-4 w-full"
+                        onClick={() => startPlan(plan)}
+                        disabled={Boolean(startingPlanId)}
+                      >
+                        {startingPlanId === plan.suggestedWorkoutId ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Play className="mr-2 h-4 w-4" />
+                        )}
+                        {draft ? "Resume draft first" : "Start workout"}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : recommendation ? (
+              <Card className="border-violet-400/30 bg-violet-400/[0.05]">
+                <CardContent className="p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold">{plan.title}</p>
-                        {plan.programAssignmentId ? (
-                          <Badge variant="secondary">Programme</Badge>
-                        ) : null}
-                        <Badge variant="outline" className="capitalize">
-                          <MapPin className="mr-1 h-3 w-3" /> {plan.locationKind}
-                        </Badge>
-                        <WorkoutLifecycleBadge
-                          state={workoutPlanLifecycleState(
-                            plan.status,
-                            plan.suggestedWorkoutId,
-                            draft?.loadedSuggestionId,
-                          )}
-                        />
+                        <p className="font-semibold">Suggested {recommendation.title}</p>
+                        <Badge variant="outline">Normal readiness</Badge>
                       </div>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {plan.movements.length} movements ·{" "}
-                        {plan.movements.map((movement) => movement.exercise).join(", ")}
+                      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                        {recommendation.basis}
                       </p>
                     </div>
-                    <Dumbbell className="h-5 w-5 shrink-0 text-cyan-300" />
+                    <Sparkles className="h-5 w-5 shrink-0 text-violet-300" />
                   </div>
-                  <Button
-                    className="mt-4 w-full"
-                    onClick={() => startPlan(plan)}
-                    disabled={Boolean(startingPlanId)}
-                  >
-                    {startingPlanId === plan.suggestedWorkoutId ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Play className="mr-2 h-4 w-4" />
-                    )}
-                    {draft ? "Resume draft first" : "Start workout"}
+
+                  <div className="mt-4 divide-y divide-border rounded-lg border border-border bg-background/30">
+                    {recommendation.movements.slice(0, 2).map((movement) => (
+                      <div key={movement.exercise} className="p-3">
+                        <div className="flex flex-wrap items-baseline justify-between gap-1">
+                          <p className="text-sm font-medium">{movement.exercise}</p>
+                          <p className="text-[11px] text-foreground/75">
+                            {targetSummary(movement)}
+                          </p>
+                        </div>
+                        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                          {movement.reason}
+                        </p>
+                      </div>
+                    ))}
+                    {recommendation.movements.length > 2 ? (
+                      <p className="p-3 text-xs text-muted-foreground">
+                        +{recommendation.movements.length - 2} more movements in Plan
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
+                    <Button onClick={startRecommendedWorkout} disabled={startingRecommendation}>
+                      {startingRecommendation ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Play className="mr-2 h-4 w-4" />
+                      )}
+                      {draft ? "Resume draft first" : "Start recommendation"}
+                    </Button>
+                    <Button variant="outline" onClick={adjustRecommendation}>
+                      Adjust in Plan
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-muted-foreground">No saved next workout yet.</p>
+                  <Button asChild variant="outline" size="sm">
+                    <Link to="/plan">Plan one</Link>
                   </Button>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        ) : recommendation ? (
-          <Card className="border-violet-400/30 bg-violet-400/[0.05]">
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-semibold">Suggested {recommendation.title}</p>
-                    <Badge variant="outline">Normal readiness</Badge>
-                  </div>
-                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                    {recommendation.basis}
-                  </p>
-                </div>
-                <Sparkles className="h-5 w-5 shrink-0 text-violet-300" />
-              </div>
+            )}
+          </section>
 
-              <div className="mt-4 divide-y divide-border rounded-lg border border-border bg-background/30">
-                {recommendation.movements.slice(0, 2).map((movement) => (
-                  <div key={movement.exercise} className="p-3">
-                    <div className="flex flex-wrap items-baseline justify-between gap-1">
-                      <p className="text-sm font-medium">{movement.exercise}</p>
-                      <p className="text-[11px] text-foreground/75">{targetSummary(movement)}</p>
-                    </div>
-                    <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                      {movement.reason}
-                    </p>
-                  </div>
+          <section className="space-y-3">
+            <div>
+              <h2 className="text-base font-semibold">Repeat a recent workout</h2>
+              <p className="text-xs text-muted-foreground">The latest Home and Gym sessions.</p>
+            </div>
+            {recent.isLoading ? (
+              <LoadingRow label="Loading recent workouts…" />
+            ) : recent.error ? (
+              <ErrorCard label="Recent workouts could not be loaded." />
+            ) : recentSessions.length ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                {recentSessions.map((session) => (
+                  <Card key={session.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <History className="mt-0.5 h-5 w-5 shrink-0 text-rose-300" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold">{session.title}</p>
+                            <Badge variant="outline" className="capitalize">
+                              {session.locationKind}
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {formatUKDate(session.date)} · {session.movements.join(", ")}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        className="mt-4 w-full"
+                        onClick={() => repeatSession(session)}
+                      >
+                        {draft ? "Resume draft first" : "Repeat this workout"}
+                      </Button>
+                    </CardContent>
+                  </Card>
                 ))}
-                {recommendation.movements.length > 2 ? (
-                  <p className="p-3 text-xs text-muted-foreground">
-                    +{recommendation.movements.length - 2} more movements in Plan
-                  </p>
-                ) : null}
               </div>
-
-              <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
-                <Button onClick={startRecommendedWorkout} disabled={startingRecommendation}>
-                  {startingRecommendation ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Play className="mr-2 h-4 w-4" />
-                  )}
-                  {draft ? "Resume draft first" : "Start recommendation"}
-                </Button>
-                <Button variant="outline" onClick={adjustRecommendation}>
-                  Adjust in Plan
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted-foreground">No saved next workout yet.</p>
-              <Button asChild variant="outline" size="sm">
-                <Link to="/plan">Plan one</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-      </section>
-
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-base font-semibold">Repeat a recent workout</h2>
-          <p className="text-xs text-muted-foreground">The latest Home and Gym sessions.</p>
-        </div>
-        {recent.isLoading ? (
-          <LoadingRow label="Loading recent workouts…" />
-        ) : recent.error ? (
-          <ErrorCard label="Recent workouts could not be loaded." />
-        ) : recentSessions.length ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            {recentSessions.map((session) => (
-              <Card key={session.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <History className="mt-0.5 h-5 w-5 shrink-0 text-rose-300" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold">{session.title}</p>
-                        <Badge variant="outline" className="capitalize">
-                          {session.locationKind}
-                        </Badge>
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {formatUKDate(session.date)} · {session.movements.join(", ")}
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    className="mt-4 w-full"
-                    onClick={() => repeatSession(session)}
-                  >
-                    {draft ? "Resume draft first" : "Repeat this workout"}
-                  </Button>
+            ) : (
+              <Card>
+                <CardContent className="p-4 text-sm text-muted-foreground">
+                  Your recent Home and Gym workouts will appear here.
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        ) : (
-          <Card>
-            <CardContent className="p-4 text-sm text-muted-foreground">
-              Your recent Home and Gym workouts will appear here.
-            </CardContent>
-          </Card>
-        )}
-      </section>
+            )}
+          </section>
 
-      <div className="flex flex-col gap-2 border-t border-border pt-5 sm:flex-row">
-        <Button asChild variant="outline" className="sm:flex-1">
-          <Link to="/log">
-            <Play className="mr-2 h-4 w-4" /> {draft ? "Open workout log" : "Start empty workout"}
-          </Link>
-        </Button>
-        <Button asChild variant="ghost" className="sm:flex-1">
-          <Link to="/progress">Review progress</Link>
-        </Button>
-      </div>
+          <div className="flex flex-col gap-2 border-t border-border pt-5 sm:flex-row">
+            <Button asChild variant="outline" className="sm:flex-1">
+              <Link to="/log">
+                <Play className="mr-2 h-4 w-4" />{" "}
+                {draft ? "Open workout log" : "Start empty workout"}
+              </Link>
+            </Button>
+            <Button asChild variant="ghost" className="sm:flex-1">
+              <Link to="/progress">Review progress</Link>
+            </Button>
+          </div>
+        </div>
+      </details>
 
       <AlertDialog open={discardDraftOpen} onOpenChange={setDiscardDraftOpen}>
         <AlertDialogContent>

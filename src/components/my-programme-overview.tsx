@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Circle, RotateCcw, Square, ArrowRight } from "lucide-react";
+import { useState } from "react";
+import { Check, Circle, RotateCcw, Square, ArrowRight, SkipForward } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -23,16 +24,34 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatUKDate } from "@/lib/date";
 import { buildProgrammeWeekOverview } from "@/lib/programme-overview";
 import {
   changeProgrammeRunClient,
+  chooseNextProgrammeSessionClient,
   getMyProgrammeOverviewClient,
 } from "@/lib/supabase-programmes.browser";
 
 export function MyProgrammeOverview() {
   const queryClient = useQueryClient();
+  const [skipOpen, setSkipOpen] = useState(false);
+  const [targetWorkoutId, setTargetWorkoutId] = useState("");
   const overview = useQuery({
     queryKey: ["my-programme-overview"],
     queryFn: getMyProgrammeOverviewClient,
@@ -51,9 +70,30 @@ export function MyProgrammeOverview() {
           "programme-workout-offers",
           "next-suggested-workouts",
           "dashboard",
+          "weekly-review",
         ].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
       );
       toast.success(variables.action === "restart" ? "Programme started again" : "Programme ended");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const skipAhead = useMutation({
+    mutationFn: ({ assignmentId, workoutId }: { assignmentId: string; workoutId: string }) =>
+      chooseNextProgrammeSessionClient(assignmentId, workoutId),
+    onSuccess: async (count) => {
+      setSkipOpen(false);
+      setTargetWorkoutId("");
+      await Promise.all(
+        [
+          "my-programme-overview",
+          "programme-assignments",
+          "programme-schedule",
+          "programme-workout-offers",
+          "next-suggested-workouts",
+          "weekly-review",
+        ].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
+      );
+      toast.success(`${count} programme session${count === 1 ? "" : "s"} skipped`);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -75,10 +115,30 @@ export function MyProgrammeOverview() {
   const previous = assignments.filter((assignment) => assignment.id !== active?.id);
   const templateById = new Map(templates.map((item) => [item.id, item]));
   const total = template?.workouts.length ?? 0;
-  const completed = Math.min(active?.currentWorkoutIndex ?? 0, total);
-  const next = template?.workouts[completed];
+  const currentIndex = Math.min(active?.currentWorkoutIndex ?? 0, total);
+  const skippedWorkoutIds = new Set(overview.data.skippedWorkoutIds);
+  const skipped =
+    template?.workouts.filter(
+      (workout) => workout.sequenceIndex < currentIndex && skippedWorkoutIds.has(workout.id),
+    ).length ?? 0;
+  const completed = currentIndex - skipped;
+  const next = template?.workouts[currentIndex];
+  const laterWorkouts =
+    template?.workouts.filter((workout) => workout.sequenceIndex > currentIndex) ?? [];
+  const target = laterWorkouts.find((workout) => workout.id === targetWorkoutId);
+  const sessionsToSkip = target
+    ? (template?.workouts.filter(
+        (workout) =>
+          workout.sequenceIndex >= currentIndex && workout.sequenceIndex < target.sequenceIndex,
+      ) ?? [])
+    : [];
   const weeks = template
-    ? buildProgrammeWeekOverview(template.workouts, completed, template.sessionsPerWeek)
+    ? buildProgrammeWeekOverview(
+        template.workouts,
+        currentIndex,
+        template.sessionsPerWeek,
+        skippedWorkoutIds,
+      )
     : [];
   const currentWeek = weeks.find((week) => week.status === "current");
 
@@ -127,13 +187,17 @@ export function MyProgrammeOverview() {
                 </p>
               </div>
               <p className="text-sm font-medium">
-                {completed} of {total} sessions done
+                {completed} completed{skipped ? ` · ${skipped} skipped` : ""} · {total} total
               </p>
             </div>
             <Progress
-              value={total ? (completed / total) * 100 : 0}
-              aria-label="Programme progress"
+              value={total ? (currentIndex / total) * 100 : 0}
+              aria-label="Programme position"
             />
+            <p className="text-xs text-muted-foreground">
+              Position {currentIndex} of {total} sessions · completed and skipped sessions both move
+              you forward.
+            </p>
             {next ? (
               <div className="rounded-lg border border-primary/25 bg-primary/5 p-3">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -144,7 +208,7 @@ export function MyProgrammeOverview() {
                   {next.name}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Session {completed + 1} of {total}. Start it from Today when you are ready.
+                  Session {currentIndex + 1} of {total}. Start it from Today when you are ready.
                 </p>
               </div>
             ) : null}
@@ -163,7 +227,9 @@ export function MyProgrammeOverview() {
                   <AccordionItem key={week.week} value={`week-${week.week}`}>
                     <AccordionTrigger className="hover:no-underline">
                       <span className="flex flex-1 flex-wrap items-center gap-2 pr-2">
-                        {week.status === "done" ? (
+                        {week.status === "done" && week.completed === 0 ? (
+                          <SkipForward className="h-4 w-4 text-muted-foreground" />
+                        ) : week.status === "done" ? (
                           <Check className="h-4 w-4 text-emerald-400" />
                         ) : week.status === "current" ? (
                           <Circle className="h-4 w-4 text-primary" />
@@ -172,7 +238,8 @@ export function MyProgrammeOverview() {
                         )}
                         <span>Week {week.week}</span>
                         <span className="text-xs text-muted-foreground">
-                          {week.completed}/{week.total} done
+                          {week.completed}/{week.total} completed
+                          {week.skipped ? ` · ${week.skipped} skipped` : ""}
                         </span>
                         {week.status === "current" ? (
                           <Badge variant="secondary">Current</Badge>
@@ -182,20 +249,28 @@ export function MyProgrammeOverview() {
                     <AccordionContent>
                       <ol className="space-y-2 pl-1">
                         {week.workouts.map((workout) => {
-                          const done = workout.sequenceIndex < completed;
-                          const isNext = workout.sequenceIndex === completed;
+                          const done =
+                            workout.sequenceIndex < currentIndex &&
+                            !skippedWorkoutIds.has(workout.id);
+                          const wasSkipped = skippedWorkoutIds.has(workout.id);
+                          const isNext = workout.sequenceIndex === currentIndex;
                           return (
                             <li key={workout.id} className="flex items-center gap-2 text-sm">
                               {done ? (
                                 <Check className="h-4 w-4 text-emerald-400" />
+                              ) : wasSkipped ? (
+                                <SkipForward className="h-4 w-4 text-muted-foreground" />
                               ) : isNext ? (
                                 <Circle className="h-4 w-4 text-primary" />
                               ) : (
                                 <Circle className="h-4 w-4 text-muted-foreground/50" />
                               )}
-                              <span className={done ? "text-muted-foreground" : ""}>
+                              <span className={done || wasSkipped ? "text-muted-foreground" : ""}>
                                 {workout.name}
                               </span>
+                              {wasSkipped ? (
+                                <span className="text-xs text-muted-foreground">Skipped</span>
+                              ) : null}
                               {isNext ? <span className="text-xs text-primary">Next</span> : null}
                             </li>
                           );
@@ -208,6 +283,18 @@ export function MyProgrammeOverview() {
             </details>
 
             <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+              {laterWorkouts.length ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setTargetWorkoutId(laterWorkouts[0].id);
+                    setSkipOpen(true);
+                  }}
+                >
+                  <SkipForward className="mr-1.5 h-4 w-4" /> Skip ahead
+                </Button>
+              ) : null}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button size="sm" variant="outline" disabled={changeRun.isPending}>
@@ -261,6 +348,61 @@ export function MyProgrammeOverview() {
         </Card>
       )}
 
+      <Dialog open={skipOpen} onOpenChange={(open) => !skipAhead.isPending && setSkipOpen(open)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Choose your next programme session</DialogTitle>
+            <DialogDescription>
+              Choose the session you want to do next. Earlier unfinished sessions will be recorded
+              as skipped; completed workouts stay in your history.
+            </DialogDescription>
+          </DialogHeader>
+          <Select value={targetWorkoutId} onValueChange={setTargetWorkoutId}>
+            <SelectTrigger aria-label="Next programme session">
+              <SelectValue placeholder="Choose a session" />
+            </SelectTrigger>
+            <SelectContent className="max-h-72">
+              {laterWorkouts.map((workout) => (
+                <SelectItem key={workout.id} value={workout.id}>
+                  {workout.weekNumber ? `Week ${workout.weekNumber} · ` : ""}
+                  {workout.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {target ? (
+            <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+              <p className="font-medium">
+                {sessionsToSkip.length} session{sessionsToSkip.length === 1 ? "" : "s"} will be
+                skipped
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                {sessionsToSkip.map((workout) => workout.name).join(" · ")}
+              </p>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setSkipOpen(false)}
+              disabled={skipAhead.isPending}
+            >
+              Keep current session
+            </Button>
+            <Button
+              disabled={!active || !target || skipAhead.isPending}
+              onClick={() => {
+                if (active && target) {
+                  skipAhead.mutate({ assignmentId: active.id, workoutId: target.id });
+                }
+              }}
+            >
+              Skip and continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {previous.length ? (
         <details className="rounded-lg border border-border px-4 py-3">
           <summary className="cursor-pointer text-sm font-medium">
@@ -277,8 +419,8 @@ export function MyProgrammeOverview() {
                   <div>
                     <p className="font-medium">{pastTemplate?.name ?? "Programme"}</p>
                     <p className="text-xs text-muted-foreground">
-                      {assignment.currentWorkoutIndex} of {pastTemplate?.workouts.length ?? "?"}{" "}
-                      sessions done ·{" "}
+                      Position {assignment.currentWorkoutIndex} of{" "}
+                      {pastTemplate?.workouts.length ?? "?"} sessions ·{" "}
                       {assignment.status === "archived" ? "past run" : assignment.status}
                     </p>
                   </div>

@@ -368,7 +368,7 @@ test("Plan removes the recovery card and keeps the mobile adjustment action cont
 
   assert.doesNotMatch(planRoute, /<WeeklyRecoveryCard/);
   assert.match(planRoute, /Build me a session/);
-  assert.match(planRoute, /Programme recovery is\s+handled by/);
+  assert.match(planRoute, /Plan another workout/);
   assert.match(planRoute, /intensity: "hard"/);
   assert.doesNotMatch(planRoute, /<WorkoutLifecyclePanel/);
   assert.match(planRoute, /always adds an editable conditioning finisher/);

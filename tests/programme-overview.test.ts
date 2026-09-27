@@ -35,3 +35,14 @@ test("programme overview handles a new run and missing week labels", () => {
     ],
   );
 });
+
+test("skipped programme sessions never appear as completed", () => {
+  const weeks = buildProgrammeWeekOverview(workouts, 3, 2, new Set(["b", "c"]));
+  assert.deepEqual(
+    weeks.map(({ completed, skipped, status }) => ({ completed, skipped, status })),
+    [
+      { completed: 1, skipped: 1, status: "done" },
+      { completed: 0, skipped: 1, status: "current" },
+    ],
+  );
+});

@@ -257,16 +257,23 @@ function ProgrammeTemplatesPage() {
         </p>
       </header>
 
-      <AssignmentList
-        assignments={assignments.data ?? []}
-        templates={templates.data ?? []}
-        loading={assignments.isLoading}
-        error={assignments.error instanceof Error ? assignments.error : null}
-        changing={statusMutation.isPending}
-        onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
-        onStreamChange={(id, enabled) => streamMutation.mutate({ id, enabled })}
-        onNextCycle={(id) => nextCycleMutation.mutate(id)}
-      />
+      <details className="rounded-xl border border-border bg-card/30 p-4">
+        <summary className="cursor-pointer text-sm font-semibold">
+          Current and past programme details
+        </summary>
+        <div className="mt-4">
+          <AssignmentList
+            assignments={assignments.data ?? []}
+            templates={templates.data ?? []}
+            loading={assignments.isLoading}
+            error={assignments.error instanceof Error ? assignments.error : null}
+            changing={statusMutation.isPending}
+            onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
+            onStreamChange={(id, enabled) => streamMutation.mutate({ id, enabled })}
+            onNextCycle={(id) => nextCycleMutation.mutate(id)}
+          />
+        </div>
+      </details>
 
       {templates.isLoading ? (
         <div className="flex items-center justify-center py-20 text-sm text-muted-foreground">
