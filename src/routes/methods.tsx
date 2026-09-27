@@ -99,9 +99,7 @@ const FAMILIES: Array<{
 ];
 
 type EditorState =
-  | { mode: "closed" }
-  | { mode: "create" }
-  | { mode: "edit"; method: TrainingMethod };
+  { mode: "closed" } | { mode: "create" } | { mode: "edit"; method: TrainingMethod };
 
 const defaultsFor = (family: TrainingMethodFamily): TrainingMethodConfig => {
   if (family === "exercise_group") {
@@ -181,16 +179,15 @@ function configSummary(method: TrainingMethod) {
 
 function MethodsPage() {
   const queryClient = useQueryClient();
-  const [selectedPersonId, setSelectedPersonId] = useState("");
   const [family, setFamily] = useState<"all" | TrainingMethodFamily>("all");
   const [showHidden, setShowHidden] = useState(false);
   const [editor, setEditor] = useState<EditorState>({ mode: "closed" });
   const [pendingDelete, setPendingDelete] = useState<TrainingMethod | null>(null);
   const list = useQuery({
-    queryKey: ["training-methods", selectedPersonId],
-    queryFn: () => listTrainingMethodsClient(selectedPersonId || undefined),
+    queryKey: ["training-methods"],
+    queryFn: () => listTrainingMethodsClient(),
   });
-  const effectivePersonId = list.data?.selectedPersonId ?? selectedPersonId;
+  const effectivePersonId = list.data?.selectedPersonId ?? "";
   const filtered = useMemo(
     () =>
       (list.data?.items ?? []).filter(
@@ -282,23 +279,6 @@ function MethodsPage() {
             </SelectContent>
           </Select>
         </div>
-        {(list.data?.people.length ?? 0) > 1 ? (
-          <div className="flex min-w-[160px] flex-col gap-1">
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Person</Label>
-            <Select value={effectivePersonId} onValueChange={setSelectedPersonId}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {list.data?.people.map((person) => (
-                  <SelectItem key={person.id} value={person.id}>
-                    {person.display_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        ) : null}
         <div className="flex h-10 items-center gap-2 rounded-md border border-border px-3">
           <Switch
             checked={showHidden}

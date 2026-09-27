@@ -56,7 +56,6 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { listLibraryClient } from "@/lib/supabase-library.browser";
-import { listManagedPeopleClient, type PersonRecord } from "@/lib/supabase-people.browser";
 import { getProgrammeMethodSetup, JACKED_DUMBBELL_METHOD } from "@/lib/programme-methods";
 import {
   createNextProgrammeCycleClient,
@@ -177,10 +176,6 @@ function ProgrammeTemplatesPage() {
     queryKey: ["programme-assignments"],
     queryFn: () => listProgrammeAssignmentsClient(),
   });
-  const people = useQuery({
-    queryKey: ["managed-people"],
-    queryFn: listManagedPeopleClient,
-  });
   const [selectedId, setSelectedId] = useState("");
   const [setupTemplate, setSetupTemplate] = useState<ProgrammeTemplate | null>(null);
 
@@ -265,7 +260,6 @@ function ProgrammeTemplatesPage() {
       <AssignmentList
         assignments={assignments.data ?? []}
         templates={templates.data ?? []}
-        people={people.data ?? []}
         loading={assignments.isLoading}
         error={assignments.error instanceof Error ? assignments.error : null}
         changing={statusMutation.isPending}
@@ -477,7 +471,6 @@ function ProgrammeTemplatesPage() {
 function AssignmentList({
   assignments,
   templates,
-  people,
   loading,
   error,
   changing,
@@ -487,7 +480,6 @@ function AssignmentList({
 }: {
   assignments: ProgrammeAssignment[];
   templates: ProgrammeTemplate[];
-  people: PersonRecord[];
   loading: boolean;
   error: Error | null;
   changing: boolean;
@@ -497,7 +489,6 @@ function AssignmentList({
 }) {
   if (loading) return null;
   const templateById = new Map(templates.map((template) => [template.id, template]));
-  const personById = new Map(people.map((person) => [person.id, person]));
 
   return (
     <section className="space-y-3" aria-labelledby="assigned-programmes-heading">
@@ -533,7 +524,6 @@ function AssignmentList({
                       <Badge variant="outline">Cycle {assignment.cycleNumber}</Badge>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {personById.get(assignment.personId)?.display_name ?? "Managed person"} ·
                       Started {assignment.startedOn ?? "not set"} ·{" "}
                       {assignment.status === "complete"
                         ? "Review complete"
@@ -692,7 +682,6 @@ function ProgrammeSetupDialog({
 }) {
   const slots = useMemo(() => programmeSlots(template), [template]);
   const methodSetup = getProgrammeMethodSetup(template.methodType);
-  const [personId, setPersonId] = useState("");
   const [startedOn, setStartedOn] = useState(() => new Date().toISOString().slice(0, 10));
   const [status, setStatus] = useState<"active" | "paused">("active");
   const [notes, setNotes] = useState("");
@@ -704,13 +693,10 @@ function ProgrammeSetupDialog({
   });
   const [defaultsApplied, setDefaultsApplied] = useState(false);
   const library = useQuery({
-    queryKey: ["programme-assignment-library", personId || "current"],
-    queryFn: () => listLibraryClient(personId || undefined),
+    queryKey: ["programme-assignment-library", "current"],
+    queryFn: () => listLibraryClient(),
   });
-
-  useEffect(() => {
-    if (!personId && library.data?.selectedPersonId) setPersonId(library.data.selectedPersonId);
-  }, [library.data?.selectedPersonId, personId]);
+  const personId = library.data?.selectedPersonId ?? "";
 
   const allEnabledExercises = useMemo(
     () => (library.data?.items ?? []).filter((item) => item.active && item.enabled),
@@ -845,35 +831,12 @@ function ProgrammeSetupDialog({
           <DialogTitle>Set up {template.name}</DialogTitle>
           <DialogDescription>
             {isDirectProgramme
-              ? "Choose who is training and when the programme starts. Its named movements load directly into the workout logger."
-              : "Choose who is training and map the first lift. Additional lifts are optional."}
+              ? "Choose when the programme starts. Its named movements load directly into the workout logger."
+              : "Choose a start date and map the first lift. Additional lifts are optional."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-2 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="programme-person">Person</Label>
-            <Select
-              value={personId}
-              onValueChange={(value) => {
-                setPersonId(value);
-                setSlotSetup({});
-                setPoolSetup({ power: [], accessory: [], pull: [] });
-                setDefaultsApplied(false);
-              }}
-            >
-              <SelectTrigger id="programme-person">
-                <SelectValue placeholder="Choose person" />
-              </SelectTrigger>
-              <SelectContent>
-                {(library.data?.people ?? []).map((person) => (
-                  <SelectItem key={person.id} value={person.id}>
-                    {person.display_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           <div className="space-y-2">
             <Label htmlFor="programme-start-date">Start date</Label>
             <Input
@@ -883,7 +846,7 @@ function ProgrammeSetupDialog({
               onChange={(event) => setStartedOn(event.target.value)}
             />
           </div>
-          <div className="space-y-2 sm:col-span-2">
+          <div className="space-y-2">
             <Label htmlFor="programme-status">Initial status</Label>
             <Select value={status} onValueChange={(value: "active" | "paused") => setStatus(value)}>
               <SelectTrigger id="programme-status">

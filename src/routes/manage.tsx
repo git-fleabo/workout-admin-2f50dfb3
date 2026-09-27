@@ -48,6 +48,37 @@ type ManageLink = {
 
 const TRAINING_SETUP: ManageLink[] = [
   {
+    title: "Goals",
+    description: "Create, update and track your active training goals.",
+    to: "/goals",
+    icon: Target,
+    accent: "text-amber-300 bg-amber-400/10 border-amber-400/20",
+  },
+  {
+    title: "Programmes",
+    description: "Browse plans and manage your current programme.",
+    to: "/programmes",
+    icon: Dumbbell,
+    accent: "text-fuchsia-300 bg-fuchsia-400/10 border-fuchsia-400/20",
+  },
+  {
+    title: "Daily Rotation",
+    description: "Choose the small practices that can rotate onto the Today screen.",
+    to: "/rotation",
+    icon: Repeat2,
+    accent: "text-violet-300 bg-violet-400/10 border-violet-400/20",
+  },
+  {
+    title: "Training Locations",
+    description: "Manage training places and the equipment available at each one.",
+    to: "/locations",
+    icon: MapPin,
+    accent: "text-sky-300 bg-sky-400/10 border-sky-400/20",
+  },
+];
+
+const ADVANCED_SETTINGS: ManageLink[] = [
+  {
     title: "Exercise Library",
     description: "Movements, tracking types, availability and training locations.",
     to: "/library",
@@ -61,37 +92,6 @@ const TRAINING_SETUP: ManageLink[] = [
     icon: Layers3,
     accent: "text-indigo-300 bg-indigo-400/10 border-indigo-400/20",
   },
-  {
-    title: "Daily Rotation",
-    description: "Choose the small practices that can rotate onto the Today screen.",
-    to: "/rotation",
-    icon: Repeat2,
-    accent: "text-violet-300 bg-violet-400/10 border-violet-400/20",
-  },
-  {
-    title: "Goals",
-    description: "Create, update and track your active training goals.",
-    to: "/goals",
-    icon: Target,
-    accent: "text-amber-300 bg-amber-400/10 border-amber-400/20",
-  },
-  {
-    title: "Training Locations",
-    description: "Manage training places and the equipment available at each one.",
-    to: "/locations",
-    icon: MapPin,
-    accent: "text-sky-300 bg-sky-400/10 border-sky-400/20",
-  },
-  {
-    title: "Programmes",
-    description: "Browse plans and manage your current programme.",
-    to: "/programmes",
-    icon: Dumbbell,
-    accent: "text-fuchsia-300 bg-fuchsia-400/10 border-fuchsia-400/20",
-  },
-];
-
-const MAINTENANCE: ManageLink[] = [
   {
     title: "Data Quality",
     description: "Review historical ambiguity, provenance and calculation safety.",
@@ -188,12 +188,13 @@ function SettingsPage() {
         </details>
       </section>
 
-      <section className="space-y-3" aria-labelledby="maintenance-heading">
-        <h2 id="maintenance-heading" className="text-lg font-semibold">
-          Maintenance
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {MAINTENANCE.map((item) => {
+      <details className="rounded-xl border border-border bg-card/40 p-4">
+        <summary className="cursor-pointer text-base font-semibold">Advanced settings</summary>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Movement definitions, training methods and data checks used by the planner and logger.
+        </p>
+        <div className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
+          {ADVANCED_SETTINGS.map((item) => {
             const Icon = item.icon;
             return (
               <Link key={item.to} to={item.to} className="group rounded-xl focus:outline-none">
@@ -215,7 +216,7 @@ function SettingsPage() {
             );
           })}
         </div>
-      </section>
+      </details>
       <section className="space-y-3" aria-labelledby="data-export-heading">
         <div>
           <h2 id="data-export-heading" className="text-lg font-semibold">

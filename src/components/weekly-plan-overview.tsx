@@ -13,6 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -133,8 +134,8 @@ export function WeeklyPlanOverview({
             <CalendarRange className="h-4 w-4 text-fuchsia-300" /> Your next 7 days
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Programme dates are fixed. Open a session to preview its full prescription; other
-            training can be adjusted on this device.
+            Programme sessions stay in order. If you miss a date, the next unfinished session moves
+            to today so you can continue without skipping ahead.
           </p>
         </div>
         <Badge variant="outline" className="text-[10px]">
@@ -175,6 +176,7 @@ export function WeeklyPlanOverview({
                       ) : (
                         <Layers3 className="h-3 w-3" />
                       )}
+                      {session.isCatchUp ? "Catch up · " : ""}
                       {session.weekNumber ? `W${session.weekNumber} · ` : ""}
                       {session.sessionNumber
                         ? `Session ${session.sessionNumber}`
@@ -315,6 +317,9 @@ export function WeeklyPlanOverview({
               {selectedProgrammeSession?.status === "upcoming" ? (
                 <Badge variant="outline">Provisional</Badge>
               ) : null}
+              {selectedProgrammeSession?.isCatchUp ? (
+                <Badge variant="secondary">Catch up</Badge>
+              ) : null}
             </div>
             <DialogTitle>
               {selectedProgrammeSession
@@ -329,9 +334,11 @@ export function WeeklyPlanOverview({
           {selectedProgrammeSession ? (
             <div className="space-y-4">
               <div className="rounded-lg border border-fuchsia-400/20 bg-fuchsia-400/[0.05] p-3 text-xs text-muted-foreground">
-                This preview uses your current training maxes and latest programme review. Later
-                sessions are provisional and may adjust after earlier workouts; the scheduled date
-                stays fixed.
+                {selectedProgrammeSession.isCatchUp
+                  ? `This is your next unfinished session. It was originally planned for ${formatUKDateShort(
+                      selectedProgrammeSession.scheduledDate,
+                    )}, and completing it will move the programme forward.`
+                  : "This preview uses your current training maxes and latest programme review. Later sessions are provisional and may adjust after earlier workouts."}
               </div>
 
               {selectedProgrammeSession.movements.length ? (
@@ -394,6 +401,11 @@ export function WeeklyPlanOverview({
           ) : null}
 
           <DialogFooter>
+            {selectedProgrammeSession?.isCatchUp ? (
+              <Button asChild>
+                <Link to="/">Start from Today</Link>
+              </Button>
+            ) : null}
             <Button onClick={() => setSelectedProgrammeSession(null)}>Done</Button>
           </DialogFooter>
         </DialogContent>

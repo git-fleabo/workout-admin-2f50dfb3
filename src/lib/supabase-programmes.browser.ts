@@ -17,6 +17,7 @@ import {
   nextCycleTrainingMax,
   programmeWorkoutIsDue,
   programmeWorkoutScheduledDate,
+  programmeWorkoutWindowDate,
   type AdaptiveDecision,
   type TechniqueRating,
 } from "./adaptive-strength";
@@ -163,6 +164,8 @@ export type ProgrammeScheduleSession = {
   programmeName: string;
   workoutName: string;
   date: string;
+  scheduledDate: string;
+  isCatchUp: boolean;
   weekNumber: number | null;
   sessionNumber: number | null;
   workoutNumber: number;
@@ -427,6 +430,7 @@ export async function getUpcomingProgrammeScheduleClient(
   startDate: string,
   endDate: string,
   assignmentStatuses: ProgrammeAssignmentStatus[] = ["active"],
+  options: { includeOverdueCurrent?: boolean } = {},
 ): Promise<ProgrammeScheduleSession[]> {
   const currentPerson = await getCurrentPerson();
   if (!currentPerson) throw new Error("Connect your training profile first.");
@@ -451,12 +455,19 @@ export async function getUpcomingProgrammeScheduleClient(
     );
 
     for (const workout of template.workouts) {
-      const date = programmeWorkoutScheduledDate(
+      const scheduledDate = programmeWorkoutScheduledDate(
         assignment.startedOn,
         workout.weekNumber,
         workout.dayNumber,
       );
-      if (!date || date < startDate || date > endDate) continue;
+      const windowDate = programmeWorkoutWindowDate({
+        scheduledDate,
+        startDate,
+        endDate,
+        isCurrent: workout.sequenceIndex === assignment.currentWorkoutIndex,
+        includeOverdueCurrent: options.includeOverdueCurrent,
+      });
+      if (!windowDate || !scheduledDate) continue;
       const movementNames = workout.entries.flatMap((entry) => {
         if (entry.selectionRole) return [];
         const mapping = entry.slotKey ? mappingBySlot.get(entry.slotKey) : null;
@@ -508,7 +519,9 @@ export async function getUpcomingProgrammeScheduleClient(
         programWorkoutId: workout.id,
         programmeName: template.name,
         workoutName: workout.name,
-        date,
+        date: windowDate.date,
+        scheduledDate,
+        isCatchUp: windowDate.isCatchUp,
         weekNumber: workout.weekNumber,
         sessionNumber: workout.sessionNumber,
         workoutNumber: workout.sequenceIndex + 1,
