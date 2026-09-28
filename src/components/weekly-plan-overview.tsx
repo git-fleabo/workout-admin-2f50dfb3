@@ -116,6 +116,7 @@ export function WeeklyPlanOverview({
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [selectedProgrammeSession, setSelectedProgrammeSession] =
     useState<ProgrammeScheduleSession | null>(null);
+  const currentProgrammeSession = programmeSessions.find((session) => session.status === "current");
   const editingDay = plan.days.find((day) => day.date === editingDate);
   const editingItems = editingDay ? (adjustments[editingDay.date] ?? editingDay.inferredItems) : [];
   const toggleEditingItem = (item: WeeklyPlanItemKind) => {
@@ -131,11 +132,12 @@ export function WeeklyPlanOverview({
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 id="weekly-plan-heading" className="flex items-center gap-2 text-base font-semibold">
-            <CalendarRange className="h-4 w-4 text-fuchsia-300" /> Your next 7 days
+            <CalendarRange className="h-4 w-4 text-fuchsia-300" /> Your week at a glance
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Dates are suggestions. Your next unfinished programme session stays available until you
-            complete it or choose to skip ahead.
+            {currentProgrammeSession
+              ? "Your next programme session stays available until you complete it or choose to skip ahead. Dates below are suggestions."
+              : "Use suggested dates to plan other training around your week."}
           </p>
         </div>
         <Badge variant="outline" className="text-[10px]">
@@ -143,110 +145,136 @@ export function WeeklyPlanOverview({
         </Badge>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-7">
-        {plan.days.map((day, index) => {
-          const plannedItems = adjustments[day.date] ?? day.inferredItems;
-          const scheduledProgrammeSessions = programmeSessions.filter(
-            (session) => session.date === day.date,
-          );
-          const completed = day.completedItems.length > 0;
-          return (
-            <div
-              key={day.date}
-              className={cn(
-                "min-h-0 w-full rounded-xl border p-3 sm:min-h-[142px]",
-                index === 0 ? "border-fuchsia-400/30 bg-fuchsia-400/[0.06]" : "border-border",
-              )}
-            >
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {index === 0 ? "Today" : dayName(day.date)}
-              </p>
-              <p className="mt-0.5 text-sm font-medium">{formatUKDateShort(day.date)}</p>
-              <div className="mt-3 flex flex-col items-start gap-1.5">
-                {scheduledProgrammeSessions.map((session) => (
-                  <button
-                    type="button"
-                    key={`${session.assignmentId}:${session.programWorkoutId}`}
-                    onClick={() => setSelectedProgrammeSession(session)}
-                    className="w-full rounded-lg border border-fuchsia-400/25 bg-fuchsia-400/[0.08] p-2 text-left transition hover:border-fuchsia-300/50 hover:bg-fuchsia-400/[0.13] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300"
-                  >
-                    <div className="flex items-center gap-1 text-[10px] font-medium text-fuchsia-200">
-                      {session.status === "completed" ? (
-                        <CheckCircle2 className="h-3 w-3 text-emerald-300" />
-                      ) : (
-                        <Layers3 className="h-3 w-3" />
-                      )}
-                      {session.isCatchUp ? "Catch up · " : ""}
-                      {session.weekNumber ? `W${session.weekNumber} · ` : ""}
-                      {session.sessionNumber
-                        ? `Session ${session.sessionNumber}`
-                        : `Workout ${session.workoutNumber}`}
-                    </div>
-                    <p className="mt-1 line-clamp-3 text-[10px] leading-snug text-foreground/75">
-                      {session.movementNames.join(" · ")}
-                    </p>
-                    <p className="mt-1.5 text-[10px] font-medium text-fuchsia-200">
-                      View workout details
-                    </p>
-                  </button>
-                ))}
-                {day.completedItems.map((item) => (
-                  <div key={`done-${item}`} className="flex items-center gap-1">
-                    <CheckCircle2 className="h-3 w-3 text-emerald-300" />
-                    <ItemBadge item={item} />
-                  </div>
-                ))}
-                {plannedItems.map((item) => (
-                  <ItemBadge key={item} item={item} />
-                ))}
-                {!completed &&
-                plannedItems.length === 0 &&
-                scheduledProgrammeSessions.length === 0 ? (
-                  <span className="text-[10px] text-muted-foreground/70">Open</span>
-                ) : null}
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mt-2 h-auto min-h-7 w-full min-w-0 justify-start whitespace-normal px-1.5 py-1 text-left text-[10px] leading-tight text-muted-foreground"
-                onClick={() => setEditingDate(day.date)}
-              >
-                <Pencil className="mr-1 h-3 w-3 shrink-0" />
-                {scheduledProgrammeSessions.length ? (
-                  <>
-                    <span className="sm:hidden">Adjust extras</span>
-                    <span className="hidden sm:inline">Adjust other training</span>
-                  </>
-                ) : (
-                  "Adjust day"
-                )}
-              </Button>
-            </div>
-          );
-        })}
-      </div>
+      {currentProgrammeSession ? (
+        <button
+          type="button"
+          onClick={() => setSelectedProgrammeSession(currentProgrammeSession)}
+          className="w-full rounded-xl border border-fuchsia-400/25 bg-fuchsia-400/[0.06] p-4 text-left transition hover:border-fuchsia-300/50 hover:bg-fuchsia-400/[0.1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300"
+        >
+          <span className="text-xs font-medium text-fuchsia-200">Next programme session</span>
+          <span className="mt-1 block text-sm font-semibold">
+            {currentProgrammeSession.programmeName} · {currentProgrammeSession.workoutName}
+          </span>
+          <span className="mt-1 block text-xs text-muted-foreground">
+            Suggested {formatUKDateShort(currentProgrammeSession.scheduledDate)} · Train when ready
+          </span>
+          <span className="mt-2 block text-xs font-medium text-fuchsia-200">
+            View session details
+          </span>
+        </button>
+      ) : null}
 
-      <Card className="border-sky-400/15 bg-sky-400/[0.03]">
-        <CardContent className="flex flex-wrap items-center gap-2 p-3 text-xs">
-          <span className="font-medium">Other load learned</span>
-          {plan.loadPatterns.length > 0 ? (
-            plan.loadPatterns.map((pattern) => (
-              <div key={pattern.kind} className="flex items-center gap-1.5">
-                <ItemBadge item={pattern.kind} />
-                <span className="text-[10px] text-muted-foreground">
-                  {pattern.frequency > 0
-                    ? `${pattern.frequency}/week · ${pattern.confidence}`
-                    : `${pattern.sourceDays} recent · not scheduled`}
+      <details className="rounded-xl border border-border bg-card/30 p-4">
+        <summary className="cursor-pointer text-sm font-medium">
+          Show suggested dates and other training
+        </summary>
+        <div className="mt-4 space-y-3">
+          <div className="grid gap-2 sm:grid-cols-7">
+            {plan.days.map((day, index) => {
+              const plannedItems = adjustments[day.date] ?? day.inferredItems;
+              const scheduledProgrammeSessions = programmeSessions.filter(
+                (session) => session.date === day.date,
+              );
+              const completed = day.completedItems.length > 0;
+              return (
+                <div
+                  key={day.date}
+                  className={cn(
+                    "min-h-0 w-full rounded-xl border p-3 sm:min-h-[142px]",
+                    index === 0 ? "border-fuchsia-400/30 bg-fuchsia-400/[0.06]" : "border-border",
+                  )}
+                >
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {index === 0 ? "Today" : dayName(day.date)}
+                  </p>
+                  <p className="mt-0.5 text-sm font-medium">{formatUKDateShort(day.date)}</p>
+                  <div className="mt-3 flex flex-col items-start gap-1.5">
+                    {scheduledProgrammeSessions.map((session) => (
+                      <button
+                        type="button"
+                        key={`${session.assignmentId}:${session.programWorkoutId}`}
+                        onClick={() => setSelectedProgrammeSession(session)}
+                        className="w-full rounded-lg border border-fuchsia-400/25 bg-fuchsia-400/[0.08] p-2 text-left transition hover:border-fuchsia-300/50 hover:bg-fuchsia-400/[0.13] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300"
+                      >
+                        <div className="flex items-center gap-1 text-[10px] font-medium text-fuchsia-200">
+                          {session.status === "completed" ? (
+                            <CheckCircle2 className="h-3 w-3 text-emerald-300" />
+                          ) : (
+                            <Layers3 className="h-3 w-3" />
+                          )}
+                          {session.isCatchUp ? "Catch up · " : ""}
+                          {session.weekNumber ? `W${session.weekNumber} · ` : ""}
+                          {session.sessionNumber
+                            ? `Session ${session.sessionNumber}`
+                            : `Workout ${session.workoutNumber}`}
+                        </div>
+                        <p className="mt-1 line-clamp-3 text-[10px] leading-snug text-foreground/75">
+                          {session.movementNames.join(" · ")}
+                        </p>
+                        <p className="mt-1.5 text-[10px] font-medium text-fuchsia-200">
+                          View workout details
+                        </p>
+                      </button>
+                    ))}
+                    {day.completedItems.map((item) => (
+                      <div key={`done-${item}`} className="flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3 text-emerald-300" />
+                        <ItemBadge item={item} />
+                      </div>
+                    ))}
+                    {plannedItems.map((item) => (
+                      <ItemBadge key={item} item={item} />
+                    ))}
+                    {!completed &&
+                    plannedItems.length === 0 &&
+                    scheduledProgrammeSessions.length === 0 ? (
+                      <span className="text-[10px] text-muted-foreground/70">Open</span>
+                    ) : null}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 h-auto min-h-7 w-full min-w-0 justify-start whitespace-normal px-1.5 py-1 text-left text-[10px] leading-tight text-muted-foreground"
+                    onClick={() => setEditingDate(day.date)}
+                  >
+                    <Pencil className="mr-1 h-3 w-3 shrink-0" />
+                    {scheduledProgrammeSessions.length ? (
+                      <>
+                        <span className="sm:hidden">Adjust extras</span>
+                        <span className="hidden sm:inline">Adjust other training</span>
+                      </>
+                    ) : (
+                      "Adjust day"
+                    )}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+
+          <Card className="border-sky-400/15 bg-sky-400/[0.03]">
+            <CardContent className="flex flex-wrap items-center gap-2 p-3 text-xs">
+              <span className="font-medium">Other load learned</span>
+              {plan.loadPatterns.length > 0 ? (
+                plan.loadPatterns.map((pattern) => (
+                  <div key={pattern.kind} className="flex items-center gap-1.5">
+                    <ItemBadge item={pattern.kind} />
+                    <span className="text-[10px] text-muted-foreground">
+                      {pattern.frequency > 0
+                        ? `${pattern.frequency}/week · ${pattern.confidence}`
+                        : `${pattern.sourceDays} recent · not scheduled`}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <span className="text-muted-foreground">
+                  No climbing, running, class, sport, or recovery pattern found yet.
                 </span>
-              </div>
-            ))
-          ) : (
-            <span className="text-muted-foreground">
-              No climbing, running, class, sport, or recovery pattern found yet.
-            </span>
-          )}
-        </CardContent>
-      </Card>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </details>
 
       <Dialog open={Boolean(editingDay)} onOpenChange={(open) => !open && setEditingDate(null)}>
         <DialogContent className="max-w-md">

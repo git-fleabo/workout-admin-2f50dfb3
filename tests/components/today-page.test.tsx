@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 
@@ -142,6 +143,70 @@ describe("TodayPage branching", () => {
 
     expect(await screen.findByText("Picking up after a break?")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ease back in" })).toBeInTheDocument();
+  });
+
+  it("keeps return choices and progress visible for a saved programme workout", async () => {
+    const linkedPlan = {
+      ...savedPlan,
+      title: "Base Strength · Session B",
+      status: "pending",
+      basis: "Programme target.",
+      programAssignmentId: "assignment-1",
+      programWorkoutId: "workout-2",
+      movements: [
+        {
+          ...savedPlan.movements[0],
+          reason: "Programme target.",
+          targets: {
+            durationMinutes: "",
+            distance: "",
+            distanceUnit: "",
+            rounds: "",
+            height: "",
+            detail: "",
+          },
+          setRows: [
+            { reps: "5", weight: "60", durationSeconds: "" },
+            { reps: "5", weight: "60", durationSeconds: "" },
+          ],
+        },
+      ],
+    };
+    mocks.plans = [linkedPlan];
+    mocks.programmeOverview.assignments = [
+      {
+        id: "assignment-1",
+        programId: "programme-1",
+        status: "active",
+        currentWorkoutIndex: 1,
+        startedOn: "2020-01-01",
+      },
+    ];
+    mocks.programmeOverview.templates = [
+      {
+        id: "programme-1",
+        workouts: [
+          { id: "workout-1", sequenceIndex: 0, weekNumber: 1, dayNumber: 1 },
+          { id: "workout-2", sequenceIndex: 1, weekNumber: 1, dayNumber: 2 },
+        ],
+      },
+    ];
+    mocks.programmeOverview.skippedWorkoutIds = ["workout-1"];
+
+    renderToday();
+
+    expect(await screen.findByText("Base Strength · Session B")).toBeInTheDocument();
+    expect(screen.getByText(/0 completed · 1 skipped · Session 2 of 2/)).toBeInTheDocument();
+    expect(screen.getByText("Picking up after a break?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue with this session" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Skip ahead" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Ease back in" }));
+    await waitFor(() => expect(window.localStorage.getItem("workout-plan-draft")).not.toBeNull());
+    const easier = JSON.parse(window.localStorage.getItem("workout-plan-draft") ?? "null");
+    expect(easier.movements[0].setRows).toHaveLength(1);
+    expect(easier.movements[0].setRows[0].weight).toBe("54");
+    expect(linkedPlan.movements[0].setRows).toHaveLength(2);
   });
 
   it("restores a resumable draft before showing empty next-workout state", async () => {

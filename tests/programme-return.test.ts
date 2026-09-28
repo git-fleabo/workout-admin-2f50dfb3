@@ -45,6 +45,18 @@ test("easier return reduces a single bodyweight set without inventing a load", (
   assert.equal(easier.setRows[0].weight, "");
 });
 
+test("easier return puts guidance in logger notes when targets are open-ended", () => {
+  const openEnded = {
+    ...movement,
+    targets: { ...movement.targets, detail: "Follow the source box score." },
+    setRows: [{ ...movement.setRows[0], reps: "", weight: "" }],
+  };
+  const [easier] = easierProgrammeMovements([openEnded]);
+  assert.match(easier.targets.detail, /Follow the source box score/);
+  assert.match(easier.targets.detail, /choose a lighter load or easier version/);
+  assert.equal(openEnded.targets.detail, "Follow the source box score.");
+});
+
 test("return prompt is based on elapsed days since the suggested date", () => {
   assert.equal(daysSinceSuggestedSession("2026-09-01", "2026-09-10"), 9);
   assert.equal(daysSinceSuggestedSession("2026-09-10", "2026-09-01"), 0);
