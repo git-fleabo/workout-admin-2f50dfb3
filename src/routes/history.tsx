@@ -299,8 +299,9 @@ function HistoryPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">History</h1>
           <p className="text-sm text-muted-foreground">
-            {periodLabel(start, mode)} · {summary.activeDays} training days · {summary.measurements}{" "}
-            measurements
+            {periodLabel(start, mode)} · {summary.activeDays} training{" "}
+            {summary.activeDays === 1 ? "day" : "days"} · {summary.measurements}{" "}
+            {summary.measurements === 1 ? "measurement" : "measurements"}
           </p>
         </div>
         <div className="flex items-center gap-2">
