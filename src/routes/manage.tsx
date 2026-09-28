@@ -35,6 +35,7 @@ type ManageLink = {
   title: string;
   description: string;
   to:
+    | "/plan"
     | "/library"
     | "/methods"
     | "/rotation"
@@ -48,10 +49,17 @@ type ManageLink = {
 
 const TRAINING_SETUP: ManageLink[] = [
   {
-    title: "Programmes",
-    description: "Browse plans and manage your current programme.",
-    to: "/programmes",
+    title: "My programme",
+    description: "See your current plan, progress and next session.",
+    to: "/plan",
     icon: Dumbbell,
+    accent: "text-fuchsia-300 bg-fuchsia-400/10 border-fuchsia-400/20",
+  },
+  {
+    title: "Programme library",
+    description: "Browse other plans or start a different programme.",
+    to: "/programmes",
+    icon: Layers3,
     accent: "text-fuchsia-300 bg-fuchsia-400/10 border-fuchsia-400/20",
   },
 ];

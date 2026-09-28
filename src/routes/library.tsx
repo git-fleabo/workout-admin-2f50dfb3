@@ -389,6 +389,7 @@ function LibraryPage() {
   const [editor, setEditor] = useState<EditorState>({ mode: "closed" });
   const [pendingDelete, setPendingDelete] = useState<LibraryClientRow | null>(null);
   const [selected, setSelected] = useState<LibraryClientRow | null>(null);
+  const [showAllMovements, setShowAllMovements] = useState(false);
 
   const effectivePersonId = list.data?.selectedPersonId ?? "";
 
@@ -407,6 +408,8 @@ function LibraryPage() {
       );
     });
   }, [circuitFilter, list.data, locationFilter, search, typeFilter]);
+  const hasActiveFilter = Boolean(search.trim() || typeFilter || locationFilter || circuitFilter);
+  const visibleMovements = hasActiveFilter || showAllMovements ? filtered : filtered.slice(0, 12);
 
   const addMutation = useMutation({
     mutationFn: (fields: typeof BLANK) => addExerciseClient(fields, effectivePersonId || undefined),
@@ -565,7 +568,7 @@ function LibraryPage() {
       </div>
 
       <p className="-mt-2 text-xs text-muted-foreground">
-        Quick log pins a movement to the top of the movement picker when logging a workout.
+        Search to find a movement. Select one to see its settings and history.
       </p>
 
       <div>
@@ -604,7 +607,7 @@ function LibraryPage() {
           </Card>
         ) : (
           <div className="space-y-2">
-            {filtered.map((ex) => {
+            {visibleMovements.map((ex) => {
               const isSelected = selected?.row === ex.row;
               return (
                 <Fragment key={ex.row}>
@@ -697,7 +700,7 @@ function LibraryPage() {
                       className="flex w-full shrink-0 flex-wrap justify-end gap-1 sm:w-auto"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {ex.active && (
+                      {isSelected && ex.active && (
                         <Select
                           value={ex.locationScope}
                           onValueChange={(scope) =>
@@ -721,7 +724,7 @@ function LibraryPage() {
                           </SelectContent>
                         </Select>
                       )}
-                      {ex.active && (
+                      {isSelected && ex.active && (
                         <div className="flex items-center gap-2 rounded-md border border-border px-2 py-1">
                           <span className="text-xs text-muted-foreground">Quick log</span>
                           <Switch
@@ -734,7 +737,7 @@ function LibraryPage() {
                           />
                         </div>
                       )}
-                      {ex.active && (
+                      {isSelected && ex.active && (
                         <div className="flex items-center gap-2 rounded-md border border-border px-2 py-1">
                           <span className="text-xs text-muted-foreground">Enabled</span>
                           <Switch
@@ -751,11 +754,11 @@ function LibraryPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => setSelected(isSelected ? null : ex)}
-                        aria-label={`View history for ${ex.name}`}
+                        aria-label={`View details for ${ex.name}`}
                         className="gap-1 px-2 text-xs"
                       >
                         <Activity className="h-4 w-4" />
-                        {isSelected ? "Hide" : "History"}
+                        {isSelected ? "Hide details" : "Details"}
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -793,6 +796,22 @@ function LibraryPage() {
           </div>
         )}
       </div>
+
+      {!hasActiveFilter && filtered.length > 12 ? (
+        <div className="text-center">
+          <p className="mb-2 text-xs text-muted-foreground">
+            Showing {visibleMovements.length} of {filtered.length} movements. Search and filters
+            cover the full library.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAllMovements((value) => !value)}
+          >
+            {showAllMovements ? "Show fewer movements" : "Browse all movements"}
+          </Button>
+        </div>
+      ) : null}
 
       <ExerciseEditorDialog
         state={editor}

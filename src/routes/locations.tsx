@@ -72,14 +72,10 @@ export const Route = createFileRoute("/locations")({
 });
 
 type EditorState =
-  | { mode: "closed" }
-  | { mode: "create" }
-  | { mode: "edit"; location: ManagedTrainingLocation };
+  { mode: "closed" } | { mode: "create" } | { mode: "edit"; location: ManagedTrainingLocation };
 
 type EquipmentEditorState =
-  | { mode: "closed" }
-  | { mode: "create" }
-  | { mode: "edit"; item: ManagedEquipmentItem };
+  { mode: "closed" } | { mode: "create" } | { mode: "edit"; item: ManagedEquipmentItem };
 
 const BLANK: TrainingLocationFields = { name: "", kind: "other" };
 const BLANK_EQUIPMENT: EquipmentItemFields = {
@@ -410,92 +406,101 @@ function TrainingLocationsPage() {
       )}
 
       {!list.isLoading && !list.error && !list.data?.needsProfileClaim ? (
-        <Card>
-          <CardContent className="space-y-4 p-4 sm:p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-amber-400/25 bg-amber-400/10 text-amber-300">
-                  <Wrench className="h-5 w-5" />
-                </span>
-                <div>
-                  <h2 className="font-semibold">Equipment list</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Maintain one reusable list, then choose from it for each location.
-                  </p>
-                </div>
-              </div>
-              <Button variant="outline" onClick={() => setEquipmentEditor({ mode: "create" })}>
-                <Plus className="mr-2 h-4 w-4" /> Add equipment
-              </Button>
-            </div>
-
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                className="pl-9"
-                value={equipmentSearch}
-                onChange={(event) => setEquipmentSearch(event.target.value)}
-                placeholder="Search equipment or category"
-                aria-label="Search equipment"
-              />
-            </div>
-
-            <div className="divide-y divide-border rounded-lg border border-border">
-              {visibleEquipment.length ? (
-                visibleEquipment.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`flex flex-col gap-3 p-3 sm:flex-row sm:items-center ${
-                      item.isActive ? "" : "bg-secondary/20 opacity-65"
-                    }`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium">{item.name}</p>
-                        <Badge variant="outline">{equipmentCategoryLabel(item.category)}</Badge>
-                        <Badge variant="secondary">{circuitGroupLabel(item.circuitGroup)}</Badge>
-                        {!item.isActive ? <Badge variant="secondary">Archived</Badge> : null}
-                      </div>
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label={`Edit ${item.name}`}
-                        onClick={() => setEquipmentEditor({ mode: "edit", item })}
-                      >
-                        <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        aria-label={`${item.isActive ? "Archive" : "Restore"} ${item.name}`}
-                        disabled={activeEquipmentMutation.isPending}
-                        onClick={() =>
-                          activeEquipmentMutation.mutate({
-                            id: item.id,
-                            isActive: !item.isActive,
-                          })
-                        }
-                      >
-                        {item.isActive ? (
-                          <Archive className="mr-1.5 h-3.5 w-3.5" />
-                        ) : (
-                          <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-                        )}
-                        {item.isActive ? "Archive" : "Restore"}
-                      </Button>
+        <details className="rounded-xl border border-border bg-card/30 p-4">
+          <summary className="cursor-pointer text-sm font-semibold">
+            Manage equipment catalog ({list.data?.equipmentItems.length ?? 0} items)
+          </summary>
+          <div className="mt-4">
+            <Card>
+              <CardContent className="space-y-4 p-4 sm:p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-amber-400/25 bg-amber-400/10 text-amber-300">
+                      <Wrench className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <h2 className="font-semibold">Equipment list</h2>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Maintain one reusable list, then choose from it for each location.
+                      </p>
                     </div>
                   </div>
-                ))
-              ) : (
-                <p className="p-4 text-sm text-muted-foreground">
-                  No equipment matches that search.
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                  <Button variant="outline" onClick={() => setEquipmentEditor({ mode: "create" })}>
+                    <Plus className="mr-2 h-4 w-4" /> Add equipment
+                  </Button>
+                </div>
+
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-9"
+                    value={equipmentSearch}
+                    onChange={(event) => setEquipmentSearch(event.target.value)}
+                    placeholder="Search equipment or category"
+                    aria-label="Search equipment"
+                  />
+                </div>
+
+                <div className="divide-y divide-border rounded-lg border border-border">
+                  {visibleEquipment.length ? (
+                    visibleEquipment.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`flex flex-col gap-3 p-3 sm:flex-row sm:items-center ${
+                          item.isActive ? "" : "bg-secondary/20 opacity-65"
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium">{item.name}</p>
+                            <Badge variant="outline">{equipmentCategoryLabel(item.category)}</Badge>
+                            <Badge variant="secondary">
+                              {circuitGroupLabel(item.circuitGroup)}
+                            </Badge>
+                            {!item.isActive ? <Badge variant="secondary">Archived</Badge> : null}
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`Edit ${item.name}`}
+                            onClick={() => setEquipmentEditor({ mode: "edit", item })}
+                          >
+                            <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label={`${item.isActive ? "Archive" : "Restore"} ${item.name}`}
+                            disabled={activeEquipmentMutation.isPending}
+                            onClick={() =>
+                              activeEquipmentMutation.mutate({
+                                id: item.id,
+                                isActive: !item.isActive,
+                              })
+                            }
+                          >
+                            {item.isActive ? (
+                              <Archive className="mr-1.5 h-3.5 w-3.5" />
+                            ) : (
+                              <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                            )}
+                            {item.isActive ? "Archive" : "Restore"}
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="p-4 text-sm text-muted-foreground">
+                      No equipment matches that search.
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </details>
       ) : null}
 
       {editor.mode !== "closed" ? (

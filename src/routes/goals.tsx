@@ -375,7 +375,7 @@ function GoalsPage() {
         <div>
           <h2 className="text-lg font-semibold">Goals</h2>
           <p className="text-xs text-muted-foreground">
-            Automatic progress from completed workouts, with manual check-ins where needed
+            Optional markers alongside your training. Pause any goal whenever it stops helping.
           </p>
         </div>
         <Button
@@ -549,6 +549,10 @@ function GoalCard({
   const currentLabel =
     progress?.value != null ? formatGoalValue(progress.value, unit) : progressLoading ? "…" : "—";
   const manualProgress = progress && !progress.automatic;
+  const remainingTarget =
+    progress?.value != null && progress.target != null && progress.target > progress.value
+      ? progress.target - progress.value
+      : null;
 
   return (
     <Card className="overflow-hidden border-border bg-card">
@@ -619,6 +623,14 @@ function GoalCard({
               <p className="mt-0.5 font-semibold">{targetLabel}</p>
             </div>
           </div>
+          {remainingTarget != null ? (
+            <p className="mt-2 text-sm font-medium text-foreground">
+              {formatGoalValue(remainingTarget, unit)} to go
+              {progress?.measuredAt
+                ? ` · last result ${formatUKDateShort(progress.measuredAt)}`
+                : ""}
+            </p>
+          ) : null}
           {progress?.percentage != null && (
             <div className="mt-3 space-y-1.5">
               <div className="h-2 overflow-hidden rounded-full bg-secondary">
@@ -635,7 +647,11 @@ function GoalCard({
                   {progress.sourceLabel}
                   {progress.measuredAt ? ` · ${formatUKDateShort(progress.measuredAt)}` : ""}
                 </span>
-                <span>{progress.reached ? "Target reached" : `${progress.percentage}%`}</span>
+                <span>
+                  {progress.reached
+                    ? "Target reached"
+                    : `${progress.percentage}% since starting value`}
+                </span>
               </div>
             </div>
           )}

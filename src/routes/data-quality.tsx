@@ -119,6 +119,15 @@ function DataQualityPage() {
     (total, category) => total + category.rows.length,
     0,
   );
+  const repairOptions = audit.data.categories.reduce(
+    (total, category) => total + category.rows.filter((row) => Boolean(row.fix)).length,
+    0,
+  );
+  const orderedCategories = [...audit.data.categories].sort(
+    (left, right) =>
+      right.rows.filter((row) => Boolean(row.fix)).length -
+      left.rows.filter((row) => Boolean(row.fix)).length,
+  );
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -131,8 +140,8 @@ function DataQualityPage() {
             </div>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">Data Quality</h1>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-              Review historical ambiguity and apply narrow, validated repairs. Every change saves a
-              private rollback snapshot and an audit event.
+              Check older records only when you want to. Suggested repairs require your review;
+              nothing changes automatically.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -157,42 +166,48 @@ function DataQualityPage() {
             <div className="text-xs text-muted-foreground">Completed sessions audited</div>
           </Card>
           <Card className="p-4">
-            <div className="text-2xl font-semibold">{totalIssues}</div>
-            <div className="text-xs text-muted-foreground">Rows and candidate groups surfaced</div>
+            <div className="text-2xl font-semibold">{repairOptions}</div>
+            <div className="text-xs text-muted-foreground">Repair options to review</div>
           </Card>
           <Card className="p-4">
-            <div className="text-sm font-medium">
-              {new Date(audit.data.capturedAt).toLocaleTimeString("en-GB", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Last live refresh · runs on open, not on a schedule
-            </div>
+            <div className="text-2xl font-semibold">{totalIssues - repairOptions}</div>
+            <div className="text-xs text-muted-foreground">Historical records for reference</div>
           </Card>
         </div>
+        <p className="text-xs text-muted-foreground">
+          Last checked{" "}
+          {new Date(audit.data.capturedAt).toLocaleTimeString("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+          . Categories with repair options appear first.
+        </p>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {audit.data.categories.map((category) => (
-          <Card key={category.key} className="overflow-hidden">
-            <div className="flex items-start justify-between gap-3 border-b border-border p-4">
-              <div>
-                <h2 className="font-semibold">{category.title}</h2>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  {category.description}
-                </p>
+        {orderedCategories.map((category) => (
+          <details
+            key={category.key}
+            className="overflow-hidden rounded-xl border border-border bg-card"
+          >
+            <summary className="cursor-pointer list-none">
+              <div className="flex items-start justify-between gap-3 p-4">
+                <div>
+                  <h2 className="font-semibold">{category.title}</h2>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    {category.description}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  {category.rows.some((row) => row.fix) ? (
+                    <Badge variant="outline">
+                      {category.rows.filter((row) => row.fix).length} fixable
+                    </Badge>
+                  ) : null}
+                  <Badge variant="secondary">{category.rows.length}</Badge>
+                </div>
               </div>
-              <div className="flex gap-2">
-                {category.rows.some((row) => row.fix) ? (
-                  <Badge variant="outline">
-                    {category.rows.filter((row) => row.fix).length} fixable
-                  </Badge>
-                ) : null}
-                <Badge variant="secondary">{category.rows.length}</Badge>
-              </div>
-            </div>
+            </summary>
             {category.rows.length ? (
               <div className="max-h-96 divide-y divide-border overflow-y-auto">
                 {category.rows.map((row) => (
@@ -220,9 +235,10 @@ function DataQualityPage() {
                       </div>
                     </div>
                     <p className="text-xs leading-relaxed text-muted-foreground">{row.detail}</p>
-                    <code className="block break-all text-[10px] text-muted-foreground/70">
-                      {row.id}
-                    </code>
+                    <details className="text-[10px] text-muted-foreground/70">
+                      <summary className="cursor-pointer">Technical ID</summary>
+                      <code className="block break-all pt-1">{row.id}</code>
+                    </details>
                   </div>
                 ))}
               </div>
@@ -231,7 +247,7 @@ function DataQualityPage() {
                 <CheckCircle2 className="h-4 w-4" /> No rows in this category
               </div>
             )}
-          </Card>
+          </details>
         ))}
       </div>
       <RepairDialog

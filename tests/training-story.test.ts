@@ -46,3 +46,16 @@ test("annual story names active months and the busiest month", () => {
   assert.match(story?.lead ?? "", /Across 2 active months/);
   assert.match(story?.highlights.join(" ") ?? "", /August was busiest with 2 sessions/);
 });
+
+test("measurement dates do not become training days", () => {
+  const story = buildTrainingStory(
+    [
+      entry({ id: "climb", kind: "climb", sessionId: "climb", date: "2026-09-01" }),
+      entry({ id: "weight", kind: "bodyweight", sessionId: null, date: "2026-09-08" }),
+    ],
+    "month",
+  );
+
+  assert.equal(story?.lead, "You trained on 1 day and logged 1 session this month.");
+  assert.match(story?.highlights.join(" ") ?? "", /1 measurement recorded separately/);
+});

@@ -31,6 +31,7 @@ import {
   type WeeklyReviewItem,
 } from "@/lib/supabase-weekly-review.browser";
 import { cn } from "@/lib/utils";
+import { getTimelineDataClient } from "@/lib/supabase-timeline.browser";
 
 export const Route = createFileRoute("/weekly-review")({
   head: () => ({
@@ -95,6 +96,12 @@ function WeeklyReviewPage() {
     queryFn: () => getWeeklyReviewClient(weekStart),
     staleTime: 60_000,
   });
+  const recentActivity = useQuery({
+    queryKey: ["timeline"],
+    queryFn: getTimelineDataClient,
+    enabled: data?.summary.sessions === 0,
+    staleTime: 60_000,
+  });
 
   if (isLoading) {
     return (
@@ -119,6 +126,10 @@ function WeeklyReviewPage() {
   const canMoveForward = data.weekStart < currentWeekStart;
   const rangeLabel = `${formatUKDateShort(data.weekStart)}–${formatUKDate(data.reviewEnd)}`;
   const missingTrainingTime = data.summary.sessions > 0 && data.summary.minutes <= 0;
+  const emptyWeek = data.summary.sessions === 0;
+  const lastSession = recentActivity.data?.entries
+    .filter((entry) => entry.kind === "workout" || entry.kind === "climb")
+    .sort((left, right) => right.date.localeCompare(left.date))[0];
 
   const stats = [
     {
@@ -191,224 +202,249 @@ function WeeklyReviewPage() {
         </div>
       </header>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {stats.map((stat) => (
-          <Card key={stat.label} className="p-4">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
-              <stat.icon className="h-4 w-4 text-primary" />
-            </div>
-            <p className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">{stat.value}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">{stat.change}</p>
-          </Card>
-        ))}
-      </div>
-
-      <p className="text-xs text-muted-foreground">
-        {data.comparisonLabel}. Current weeks use the same number of elapsed days.
-      </p>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Extra workout plans
-              </p>
-              <h2 className="mt-1 text-lg font-semibold">
-                {data.adherence.percentage == null
-                  ? "No extra plans"
-                  : `${data.adherence.percentage}% completed`}
-              </h2>
-            </div>
-            <Target className="h-5 w-5 text-primary" />
-          </div>
-          {data.adherence.percentage == null ? (
-            <p className="mt-4 rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-              Extra workouts you plan outside the programme appear here.
-            </p>
-          ) : (
-            <Progress className="mt-4 h-2.5" value={data.adherence.percentage} />
-          )}
-          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-            {[
-              ["Completed", data.adherence.completed],
-              ["Skipped", data.adherence.skipped],
-              ["Open", data.adherence.open],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-lg bg-muted/40 px-2 py-2">
-                <p className="text-base font-semibold">{value}</p>
-                <p className="text-[10px] text-muted-foreground">{label}</p>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Programme activity
-              </p>
-              <h2 className="mt-1 text-lg font-semibold">
-                {data.programmeCompletedThisWeek} completed this week
-              </h2>
-            </div>
-            <Target className="h-5 w-5 text-fuchsia-300" />
-          </div>
-          <p className="mt-4 text-sm text-muted-foreground">
-            Suggested dates guide the programme. Your next unfinished session stays available in
-            Today until you complete it or explicitly skip ahead.
+      {emptyWeek ? (
+        <Card className="space-y-3 p-5">
+          <h2 className="text-lg font-semibold">No training recorded for this week</h2>
+          <p className="text-sm text-muted-foreground">
+            {lastSession
+              ? `Your last training was ${formatUKDate(lastSession.date)}: ${lastSession.subtitle || lastSession.title}. You can pick up your programme when you are ready.`
+              : "Your programme is ready whenever you want to continue."}
           </p>
-          <Button asChild variant="outline" size="sm" className="mt-4">
-            <Link to="/plan">View my programme</Link>
+          <Button asChild size="sm">
+            <Link to="/">Continue my programme</Link>
           </Button>
         </Card>
+      ) : null}
 
-        <Card className="p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Training mix
-              </p>
-              <h2 className="mt-1 text-lg font-semibold">Where the week went</h2>
-            </div>
-            <MapPin className="h-5 w-5 text-primary" />
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {data.activityMix.length ? (
-              data.activityMix.map((item) => (
-                <Badge key={item.label} variant="secondary">
-                  {item.label} · {item.sessions}
-                </Badge>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">No completed activity to classify.</p>
-            )}
-          </div>
-          {data.locations.length > 0 && (
-            <div className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
-              {data.locations.map((item) => `${item.label} ${item.sessions}`).join(" · ")}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <Award className="h-5 w-5 text-primary" />
-            <h2 className="font-semibold">Wins and momentum</h2>
-          </div>
-          <SignalList items={data.highlights} icon={CheckCircle2} />
-        </Card>
-        <Card className="p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <TriangleAlert className="h-5 w-5 text-amber-500" />
-            <h2 className="font-semibold">Worth watching</h2>
-          </div>
-          <SignalList items={data.watchlist} icon={TriangleAlert} />
-        </Card>
-      </div>
-
-      <Card className="overflow-hidden">
-        <div className="border-b border-border bg-primary/5 p-5">
-          <div className="flex items-center gap-2">
-            <Lightbulb className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">Suggested next step</h2>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            A practical choice based on your logged training.
-          </p>
-        </div>
-        <div className="bg-card p-5">
-          {data.actions.slice(0, 1).map((action) => (
-            <div key={action.title}>
-              <div className="flex items-start gap-3">
-                <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                <div>
-                  <h3 className="text-sm font-semibold">{action.title}</h3>
-                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                    {action.detail}
-                  </p>
-                  <p className="mt-3 text-[11px] font-medium text-primary">
-                    Because: {action.evidence}
-                  </p>
+      <details key={`${weekStart}:${emptyWeek}`} open={!emptyWeek} className="space-y-5">
+        <summary className={emptyWeek ? "cursor-pointer text-sm font-medium" : "hidden"}>
+          Show detailed weekly review
+        </summary>
+        <div className="mt-4 space-y-5">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {stats.map((stat) => (
+              <Card key={stat.label} className="p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
+                  <stat.icon className="h-4 w-4 text-primary" />
                 </div>
+                <p className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">
+                  {stat.value}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">{stat.change}</p>
+              </Card>
+            ))}
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            {data.comparisonLabel}. Current weeks use the same number of elapsed days.
+          </p>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Card className="p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Extra workout plans
+                  </p>
+                  <h2 className="mt-1 text-lg font-semibold">
+                    {data.adherence.percentage == null
+                      ? "No extra plans"
+                      : `${data.adherence.percentage}% completed`}
+                  </h2>
+                </div>
+                <Target className="h-5 w-5 text-primary" />
               </div>
+              {data.adherence.percentage == null ? (
+                <p className="mt-4 rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+                  Extra workouts you plan outside the programme appear here.
+                </p>
+              ) : (
+                <Progress className="mt-4 h-2.5" value={data.adherence.percentage} />
+              )}
+              <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                {[
+                  ["Completed", data.adherence.completed],
+                  ["Skipped", data.adherence.skipped],
+                  ["Open", data.adherence.open],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-lg bg-muted/40 px-2 py-2">
+                    <p className="text-base font-semibold">{value}</p>
+                    <p className="text-[10px] text-muted-foreground">{label}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            <Card className="p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Programme activity
+                  </p>
+                  <h2 className="mt-1 text-lg font-semibold">
+                    {data.programmeCompletedThisWeek} completed this week
+                  </h2>
+                </div>
+                <Target className="h-5 w-5 text-fuchsia-300" />
+              </div>
+              <p className="mt-4 text-sm text-muted-foreground">
+                Suggested dates guide the programme. Your next unfinished session stays available in
+                Today until you complete it or explicitly skip ahead.
+              </p>
+              <Button asChild variant="outline" size="sm" className="mt-4">
+                <Link to="/plan">View my programme</Link>
+              </Button>
+            </Card>
+
+            <Card className="p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Training mix
+                  </p>
+                  <h2 className="mt-1 text-lg font-semibold">Where the week went</h2>
+                </div>
+                <MapPin className="h-5 w-5 text-primary" />
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {data.activityMix.length ? (
+                  data.activityMix.map((item) => (
+                    <Badge key={item.label} variant="secondary">
+                      {item.label} · {item.sessions}
+                    </Badge>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No completed activity to classify.
+                  </p>
+                )}
+              </div>
+              {data.locations.length > 0 && (
+                <div className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
+                  {data.locations.map((item) => `${item.label} ${item.sessions}`).join(" · ")}
+                </div>
+              )}
+            </Card>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card className="p-5">
+              <div className="mb-4 flex items-center gap-2">
+                <Award className="h-5 w-5 text-primary" />
+                <h2 className="font-semibold">Wins and momentum</h2>
+              </div>
+              <SignalList items={data.highlights} icon={CheckCircle2} />
+            </Card>
+            <Card className="p-5">
+              <div className="mb-4 flex items-center gap-2">
+                <TriangleAlert className="h-5 w-5 text-amber-500" />
+                <h2 className="font-semibold">Worth watching</h2>
+              </div>
+              <SignalList items={data.watchlist} icon={TriangleAlert} />
+            </Card>
+          </div>
+
+          <Card className="overflow-hidden">
+            <div className="border-b border-border bg-primary/5 p-5">
+              <div className="flex items-center gap-2">
+                <Lightbulb className="h-5 w-5 text-primary" />
+                <h2 className="text-lg font-semibold">Suggested next step</h2>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                A practical choice based on your logged training.
+              </p>
             </div>
-          ))}
-        </div>
-        {data.actions.length > 1 ? (
-          <details className="border-t border-border px-5 py-3">
-            <summary className="cursor-pointer text-sm font-medium">More suggestions</summary>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              {data.actions.slice(1).map((action) => (
-                <div key={action.title} className="rounded-lg border border-border p-3">
-                  <p className="text-sm font-semibold">{action.title}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{action.detail}</p>
+            <div className="bg-card p-5">
+              {data.actions.slice(0, 1).map((action) => (
+                <div key={action.title}>
+                  <div className="flex items-start gap-3">
+                    <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                    <div>
+                      <h3 className="text-sm font-semibold">{action.title}</h3>
+                      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                        {action.detail}
+                      </p>
+                      <p className="mt-3 text-[11px] font-medium text-primary">
+                        Because: {action.evidence}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
-          </details>
-        ) : null}
-        <div className="flex flex-wrap gap-2 border-t border-border p-4">
-          <Button asChild size="sm">
-            <Link to="/plan">
-              Plan next workout <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/progress">Check exercise progress</Link>
-          </Button>
-        </div>
-      </Card>
-
-      <Card className="p-5">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="font-semibold">Completed sessions</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              The source activity behind this review.
-            </p>
-          </div>
-          <Button asChild variant="ghost" size="sm">
-            <Link to="/history">
-              History <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-        <div className="mt-4 divide-y divide-border">
-          {data.sessions.length ? (
-            data.sessions.map((session) => (
-              <div
-                key={session.id}
-                className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{session.title}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {formatUKDate(session.date)} · {session.location}
-                    {session.minutes > 0 ? ` · ${session.minutes} min` : ""}
-                    {session.rpe != null ? ` · RPE ${session.rpe}` : ""}
-                  </p>
-                </div>
-                <div className="flex max-w-full flex-wrap justify-end gap-1.5">
-                  {session.activities.map((activity) => (
-                    <Badge key={activity} variant="outline" className="font-normal">
-                      {activity}
-                    </Badge>
+            {data.actions.length > 1 ? (
+              <details className="border-t border-border px-5 py-3">
+                <summary className="cursor-pointer text-sm font-medium">More suggestions</summary>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  {data.actions.slice(1).map((action) => (
+                    <div key={action.title} className="rounded-lg border border-border p-3">
+                      <p className="text-sm font-semibold">{action.title}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{action.detail}</p>
+                    </div>
                   ))}
                 </div>
+              </details>
+            ) : null}
+            <div className="flex flex-wrap gap-2 border-t border-border p-4">
+              <Button asChild size="sm">
+                <Link to="/">
+                  Continue my programme <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <Link to="/progress">Check exercise progress</Link>
+              </Button>
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="font-semibold">Completed sessions</h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  The source activity behind this review.
+                </p>
               </div>
-            ))
-          ) : (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              No completed sessions in this period.
-            </p>
-          )}
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/history">
+                  History <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+            <div className="mt-4 divide-y divide-border">
+              {data.sessions.length ? (
+                data.sessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{session.title}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {formatUKDate(session.date)} · {session.location}
+                        {session.minutes > 0 ? ` · ${session.minutes} min` : ""}
+                        {session.rpe != null ? ` · RPE ${session.rpe}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex max-w-full flex-wrap justify-end gap-1.5">
+                      {session.activities.map((activity) => (
+                        <Badge key={activity} variant="outline" className="font-normal">
+                          {activity}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  No completed sessions in this period.
+                </p>
+              )}
+            </div>
+          </Card>
         </div>
-      </Card>
+      </details>
     </div>
   );
 }

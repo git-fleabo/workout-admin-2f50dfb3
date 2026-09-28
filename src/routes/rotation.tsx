@@ -90,9 +90,7 @@ const BLANK: DailyRotationItemFields = {
 };
 
 type EditorState =
-  | { mode: "closed" }
-  | { mode: "create" }
-  | { mode: "edit"; item: DailyRotationItem };
+  { mode: "closed" } | { mode: "create" } | { mode: "edit"; item: DailyRotationItem };
 
 function itemFields(item: DailyRotationItem): DailyRotationItemFields {
   return {
@@ -447,43 +445,50 @@ function RotationEditor({
               <p className="text-[11px] text-destructive">Choose at least one day.</p>
             ) : null}
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="rotation-weight">Selection chance</Label>
-              <Select
-                value={String(fields.selectionWeight)}
-                onValueChange={(value) => setFields({ ...fields, selectionWeight: Number(value) })}
-              >
-                <SelectTrigger id="rotation-weight">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 · Much less often</SelectItem>
-                  <SelectItem value="2">2 · Less often</SelectItem>
-                  <SelectItem value="3">3 · Normal</SelectItem>
-                  <SelectItem value="4">4 · More often</SelectItem>
-                  <SelectItem value="5">5 · Much more often</SelectItem>
-                </SelectContent>
-              </Select>
+          <details className="rounded-lg border border-border p-3">
+            <summary className="cursor-pointer text-sm font-medium">
+              More options: selection chance and repeat gap
+            </summary>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="rotation-weight">Selection chance</Label>
+                <Select
+                  value={String(fields.selectionWeight)}
+                  onValueChange={(value) =>
+                    setFields({ ...fields, selectionWeight: Number(value) })
+                  }
+                >
+                  <SelectTrigger id="rotation-weight">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 · Much less often</SelectItem>
+                    <SelectItem value="2">2 · Less often</SelectItem>
+                    <SelectItem value="3">3 · Normal</SelectItem>
+                    <SelectItem value="4">4 · More often</SelectItem>
+                    <SelectItem value="5">5 · Much more often</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rotation-gap">Minimum days before repeat</Label>
+                <Input
+                  id="rotation-gap"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={30}
+                  value={fields.minimumDaysBetween}
+                  onChange={(event) =>
+                    setFields({
+                      ...fields,
+                      minimumDaysBetween: Math.max(0, Math.min(30, Number(event.target.value))),
+                    })
+                  }
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="rotation-gap">Minimum days before repeat</Label>
-              <Input
-                id="rotation-gap"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                max={30}
-                value={fields.minimumDaysBetween}
-                onChange={(event) =>
-                  setFields({
-                    ...fields,
-                    minimumDaysBetween: Math.max(0, Math.min(30, Number(event.target.value))),
-                  })
-                }
-              />
-            </div>
-          </div>
+          </details>
           <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
             <div>
               <Label htmlFor="rotation-active">Active in rotation</Label>
