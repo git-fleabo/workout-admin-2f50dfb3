@@ -18,9 +18,12 @@ export function buildTrainingStory(
 ): TrainingStory | null {
   if (entries.length === 0) return null;
 
-  const activeDays = new Set(entries.map((entry) => entry.date));
   const trainingEntries = entries.filter(
     (entry) => entry.kind === "workout" || entry.kind === "climb",
+  );
+  const trainingDays = new Set(trainingEntries.map((entry) => entry.date));
+  const measurementEntries = entries.filter(
+    (entry) => entry.kind === "one_rm" || entry.kind === "bodyweight",
   );
   const sessions = new Map<string, TimelineEntry>();
   for (const entry of trainingEntries) {
@@ -84,11 +87,17 @@ export function buildTrainingStory(
   }
   if (prs > 0) highlights.push(`${plural(prs, "personal record")} marked the period.`);
 
-  const activeMonths = new Set(entries.map((entry) => entry.date.slice(0, 7))).size;
+  const activeMonths = new Set(trainingEntries.map((entry) => entry.date.slice(0, 7))).size;
   const lead =
-    period === "year"
-      ? `Across ${plural(activeMonths, "active month")}, you trained on ${plural(activeDays.size, "day")} and logged ${plural(sessions.size, "session")}.`
-      : `You trained on ${plural(activeDays.size, "day")} and logged ${plural(sessions.size, "session")} this month.`;
+    sessions.size === 0
+      ? `No training sessions this ${period}; ${plural(measurementEntries.length, "measurement")} recorded.`
+      : period === "year"
+        ? `Across ${plural(activeMonths, "active month")}, you trained on ${plural(trainingDays.size, "day")} and logged ${plural(sessions.size, "session")}.`
+        : `You trained on ${plural(trainingDays.size, "day")} and logged ${plural(sessions.size, "session")} this month.`;
+
+  if (sessions.size > 0 && measurementEntries.length > 0) {
+    highlights.push(`${plural(measurementEntries.length, "measurement")} recorded separately.`);
+  }
 
   return { lead, highlights: highlights.slice(0, 3) };
 }

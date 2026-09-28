@@ -244,7 +244,11 @@ function HistoryPage() {
   }, [periodEntries]);
 
   const summary = useMemo(() => {
-    const activeDays = new Set(periodEntries.map((entry) => entry.date));
+    const activeDays = new Set(
+      periodEntries
+        .filter((entry) => entry.kind === "workout" || entry.kind === "climb")
+        .map((entry) => entry.date),
+    );
     const workoutDays = new Set(
       periodEntries.filter((entry) => entry.kind === "workout").map((entry) => entry.date),
     );
@@ -256,6 +260,9 @@ function HistoryPage() {
       entries: periodEntries.length,
       activeDays: activeDays.size,
       workouts: workoutDays.size,
+      measurements: periodEntries.filter(
+        (entry) => entry.kind === "one_rm" || entry.kind === "bodyweight",
+      ).length,
       climbHours: Math.round(climbHours * 10) / 10,
       prs,
     };
@@ -292,8 +299,8 @@ function HistoryPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">History</h1>
           <p className="text-sm text-muted-foreground">
-            {periodLabel(start, mode)} · {summary.entries} entries · {summary.activeDays} active
-            days
+            {periodLabel(start, mode)} · {summary.activeDays} training days · {summary.measurements}{" "}
+            measurements
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -362,7 +369,7 @@ function HistoryPage() {
 
           <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
             <StatTile label="Entries" value={summary.entries.toString()} />
-            <StatTile label="Active days" value={summary.activeDays.toString()} />
+            <StatTile label="Training days" value={summary.activeDays.toString()} />
             <StatTile label="Workouts" value={summary.workouts.toString()} />
             <StatTile label="Climbing" value={`${summary.climbHours}h`} />
             <StatTile label="PRs" value={summary.prs.toString()} />
@@ -428,7 +435,12 @@ function HistoryPage() {
                 <span>{formatUKDate(date)}</span>
                 <span className="h-px flex-1 bg-border" />
                 <span>
-                  {entries.length} session{entries.length === 1 ? "" : "s"}
+                  {entries.length}{" "}
+                  {entries.every((entry) => entry.kind === "bodyweight" || entry.kind === "one_rm")
+                    ? `measurement${entries.length === 1 ? "" : "s"}`
+                    : entries.length === 1
+                      ? "entry"
+                      : "entries"}
                 </span>
               </div>
               <div className="grid gap-2">

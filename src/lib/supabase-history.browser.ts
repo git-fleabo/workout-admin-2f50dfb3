@@ -81,6 +81,7 @@ type ExerciseHistoryTarget = {
 type LoggedExerciseRecord = {
   exercise_id: string | null;
   name: string;
+  sessions: { session_date: string } | null;
 };
 
 type SuggestedSetRecord = {
@@ -131,6 +132,7 @@ type ActualPlannedEntryRecord = {
 export type LoggedExerciseKeys = {
   ids: string[];
   names: string[];
+  recent: Array<{ id: string | null; name: string; date: string }>;
 };
 
 export async function getLoggedExerciseKeysClient(): Promise<LoggedExerciseKeys> {
@@ -138,16 +140,29 @@ export async function getLoggedExerciseKeysClient(): Promise<LoggedExerciseKeys>
   if (!person) throw new Error("This account is not linked to a training profile.");
 
   const rows = await supabasePublicSelect<LoggedExerciseRecord>("session_entries", {
-    select: "exercise_id,name,sessions!inner(person_id,completed)",
+    select: "exercise_id,name,sessions!inner(person_id,completed,session_date)",
     completed: "eq.true",
     "sessions.person_id": `eq.${person.id}`,
     "sessions.completed": "eq.true",
     limit: 5000,
   });
 
+  const recentByExercise = new Map<string, { id: string | null; name: string; date: string }>();
+  for (const row of rows) {
+    const date = row.sessions?.session_date;
+    if (!date) continue;
+    const name = row.name.trim().toLowerCase();
+    const key = row.exercise_id ?? name;
+    const previous = recentByExercise.get(key);
+    if (!previous || date > previous.date) {
+      recentByExercise.set(key, { id: row.exercise_id, name, date });
+    }
+  }
+
   return {
     ids: Array.from(new Set(rows.flatMap((row) => (row.exercise_id ? [row.exercise_id] : [])))),
     names: Array.from(new Set(rows.map((row) => row.name.trim().toLowerCase()).filter(Boolean))),
+    recent: Array.from(recentByExercise.values()).sort((a, b) => b.date.localeCompare(a.date)),
   };
 }
 

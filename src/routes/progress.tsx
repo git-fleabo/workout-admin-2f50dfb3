@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bar,
@@ -73,6 +73,7 @@ import { cn } from "@/lib/utils";
 import { formatPositionMeasurementDirection } from "@/lib/position-measurements";
 import { climbingGradeProgress, openClimbingProjects } from "@/lib/climbing-metrics";
 import { getClimbingProgressClient } from "@/lib/supabase-climbing.browser";
+import { getCurrentProgrammeWorkoutOffersClient } from "@/lib/supabase-programmes.browser";
 
 type ProgressSearch = {
   exercise?: string;
@@ -653,6 +654,11 @@ function ProgressPage() {
     queryFn: getLoggedExerciseKeysClient,
     staleTime: 5 * 60_000,
   });
+  const programmeOffers = useQuery({
+    queryKey: ["programme-workout-offers"],
+    queryFn: getCurrentProgrammeWorkoutOffersClient,
+    staleTime: 60_000,
+  });
   const climbingProgress = useQuery({
     queryKey: ["climbing-progress"],
     queryFn: getClimbingProgressClient,
@@ -677,6 +683,7 @@ function ProgressPage() {
     );
   }, [library.data?.exercises, loggedExercises.data, search.exercise]);
   const [exerciseId, setExerciseId] = useState("");
+  const lastRequestedExercise = useRef<string | undefined>(undefined);
   const [period, setPeriod] = useState<Period>(8);
   const [location, setLocation] = useState<LocationFilter>("all");
   const [methodFilter, setMethodFilter] = useState<MethodFilter>("all");
@@ -693,13 +700,41 @@ function ProgressPage() {
   );
 
   useEffect(() => {
-    if (locationExercises.some((exercise) => exercise.id === exerciseId)) return;
+    if (loggedExercises.isLoading || programmeOffers.isLoading) return;
     const requested = locationExercises.find((exercise) => exercise.id === search.exercise);
-    const bench = locationExercises.find(
-      (exercise) => exercise.name.toLowerCase() === "bench press",
+    if (requested && search.exercise !== lastRequestedExercise.current) {
+      lastRequestedExercise.current = search.exercise;
+      if (requested.id !== exerciseId) setExerciseId(requested.id);
+      return;
+    }
+    if (locationExercises.some((exercise) => exercise.id === exerciseId)) return;
+    const currentMovements = programmeOffers.data?.[0]?.movements ?? [];
+    const programmeExercise = currentMovements
+      .map((movement) =>
+        locationExercises.find(
+          (exercise) => exercise.name.toLowerCase() === movement.exercise.toLowerCase(),
+        ),
+      )
+      .find(Boolean);
+    const recentExercise = loggedExercises.data?.recent
+      .map((row) =>
+        locationExercises.find(
+          (exercise) => exercise.id === row.id || exercise.name.toLowerCase() === row.name,
+        ),
+      )
+      .find(Boolean);
+    setExerciseId(
+      (requested ?? programmeExercise ?? recentExercise ?? locationExercises[0])?.id ?? "",
     );
-    setExerciseId((requested ?? bench ?? locationExercises[0])?.id ?? "");
-  }, [exerciseId, locationExercises, search.exercise]);
+  }, [
+    exerciseId,
+    locationExercises,
+    loggedExercises.data?.recent,
+    loggedExercises.isLoading,
+    programmeOffers.data,
+    programmeOffers.isLoading,
+    search.exercise,
+  ]);
 
   const exercise = exercises.find((item) => item.id === exerciseId) ?? null;
   const metricProfile = exercise
@@ -839,6 +874,15 @@ function ProgressPage() {
       volumeChange: analysis.volumeChange,
     });
   }, [analysis]);
+  const lastLogged =
+    history.data?.points.reduce<string | null>(
+      (latest, point) => (latest == null || point.date > latest ? point.date : latest),
+      null,
+    ) ?? null;
+  const daysSinceLastLog = lastLogged
+    ? Math.floor((Date.now() - dateTime(lastLogged)) / DAY_MS)
+    : null;
+  const needsFreshBaseline = daysSinceLastLog != null && daysSinceLastLog >= 21;
   const visibleComparisons = useMemo(() => {
     const today = new Date();
     const now = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
@@ -856,7 +900,14 @@ function ProgressPage() {
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-4 border-b border-border pb-4 lg:flex-row lg:items-end lg:justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Exercise Progress</h1>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Exercise Progress</h1>
+          {lastLogged ? (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Last logged {formatUKDate(lastLogged)}
+            </p>
+          ) : null}
+        </div>
         <ExercisePicker exercises={locationExercises} value={exerciseId} onChange={setExerciseId} />
       </header>
 
@@ -999,13 +1050,24 @@ function ProgressPage() {
             <Dumbbell className="mx-auto mb-3 h-6 w-6 text-muted-foreground" />
             <p className="font-medium">No matching sessions</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Try a longer period or switch the location filter.
+              {needsFreshBaseline
+                ? `Your last ${exercise?.name ?? "exercise"} log was ${formatUKDate(lastLogged!)}. Use a comfortable starting point when you return, or choose a longer period to review older sessions.`
+                : "Try a longer period or switch the location filter."}
             </p>
           </CardContent>
         </Card>
       ) : (
         <>
-          {metricProfile === "weighted" ? (
+          {needsFreshBaseline ? (
+            <Card className="border-amber-400/25 bg-amber-400/[0.05] p-4 text-sm">
+              <p className="font-medium">Start with a fresh baseline</p>
+              <p className="mt-1 text-muted-foreground">
+                The last {exercise?.name ?? "exercise"} log was {formatUKDate(lastLogged!)}. Use the
+                history below as a reference and choose a comfortable starting point when you
+                return.
+              </p>
+            </Card>
+          ) : metricProfile === "weighted" ? (
             <DecisionCard decision={decision} exerciseName={exercise?.name ?? "This exercise"} />
           ) : null}
 

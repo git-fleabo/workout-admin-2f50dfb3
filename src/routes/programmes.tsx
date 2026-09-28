@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
@@ -251,10 +251,13 @@ function ProgrammeTemplatesPage() {
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-fuchsia-300">
           <Layers3 className="h-4 w-4" /> Training setup
         </div>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Programmes</h1>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Programme library</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-          Browse training plans and manage the ones you have started.
+          Browse plans when you want to change programme. Your current run and progress are on Plan.
         </p>
+        <Button asChild variant="outline" size="sm" className="mt-4">
+          <Link to="/plan">View my current programme</Link>
+        </Button>
       </header>
 
       <details className="rounded-xl border border-border bg-card/30 p-4">
@@ -422,11 +425,7 @@ function ProgrammeTemplatesPage() {
               </Card>
 
               <Card className="px-5">
-                <Accordion
-                  type="single"
-                  collapsible
-                  defaultValue={weeks[0] ? `week-${weeks[0].week}` : undefined}
-                >
+                <Accordion type="single" collapsible>
                   {weeks.map(({ week, workouts }) => {
                     const intensity = weekIntensity(workouts);
                     return (

@@ -183,6 +183,7 @@ function MethodsPage() {
   const [showHidden, setShowHidden] = useState(false);
   const [editor, setEditor] = useState<EditorState>({ mode: "closed" });
   const [pendingDelete, setPendingDelete] = useState<TrainingMethod | null>(null);
+  const [showSystemMethods, setShowSystemMethods] = useState(false);
   const list = useQuery({
     queryKey: ["training-methods"],
     queryFn: () => listTrainingMethodsClient(),
@@ -197,6 +198,10 @@ function MethodsPage() {
       ),
     [family, list.data?.items, showHidden],
   );
+  const systemMethodCount = filtered.filter((method) => method.isSystem).length;
+  const displayedMethods = filtered
+    .filter((method) => !method.isSystem || showSystemMethods || family !== "all")
+    .sort((left, right) => Number(left.isSystem) - Number(right.isSystem));
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["training-methods"] });
 
   const addMutation = useMutation({
@@ -289,6 +294,17 @@ function MethodsPage() {
         </div>
       </div>
 
+      {family === "all" && systemMethodCount > 0 ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setShowSystemMethods((value) => !value)}
+        >
+          {showSystemMethods ? "Hide" : "Browse"} {systemMethodCount} built-in methods
+        </Button>
+      ) : null}
+
       {list.isLoading ? (
         <div className="flex justify-center py-16 text-muted-foreground">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading methods…
@@ -297,7 +313,7 @@ function MethodsPage() {
         <Card className="p-5 text-sm text-destructive">{(list.error as Error).message}</Card>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
-          {filtered.map((method) => {
+          {displayedMethods.map((method) => {
             const familyInfo = FAMILIES.find((item) => item.value === method.family)!;
             const Icon = familyInfo.icon;
             return (
