@@ -415,7 +415,7 @@ function ProgrammeTemplatesPage() {
                   <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
                   <p>
                     {selected.methodType === JACKED_DUMBBELL_METHOD
-                      ? "This protected template can be assigned directly. On each scheduled training day, Today offers the named movements as editable rows for the actual JACKED path, sets, reps, and dumbbell load."
+                      ? "This protected template can be assigned directly. Its movements use canonical Library exercises, while Today keeps the actual JACKED path, sets, reps, and dumbbell load editable."
                       : "Templates remain protected and read only. An assignment stores the person, start date, movement mappings, and training maxes; scheduled sessions then appear in Today and Plan."}
                   </p>
                 </CardContent>

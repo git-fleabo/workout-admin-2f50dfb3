@@ -60,6 +60,7 @@ import {
   type ProgrammeWorkoutOffer,
 } from "@/lib/supabase-programmes.browser";
 import { daysSinceSuggestedSession } from "@/lib/programme-return";
+import { JACKED_DUMBBELL_METHOD } from "@/lib/programme-methods";
 import {
   lastCompletedWorkoutKey,
   readCompletedWorkoutSummary,
@@ -164,13 +165,15 @@ function availableProgrammeLocations(
   exercises: Awaited<ReturnType<typeof getLibraryClient>>["exercises"],
   locations: Awaited<ReturnType<typeof getLibraryClient>>["locations"],
 ) {
+  if (offer.methodType === JACKED_DUMBBELL_METHOD) {
+    return locations.filter((location) => location.kind === "home" || location.kind === "gym");
+  }
   const byId = new Map(exercises.map((exercise) => [exercise.id, exercise]));
   return locations.filter(
     (location) =>
       (location.kind === "home" || location.kind === "gym") &&
-      offer.exerciseIds.every(
-        (exerciseId) =>
-          exerciseId === null || byId.get(exerciseId)?.availableLocationIds.includes(location.id),
+      offer.exerciseIds.every((exerciseId) =>
+        byId.get(exerciseId)?.availableLocationIds.includes(location.id),
       ),
   );
 }

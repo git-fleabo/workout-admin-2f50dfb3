@@ -25,6 +25,7 @@ import type { PlannerLocation, WorkoutPlanDraft, WorkoutPlanMovement } from "./w
 
 export type ProgrammeTemplateEntry = {
   id: string;
+  exerciseId: string | null;
   name: string;
   slotKey: string | null;
   orderIndex: number;
@@ -155,7 +156,7 @@ export type ProgrammeWorkoutOffer = {
   methodType: string;
   basis: string;
   movements: WorkoutPlanMovement[];
-  exerciseIds: Array<string | null>;
+  exerciseIds: string[];
   selections: ProgrammeSelectionOffer[];
 };
 
@@ -202,6 +203,7 @@ type ProgrammeWorkoutRecord = {
 type ProgrammeEntryRecord = {
   id: string;
   program_workout_id: string;
+  exercise_id: string | null;
   name: string;
   slot_key: string | null;
   order_index: number;
@@ -292,7 +294,7 @@ export async function listProgrammeTemplatesClient(): Promise<ProgrammeTemplate[
     }),
     supabasePublicSelect<ProgrammeEntryRecord>("program_workout_entries", {
       select:
-        "id,program_workout_id,name,slot_key,order_index,sets,reps,min_sets,max_sets,min_reps,max_reps,intensity_percent,intensity_min_percent,intensity_max_percent,percent_base,rounding_increment,is_optional,weight,duration,rpe,rpe_cap,selection_role,rest,notes",
+        "id,program_workout_id,exercise_id,name,slot_key,order_index,sets,reps,min_sets,max_sets,min_reps,max_reps,intensity_percent,intensity_min_percent,intensity_max_percent,percent_base,rounding_increment,is_optional,weight,duration,rpe,rpe_cap,selection_role,rest,notes",
       order: "order_index.asc",
     }),
   ]);
@@ -302,6 +304,7 @@ export async function listProgrammeTemplatesClient(): Promise<ProgrammeTemplate[
     const list = entriesByWorkout.get(entry.program_workout_id) ?? [];
     list.push({
       id: entry.id,
+      exerciseId: entry.exercise_id,
       name: entry.name,
       slotKey: entry.slot_key,
       orderIndex: entry.order_index,
@@ -726,7 +729,7 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
     const mappingBySlot = new Map(
       assignment.exercises.map((exercise) => [exercise.slotKey, exercise]),
     );
-    const exerciseIds: Array<string | null> = [];
+    const exerciseIds: string[] = [];
     const movements: WorkoutPlanMovement[] = [];
     const selections: ProgrammeSelectionOffer[] = [];
     let invalid = false;
@@ -745,6 +748,10 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
       }
       if (!entry.slotKey && template.methodType === JACKED_DUMBBELL_METHOD) {
         if (entry.isOptional) continue;
+        if (!entry.exerciseId) {
+          invalid = true;
+          break;
+        }
         const movement = buildProgrammeMovementPrescription({
           entry,
           exercise: {
@@ -762,7 +769,7 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
           invalid = true;
           break;
         }
-        exerciseIds.push(null);
+        exerciseIds.push(entry.exerciseId);
         movements.push(movement);
         continue;
       }
@@ -842,13 +849,14 @@ export async function startProgrammeWorkoutClient(
     throw new Error("Choose an active Home or Gym training location first.");
   }
   const locationKind: PlannerLocation = location.kind;
-  for (const exerciseId of offer.exerciseIds) {
-    if (!exerciseId) continue;
-    const mappedExercise = libraryById.get(exerciseId);
-    if (!mappedExercise?.availableLocationIds.includes(location.id)) {
-      throw new Error(
-        `${mappedExercise?.name ?? "A mapped movement"} is not available at ${location.name}.`,
-      );
+  if (offer.methodType !== JACKED_DUMBBELL_METHOD) {
+    for (const exerciseId of offer.exerciseIds) {
+      const mappedExercise = libraryById.get(exerciseId);
+      if (!mappedExercise?.availableLocationIds.includes(location.id)) {
+        throw new Error(
+          `${mappedExercise?.name ?? "A mapped movement"} is not available at ${location.name}.`,
+        );
+      }
     }
   }
   const selectedMovements: Array<{
@@ -1026,7 +1034,7 @@ export async function applyProgrammeReviewClient(suggestedWorkoutId: string, ses
     }),
     supabasePublicSelect<ProgrammeEntryRecord>("program_workout_entries", {
       select:
-        "id,program_workout_id,name,slot_key,order_index,sets,reps,min_sets,max_sets,min_reps,max_reps,intensity_percent,intensity_min_percent,intensity_max_percent,percent_base,rounding_increment,is_optional,weight,duration,rpe,rpe_cap,selection_role,rest,notes",
+        "id,program_workout_id,exercise_id,name,slot_key,order_index,sets,reps,min_sets,max_sets,min_reps,max_reps,intensity_percent,intensity_min_percent,intensity_max_percent,percent_base,rounding_increment,is_optional,weight,duration,rpe,rpe_cap,selection_role,rest,notes",
       program_workout_id: `eq.${link.program_workout_id}`,
     }),
   ]);

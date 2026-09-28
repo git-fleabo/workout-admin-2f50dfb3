@@ -191,6 +191,9 @@ Important data files:
 - `supabase/approved_logging_library_updates.sql`: idempotent data update script for approved library/logging changes.
 - `supabase/percentage_strength_blocks.sql`: idempotent seed script for reusable Percentage Strength Blocks, currently Operator Style Strength Block and Fighter Style Strength Block.
 - `supabase/program_template_read_policies.sql`: idempotent RLS policy script allowing authenticated users to read reusable template rows from `programs`, `program_workouts`, and `program_workout_entries`.
+- `supabase/migrations/20260928070648_link_jacked_library_movements.sql`: canonical Library links for
+  every JACKED entry, distinct specialised variations and source aliases, plus removal of all
+  corrective placeholders/sessions.
 - `docs/supabase-schema-design.md`: original design direction.
 - `docs/supabase-import-status.md`: import history, but some notes are stale because the app is now more migrated than this doc says.
 
@@ -1052,6 +1055,15 @@ initial status, then maps every programme slot to a distinct enabled Library mov
 max. Active and paused assignments appear above the template browser and can be paused, resumed, or
 archived. Templates remain read only. Pausing or archiving also archives any uncompleted linked
 programme suggestion so it no longer appears as Ready.
+
+The protected `JACKED Dumbbell Programme` is a direct 12-week template with 58 training/challenge
+sessions and 288 movement entries. Corrective placeholders and the eight dedicated corrective
+sessions are intentionally excluded. Every remaining entry stores a canonical Library `exercise_id`
+and displays the Library name/casing; specialised movements remain distinct, including separate
+Tripod Row and alternating Gorilla Row variations. Optional pull-up-bar substitutions are also linked
+to their actual Library movements. JACKED sessions may start at any active Home or Gym location
+because the source path itself governs equipment substitutions, while completed logs still retain the
+canonical exercise relationship.
 
 Programme methodologies are dispatched through `programs.method_type`. Shared programme structure,
 assignment lifecycle, and slot mappings remain methodology-neutral; `src/lib/programme-methods.ts`
