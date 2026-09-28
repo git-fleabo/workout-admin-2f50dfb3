@@ -42,6 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { WorkoutLifecycleBadge } from "@/components/workout-lifecycle-badge";
+import { programmeWorkoutScheduledDate } from "@/lib/adaptive-strength";
 import { formatUKDate, todayISO } from "@/lib/date";
 import { getLibraryClient, getRecentLogsClient } from "@/lib/supabase-log.browser";
 import {
@@ -59,7 +60,7 @@ import {
   startProgrammeWorkoutClient,
   type ProgrammeWorkoutOffer,
 } from "@/lib/supabase-programmes.browser";
-import { daysSinceSuggestedSession } from "@/lib/programme-return";
+import { daysSinceSuggestedSession, easierProgrammeMovements } from "@/lib/programme-return";
 import { JACKED_DUMBBELL_METHOD } from "@/lib/programme-methods";
 import {
   lastCompletedWorkoutKey,
@@ -297,7 +298,7 @@ export function TodayPage() {
     });
   };
 
-  const startPlan = async (plan: NonNullable<typeof plans.data>[number]) => {
+  const startPlan = async (plan: NonNullable<typeof plans.data>[number], easier = false) => {
     if (draft) {
       toast.message("Resume or discard your draft first", {
         description: "Your unfinished workout is being kept safe.",
@@ -307,7 +308,14 @@ export function TodayPage() {
     setStartingPlanId(plan.suggestedWorkoutId);
     try {
       await updateSuggestedWorkoutStatusClient(plan.suggestedWorkoutId, "accepted");
-      window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(plan));
+      const draftToLoad = easier
+        ? {
+            ...plan,
+            basis: `${plan.basis} Easier return option: start lighter and edit any target before saving. Your programme settings stay the same.`,
+            movements: easierProgrammeMovements(plan.movements),
+          }
+        : plan;
+      window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(draftToLoad));
       await navigate({ to: "/log" });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "The workout could not be started.");
@@ -703,23 +711,90 @@ export function TodayPage() {
 
       {linkedProgrammePlans.length && !programmeOffers.data?.length ? (
         <section className="space-y-3">
-          <h2 className="text-base font-semibold">Your programme workout is ready</h2>
-          {linkedProgrammePlans.map((plan) => (
-            <Card key={plan.suggestedWorkoutId} className="border-fuchsia-400/30 p-4">
-              <p className="font-semibold">{plan.title}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {plan.movements.length} movements ·{" "}
-                {plan.movements.map((movement) => movement.exercise).join(", ")}
-              </p>
-              <Button
-                className="mt-3 w-full"
-                onClick={() => startPlan(plan)}
-                disabled={Boolean(startingPlanId)}
-              >
-                {draft ? "Resume draft first" : "Open programme workout"}
-              </Button>
-            </Card>
-          ))}
+          <div>
+            <h2 className="text-base font-semibold">Your programme</h2>
+            <p className="text-xs text-muted-foreground">
+              Your next session stays available. Suggested dates are guidance.
+            </p>
+          </div>
+          {linkedProgrammePlans.map((plan) => {
+            const isCurrentRun = activeProgramme?.id === plan.programAssignmentId;
+            const nextWorkout =
+              isCurrentRun && activeProgramme
+                ? activeTemplate?.workouts[activeProgramme.currentWorkoutIndex]
+                : null;
+            const suggestedDate =
+              nextWorkout && activeProgramme
+                ? programmeWorkoutScheduledDate(
+                    activeProgramme.startedOn,
+                    nextWorkout.weekNumber,
+                    nextWorkout.dayNumber,
+                  )
+                : null;
+            const completedCount = Math.max(
+              0,
+              (activeProgramme?.currentWorkoutIndex ?? 0) - skippedProgrammeSessions,
+            );
+            return (
+              <Card key={plan.suggestedWorkoutId} className="border-fuchsia-400/30 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold">{plan.title}</p>
+                  <Badge variant="secondary">
+                    {plan.status === "accepted" ? "Started" : "Ready"}
+                  </Badge>
+                </div>
+                {isCurrentRun && activeProgramme && activeTemplate ? (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {completedCount} completed
+                    {skippedProgrammeSessions ? ` · ${skippedProgrammeSessions} skipped` : ""}
+                    {` · Session ${activeProgramme.currentWorkoutIndex + 1} of ${activeTemplate.workouts.length}`}
+                  </p>
+                ) : null}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {plan.movements.length} movements ·{" "}
+                  {plan.movements.map((movement) => movement.exercise).join(", ")}
+                </p>
+                {daysSinceSuggestedSession(suggestedDate, today) >= 7 ? (
+                  <div className="mt-3 rounded-lg border border-amber-400/25 bg-amber-400/[0.06] p-3 text-xs">
+                    <p className="font-medium">Picking up after a break?</p>
+                    <p className="mt-1 text-muted-foreground">
+                      Continue here, use an easier version, or choose a later session.
+                    </p>
+                  </div>
+                ) : null}
+                {draft ? (
+                  <Button asChild className="mt-4 w-full">
+                    <Link to="/log">Resume current workout</Link>
+                  </Button>
+                ) : (
+                  <Button
+                    className="mt-4 w-full"
+                    onClick={() => startPlan(plan)}
+                    disabled={Boolean(startingPlanId)}
+                  >
+                    Continue with this session
+                  </Button>
+                )}
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => startPlan(plan, true)}
+                    disabled={Boolean(draft || startingPlanId)}
+                  >
+                    Ease back in
+                  </Button>
+                  <Button asChild variant="ghost">
+                    <Link to="/plan">Skip ahead</Link>
+                  </Button>
+                </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  {draft
+                    ? "Finish or cancel your current draft before loading another version."
+                    : "Ease back in copies this workout with lighter numeric targets. For open-ended targets, choose a lighter load in Log."}
+                </p>
+              </Card>
+            );
+          })}
         </section>
       ) : null}
 

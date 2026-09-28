@@ -19,9 +19,15 @@ export function easierProgrammeMovements(movements: WorkoutPlanMovement[]) {
   return movements.map((movement) => {
     const hasMultipleSets = movement.setRows.length > 1;
     const rows = hasMultipleSets ? movement.setRows.slice(0, -1) : movement.setRows;
+    const returnNote =
+      "Ease back in: choose a lighter load or easier version of this movement, and edit the targets before saving.";
     return {
       ...movement,
-      reason: `${movement.reason} Easier return option: start lighter and edit any target before saving.`,
+      reason: `${movement.reason} ${returnNote}`,
+      targets: {
+        ...movement.targets,
+        detail: [movement.targets.detail, returnNote].filter(Boolean).join("\n\n"),
+      },
       setRows: rows.map((set) => ({
         ...set,
         weight: lighterNumber(set.weight, 0.9, 0.5),
