@@ -300,7 +300,7 @@ export async function saveMobilityDrillClient(input: {
   isActive: boolean;
 }) {
   await requirePerson();
-  if (!input.name.trim()) throw new Error("Name the drill from your plan.");
+  if (!input.name.trim()) throw new Error("Name the drill.");
   if (input.lessonUrl.trim() && !isToolkitLessonUrl(input.lessonUrl.trim())) {
     throw new Error("Use a lesson link from the Mobility & Flexibility Toolkit.");
   }

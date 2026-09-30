@@ -3,7 +3,6 @@ import { Link, useNavigate } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { todayISO } from "@/lib/date";
 import { launchMobilityPractice } from "@/lib/mobility-launch.browser";
 import {
   currentMobilityRun,
@@ -30,18 +29,15 @@ export function MobilityPracticeOverview({ compact = false }: { compact?: boolea
   );
   const items = MOBILITY_SKILL_ORDER.map((skill) => {
     const run = currentMobilityRun(data.data?.runs ?? [], skill);
-    const assessments = data.data?.assessments.filter((item) => item.runId === run?.id) ?? [];
     const drills = data.data?.drills.filter((item) => item.runId === run?.id) ?? [];
     const sessions = data.data?.sessions.filter((item) => item.runId === run?.id) ?? [];
     return {
       skill,
       run,
-      assessments,
       drills,
       sessions,
       action: mobilityNextAction({
         run,
-        assessmentCount: assessments.length,
         activeDrillCount: drills.filter((item) => item.isActive).length,
         mappedDrillCount: drills.filter(
           (item) =>
@@ -49,7 +45,6 @@ export function MobilityPracticeOverview({ compact = false }: { compact?: boolea
             item.exerciseId &&
             toolkitExerciseById.get(item.exerciseId)?.toolkitSections.includes(skill),
         ).length,
-        today: todayISO(),
       }),
     };
   });
@@ -64,7 +59,7 @@ export function MobilityPracticeOverview({ compact = false }: { compact?: boolea
         </Button>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        {shown.map(({ skill, run, assessments, drills, sessions, action }) => (
+        {shown.map(({ skill, run, drills, sessions, action }) => (
           <Card key={skill}>
             <CardContent className="space-y-2 p-4">
               <div className="flex items-center justify-between gap-2">
@@ -79,7 +74,7 @@ export function MobilityPracticeOverview({ compact = false }: { compact?: boolea
               </div>
               <p className="text-xs text-muted-foreground">
                 {sessions[0] ? `Last practice ${sessions[0].date}` : "No practice yet"} ·{" "}
-                {assessments[0] ? `Assessment ${assessments[0].measuredOn}` : "No assessment yet"}
+                {drills.filter((item) => item.isActive).length} active drills
               </p>
               {action.kind === "log" && run && library.data ? (
                 <Button

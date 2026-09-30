@@ -33,25 +33,28 @@ test("Pike and Bridge choose current runs independently", () => {
   assert.equal(currentMobilityRun([oldPike, run("bridge")], "bridge")?.id, "bridge-run");
 });
 
-test("Bridge readiness holds its action while Pike can log", () => {
+test("Bridge readiness holds its action while self-directed drills can be logged", () => {
   const bridge = { ...run("bridge"), readiness: "shoulders_first" as const };
   assert.equal(
     mobilityNextAction({
       run: bridge,
-      assessmentCount: 5,
       activeDrillCount: 3,
-      today: "2026-09-30",
     }).kind,
     "readiness",
   );
+  for (const skill of ["pike", "pancake", "side_split", "front_split", "shoulder"] as const) {
+    assert.equal(
+      mobilityNextAction({
+        run: { ...run(skill), planReceived: false },
+        activeDrillCount: 1,
+        mappedDrillCount: 1,
+      }).kind,
+      "log",
+    );
+  }
   assert.equal(
-    mobilityNextAction({
-      run: run("pike"),
-      assessmentCount: 5,
-      activeDrillCount: 3,
-      today: "2026-09-30",
-    }).kind,
-    "log",
+    mobilityNextAction({ run: run("pike"), activeDrillCount: 0 }).label,
+    "Add your drills",
   );
 });
 
@@ -59,10 +62,8 @@ test("a drill awaiting an exercise match stays in setup", () => {
   assert.equal(
     mobilityNextAction({
       run: run("pike"),
-      assessmentCount: 5,
       activeDrillCount: 1,
       mappedDrillCount: 0,
-      today: "2026-09-30",
     }).label,
     "Match drills to library exercises",
   );

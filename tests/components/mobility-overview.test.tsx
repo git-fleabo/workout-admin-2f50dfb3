@@ -9,7 +9,9 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
 }));
 vi.mock("@/lib/supabase-log.browser", () => ({
-  getLibraryClient: vi.fn(async () => ({ exercises: [] })),
+  getLibraryClient: vi.fn(async () => ({
+    exercises: [{ id: "exercise-1", toolkitSections: ["pike"] }],
+  })),
 }));
 vi.mock("@/lib/supabase-mobility.browser", () => ({
   listMobilityDataClient: vi.fn(async () => ({
@@ -19,7 +21,7 @@ vi.mock("@/lib/supabase-mobility.browser", () => ({
         skill: "pike",
         status: "active",
         phase: "phase_1",
-        planReceived: true,
+        planReceived: false,
         readiness: "unchecked",
         reviewOn: null,
       },
@@ -33,7 +35,7 @@ vi.mock("@/lib/supabase-mobility.browser", () => ({
         reviewOn: null,
       },
     ],
-    assessments: [{ id: "pike-result", runId: "pike-run", measuredOn: "2026-09-25" }],
+    assessments: [],
     drills: [{ id: "pike-drill", runId: "pike-run", exerciseId: "exercise-1", isActive: true }],
     sessions: [{ id: "pike-session", runId: "pike-run", date: "2026-09-29" }],
   })),
