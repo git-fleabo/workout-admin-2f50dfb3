@@ -403,7 +403,7 @@ function LibraryPage() {
       if (typeFilter && i.workoutType !== typeFilter) return false;
       if (locationFilter && !i.availableLocationKinds.includes(locationFilter)) return false;
       if (circuitFilter && i.circuitSuitability !== circuitFilter) return false;
-      if (toolkitOnly && !i.toolkitSection) return false;
+      if (toolkitOnly && !i.toolkitSections.length) return false;
       if (!q) return true;
       return (
         i.name.toLowerCase().includes(q) ||
@@ -648,11 +648,14 @@ function LibraryPage() {
                             {ex.focusArea}
                           </span>
                         )}
-                        {ex.toolkitSection && (
-                          <span className="rounded-full border border-violet-400/30 bg-violet-400/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-violet-300">
-                            Toolkit · {ex.toolkitSection}
+                        {ex.toolkitSections.map((skill) => (
+                          <span
+                            key={skill}
+                            className="rounded-full border border-violet-400/30 bg-violet-400/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-violet-300"
+                          >
+                            Toolkit · {skill.replace("_", " ")}
                           </span>
-                        )}
+                        ))}
                         <span
                           className={`hidden rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider sm:inline ${circuitChipClass(ex.circuitSuitability)}`}
                         >
@@ -714,16 +717,21 @@ function LibraryPage() {
                           {ex.notes}
                         </p>
                       )}
-                      {ex.toolkitLessonUrl && (
-                        <a
-                          href={ex.toolkitLessonUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-1 inline-block text-xs underline"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          Open toolkit lesson ↗
-                        </a>
+                      {ex.toolkitSections.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                          {ex.toolkitSections.map((skill) => (
+                            <a
+                              key={skill}
+                              href={ex.toolkitLessonUrls[skill]}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs underline"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              {skill.replace("_", " ")} lesson ↗
+                            </a>
+                          ))}
+                        </div>
                       )}
                     </div>
                     <div

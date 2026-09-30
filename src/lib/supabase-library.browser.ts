@@ -11,6 +11,7 @@ import {
   type PersonRecord,
 } from "./supabase-people.browser";
 import type { LibraryRow } from "./training-types";
+import type { MobilitySkill } from "./mobility-practice";
 import {
   DEFAULT_CIRCUIT_METADATA,
   type CircuitDifficulty,
@@ -61,8 +62,12 @@ type PersonExerciseRecord = {
   location_scope: ExerciseLocationScope;
   is_quick_log: boolean;
   quick_log_order: number | null;
-  toolkit_section: "pike" | "bridge" | null;
-  toolkit_lesson_url: string | null;
+};
+
+type ToolkitLessonRecord = {
+  exercise_id: string;
+  skill: MobilitySkill;
+  lesson_url: string;
 };
 
 type EquipmentItemRecord = {
@@ -108,8 +113,8 @@ export type LibraryClientRow = LibraryRow & {
   enabled: boolean;
   active: boolean;
   personExerciseId: string | null;
-  toolkitSection: "pike" | "bridge" | null;
-  toolkitLessonUrl: string;
+  toolkitSections: MobilitySkill[];
+  toolkitLessonUrls: Partial<Record<MobilitySkill, string>>;
   locationScope: ExerciseLocationScope;
   quickLog: boolean;
   equipmentItemIds: string[];
@@ -147,6 +152,7 @@ function scopeAllowsKind(scope: ExerciseLocationScope, kind: TrainingLocationRec
 function mapExercise(
   row: ExerciseRecord,
   personExercise: PersonExerciseRecord | undefined,
+  toolkitLessons: ToolkitLessonRecord[],
   equipmentItems: EquipmentItemRecord[],
   locations: TrainingLocationRecord[],
   locationEquipment: Map<string, Set<string>>,
@@ -190,8 +196,10 @@ function mapExercise(
     enabled: personExercise?.is_enabled ?? false,
     quickLog: personExercise?.is_quick_log ?? false,
     personExerciseId: personExercise?.id ?? null,
-    toolkitSection: personExercise?.toolkit_section ?? null,
-    toolkitLessonUrl: personExercise?.toolkit_lesson_url ?? "",
+    toolkitSections: toolkitLessons.map((lesson) => lesson.skill),
+    toolkitLessonUrls: Object.fromEntries(
+      toolkitLessons.map((lesson) => [lesson.skill, lesson.lesson_url]),
+    ),
     locationScope,
     equipmentItemIds: requiredIds,
     equipmentCircuitGroups: Array.from(new Set(equipmentItems.map((item) => item.circuit_group))),
@@ -239,8 +247,7 @@ async function getOrCreateActivityType(name: string) {
 
 async function listPersonExercises(personId: string) {
   return supabasePublicSelect<PersonExerciseRecord>("person_exercises", {
-    select:
-      "id,person_id,exercise_id,is_enabled,location_scope,is_quick_log,quick_log_order,toolkit_section,toolkit_lesson_url",
+    select: "id,person_id,exercise_id,is_enabled,location_scope,is_quick_log,quick_log_order",
     person_id: `eq.${personId}`,
   });
 }
@@ -345,24 +352,35 @@ export async function listLibraryClient(personId?: string, includeInactive = fal
   const selectedPersonId =
     personId && people.some((p) => p.id === personId) ? personId : current.id;
 
-  const [activityTypes, exercises, personExercises, equipmentItems, locations] = await Promise.all([
-    listActivityTypes(),
-    supabasePublicSelect<ExerciseRecord>("exercises", {
-      select:
-        "id,source_row,focus_area,name,equipment,default_metric,suggested_sets,suggested_reps,position_measurement_guide,position_measurement_label,position_measurement_direction,notes,is_active,circuit_suitability,circuit_pattern,circuit_difficulty,circuit_impact,circuit_dose_mode,circuit_dose_min,circuit_dose_max,circuit_dose_per_side,activity_type_id,activity_types(name)",
-      ...(includeInactive ? {} : { is_active: "eq.true" }),
-      order: "name.asc",
-    }),
-    listPersonExercises(selectedPersonId),
-    listEquipmentItems(selectedPersonId),
-    listTrainingLocations(selectedPersonId),
-  ]);
+  const [activityTypes, exercises, personExercises, toolkitLessons, equipmentItems, locations] =
+    await Promise.all([
+      listActivityTypes(),
+      supabasePublicSelect<ExerciseRecord>("exercises", {
+        select:
+          "id,source_row,focus_area,name,equipment,default_metric,suggested_sets,suggested_reps,position_measurement_guide,position_measurement_label,position_measurement_direction,notes,is_active,circuit_suitability,circuit_pattern,circuit_difficulty,circuit_impact,circuit_dose_mode,circuit_dose_min,circuit_dose_max,circuit_dose_per_side,activity_type_id,activity_types(name)",
+        ...(includeInactive ? {} : { is_active: "eq.true" }),
+        order: "name.asc",
+      }),
+      listPersonExercises(selectedPersonId),
+      supabasePublicSelect<ToolkitLessonRecord>("person_exercise_toolkit_lessons", {
+        select: "exercise_id,skill,lesson_url",
+        person_id: `eq.${selectedPersonId}`,
+      }),
+      listEquipmentItems(selectedPersonId),
+      listTrainingLocations(selectedPersonId),
+    ]);
   const [exerciseEquipmentRows, locationEquipmentRows] = await Promise.all([
     listExerciseEquipmentItems(equipmentItems.map((item) => item.id)),
     listTrainingLocationEquipment(locations.map((location) => location.id)),
   ]);
 
   const byExercise = new Map(personExercises.map((pe) => [pe.exercise_id, pe]));
+  const toolkitByExercise = new Map<string, ToolkitLessonRecord[]>();
+  for (const lesson of toolkitLessons) {
+    const links = toolkitByExercise.get(lesson.exercise_id) ?? [];
+    links.push(lesson);
+    toolkitByExercise.set(lesson.exercise_id, links);
+  }
   const equipmentById = new Map(equipmentItems.map((item) => [item.id, item]));
   const equipmentByExercise = new Map<string, EquipmentItemRecord[]>();
   for (const link of exerciseEquipmentRows) {
@@ -401,6 +419,7 @@ export async function listLibraryClient(personId?: string, includeInactive = fal
       ...mapExercise(
         row,
         byExercise.get(row.id),
+        toolkitByExercise.get(row.id) ?? [],
         equipmentByExercise.get(row.id) ?? [],
         locations,
         equipmentByLocation,

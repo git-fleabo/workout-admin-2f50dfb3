@@ -7,9 +7,9 @@ import { todayISO } from "@/lib/date";
 import { launchMobilityPractice } from "@/lib/mobility-launch.browser";
 import {
   currentMobilityRun,
+  MOBILITY_SKILL_ORDER,
   MOBILITY_SKILLS,
   mobilityNextAction,
-  type MobilitySkill,
 } from "@/lib/mobility-practice";
 import { getLibraryClient } from "@/lib/supabase-log.browser";
 import { listMobilityDataClient } from "@/lib/supabase-mobility.browser";
@@ -28,7 +28,7 @@ export function MobilityPracticeOverview({ compact = false }: { compact?: boolea
   const toolkitExerciseById = new Map(
     (library.data?.exercises ?? []).map((exercise) => [exercise.id, exercise]),
   );
-  const items = (["pike", "bridge"] as MobilitySkill[]).map((skill) => {
+  const items = MOBILITY_SKILL_ORDER.map((skill) => {
     const run = currentMobilityRun(data.data?.runs ?? [], skill);
     const assessments = data.data?.assessments.filter((item) => item.runId === run?.id) ?? [];
     const drills = data.data?.drills.filter((item) => item.runId === run?.id) ?? [];
@@ -47,7 +47,7 @@ export function MobilityPracticeOverview({ compact = false }: { compact?: boolea
           (item) =>
             item.isActive &&
             item.exerciseId &&
-            toolkitExerciseById.get(item.exerciseId)?.toolkitSection === skill,
+            toolkitExerciseById.get(item.exerciseId)?.toolkitSections.includes(skill),
         ).length,
         today: todayISO(),
       }),
@@ -60,7 +60,7 @@ export function MobilityPracticeOverview({ compact = false }: { compact?: boolea
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-semibold">Mobility practice</h2>
         <Button asChild variant="ghost" size="sm">
-          <Link to="/mobility">View both skills</Link>
+          <Link to="/mobility">View all areas</Link>
         </Button>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">

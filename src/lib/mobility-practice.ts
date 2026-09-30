@@ -1,7 +1,15 @@
 import { getTrackingModeValue } from "./movement-metrics.ts";
 import type { WorkoutPlanDraft, WorkoutPlanMovement } from "./workout-plan.ts";
 
-export type MobilitySkill = "pike" | "bridge";
+export const MOBILITY_SKILL_ORDER = [
+  "pike",
+  "pancake",
+  "side_split",
+  "front_split",
+  "shoulder",
+  "bridge",
+] as const;
+export type MobilitySkill = (typeof MOBILITY_SKILL_ORDER)[number];
 export type MobilityRunStatus = "active" | "paused" | "archived";
 export type BridgeReadiness = "unchecked" | "ready" | "shoulders_first";
 export type MobilityPhase = "setup" | "phase_1" | "phase_2" | "phase_3";
@@ -66,6 +74,7 @@ export const MOBILITY_SKILLS: Record<
     builderUrl: string;
     warmupUrl?: string;
     cooldownUrl?: string;
+    extraLinks?: ReadonlyArray<{ label: string; url: string }>;
     tests: ReadonlyArray<{ key: string; label: string }>;
   }
 > = {
@@ -81,6 +90,80 @@ export const MOBILITY_SKILLS: Record<
       { key: "standing_leg_lift", label: "Standing leg lift" },
       { key: "sciatic_nerve_level", label: "Sciatic nerve level" },
       { key: "hip_internal_rotation", label: "Hip internal rotation length" },
+    ],
+  },
+  pancake: {
+    label: "Pancake",
+    assessmentUrl:
+      "https://www.matthewismith.com/products/mobility-flexibility-toolkit/categories/4549065/posts/9913299",
+    builderUrl:
+      "https://www.matthewismith.com/products/mobility-flexibility-toolkit/categories/4549065/posts/11388901",
+    extraLinks: [
+      {
+        label: "Measure angles",
+        url: "https://www.matthewismith.com/products/mobility-flexibility-toolkit/categories/4549065/posts/11388900",
+      },
+      {
+        label: "Phase 2 and beyond",
+        url: "https://www.matthewismith.com/products/mobility-flexibility-toolkit/categories/3410577/posts/14349528",
+      },
+    ],
+    tests: [{ key: "pancake_assessment", label: "Pancake assessment" }],
+  },
+  side_split: {
+    label: "Side Split",
+    assessmentUrl:
+      "https://www.matthewismith.com/products/mobility-flexibility-toolkit/categories/4533243/posts/7877757",
+    builderUrl:
+      "https://www.matthewismith.com/products/mobility-flexibility-toolkit/categories/4533243/posts/10516144",
+    extraLinks: [
+      {
+        label: "Measure angles",
+        url: "https://www.matthewismith.com/products/mobility-flexibility-toolkit/categories/4533243/posts/10581039",
+      },
+      {
+        label: "Phase 2 and beyond",
+        url: "https://www.matthewismith.com/products/mobility-flexibility-toolkit/categories/2974982/posts/13851237",
+      },
+    ],
+    tests: [{ key: "side_split_assessment", label: "Side Split assessment" }],
+  },
+  front_split: {
+    label: "Front Split",
+    assessmentUrl:
+      "https://www.matthewismith.com/products/mobility-flexibility-toolkit/categories/2152220817/posts/2165122257",
+    builderUrl:
+      "https://www.matthewismith.com/products/mobility-flexibility-toolkit/categories/2152220817/posts/2178443824",
+    tests: [
+      { key: "passive_front_split", label: "Passive front split" },
+      { key: "isometric_front_split", label: "Isometric front split" },
+      { key: "couch_stretch_low", label: "Couch stretch, hips low" },
+      { key: "kneeling_lunge", label: "Kneeling lunge" },
+      { key: "prone_active_hip_extension", label: "Prone active hip extension" },
+      { key: "single_leg_pike", label: "Single leg pike" },
+      { key: "single_leg_lift", label: "Single leg lift" },
+    ],
+  },
+  shoulder: {
+    label: "Shoulder Mobility & Flexibility",
+    assessmentUrl:
+      "https://www.matthewismith.com/products/mobility-flexibility-toolkit/categories/3706080/posts/9913536",
+    builderUrl:
+      "https://www.matthewismith.com/products/mobility-flexibility-toolkit/categories/4549077/posts/2162187379",
+    extraLinks: [
+      {
+        label: "Measure angles",
+        url: "https://www.matthewismith.com/products/mobility-flexibility-toolkit/categories/4549077/posts/11389088",
+      },
+    ],
+    tests: [
+      { key: "leahy", label: "Leahy test" },
+      { key: "active_passive_flexion", label: "Active vs passive shoulder flexion" },
+      { key: "lat_length", label: "Lat length" },
+      { key: "pec_major_length", label: "Pec major length" },
+      { key: "external_rotation_length", label: "External rotation length" },
+      { key: "pec_minor_length", label: "Pec minor length" },
+      { key: "internal_rotation_length", label: "Internal rotation length" },
     ],
   },
   bridge: {
@@ -172,14 +255,14 @@ export function buildMobilityWorkoutDraft({
     name: string;
     workoutType: string;
     metric: string;
-    toolkitSection: MobilitySkill | null;
+    toolkitSections: ReadonlyArray<MobilitySkill>;
   }>;
   locationKind: "home" | "gym";
   trainingLocationId?: string;
 }): WorkoutPlanDraft {
   const exerciseById = new Map(
     library
-      .filter((exercise) => exercise.toolkitSection === run.skill)
+      .filter((exercise) => exercise.toolkitSections.includes(run.skill))
       .map((exercise) => [exercise.id, exercise]),
   );
   const active = drills.filter((drill) => drill.isActive).sort((a, b) => a.sortOrder - b.sortOrder);
