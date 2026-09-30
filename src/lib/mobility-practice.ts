@@ -194,16 +194,12 @@ export function currentMobilityRun(runs: MobilityRun[], skill: MobilitySkill) {
 
 export function mobilityNextAction({
   run,
-  assessmentCount,
   activeDrillCount,
   mappedDrillCount,
-  today,
 }: {
   run: MobilityRun | null;
-  assessmentCount: number;
   activeDrillCount: number;
   mappedDrillCount?: number;
-  today: string;
 }) {
   if (!run) return { label: "Start practice", kind: "start" as const };
   if (run.status === "paused") return { label: "Resume practice", kind: "resume" as const };
@@ -213,13 +209,9 @@ export function mobilityNextAction({
     if (run.readiness === "shoulders_first")
       return { label: "Review Bridge readiness", kind: "readiness" as const };
   }
-  if (assessmentCount === 0) return { label: "Record assessment", kind: "assessment" as const };
-  if (!run.planReceived) return { label: "Open program builder", kind: "builder" as const };
-  if (activeDrillCount === 0) return { label: "Add drills from my plan", kind: "drills" as const };
+  if (activeDrillCount === 0) return { label: "Add your drills", kind: "drills" as const };
   if (mappedDrillCount != null && mappedDrillCount < activeDrillCount)
     return { label: "Match drills to library exercises", kind: "drills" as const };
-  if (run.reviewOn && run.reviewOn <= today)
-    return { label: "Review assessment", kind: "assessment" as const };
   return { label: "Log practice", kind: "log" as const };
 }
 

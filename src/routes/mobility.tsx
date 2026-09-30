@@ -12,6 +12,7 @@ import {
   currentMobilityRun,
   MOBILITY_SKILL_ORDER,
   MOBILITY_SKILLS,
+  isToolkitLessonUrl,
   mobilityNextAction,
   type MobilityAssessment,
   type MobilityRun,
@@ -69,8 +70,7 @@ function MobilityPage() {
       <header className="border-b border-border pb-4">
         <h1 className="text-2xl font-semibold">Mobility practice</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Your toolkit practice areas sit alongside your main training programme. Enter only your
-          own results and the drills you choose from the toolkit.
+          Build your own series of toolkit drills, set your targets, and log your practice.
         </p>
       </header>
       {data.isLoading ? (
@@ -116,12 +116,10 @@ function SkillPanel({
   const toolkitExerciseIds = new Set(toolkitExercises.map((exercise) => exercise.id));
   const action = mobilityNextAction({
     run,
-    assessmentCount: assessments.length,
     activeDrillCount: drills.filter((item) => item.isActive).length,
     mappedDrillCount: drills.filter(
       (item) => item.isActive && item.exerciseId && toolkitExerciseIds.has(item.exerciseId),
     ).length,
-    today: todayISO(),
   });
   const [assessment, setAssessment] = useState(emptyAssessment);
   const [drill, setDrill] = useState(emptyDrill);
@@ -145,7 +143,7 @@ function SkillPanel({
   const source = MOBILITY_SKILLS[skill];
   const canLog =
     run?.status === "active" &&
-    (skill === "pike" || run.readiness === "ready") &&
+    (skill !== "bridge" || run.readiness === "ready") &&
     drills.some((item) => item.isActive);
   const allActiveDrillsMapped = drills.every(
     (item) => !item.isActive || Boolean(item.exerciseId && toolkitExerciseIds.has(item.exerciseId)),
@@ -211,7 +209,7 @@ function SkillPanel({
             rel="noopener noreferrer"
             className="text-primary underline"
           >
-            Personal program builder ↗
+            Toolkit program builder ↗
           </a>
           {source.warmupUrl && (
             <a
@@ -245,6 +243,27 @@ function SkillPanel({
             </a>
           ))}
         </div>
+        {toolkitExercises.length > 0 && (
+          <details className="rounded-md border border-border p-3">
+            <summary className="cursor-pointer text-sm font-semibold">
+              Exercise lessons ({toolkitExercises.length})
+            </summary>
+            <ul className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2">
+              {toolkitExercises.map((exercise) => (
+                <li key={exercise.id}>
+                  <a
+                    href={exercise.toolkitLessonUrls[skill]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline"
+                  >
+                    {exercise.name} ↗
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
         {run && (
           <>
             {skill === "bridge" && (
@@ -311,223 +330,216 @@ function SkillPanel({
                 </div>
               </section>
             )}
-            <section className="space-y-3 border-t border-border pt-4">
-              <h3 className="font-semibold">Assessments</h3>
-              <p className="text-xs text-muted-foreground">
-                Use the toolkit lesson for the test setup. Results stay with this practice run.
-              </p>
-              <div className="grid gap-2 sm:grid-cols-3">
-                <label className="text-xs">
-                  Test
-                  <select
-                    className="mt-1 w-full rounded-md border border-input bg-background p-2 text-sm"
-                    value={assessment.testKey}
-                    onChange={(event) =>
-                      setAssessment({ ...assessment, testKey: event.target.value })
-                    }
-                  >
-                    <option value="">Choose test</option>
-                    {source.tests.map((test) => (
-                      <option key={test.key} value={test.key}>
-                        {test.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-xs">
-                  Date
-                  <Input
-                    type="date"
-                    value={assessment.measuredOn}
-                    onChange={(event) =>
-                      setAssessment({ ...assessment, measuredOn: event.target.value })
-                    }
-                  />
-                </label>
-                <label className="text-xs">
-                  Side
-                  <select
-                    className="mt-1 w-full rounded-md border border-input bg-background p-2 text-sm"
-                    value={assessment.side}
-                    onChange={(event) =>
-                      setAssessment({
-                        ...assessment,
-                        side: event.target.value as MobilityAssessment["side"],
-                      })
-                    }
-                  >
-                    <option value="none">No side</option>
-                    <option value="left">Left</option>
-                    <option value="right">Right</option>
-                  </select>
-                </label>
-                <label className="text-xs">
-                  Result
-                  <Input
-                    type={assessment.unit === "text" ? "text" : "number"}
-                    step="any"
-                    value={assessment.value}
-                    onChange={(event) =>
-                      setAssessment({ ...assessment, value: event.target.value })
-                    }
-                  />
-                </label>
-                <label className="text-xs">
-                  Unit
-                  <select
-                    className="mt-1 w-full rounded-md border border-input bg-background p-2 text-sm"
-                    value={assessment.unit}
-                    onChange={(event) =>
-                      setAssessment({
-                        ...assessment,
-                        unit: event.target.value as MobilityAssessment["unit"],
-                        value: "",
-                      })
-                    }
-                  >
-                    <option value="deg">degrees</option>
-                    <option value="cm">cm</option>
-                    <option value="text">short text</option>
-                  </select>
-                </label>
-                <label className="text-xs">
-                  Setup note
-                  <Input
-                    value={assessment.setupNote}
-                    onChange={(event) =>
-                      setAssessment({ ...assessment, setupNote: event.target.value })
-                    }
-                  />
-                </label>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  disabled={mutation.isPending || !assessment.testKey || !assessment.value.trim()}
-                  onClick={() =>
-                    save(async () => {
-                      await saveMobilityAssessmentClient({
-                        id: assessment.id || undefined,
-                        runId: run.id,
-                        skill,
-                        testKey: assessment.testKey,
-                        side: assessment.side,
-                        measuredOn: assessment.measuredOn,
-                        valueNumeric: assessment.unit === "text" ? null : Number(assessment.value),
-                        valueText: assessment.unit === "text" ? assessment.value : "",
-                        unit: assessment.unit,
-                        setupNote: assessment.setupNote,
-                      });
-                      setAssessment(emptyAssessment());
-                    })
-                  }
-                >
-                  {assessment.id ? "Save correction" : "Add result"}
-                </Button>
-                {assessment.id && (
+            <details className="border-t border-border pt-4">
+              <summary className="cursor-pointer text-sm font-semibold">
+                Optional assessments
+              </summary>
+              <div className="mt-3 space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Record a result only if you want to track a test. Practice does not require one.
+                </p>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <label className="text-xs">
+                    Test
+                    <select
+                      className="mt-1 w-full rounded-md border border-input bg-background p-2 text-sm"
+                      value={assessment.testKey}
+                      onChange={(event) =>
+                        setAssessment({ ...assessment, testKey: event.target.value })
+                      }
+                    >
+                      <option value="">Choose test</option>
+                      {source.tests.map((test) => (
+                        <option key={test.key} value={test.key}>
+                          {test.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs">
+                    Date
+                    <Input
+                      type="date"
+                      value={assessment.measuredOn}
+                      onChange={(event) =>
+                        setAssessment({ ...assessment, measuredOn: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label className="text-xs">
+                    Side
+                    <select
+                      className="mt-1 w-full rounded-md border border-input bg-background p-2 text-sm"
+                      value={assessment.side}
+                      onChange={(event) =>
+                        setAssessment({
+                          ...assessment,
+                          side: event.target.value as MobilityAssessment["side"],
+                        })
+                      }
+                    >
+                      <option value="none">No side</option>
+                      <option value="left">Left</option>
+                      <option value="right">Right</option>
+                    </select>
+                  </label>
+                  <label className="text-xs">
+                    Result
+                    <Input
+                      type={assessment.unit === "text" ? "text" : "number"}
+                      step="any"
+                      value={assessment.value}
+                      onChange={(event) =>
+                        setAssessment({ ...assessment, value: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label className="text-xs">
+                    Unit
+                    <select
+                      className="mt-1 w-full rounded-md border border-input bg-background p-2 text-sm"
+                      value={assessment.unit}
+                      onChange={(event) =>
+                        setAssessment({
+                          ...assessment,
+                          unit: event.target.value as MobilityAssessment["unit"],
+                          value: "",
+                        })
+                      }
+                    >
+                      <option value="deg">degrees</option>
+                      <option value="cm">cm</option>
+                      <option value="text">short text</option>
+                    </select>
+                  </label>
+                  <label className="text-xs">
+                    Setup note
+                    <Input
+                      value={assessment.setupNote}
+                      onChange={(event) =>
+                        setAssessment({ ...assessment, setupNote: event.target.value })
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="flex gap-2">
                   <Button
                     size="sm"
-                    variant="ghost"
-                    onClick={() => setAssessment(emptyAssessment())}
+                    disabled={mutation.isPending || !assessment.testKey || !assessment.value.trim()}
+                    onClick={() =>
+                      save(async () => {
+                        await saveMobilityAssessmentClient({
+                          id: assessment.id || undefined,
+                          runId: run.id,
+                          skill,
+                          testKey: assessment.testKey,
+                          side: assessment.side,
+                          measuredOn: assessment.measuredOn,
+                          valueNumeric:
+                            assessment.unit === "text" ? null : Number(assessment.value),
+                          valueText: assessment.unit === "text" ? assessment.value : "",
+                          unit: assessment.unit,
+                          setupNote: assessment.setupNote,
+                        });
+                        setAssessment(emptyAssessment());
+                      })
+                    }
                   >
-                    Cancel
+                    {assessment.id ? "Save correction" : "Add result"}
                   </Button>
+                  {assessment.id && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setAssessment(emptyAssessment())}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                </div>
+                {assessments.length > 0 && (
+                  <div className="space-y-1 text-sm">
+                    {source.tests
+                      .flatMap((test) =>
+                        (["none", "left", "right"] as const).map((side) => {
+                          const matching = assessments
+                            .filter((item) => item.testKey === test.key && item.side === side)
+                            .sort((a, b) => a.measuredOn.localeCompare(b.measuredOn));
+                          if (!matching.length) return null;
+                          const first = matching[0];
+                          const last = matching[matching.length - 1];
+                          const render = (item: MobilityAssessment) =>
+                            `${item.valueNumeric ?? item.valueText} ${item.unit === "text" ? "" : item.unit}`;
+                          const change =
+                            first.valueNumeric != null &&
+                            last.valueNumeric != null &&
+                            first.unit === last.unit &&
+                            first.id !== last.id
+                              ? last.valueNumeric - first.valueNumeric
+                              : null;
+                          return (
+                            <div
+                              key={`${test.key}-${side}`}
+                              className="rounded-md border border-border p-2"
+                            >
+                              <strong>
+                                {test.label}
+                                {side !== "none" && ` · ${side}`}
+                              </strong>{" "}
+                              · baseline {render(first)} ({first.measuredOn}) · latest{" "}
+                              {render(last)} ({last.measuredOn})
+                              {change != null &&
+                                ` · change ${change > 0 ? "+" : ""}${change} ${last.unit}`}
+                              {matching.map((item) => (
+                                <div
+                                  key={item.id}
+                                  className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
+                                >
+                                  <span>
+                                    {item.measuredOn} · {item.side} · {render(item)}
+                                    {item.setupNote && ` · ${item.setupNote}`}
+                                  </span>
+                                  <button
+                                    className="underline"
+                                    onClick={() =>
+                                      setAssessment({
+                                        id: item.id,
+                                        testKey: item.testKey,
+                                        side: item.side,
+                                        measuredOn: item.measuredOn,
+                                        value: String(item.valueNumeric ?? item.valueText),
+                                        unit: item.unit,
+                                        setupNote: item.setupNote,
+                                      })
+                                    }
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    className="underline"
+                                    onClick={() => {
+                                      if (window.confirm("Remove this assessment result?"))
+                                        save(() => deleteMobilityAssessmentClient(item.id, run.id));
+                                    }}
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }),
+                      )
+                      .filter(Boolean)}
+                  </div>
                 )}
               </div>
-              {assessments.length > 0 && (
-                <div className="space-y-1 text-sm">
-                  {source.tests
-                    .flatMap((test) =>
-                      (["none", "left", "right"] as const).map((side) => {
-                        const matching = assessments
-                          .filter((item) => item.testKey === test.key && item.side === side)
-                          .sort((a, b) => a.measuredOn.localeCompare(b.measuredOn));
-                        if (!matching.length) return null;
-                        const first = matching[0];
-                        const last = matching[matching.length - 1];
-                        const render = (item: MobilityAssessment) =>
-                          `${item.valueNumeric ?? item.valueText} ${item.unit === "text" ? "" : item.unit}`;
-                        const change =
-                          first.valueNumeric != null &&
-                          last.valueNumeric != null &&
-                          first.unit === last.unit &&
-                          first.id !== last.id
-                            ? last.valueNumeric - first.valueNumeric
-                            : null;
-                        return (
-                          <div
-                            key={`${test.key}-${side}`}
-                            className="rounded-md border border-border p-2"
-                          >
-                            <strong>
-                              {test.label}
-                              {side !== "none" && ` · ${side}`}
-                            </strong>{" "}
-                            · baseline {render(first)} ({first.measuredOn}) · latest {render(last)}{" "}
-                            ({last.measuredOn})
-                            {change != null &&
-                              ` · change ${change > 0 ? "+" : ""}${change} ${last.unit}`}
-                            {matching.map((item) => (
-                              <div
-                                key={item.id}
-                                className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
-                              >
-                                <span>
-                                  {item.measuredOn} · {item.side} · {render(item)}
-                                  {item.setupNote && ` · ${item.setupNote}`}
-                                </span>
-                                <button
-                                  className="underline"
-                                  onClick={() =>
-                                    setAssessment({
-                                      id: item.id,
-                                      testKey: item.testKey,
-                                      side: item.side,
-                                      measuredOn: item.measuredOn,
-                                      value: String(item.valueNumeric ?? item.valueText),
-                                      unit: item.unit,
-                                      setupNote: item.setupNote,
-                                    })
-                                  }
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  className="underline"
-                                  onClick={() => {
-                                    if (window.confirm("Remove this assessment result?"))
-                                      save(() => deleteMobilityAssessmentClient(item.id, run.id));
-                                  }}
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      }),
-                    )
-                    .filter(Boolean)}
-                </div>
-              )}
-            </section>
+            </details>
             <section className="space-y-3 border-t border-border pt-4">
-              <h3 className="font-semibold">My drill plan</h3>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={run.planReceived}
-                  onChange={(event) =>
-                    save(() =>
-                      updateMobilityRunClient(run.id, { planReceived: event.target.checked }),
-                    )
-                  }
-                />{" "}
-                I received my personal programme
-              </label>
+              <h3 className="font-semibold">My drills</h3>
               <p className="text-xs text-muted-foreground">
-                Enter the drill order and targets from your own programme. Choose a {source.label}
-                toolkit exercise to load it into Log.
+                Choose {source.label} toolkit exercises and set your own order and targets. Add a
+                drill to include it when you log practice.
               </p>
               <div className="grid gap-2 sm:grid-cols-3">
                 <label className="text-xs">
@@ -562,14 +574,25 @@ function SkillPanel({
                     ))}
                   </select>
                 </label>
-                <label className="text-xs">
-                  Toolkit lesson link
+                <div className="text-xs">
+                  <label htmlFor={`${skill}-lesson-url`}>Toolkit lesson link</label>
                   <Input
+                    id={`${skill}-lesson-url`}
                     type="url"
                     value={drill.lessonUrl}
                     onChange={(event) => setDrill({ ...drill, lessonUrl: event.target.value })}
                   />
-                </label>
+                  {isToolkitLessonUrl(drill.lessonUrl) && (
+                    <a
+                      href={drill.lessonUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 inline-block text-sm text-primary underline"
+                    >
+                      Open exercise lesson ↗
+                    </a>
+                  )}
+                </div>
                 <label className="text-xs">
                   Sets
                   <Input
