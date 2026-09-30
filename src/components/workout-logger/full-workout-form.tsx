@@ -253,7 +253,9 @@ export type WorkoutMethodBlockState = {
 };
 
 export type MethodBlockEditorState =
-  { mode: "closed" } | { mode: "create" } | { mode: "edit"; blockId: string };
+  | { mode: "closed" }
+  | { mode: "create" }
+  | { mode: "edit"; blockId: string };
 
 export type WorkoutSetState = {
   reps: string;
@@ -1533,7 +1535,10 @@ export function FullWorkoutForm() {
       allLibraryExercises.filter(
         (exercise) =>
           exercise.workoutType !== CLIMBING_WORKOUT_TYPE &&
-          (!mobilityRunId || ("toolkitSection" in exercise && Boolean(exercise.toolkitSection))),
+          (!mobilityRunId ||
+            ("toolkitSections" in exercise &&
+              Array.isArray(exercise.toolkitSections) &&
+              exercise.toolkitSections.length > 0)),
       ),
     [allLibraryExercises, mobilityRunId],
   );

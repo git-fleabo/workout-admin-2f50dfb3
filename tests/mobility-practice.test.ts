@@ -92,7 +92,7 @@ test("practice draft carries only the selected skill run and personal targets", 
         name: "Pike",
         workoutType: "Mobility",
         metric: "Distance",
-        toolkitSection: "pike",
+        toolkitSections: ["pike"],
       },
     ],
     locationKind: "home",
@@ -129,13 +129,46 @@ test("practice draft rejects a library exercise outside its toolkit skill", () =
             name: "Bridge Rocks",
             workoutType: "Mobility/Flexibility",
             metric: "reps_only",
-            toolkitSection: "bridge",
+            toolkitSections: ["bridge"],
           },
         ],
         locationKind: "home",
       }),
     /pike toolkit exercise/,
   );
+});
+
+test("a shared toolkit exercise can be used in either tagged skill", () => {
+  const drill: MobilityDrill = {
+    id: "shared-drill",
+    runId: "side_split-run",
+    exerciseId: "shared-exercise",
+    name: "Adductor Flyes",
+    lessonUrl: "",
+    sortOrder: 0,
+    targetSets: 1,
+    targetReps: "8",
+    targetWeightKg: null,
+    targetHoldSeconds: null,
+    targetDetail: "",
+    isActive: true,
+  };
+  const draft = buildMobilityWorkoutDraft({
+    run: run("side_split"),
+    drills: [drill],
+    library: [
+      {
+        id: "shared-exercise",
+        name: "Adductor Flyes",
+        workoutType: "Mobility/Flexibility",
+        metric: "reps_only",
+        toolkitSections: ["pancake", "side_split"],
+      },
+    ],
+    locationKind: "gym",
+  });
+  assert.equal(draft.mobilityRunId, "side_split-run");
+  assert.equal(draft.movements[0]?.exercise, "Adductor Flyes");
 });
 
 test("lesson references must stay on the toolkit", () => {

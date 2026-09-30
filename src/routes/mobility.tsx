@@ -10,6 +10,7 @@ import { launchMobilityPractice } from "@/lib/mobility-launch.browser";
 import { todayISO } from "@/lib/date";
 import {
   currentMobilityRun,
+  MOBILITY_SKILL_ORDER,
   MOBILITY_SKILLS,
   mobilityNextAction,
   type MobilityAssessment,
@@ -68,8 +69,8 @@ function MobilityPage() {
       <header className="border-b border-border pb-4">
         <h1 className="text-2xl font-semibold">Mobility practice</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Your Pike and Bridge plans sit alongside your main training programme. Enter only your own
-          results and the drills you choose from the toolkit.
+          Your toolkit practice areas sit alongside your main training programme. Enter only your
+          own results and the drills you choose from the toolkit.
         </p>
       </header>
       {data.isLoading ? (
@@ -79,7 +80,7 @@ function MobilityPage() {
           Mobility practice could not be loaded: {(data.error as Error).message}
         </p>
       ) : (
-        (["pike", "bridge"] as MobilitySkill[]).map((skill) => (
+        MOBILITY_SKILL_ORDER.map((skill) => (
           <SkillPanel key={skill} skill={skill} data={data.data!} library={library.data} />
         ))
       )}
@@ -111,7 +112,7 @@ function SkillPanel({
   const sevenDayStartISO = `${sevenDayStart.getFullYear()}-${String(sevenDayStart.getMonth() + 1).padStart(2, "0")}-${String(sevenDayStart.getDate()).padStart(2, "0")}`;
   const sessionsLast7Days = sessions.filter((session) => session.date >= sevenDayStartISO).length;
   const toolkitExercises =
-    library?.exercises.filter((exercise) => exercise.toolkitSection === skill) ?? [];
+    library?.exercises.filter((exercise) => exercise.toolkitSections.includes(skill)) ?? [];
   const toolkitExerciseIds = new Set(toolkitExercises.map((exercise) => exercise.id));
   const action = mobilityNextAction({
     run,
@@ -232,6 +233,17 @@ function SkillPanel({
               Cooldown ↗
             </a>
           )}
+          {source.extraLinks?.map((link) => (
+            <a
+              key={link.url}
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline"
+            >
+              {link.label} ↗
+            </a>
+          ))}
         </div>
         {run && (
           <>
@@ -537,8 +549,8 @@ function SkillPanel({
                       setDrill({
                         ...drill,
                         exerciseId: event.target.value,
-                        name: drill.name.trim() || exercise?.name || "",
-                        lessonUrl: drill.lessonUrl.trim() || exercise?.toolkitLessonUrl || "",
+                        name: exercise?.name || drill.name,
+                        lessonUrl: exercise?.toolkitLessonUrls[skill] || "",
                       });
                     }}
                   >
