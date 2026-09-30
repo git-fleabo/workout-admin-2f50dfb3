@@ -58,7 +58,7 @@ The pilot should support degrees because both toolkit builders request angles. T
 - **Practice runs:** person-owned runs keyed by skill (`pike` or `bridge`), with status, start/end dates, current phase, optional review date, and user notes. Allow one current run per person and skill. A new run archives the previous run for that skill and keeps its history. These runs are separate from `program_assignments`, which drives the primary programme's next session.
 - **Bridge readiness:** the user's recorded outcome, check date, and optional left/right measurement and note belong to a Bridge run. A "shoulders first" outcome pauses Bridge's practice action until the user updates readiness. The app does not make the readiness recommendation itself.
 - **Assessment results:** dated, typed measurements belonging to a run and a skill-specific test. Preserve the original result and permit a clear correction. Index by run, test, side, and date.
-- **Chosen drills:** the user's ordered list, editable targets, optional `exercise_id`, and the exact toolkit lesson URL they chose. Do not seed a fixed programme from the course. Save a reference to the relevant exercise in the existing library where possible.
+- **Chosen drills:** the user's ordered list, editable targets, optional `exercise_id`, and the exact toolkit lesson URL they chose. The Library has personally tagged Pike and Bridge drill names with links back to their toolkit lessons; Mobility Practice offers only tagged exercises from the matching skill. Do not seed a fixed programme or infer individualised targets from the course.
 - **Completed sessions:** continue using the existing workout/session tables and logger. Link each completed mobility session to the Pike or Bridge run explicitly so the card can show frequency and last practice without guessing from exercise names.
 - **Access:** apply the app's existing person-based authorization to every new table, enable row level security, and index foreign keys. Keep any course URL as a reference, never an authentication token or copied media URL.
 
@@ -71,7 +71,7 @@ The pilot should support degrees because both toolkit builders request angles. T
 5. Pike and Bridge sessions open in the normal logger, can be edited, and appear in History and Progress. Completing one updates only its linked practice run.
 6. The mobility area offers one useful next action per skill and keeps phase controls secondary.
 7. Ending or restarting either practice preserves its prior assessments and completed session history.
-8. Authenticated lesson links open the original toolkit pages; no course files or media are imported.
+8. Authenticated lesson links open the original toolkit pages; no course files, media, instruction text, or individualised prescriptions are imported.
 
 ## Delivery sequence
 

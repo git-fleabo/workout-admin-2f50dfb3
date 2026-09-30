@@ -25,6 +25,9 @@ export function MobilityPracticeOverview({ compact = false }: { compact?: boolea
   if (data.isLoading) return null;
   if (data.error)
     return <p className="text-sm text-destructive">Mobility practice could not be loaded.</p>;
+  const toolkitExerciseById = new Map(
+    (library.data?.exercises ?? []).map((exercise) => [exercise.id, exercise]),
+  );
   const items = (["pike", "bridge"] as MobilitySkill[]).map((skill) => {
     const run = currentMobilityRun(data.data?.runs ?? [], skill);
     const assessments = data.data?.assessments.filter((item) => item.runId === run?.id) ?? [];
@@ -40,7 +43,12 @@ export function MobilityPracticeOverview({ compact = false }: { compact?: boolea
         run,
         assessmentCount: assessments.length,
         activeDrillCount: drills.filter((item) => item.isActive).length,
-        mappedDrillCount: drills.filter((item) => item.isActive && item.exerciseId).length,
+        mappedDrillCount: drills.filter(
+          (item) =>
+            item.isActive &&
+            item.exerciseId &&
+            toolkitExerciseById.get(item.exerciseId)?.toolkitSection === skill,
+        ).length,
         today: todayISO(),
       }),
     };

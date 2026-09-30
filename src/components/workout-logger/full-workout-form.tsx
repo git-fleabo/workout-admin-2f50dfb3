@@ -1529,8 +1529,13 @@ export function FullWorkoutForm() {
   const allLibraryExercises =
     lib.data?.exercises && lib.data.exercises.length > 0 ? lib.data.exercises : FALLBACK_MOVEMENTS;
   const workoutLibraryExercises = useMemo(
-    () => allLibraryExercises.filter((exercise) => exercise.workoutType !== CLIMBING_WORKOUT_TYPE),
-    [allLibraryExercises],
+    () =>
+      allLibraryExercises.filter(
+        (exercise) =>
+          exercise.workoutType !== CLIMBING_WORKOUT_TYPE &&
+          (!mobilityRunId || ("toolkitSection" in exercise && Boolean(exercise.toolkitSection))),
+      ),
+    [allLibraryExercises, mobilityRunId],
   );
   const recentWorkoutLogs = useMemo(
     () => (recent.data?.recent ?? []).filter((item) => item.workoutType !== CLIMBING_WORKOUT_TYPE),
@@ -2628,7 +2633,9 @@ export function FullWorkoutForm() {
       <div>
         <h2 className="text-base font-semibold">Movements and sets</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Build the workout first. Set-level methods stay attached to the set they change.
+          {mobilityRunId
+            ? "Choose toolkit exercises for this mobility practice. Set-level methods stay attached to the set they change."
+            : "Build the workout first. Set-level methods stay attached to the set they change."}
         </p>
       </div>
       <div className="space-y-3">

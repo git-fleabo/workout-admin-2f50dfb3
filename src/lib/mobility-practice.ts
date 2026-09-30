@@ -172,16 +172,22 @@ export function buildMobilityWorkoutDraft({
     name: string;
     workoutType: string;
     metric: string;
+    toolkitSection: MobilitySkill | null;
   }>;
   locationKind: "home" | "gym";
   trainingLocationId?: string;
 }): WorkoutPlanDraft {
-  const exerciseById = new Map(library.map((exercise) => [exercise.id, exercise]));
+  const exerciseById = new Map(
+    library
+      .filter((exercise) => exercise.toolkitSection === run.skill)
+      .map((exercise) => [exercise.id, exercise]),
+  );
   const active = drills.filter((drill) => drill.isActive).sort((a, b) => a.sortOrder - b.sortOrder);
   if (!active.length) throw new Error("Add at least one active drill from your plan.");
   const movements: WorkoutPlanMovement[] = active.map((drill) => {
     const exercise = drill.exerciseId ? exerciseById.get(drill.exerciseId) : null;
-    if (!exercise) throw new Error(`${drill.name} needs a matching exercise in your library.`);
+    if (!exercise)
+      throw new Error(`${drill.name} needs a ${run.skill} toolkit exercise in your library.`);
     const sets = Math.max(1, drill.targetSets ?? 1);
     const reps = /^\d+(?:\.\d+)?$/.test(drill.targetReps.trim()) ? drill.targetReps.trim() : "";
     return {
