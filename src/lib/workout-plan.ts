@@ -75,6 +75,7 @@ export type RecentWorkoutMethodBlock = WorkoutPlanMethodBlock & {
 export type WorkoutPlanDraft = {
   version: 1;
   suggestedWorkoutId?: string;
+  mobilityRunId?: string;
   title: string;
   locationKind: PlannerLocation;
   trainingLocationId?: string;
@@ -505,6 +506,7 @@ export function readWorkoutPlanDraft(value: string | null): WorkoutPlanDraft | n
     if (
       draft.version !== 1 ||
       (draft.suggestedWorkoutId != null && typeof draft.suggestedWorkoutId !== "string") ||
+      (draft.mobilityRunId != null && typeof draft.mobilityRunId !== "string") ||
       !draft.title ||
       !["home", "gym"].includes(draft.locationKind) ||
       !Array.isArray(draft.movements) ||

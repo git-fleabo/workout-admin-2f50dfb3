@@ -280,6 +280,7 @@ export type TrainingLocation = {
 };
 
 export type WorkoutSessionInput = {
+  mobilityRunId?: string | null;
   date: string;
   title: string;
   trainingLocationId: string;
@@ -942,16 +943,21 @@ export async function addWorkoutSessionClient(
     p_entries: rpcEntries,
     p_method_blocks: methodBlocks,
   };
+  const rpcFunctionName = data.mobilityRunId ? "save_mobility_workout" : "save_workout";
+  const saveBody = data.mobilityRunId
+    ? { ...rpcBody, p_mobility_run_id: data.mobilityRunId }
+    : rpcBody;
 
   try {
-    const sessionId = await supabasePublicRpc<string>("save_workout", rpcBody);
+    const sessionId = await supabasePublicRpc<string>(rpcFunctionName, saveBody);
     if (!sessionId) throw new Error("Workout was not saved.");
     return { ok: true, row: "Supabase", sessionId, queued: false as const };
   } catch (error) {
     if (!options.queueWhenOffline || !isLikelyOfflineError(error)) throw error;
     enqueueWorkoutSave({
       personId: person.id,
-      rpcBody,
+      rpcBody: saveBody,
+      rpcFunctionName,
       draftKey: workoutSessionDraftKey(),
     });
     return { ok: true, row: "Offline queue", sessionId: null, queued: true as const };
@@ -964,8 +970,11 @@ export async function replaceWorkoutSessionClient(
 ) {
   if (!originalSessionId) throw new Error("Missing workout session id.");
   const person = await requirePerson();
-  const originals = await supabasePublicSelect<{ id: string }>("sessions", {
-    select: "id",
+  const originals = await supabasePublicSelect<{
+    id: string;
+    mobility_practice_run_id: string | null;
+  }>("sessions", {
+    select: "id,mobility_practice_run_id",
     id: `eq.${originalSessionId}`,
     person_id: `eq.${person.id}`,
     limit: 1,
@@ -977,7 +986,13 @@ export async function replaceWorkoutSessionClient(
     person_id: `eq.${person.id}`,
     completed_session_id: `eq.${originalSessionId}`,
   });
-  const replacement = await addWorkoutSessionClient(data, { queueWhenOffline: false });
+  const replacement = await addWorkoutSessionClient(
+    {
+      ...data,
+      mobilityRunId: data.mobilityRunId ?? originals[0].mobility_practice_run_id,
+    },
+    { queueWhenOffline: false },
+  );
 
   try {
     const deleted = await supabasePublicDelete<{ id: string }>("sessions", {

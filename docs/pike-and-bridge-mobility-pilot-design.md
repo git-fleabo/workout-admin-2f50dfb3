@@ -1,6 +1,6 @@
 # Pike & Head to Toe and Bridge mobility pilot
 
-Status: design for review, 30 September 2026. No programme, assessment, or workout data has been created.
+Status: implemented in repository on 30 September 2026; database migration and authenticated live flow await deployment and verification. No personal programme, assessment, or workout data has been created.
 
 ## Purpose
 
