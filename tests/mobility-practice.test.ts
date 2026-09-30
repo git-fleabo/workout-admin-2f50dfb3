@@ -86,13 +86,56 @@ test("practice draft carries only the selected skill run and personal targets", 
   const draft = buildMobilityWorkoutDraft({
     run: run("pike"),
     drills: [drill],
-    library: [{ id: "exercise", name: "Pike", workoutType: "Mobility", metric: "Distance" }],
+    library: [
+      {
+        id: "exercise",
+        name: "Pike",
+        workoutType: "Mobility",
+        metric: "Distance",
+        toolkitSection: "pike",
+      },
+    ],
     locationKind: "home",
   });
   assert.equal(draft.mobilityRunId, "pike-run");
   assert.equal(draft.movements.length, 1);
   assert.equal(draft.movements[0]?.setRows.length, 2);
   assert.equal(draft.movements[0]?.setRows[0]?.weight, "5");
+});
+
+test("practice draft rejects a library exercise outside its toolkit skill", () => {
+  const drill: MobilityDrill = {
+    id: "drill",
+    runId: "pike-run",
+    exerciseId: "exercise",
+    name: "Other exercise",
+    lessonUrl: "",
+    sortOrder: 0,
+    targetSets: 1,
+    targetReps: "",
+    targetWeightKg: null,
+    targetHoldSeconds: null,
+    targetDetail: "",
+    isActive: true,
+  };
+  assert.throws(
+    () =>
+      buildMobilityWorkoutDraft({
+        run: run("pike"),
+        drills: [drill],
+        library: [
+          {
+            id: "exercise",
+            name: "Bridge Rocks",
+            workoutType: "Mobility/Flexibility",
+            metric: "reps_only",
+            toolkitSection: "bridge",
+          },
+        ],
+        locationKind: "home",
+      }),
+    /pike toolkit exercise/,
+  );
 });
 
 test("lesson references must stay on the toolkit", () => {

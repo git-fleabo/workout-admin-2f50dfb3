@@ -110,11 +110,16 @@ function SkillPanel({
   sevenDayStart.setDate(sevenDayStart.getDate() - 6);
   const sevenDayStartISO = `${sevenDayStart.getFullYear()}-${String(sevenDayStart.getMonth() + 1).padStart(2, "0")}-${String(sevenDayStart.getDate()).padStart(2, "0")}`;
   const sessionsLast7Days = sessions.filter((session) => session.date >= sevenDayStartISO).length;
+  const toolkitExercises =
+    library?.exercises.filter((exercise) => exercise.toolkitSection === skill) ?? [];
+  const toolkitExerciseIds = new Set(toolkitExercises.map((exercise) => exercise.id));
   const action = mobilityNextAction({
     run,
     assessmentCount: assessments.length,
     activeDrillCount: drills.filter((item) => item.isActive).length,
-    mappedDrillCount: drills.filter((item) => item.isActive && item.exerciseId).length,
+    mappedDrillCount: drills.filter(
+      (item) => item.isActive && item.exerciseId && toolkitExerciseIds.has(item.exerciseId),
+    ).length,
     today: todayISO(),
   });
   const [assessment, setAssessment] = useState(emptyAssessment);
@@ -141,7 +146,9 @@ function SkillPanel({
     run?.status === "active" &&
     (skill === "pike" || run.readiness === "ready") &&
     drills.some((item) => item.isActive);
-  const allActiveDrillsMapped = drills.every((item) => !item.isActive || Boolean(item.exerciseId));
+  const allActiveDrillsMapped = drills.every(
+    (item) => !item.isActive || Boolean(item.exerciseId && toolkitExerciseIds.has(item.exerciseId)),
+  );
 
   return (
     <Card>
@@ -507,8 +514,8 @@ function SkillPanel({
                 I received my personal programme
               </label>
               <p className="text-xs text-muted-foreground">
-                Enter the drill order and targets from your own programme. Match each drill to a
-                library exercise to load it into Log.
+                Enter the drill order and targets from your own programme. Choose a {source.label}
+                toolkit exercise to load it into Log.
               </p>
               <div className="grid gap-2 sm:grid-cols-3">
                 <label className="text-xs">
@@ -523,10 +530,20 @@ function SkillPanel({
                   <select
                     className="mt-1 w-full rounded-md border border-input bg-background p-2 text-sm"
                     value={drill.exerciseId}
-                    onChange={(event) => setDrill({ ...drill, exerciseId: event.target.value })}
+                    onChange={(event) => {
+                      const exercise = toolkitExercises.find(
+                        (item) => item.id === event.target.value,
+                      );
+                      setDrill({
+                        ...drill,
+                        exerciseId: event.target.value,
+                        name: drill.name.trim() || exercise?.name || "",
+                        lessonUrl: drill.lessonUrl.trim() || exercise?.toolkitLessonUrl || "",
+                      });
+                    }}
                   >
-                    <option value="">Choose matching exercise</option>
-                    {library?.exercises.map((exercise) => (
+                    <option value="">Choose toolkit exercise</option>
+                    {toolkitExercises.map((exercise) => (
                       <option key={exercise.id} value={exercise.id}>
                         {exercise.name}
                       </option>

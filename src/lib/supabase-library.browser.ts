@@ -61,6 +61,8 @@ type PersonExerciseRecord = {
   location_scope: ExerciseLocationScope;
   is_quick_log: boolean;
   quick_log_order: number | null;
+  toolkit_section: "pike" | "bridge" | null;
+  toolkit_lesson_url: string | null;
 };
 
 type EquipmentItemRecord = {
@@ -106,6 +108,8 @@ export type LibraryClientRow = LibraryRow & {
   enabled: boolean;
   active: boolean;
   personExerciseId: string | null;
+  toolkitSection: "pike" | "bridge" | null;
+  toolkitLessonUrl: string;
   locationScope: ExerciseLocationScope;
   quickLog: boolean;
   equipmentItemIds: string[];
@@ -186,6 +190,8 @@ function mapExercise(
     enabled: personExercise?.is_enabled ?? false,
     quickLog: personExercise?.is_quick_log ?? false,
     personExerciseId: personExercise?.id ?? null,
+    toolkitSection: personExercise?.toolkit_section ?? null,
+    toolkitLessonUrl: personExercise?.toolkit_lesson_url ?? "",
     locationScope,
     equipmentItemIds: requiredIds,
     equipmentCircuitGroups: Array.from(new Set(equipmentItems.map((item) => item.circuit_group))),
@@ -233,7 +239,8 @@ async function getOrCreateActivityType(name: string) {
 
 async function listPersonExercises(personId: string) {
   return supabasePublicSelect<PersonExerciseRecord>("person_exercises", {
-    select: "id,person_id,exercise_id,is_enabled,location_scope,is_quick_log,quick_log_order",
+    select:
+      "id,person_id,exercise_id,is_enabled,location_scope,is_quick_log,quick_log_order,toolkit_section,toolkit_lesson_url",
     person_id: `eq.${personId}`,
   });
 }

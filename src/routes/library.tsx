@@ -123,7 +123,9 @@ export const Route = createFileRoute("/library")({
 });
 
 type EditorState =
-  { mode: "closed" } | { mode: "create" } | { mode: "edit"; row: LibraryClientRow };
+  | { mode: "closed" }
+  | { mode: "create" }
+  | { mode: "edit"; row: LibraryClientRow };
 
 const BLANK: Omit<LibraryRow, "row"> & { equipmentItemIds: string[] } = {
   workoutType: "",
@@ -386,6 +388,7 @@ function LibraryPage() {
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [locationFilter, setLocationFilter] = useState<"" | "home" | "gym">("");
   const [circuitFilter, setCircuitFilter] = useState<"" | CircuitSuitability>("");
+  const [toolkitOnly, setToolkitOnly] = useState(false);
   const [editor, setEditor] = useState<EditorState>({ mode: "closed" });
   const [pendingDelete, setPendingDelete] = useState<LibraryClientRow | null>(null);
   const [selected, setSelected] = useState<LibraryClientRow | null>(null);
@@ -400,6 +403,7 @@ function LibraryPage() {
       if (typeFilter && i.workoutType !== typeFilter) return false;
       if (locationFilter && !i.availableLocationKinds.includes(locationFilter)) return false;
       if (circuitFilter && i.circuitSuitability !== circuitFilter) return false;
+      if (toolkitOnly && !i.toolkitSection) return false;
       if (!q) return true;
       return (
         i.name.toLowerCase().includes(q) ||
@@ -407,8 +411,10 @@ function LibraryPage() {
         i.notes.toLowerCase().includes(q)
       );
     });
-  }, [circuitFilter, list.data, locationFilter, search, typeFilter]);
-  const hasActiveFilter = Boolean(search.trim() || typeFilter || locationFilter || circuitFilter);
+  }, [circuitFilter, list.data, locationFilter, search, toolkitOnly, typeFilter]);
+  const hasActiveFilter = Boolean(
+    search.trim() || typeFilter || locationFilter || circuitFilter || toolkitOnly,
+  );
   const visibleMovements = hasActiveFilter || showAllMovements ? filtered : filtered.slice(0, 12);
 
   const addMutation = useMutation({
@@ -549,6 +555,14 @@ function LibraryPage() {
         </div>
         <div className="flex h-10 items-center gap-2 rounded-md border border-border px-3">
           <Switch
+            checked={toolkitOnly}
+            onCheckedChange={setToolkitOnly}
+            aria-label="Toolkit only"
+          />
+          <span className="text-xs text-muted-foreground">Toolkit only</span>
+        </div>
+        <div className="flex h-10 items-center gap-2 rounded-md border border-border px-3">
+          <Switch
             checked={showInactive}
             onCheckedChange={(checked) => {
               setSelected(null);
@@ -634,6 +648,11 @@ function LibraryPage() {
                             {ex.focusArea}
                           </span>
                         )}
+                        {ex.toolkitSection && (
+                          <span className="rounded-full border border-violet-400/30 bg-violet-400/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-violet-300">
+                            Toolkit · {ex.toolkitSection}
+                          </span>
+                        )}
                         <span
                           className={`hidden rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider sm:inline ${circuitChipClass(ex.circuitSuitability)}`}
                         >
@@ -694,6 +713,17 @@ function LibraryPage() {
                         <p className="mt-1 hidden line-clamp-2 text-xs text-muted-foreground/90 sm:block">
                           {ex.notes}
                         </p>
+                      )}
+                      {ex.toolkitLessonUrl && (
+                        <a
+                          href={ex.toolkitLessonUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 inline-block text-xs underline"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          Open toolkit lesson ↗
+                        </a>
                       )}
                     </div>
                     <div
