@@ -396,6 +396,7 @@ type StoredWorkoutSessionDraft = {
   form: SessionFormState;
   loadedSuggestionId: string | null;
   editingSessionId?: string | null;
+  mobilityRunId?: string | null;
 };
 
 type StoredCompletedWorkout = {
@@ -496,7 +497,8 @@ function readWorkoutSessionDraft(value: string | null): StoredWorkoutSessionDraf
       Number.isNaN(Date.parse(draft.savedAt)) ||
       !isSessionFormState(draft.form) ||
       (draft.loadedSuggestionId != null && typeof draft.loadedSuggestionId !== "string") ||
-      (draft.editingSessionId != null && typeof draft.editingSessionId !== "string")
+      (draft.editingSessionId != null && typeof draft.editingSessionId !== "string") ||
+      (draft.mobilityRunId != null && typeof draft.mobilityRunId !== "string")
     ) {
       return null;
     }
@@ -1507,6 +1509,7 @@ export function FullWorkoutForm() {
   } = useFieldArray({ control, name: "entries" });
   const [initialFormLoaded, setInitialFormLoaded] = useState(false);
   const [loadedSuggestionId, setLoadedSuggestionId] = useState<string | null>(null);
+  const [mobilityRunId, setMobilityRunId] = useState<string | null>(null);
   const [finishSummaryOpen, setFinishSummaryOpen] = useState(false);
   const [showValidationErrors, setShowValidationErrors] = useState(false);
   const [uncategorizedConfirmed, setUncategorizedConfirmed] = useState(false);
@@ -1640,9 +1643,11 @@ export function FullWorkoutForm() {
     initialFormLoaded,
     loadedSuggestionId,
     editingSessionId,
+    mobilityRunId,
     setForm,
     setLoadedSuggestionId,
     setEditingSessionId,
+    setMobilityRunId,
     blankForm: blankSession,
     hasDraftContent: sessionHasDraftContent,
   });
@@ -1719,6 +1724,7 @@ export function FullWorkoutForm() {
         methodBlocks,
       });
       setLoadedSuggestionId(draft.suggestedWorkoutId ?? null);
+      setMobilityRunId(draft.mobilityRunId ?? null);
       setEditingSessionId(null);
     },
     [locations.data, setForm],
@@ -1747,6 +1753,7 @@ export function FullWorkoutForm() {
       setForm(sessionDraft.form);
       setLoadedSuggestionId(sessionDraft.loadedSuggestionId);
       setEditingSessionId(sessionDraft.editingSessionId ?? null);
+      setMobilityRunId(sessionDraft.mobilityRunId ?? null);
       setDraftSavedAt(sessionDraft.savedAt);
       toast.message("Workout draft restored", {
         description: "Your unfinished workout is ready to continue.",
@@ -2103,6 +2110,7 @@ export function FullWorkoutForm() {
     }));
     setLoadedSuggestionId(null);
     setEditingSessionId(null);
+    setMobilityRunId(null);
     setPendingRecentSession(null);
     toast.message("Recent workout loaded", {
       description: `${session.entries.length} movements copied from ${formatUKDate(session.date)}.`,
@@ -2118,6 +2126,7 @@ export function FullWorkoutForm() {
   };
 
   const buildWorkoutPayload = () => ({
+    mobilityRunId,
     date: form.date,
     title: form.title,
     trainingLocationId: form.trainingLocationId,
@@ -2238,6 +2247,8 @@ export function FullWorkoutForm() {
       setForm(blankSession());
       setLoadedSuggestionId(null);
       setEditingSessionId(null);
+      setMobilityRunId(null);
+      qc.invalidateQueries({ queryKey: ["mobility-practice"] });
       qc.invalidateQueries({ queryKey: ["recent-workouts"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["prs"] });
@@ -2362,6 +2373,7 @@ export function FullWorkoutForm() {
       completed: true,
     });
     setEditingSessionId(lastCompletedWorkout.sessionId);
+    setMobilityRunId(null);
     setLoadedSuggestionId(null);
     toast.message("Workout reopened", {
       description: "Make your corrections, then review and finish again.",
@@ -2372,6 +2384,7 @@ export function FullWorkoutForm() {
     window.localStorage.removeItem(draftStorageKey);
     setForm(blankSession());
     setEditingSessionId(null);
+    setMobilityRunId(null);
     setDraftSavedAt(null);
     toast.message("Correction cancelled", {
       description: "The completed workout was not changed.",

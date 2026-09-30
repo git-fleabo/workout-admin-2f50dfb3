@@ -1,4 +1,5 @@
 import { getSupabaseSession, supabasePublicRpc } from "./supabase-public";
+import { getCurrentPerson } from "./supabase-people.browser";
 
 const QUEUE_KEY = "workout-save-queue";
 const QUEUE_EVENT = "workout-save-queue-updated";
@@ -8,6 +9,7 @@ type QueuedWorkoutSave = {
   createdAt: string;
   personId: string;
   rpcBody: Record<string, unknown>;
+  rpcFunctionName?: "save_workout" | "save_mobility_workout";
   draftKey: string;
   draftSnapshot: string | null;
 };
@@ -66,10 +68,12 @@ export function isLikelyOfflineError(error: unknown) {
 export function enqueueWorkoutSave({
   personId,
   rpcBody,
+  rpcFunctionName = "save_workout",
   draftKey,
 }: {
   personId: string;
   rpcBody: Record<string, unknown>;
+  rpcFunctionName?: "save_workout" | "save_mobility_workout";
   draftKey: string;
 }) {
   const draftSnapshot = canUseStorage() ? window.localStorage.getItem(draftKey) : null;
@@ -78,6 +82,7 @@ export function enqueueWorkoutSave({
     createdAt: new Date().toISOString(),
     personId,
     rpcBody,
+    rpcFunctionName,
     draftKey,
     draftSnapshot,
   };
@@ -92,24 +97,27 @@ export async function flushQueuedWorkoutSaves() {
   }
 
   const queue = readQueue();
+  const person = await getCurrentPerson().catch(() => null);
+  if (!person) return queue.length;
   const remaining: QueuedWorkoutSave[] = [];
-  for (const item of queue) {
-    if (item.personId !== session.user.id) {
+  for (const [index, item] of queue.entries()) {
+    if (item.personId !== person.id) {
       remaining.push(item);
       continue;
     }
     try {
-      const sessionId = await supabasePublicRpc<string>("save_workout", item.rpcBody);
+      const sessionId = await supabasePublicRpc<string>(
+        item.rpcFunctionName ?? "save_workout",
+        item.rpcBody,
+      );
       if (!sessionId) throw new Error("Workout was not saved.");
       if (canUseStorage() && window.localStorage.getItem(item.draftKey) === item.draftSnapshot) {
         window.localStorage.removeItem(item.draftKey);
       }
     } catch (error) {
-      if (isLikelyOfflineError(error)) {
-        remaining.push(item);
-        break;
-      }
-      console.error("Queued workout save failed", error);
+      if (!isLikelyOfflineError(error)) console.error("Queued workout save failed", error);
+      remaining.push(...queue.slice(index));
+      break;
     }
   }
   writeQueue(remaining);

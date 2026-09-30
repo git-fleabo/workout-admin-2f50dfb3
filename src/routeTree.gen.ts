@@ -15,6 +15,7 @@ import { Route as RotationRouteImport } from './routes/rotation'
 import { Route as ProgressRouteImport } from './routes/progress'
 import { Route as ProgrammesRouteImport } from './routes/programmes'
 import { Route as PlanRouteImport } from './routes/plan'
+import { Route as MobilityRouteImport } from './routes/mobility'
 import { Route as MethodsRouteImport } from './routes/methods'
 import { Route as ManageRouteImport } from './routes/manage'
 import { Route as LogRouteImport } from './routes/log'
@@ -49,6 +50,11 @@ const ProgrammesRoute = ProgrammesRouteImport.update({
 const PlanRoute = PlanRouteImport.update({
   id: '/plan',
   path: '/plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MobilityRoute = MobilityRouteImport.update({
+  id: '/mobility',
+  path: '/mobility',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MethodsRoute = MethodsRouteImport.update({
@@ -113,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/log': typeof LogRoute
   '/manage': typeof ManageRoute
   '/methods': typeof MethodsRoute
+  '/mobility': typeof MobilityRoute
   '/plan': typeof PlanRoute
   '/programmes': typeof ProgrammesRoute
   '/progress': typeof ProgressRoute
@@ -130,6 +137,7 @@ export interface FileRoutesByTo {
   '/log': typeof LogRoute
   '/manage': typeof ManageRoute
   '/methods': typeof MethodsRoute
+  '/mobility': typeof MobilityRoute
   '/plan': typeof PlanRoute
   '/programmes': typeof ProgrammesRoute
   '/progress': typeof ProgressRoute
@@ -148,6 +156,7 @@ export interface FileRoutesById {
   '/log': typeof LogRoute
   '/manage': typeof ManageRoute
   '/methods': typeof MethodsRoute
+  '/mobility': typeof MobilityRoute
   '/plan': typeof PlanRoute
   '/programmes': typeof ProgrammesRoute
   '/progress': typeof ProgressRoute
@@ -167,6 +176,7 @@ export interface FileRouteTypes {
     | '/log'
     | '/manage'
     | '/methods'
+    | '/mobility'
     | '/plan'
     | '/programmes'
     | '/progress'
@@ -184,6 +194,7 @@ export interface FileRouteTypes {
     | '/log'
     | '/manage'
     | '/methods'
+    | '/mobility'
     | '/plan'
     | '/programmes'
     | '/progress'
@@ -201,6 +212,7 @@ export interface FileRouteTypes {
     | '/log'
     | '/manage'
     | '/methods'
+    | '/mobility'
     | '/plan'
     | '/programmes'
     | '/progress'
@@ -219,6 +231,7 @@ export interface RootRouteChildren {
   LogRoute: typeof LogRoute
   ManageRoute: typeof ManageRoute
   MethodsRoute: typeof MethodsRoute
+  MobilityRoute: typeof MobilityRoute
   PlanRoute: typeof PlanRoute
   ProgrammesRoute: typeof ProgrammesRoute
   ProgressRoute: typeof ProgressRoute
@@ -261,6 +274,13 @@ declare module '@tanstack/react-router' {
       path: '/plan'
       fullPath: '/plan'
       preLoaderRoute: typeof PlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mobility': {
+      id: '/mobility'
+      path: '/mobility'
+      fullPath: '/mobility'
+      preLoaderRoute: typeof MobilityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/methods': {
@@ -347,6 +367,7 @@ const rootRouteChildren: RootRouteChildren = {
   LogRoute: LogRoute,
   ManageRoute: ManageRoute,
   MethodsRoute: MethodsRoute,
+  MobilityRoute: MobilityRoute,
   PlanRoute: PlanRoute,
   ProgrammesRoute: ProgrammesRoute,
   ProgressRoute: ProgressRoute,

@@ -38,6 +38,7 @@ import {
 import { WeeklyPlanOverview } from "@/components/weekly-plan-overview";
 import { ProgrammeRefreshCard } from "@/components/programme-refresh-card";
 import { MyProgrammeOverview } from "@/components/my-programme-overview";
+import { MobilityPracticeOverview } from "@/components/mobility-practice-overview";
 import { formatUKDate, todayISO } from "@/lib/date";
 import {
   buildCircuit,
@@ -988,6 +989,7 @@ function PlanPage() {
       </header>
 
       <MyProgrammeOverview />
+      <MobilityPracticeOverview />
 
       {!history.isLoading && !library.isLoading && !history.error && !library.error ? (
         <WeeklyPlanOverview

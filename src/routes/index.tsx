@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { MobilityPracticeOverview } from "@/components/mobility-practice-overview";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -797,6 +798,8 @@ export function TodayPage() {
           })}
         </section>
       ) : null}
+
+      <MobilityPracticeOverview compact />
 
       <section className="space-y-3">
         <div>

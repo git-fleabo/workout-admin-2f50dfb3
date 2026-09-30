@@ -10,6 +10,7 @@ type StoredWorkoutSessionDraft = {
   form: SessionFormState;
   loadedSuggestionId: string | null;
   editingSessionId: string | null;
+  mobilityRunId?: string | null;
 };
 
 type UseWorkoutDraftOptions = {
@@ -17,9 +18,11 @@ type UseWorkoutDraftOptions = {
   initialFormLoaded: boolean;
   loadedSuggestionId: string | null;
   editingSessionId: string | null;
+  mobilityRunId: string | null;
   setForm: Dispatch<SetStateAction<SessionFormState>>;
   setLoadedSuggestionId: Dispatch<SetStateAction<string | null>>;
   setEditingSessionId: Dispatch<SetStateAction<string | null>>;
+  setMobilityRunId: Dispatch<SetStateAction<string | null>>;
   blankForm: () => SessionFormState;
   hasDraftContent: (form: SessionFormState) => boolean;
 };
@@ -29,9 +32,11 @@ export function useWorkoutDraft({
   initialFormLoaded,
   loadedSuggestionId,
   editingSessionId,
+  mobilityRunId,
   setForm,
   setLoadedSuggestionId,
   setEditingSessionId,
+  setMobilityRunId,
   blankForm,
   hasDraftContent,
 }: UseWorkoutDraftOptions) {
@@ -53,16 +58,26 @@ export function useWorkoutDraft({
       form,
       loadedSuggestionId,
       editingSessionId,
+      mobilityRunId,
     };
     window.localStorage.setItem(storageKey, JSON.stringify(draft));
     setDraftSavedAt(savedAt);
-  }, [editingSessionId, form, hasDraftContent, initialFormLoaded, loadedSuggestionId, storageKey]);
+  }, [
+    editingSessionId,
+    form,
+    hasDraftContent,
+    initialFormLoaded,
+    loadedSuggestionId,
+    mobilityRunId,
+    storageKey,
+  ]);
 
   const discardDraft = () => {
     window.localStorage.removeItem(storageKey);
     setForm(blankForm());
     setLoadedSuggestionId(null);
     setEditingSessionId(null);
+    setMobilityRunId(null);
     setDraftSavedAt(null);
     setDiscardDraftOpen(false);
     toast.message("Workout draft discarded");
