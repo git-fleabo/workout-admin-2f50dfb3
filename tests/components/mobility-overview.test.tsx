@@ -44,7 +44,7 @@ vi.mock("@/lib/supabase-mobility.browser", () => ({
 import { MobilityPracticeOverview } from "@/components/mobility-practice-overview";
 
 describe("mobility overview", () => {
-  it("keeps Pike's log action independent of Bridge readiness", async () => {
+  it("keeps practice actions independent of assessments and Bridge readiness", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={client}>
@@ -54,7 +54,7 @@ describe("mobility overview", () => {
     expect(await screen.findByText("Pike & Head to Toe")).toBeInTheDocument();
     expect(screen.getByText("Bridge")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Log practice" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Review Bridge readiness" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Add your drills" })).toHaveAttribute(
       "href",
       "/mobility",
     );

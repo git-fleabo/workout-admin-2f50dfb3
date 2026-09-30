@@ -141,10 +141,7 @@ function SkillPanel({
   });
   const save = (operation: () => Promise<unknown>) => mutation.mutate(operation);
   const source = MOBILITY_SKILLS[skill];
-  const canLog =
-    run?.status === "active" &&
-    (skill !== "bridge" || run.readiness === "ready") &&
-    drills.some((item) => item.isActive);
+  const canLog = run?.status === "active" && drills.some((item) => item.isActive);
   const allActiveDrillsMapped = drills.every(
     (item) => !item.isActive || Boolean(item.exerciseId && toolkitExerciseIds.has(item.exerciseId)),
   );
@@ -267,68 +264,72 @@ function SkillPanel({
         {run && (
           <>
             {skill === "bridge" && (
-              <section className="space-y-2 border-t border-border pt-4">
-                <h3 className="font-semibold">Bridge readiness</h3>
-                <p className="text-xs text-muted-foreground">
-                  Record the result given by the toolkit. The app does not make a recommendation
-                  from the angles.
-                </p>
-                <p className="text-sm">
-                  Current: {run.readiness.replace("_", " ")}
-                  {run.readinessCheckedOn ? ` · checked ${run.readinessCheckedOn}` : ""}
-                </p>
-                <div className="grid gap-2 sm:grid-cols-4">
-                  <label className="text-xs">
-                    Toolkit result
-                    <select
-                      className="mt-1 w-full rounded-md border border-input bg-background p-2 text-sm"
-                      value={readiness}
-                      onChange={(event) => setReadiness(event.target.value as typeof readiness)}
+              <details className="border-t border-border pt-4">
+                <summary className="cursor-pointer text-sm font-semibold">
+                  Optional Bridge readiness
+                </summary>
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Record a toolkit readiness result only if you want to track it. Practice does
+                    not require one.
+                  </p>
+                  <p className="text-sm">
+                    Current: {run.readiness.replace("_", " ")}
+                    {run.readinessCheckedOn ? ` · checked ${run.readinessCheckedOn}` : ""}
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-4">
+                    <label className="text-xs">
+                      Toolkit result
+                      <select
+                        className="mt-1 w-full rounded-md border border-input bg-background p-2 text-sm"
+                        value={readiness}
+                        onChange={(event) => setReadiness(event.target.value as typeof readiness)}
+                      >
+                        <option value="unchecked">Choose toolkit result</option>
+                        <option value="ready">Ready for Bridge</option>
+                        <option value="shoulders_first">Shoulder work first</option>
+                      </select>
+                    </label>
+                    <label className="text-xs">
+                      Left shoulder angle °
+                      <Input
+                        type="number"
+                        min="0"
+                        max="360"
+                        value={left}
+                        onChange={(event) => setLeft(event.target.value)}
+                      />
+                    </label>
+                    <label className="text-xs">
+                      Right shoulder angle °
+                      <Input
+                        type="number"
+                        min="0"
+                        max="360"
+                        value={right}
+                        onChange={(event) => setRight(event.target.value)}
+                      />
+                    </label>
+                    <Button
+                      className="self-end"
+                      variant="outline"
+                      disabled={mutation.isPending || readiness === "unchecked"}
+                      onClick={() =>
+                        save(() =>
+                          updateMobilityRunClient(run.id, {
+                            readiness,
+                            readinessCheckedOn: todayISO(),
+                            readinessLeftDeg: left ? Number(left) : null,
+                            readinessRightDeg: right ? Number(right) : null,
+                          }),
+                        )
+                      }
                     >
-                      <option value="unchecked">Choose toolkit result</option>
-                      <option value="ready">Ready for Bridge</option>
-                      <option value="shoulders_first">Shoulder work first</option>
-                    </select>
-                  </label>
-                  <label className="text-xs">
-                    Left shoulder angle °
-                    <Input
-                      type="number"
-                      min="0"
-                      max="360"
-                      value={left}
-                      onChange={(event) => setLeft(event.target.value)}
-                    />
-                  </label>
-                  <label className="text-xs">
-                    Right shoulder angle °
-                    <Input
-                      type="number"
-                      min="0"
-                      max="360"
-                      value={right}
-                      onChange={(event) => setRight(event.target.value)}
-                    />
-                  </label>
-                  <Button
-                    className="self-end"
-                    variant="outline"
-                    disabled={mutation.isPending || readiness === "unchecked"}
-                    onClick={() =>
-                      save(() =>
-                        updateMobilityRunClient(run.id, {
-                          readiness,
-                          readinessCheckedOn: todayISO(),
-                          readinessLeftDeg: left ? Number(left) : null,
-                          readinessRightDeg: right ? Number(right) : null,
-                        }),
-                      )
-                    }
-                  >
-                    Save result
-                  </Button>
+                      Save result
+                    </Button>
+                  </div>
                 </div>
-              </section>
+              </details>
             )}
             <details className="border-t border-border pt-4">
               <summary className="cursor-pointer text-sm font-semibold">

@@ -33,14 +33,22 @@ test("Pike and Bridge choose current runs independently", () => {
   assert.equal(currentMobilityRun([oldPike, run("bridge")], "bridge")?.id, "bridge-run");
 });
 
-test("Bridge readiness holds its action while self-directed drills can be logged", () => {
+test("self-directed drills can be logged without assessments or Bridge readiness", () => {
   const bridge = { ...run("bridge"), readiness: "shoulders_first" as const };
   assert.equal(
     mobilityNextAction({
       run: bridge,
-      activeDrillCount: 3,
+      activeDrillCount: 1,
+      mappedDrillCount: 1,
     }).kind,
-    "readiness",
+    "log",
+  );
+  assert.equal(
+    mobilityNextAction({
+      run: { ...bridge, readiness: "unchecked" },
+      activeDrillCount: 0,
+    }).label,
+    "Add your drills",
   );
   for (const skill of ["pike", "pancake", "side_split", "front_split", "shoulder"] as const) {
     assert.equal(

@@ -203,12 +203,6 @@ export function mobilityNextAction({
 }) {
   if (!run) return { label: "Start practice", kind: "start" as const };
   if (run.status === "paused") return { label: "Resume practice", kind: "resume" as const };
-  if (run.skill === "bridge") {
-    if (run.readiness === "unchecked")
-      return { label: "Check Bridge readiness", kind: "readiness" as const };
-    if (run.readiness === "shoulders_first")
-      return { label: "Review Bridge readiness", kind: "readiness" as const };
-  }
   if (activeDrillCount === 0) return { label: "Add your drills", kind: "drills" as const };
   if (mappedDrillCount != null && mappedDrillCount < activeDrillCount)
     return { label: "Match drills to library exercises", kind: "drills" as const };
