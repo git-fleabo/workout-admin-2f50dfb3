@@ -2955,11 +2955,6 @@ export function FullWorkoutForm() {
                       placeholder="0"
                     />
                   </Field>
-                  <p className="text-[10px] leading-relaxed text-muted-foreground sm:col-span-2">
-                    Programme lifts use completed reps, set RPE, technique, and pain to progress,
-                    hold, or reduce the next prescription. This check-in does not diagnose or
-                    prescribe rehabilitation.
-                  </p>
                 </div>
               ) : null}
               <details className="rounded-lg border border-border/70 bg-secondary/10 px-3 py-2">
