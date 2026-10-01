@@ -86,3 +86,51 @@ it("puts the next session first and keeps the calendar optional", async () => {
   expect(disclosure).toHaveAttribute("open");
   expect(screen.getByText("Bench Press")).toBeVisible();
 });
+
+it("shows programme rest once without repeating it as guidance", async () => {
+  render(
+    <WeeklyPlanOverview
+      plan={plan}
+      programmeSessions={[
+        {
+          ...currentSession,
+          movementNames: ["Dumbbell Bench Press"],
+          movements: [
+            {
+              exercise: "Dumbbell Bench Press",
+              workoutType: "Strength",
+              trackingMode: "weight_reps",
+              targets: {
+                durationMinutes: "",
+                distance: "",
+                distanceUnit: "",
+                rounds: "",
+                height: "",
+                detail: "",
+              },
+              sourceDate: "",
+              reason: "Rest 60–90 seconds between sets.",
+              restTime: "60–90 seconds",
+              setRows: [
+                {
+                  reps: "",
+                  weight: "",
+                  durationSeconds: "",
+                  rpe: "",
+                  completed: true,
+                },
+              ],
+            },
+          ],
+        },
+      ]}
+      adjustments={{}}
+      onAdjustDay={vi.fn()}
+    />,
+  );
+
+  await userEvent.click(screen.getByRole("button", { name: /Next programme session/ }));
+
+  expect(screen.getByText("Rest 60–90 seconds")).toBeVisible();
+  expect(screen.queryByText("Rest 60–90 seconds between sets.")).not.toBeInTheDocument();
+});

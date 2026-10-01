@@ -10,6 +10,10 @@ const libraryMigrationPath = new URL(
   "../supabase/migrations/20260928070648_link_jacked_library_movements.sql",
   import.meta.url,
 );
+const repeatedNotesMigrationPath = new URL(
+  "../supabase/migrations/20261001073116_remove_repeated_jacked_entry_notes.sql",
+  import.meta.url,
+);
 
 test("JACKED import contains the complete training calendar without rest-day blockers", async () => {
   const sql = await readFile(migrationPath, "utf8");
@@ -50,4 +54,14 @@ test("JACKED cleanup removes correctives and links canonical Library movements",
     sql,
     /set exercise_id = resolved\.exercise_id,[\s\S]*name = resolved\.canonical_name/,
   );
+});
+
+test("JACKED cleanup removes only the repeated programme-wide movement note", async () => {
+  const sql = await readFile(repeatedNotesMigrationPath, "utf8");
+
+  assert.match(sql, /programme\.method_type = 'jacked_dumbbell'/);
+  assert.match(sql, /set notes = null/);
+  assert.match(sql, /Use the source programme''s ignitor-set path, box score/);
+  assert.doesNotMatch(sql, /Optional equipment substitution/);
+  assert.doesNotMatch(sql, /Follow the source challenge order and scoring/);
 });

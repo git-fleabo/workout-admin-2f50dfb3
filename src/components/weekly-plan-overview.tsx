@@ -31,6 +31,12 @@ import type { ProgrammeScheduleSession } from "@/lib/supabase-programmes.browser
 import type { WeeklyPlan, WeeklyPlanAdjustments, WeeklyPlanItemKind } from "@/lib/weekly-plan";
 import { cn } from "@/lib/utils";
 
+function programmeMovementGuidance(reason: string, restTime?: string) {
+  const guidance = reason.trim();
+  const rest = restTime?.trim();
+  return rest && guidance === `Rest ${rest} between sets.` ? "" : guidance;
+}
+
 const LOCATION_STYLE = {
   home: {
     label: "Home",
@@ -371,42 +377,45 @@ export function WeeklyPlanOverview({
 
               {selectedProgrammeSession.movements.length ? (
                 <div className="space-y-3">
-                  {selectedProgrammeSession.movements.map((movement) => (
-                    <Card key={movement.exercise}>
-                      <CardHeader className="p-4 pb-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <CardTitle className="text-sm">{movement.exercise}</CardTitle>
-                          {movement.restTime ? (
-                            <Badge variant="outline">Rest {movement.restTime}</Badge>
-                          ) : null}
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-3 p-4 pt-1">
-                        <div className="overflow-hidden rounded-lg border border-border">
-                          <div className="grid grid-cols-[3rem_1fr_1fr] bg-secondary/30 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                            <span>Set</span>
-                            <span>Weight</span>
-                            <span>Reps</span>
+                  {selectedProgrammeSession.movements.map((movement) => {
+                    const guidance = programmeMovementGuidance(movement.reason, movement.restTime);
+                    return (
+                      <Card key={movement.exercise}>
+                        <CardHeader className="p-4 pb-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <CardTitle className="text-sm">{movement.exercise}</CardTitle>
+                            {movement.restTime ? (
+                              <Badge variant="outline">Rest {movement.restTime}</Badge>
+                            ) : null}
                           </div>
-                          {movement.setRows.map((set, index) => (
-                            <div
-                              key={`${movement.exercise}-${index}`}
-                              className="grid grid-cols-[3rem_1fr_1fr] border-t border-border px-3 py-2 text-sm"
-                            >
-                              <span className="text-muted-foreground">{index + 1}</span>
-                              <span>{set.weight ? `${set.weight} kg` : "—"}</span>
-                              <span>{set.reps || "—"}</span>
+                        </CardHeader>
+                        <CardContent className="space-y-3 p-4 pt-1">
+                          <div className="overflow-hidden rounded-lg border border-border">
+                            <div className="grid grid-cols-[3rem_1fr_1fr] bg-secondary/30 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              <span>Set</span>
+                              <span>Weight</span>
+                              <span>Reps</span>
                             </div>
-                          ))}
-                        </div>
-                        {movement.reason ? (
-                          <p className="text-xs leading-relaxed text-muted-foreground">
-                            {movement.reason}
-                          </p>
-                        ) : null}
-                      </CardContent>
-                    </Card>
-                  ))}
+                            {movement.setRows.map((set, index) => (
+                              <div
+                                key={`${movement.exercise}-${index}`}
+                                className="grid grid-cols-[3rem_1fr_1fr] border-t border-border px-3 py-2 text-sm"
+                              >
+                                <span className="text-muted-foreground">{index + 1}</span>
+                                <span>{set.weight ? `${set.weight} kg` : "—"}</span>
+                                <span>{set.reps || "—"}</span>
+                              </div>
+                            ))}
+                          </div>
+                          {guidance ? (
+                            <p className="text-xs leading-relaxed text-muted-foreground">
+                              {guidance}
+                            </p>
+                          ) : null}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
