@@ -28,7 +28,7 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/lib/supabase-log.browser", () => ({
   BOARD_GRADIENTS: [],
-  REST_OPTIONS: [],
+  REST_OPTIONS: ["60–90s", "90–120s"],
   addWorkoutSessionClient: mocks.addWorkoutSessionClient,
   deleteSessionClient: vi.fn(),
   findDuplicateLogClient: vi.fn(async () => mocks.duplicateResponse),
@@ -181,6 +181,17 @@ describe("FullWorkoutForm draft lifecycle", () => {
     await user.type(reps, "10");
     expect(reps).toHaveValue(10);
     expect(document.activeElement).toBe(reps);
+  });
+
+  it("shows rest between sets for every strength movement", async () => {
+    renderWithQueries(<FullWorkoutForm />);
+    await screen.findByText("Your workout");
+    await chooseBenchPress();
+
+    const restField = screen.getByText("Rest between sets").parentElement;
+    const restSelect = restField?.querySelector<HTMLElement>("[role='combobox']");
+    expect(restSelect).toBeTruthy();
+    expect(restSelect).toHaveTextContent("Not recorded");
   });
 });
 

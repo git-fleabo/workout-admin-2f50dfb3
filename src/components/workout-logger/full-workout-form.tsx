@@ -58,6 +58,7 @@ import {
   getLibraryClient,
   getRecentLogsClient,
   getTrainingLocationsClient,
+  REST_OPTIONS,
   replaceWorkoutSessionClient,
 } from "@/lib/supabase-log.browser";
 import { formatUKDate, todayISO } from "@/lib/date";
@@ -2897,7 +2898,6 @@ export function FullWorkoutForm() {
                     qualities={lib.data?.qualities ?? []}
                     assistanceTypes={lib.data?.assistanceTypes ?? []}
                     usesLoad={profileUsesLoad(profile)}
-                    usesStandardSets={profileUsesStandardSets(profile)}
                     isGrip={isGrip}
                     showIntensity={entry.workoutType === CLASS_WORKOUT_TYPE}
                     validationIssue={
@@ -2927,7 +2927,15 @@ export function FullWorkoutForm() {
                 />
               ) : null}
               {entry.exercise && entry.workoutType.trim().toLowerCase() === "strength" ? (
-                <div className="grid gap-3 rounded-lg border border-emerald-400/20 bg-emerald-400/[0.04] p-3 sm:grid-cols-2">
+                <div className="grid gap-3 rounded-lg border border-emerald-400/20 bg-emerald-400/[0.04] p-3 sm:grid-cols-3">
+                  <Field label="Rest between sets">
+                    <SimpleSelect
+                      value={entry.restTime}
+                      onChange={(value) => updateEntry(index, "restTime", value)}
+                      options={REST_OPTIONS}
+                      noneLabel="Not recorded"
+                    />
+                  </Field>
                   <Field label="Technique (optional)">
                     <Select
                       value={entry.technique || undefined}

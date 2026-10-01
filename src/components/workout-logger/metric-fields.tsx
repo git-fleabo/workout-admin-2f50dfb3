@@ -7,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { BOARD_GRADIENTS, REST_OPTIONS } from "@/lib/supabase-log.browser";
+import { BOARD_GRADIENTS } from "@/lib/supabase-log.browser";
 import {
   CLIMBING_TRACKING_MODES,
   CLIMBING_GRADE_SYSTEMS,
@@ -32,7 +32,6 @@ export function MetricFields({
   qualities,
   assistanceTypes,
   usesLoad,
-  usesStandardSets,
   isGrip,
   showIntensity,
   validationIssue = null,
@@ -44,7 +43,6 @@ export function MetricFields({
   qualities: string[];
   assistanceTypes: string[];
   usesLoad: boolean;
-  usesStandardSets: boolean;
   isGrip: boolean;
   showIntensity: boolean;
   validationIssue?: string | null;
@@ -523,15 +521,6 @@ export function MetricFields({
           />
         </Field>
       </div>
-      {usesStandardSets && (
-        <Field label="Rest between sets">
-          <SimpleSelect
-            value={form.restTime}
-            onChange={(v) => update("restTime", v)}
-            options={REST_OPTIONS}
-          />
-        </Field>
-      )}
     </div>
   );
 }
