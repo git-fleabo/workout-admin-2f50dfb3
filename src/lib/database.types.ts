@@ -2260,6 +2260,7 @@ export type Database = {
           basis: string | null;
           completed_session_id: string | null;
           created_at: string;
+          goal_id: string | null;
           id: string;
           mobility_practice_run_id: string | null;
           notes: string | null;
@@ -2278,6 +2279,7 @@ export type Database = {
           basis?: string | null;
           completed_session_id?: string | null;
           created_at?: string;
+          goal_id?: string | null;
           id?: string;
           mobility_practice_run_id?: string | null;
           notes?: string | null;
@@ -2296,6 +2298,7 @@ export type Database = {
           basis?: string | null;
           completed_session_id?: string | null;
           created_at?: string;
+          goal_id?: string | null;
           id?: string;
           mobility_practice_run_id?: string | null;
           notes?: string | null;
@@ -2316,6 +2319,13 @@ export type Database = {
             columns: ["completed_session_id"];
             isOneToOne: false;
             referencedRelation: "sessions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "suggested_workouts_goal_id_fkey";
+            columns: ["goal_id"];
+            isOneToOne: false;
+            referencedRelation: "goals";
             referencedColumns: ["id"];
           },
           {

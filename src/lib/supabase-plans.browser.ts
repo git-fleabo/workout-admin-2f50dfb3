@@ -66,6 +66,7 @@ type SuggestedWorkoutRow = {
   updated_at?: string;
   suggested_for?: string | null;
   plan_kind?: WorkoutPlanKind | null;
+  goal_id?: string | null;
   mobility_practice_run_id?: string | null;
   completed_session_id?: string | null;
   program_assignment_id: string | null;
@@ -147,6 +148,7 @@ export type SavedWorkoutPlan = WorkoutPlanDraft & {
   createdAt: string;
   programAssignmentId: string | null;
   programWorkoutId: string | null;
+  goalId: string | null;
   suggestedFor: string | null;
   planKind: WorkoutPlanKind;
 };
@@ -318,6 +320,7 @@ function planFromRow(row: SuggestedWorkoutRow): SavedWorkoutPlan | null {
     createdAt: row.created_at,
     programAssignmentId: row.program_assignment_id,
     programWorkoutId: row.program_workout_id,
+    goalId: row.goal_id ?? null,
     suggestedFor: row.suggested_for ?? null,
     planKind:
       row.plan_kind ??
@@ -338,12 +341,18 @@ export async function saveWorkoutPlanClient({
   status,
   suggestedFor = todayISO(),
   planKind,
+  programAssignmentId,
+  goalId,
+  replaceExisting = true,
 }: {
   draft: WorkoutPlanDraft;
   readiness: PlannerReadiness;
   status: "pending" | "accepted";
   suggestedFor?: string;
   planKind?: WorkoutPlanKind;
+  programAssignmentId?: string;
+  goalId?: string;
+  replaceExisting?: boolean;
 }) {
   const person = await requirePerson();
   const locations = await supabasePublicSelect<{ id: string }>("training_locations", {
@@ -362,6 +371,8 @@ export async function saveWorkoutPlanClient({
     training_location_id: location.id,
     suggested_for: suggestedFor,
     plan_kind: resolvedPlanKind,
+    program_assignment_id: programAssignmentId ?? null,
+    goal_id: goalId ?? null,
     mobility_practice_run_id: draft.mobilityRunId ?? null,
     status,
     title: draft.title,
@@ -471,18 +482,26 @@ export async function saveWorkoutPlanClient({
         })),
       );
     }
-    await supabasePublicUpdate(
-      "suggested_workouts",
-      {
-        person_id: `eq.${person.id}`,
-        suggested_for: `eq.${suggestedFor}`,
-        plan_kind: `eq.${resolvedPlanKind}`,
-        program_assignment_id: "is.null",
-        status: "in.(pending,accepted)",
-        id: `neq.${workout.id}`,
-      },
-      { status: "archived" },
-    );
+    const replacementFilter: Record<string, string> = {
+      person_id: `eq.${person.id}`,
+      suggested_for: `eq.${suggestedFor}`,
+      plan_kind: `eq.${resolvedPlanKind}`,
+      program_workout_id: "is.null",
+      status: "in.(pending,accepted)",
+      id: `neq.${workout.id}`,
+    };
+    if (programAssignmentId) {
+      replacementFilter.program_assignment_id = `eq.${programAssignmentId}`;
+      if (goalId) replacementFilter.goal_id = `eq.${goalId}`;
+      else if (draft.mobilityRunId) {
+        replacementFilter.mobility_practice_run_id = `eq.${draft.mobilityRunId}`;
+      }
+    } else {
+      replacementFilter.program_assignment_id = "is.null";
+    }
+    if (replaceExisting) {
+      await supabasePublicUpdate("suggested_workouts", replacementFilter, { status: "archived" });
+    }
   } catch (error) {
     await supabasePublicDelete("suggested_workouts", { id: `eq.${workout.id}` }).catch(
       () => undefined,
@@ -495,11 +514,14 @@ export async function saveWorkoutPlanClient({
     suggestedWorkoutId: workout.id,
     suggestedFor,
     planKind: resolvedPlanKind,
+    programAssignmentId: programAssignmentId ?? null,
+    programWorkoutId: null,
+    goalId: goalId ?? null,
   };
 }
 
 const SAVED_WORKOUT_SELECT =
-  "id,title,basis,readiness,status,created_at,suggested_for,plan_kind,mobility_practice_run_id,program_assignment_id,program_workout_id,training_location_id,training_locations(kind,name),suggested_workout_entries(id,name,workout_type,order_index,source_date,reason,tracking_mode,target_metrics,suggested_workout_sets(id,set_number,reps,weight,duration_seconds,rpe,completed,suggested_workout_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion,config))),suggested_workout_method_blocks(id,training_method_id,method_name,family,order_index,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,block_duration_seconds,work_interval_seconds,rest_interval_seconds,config,suggested_workout_method_block_entries(suggested_workout_entry_id,sequence_index))";
+  "id,title,basis,readiness,status,created_at,suggested_for,plan_kind,goal_id,mobility_practice_run_id,program_assignment_id,program_workout_id,training_location_id,training_locations(kind,name),suggested_workout_entries(id,name,workout_type,order_index,source_date,reason,tracking_mode,target_metrics,suggested_workout_sets(id,set_number,reps,weight,duration_seconds,rpe,completed,suggested_workout_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion,config))),suggested_workout_method_blocks(id,training_method_id,method_name,family,order_index,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,block_duration_seconds,work_interval_seconds,rest_interval_seconds,config,suggested_workout_method_block_entries(suggested_workout_entry_id,sequence_index))";
 
 export async function getNextSuggestedWorkoutsClient() {
   const person = await requirePerson();
@@ -513,9 +535,11 @@ export async function getNextSuggestedWorkoutsClient() {
   const plans = rows.map(planFromRow).filter((plan): plan is SavedWorkoutPlan => plan != null);
   const seen = new Set<string>();
   return plans.filter((plan) => {
-    const key = plan.programAssignmentId
+    const key = plan.programWorkoutId
       ? `programme:${plan.programAssignmentId}`
-      : `${plan.suggestedFor ?? "undated"}:${plan.planKind}`;
+      : plan.programAssignmentId
+        ? `support:${plan.goalId ?? plan.mobilityRunId ?? plan.suggestedWorkoutId}`
+        : `${plan.suggestedFor ?? "undated"}:${plan.planKind}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -527,12 +551,12 @@ export async function getScheduledWorkoutPlansClient(startDate: string, endDate:
   const rows = await supabasePublicSelect<SuggestedWorkoutRow>("suggested_workouts", {
     select: SAVED_WORKOUT_SELECT,
     person_id: `eq.${person.id}`,
-    program_assignment_id: "is.null",
+    program_workout_id: "is.null",
     status: "in.(pending,accepted,completed)",
     suggested_for: `gte.${startDate}`,
     and: `(suggested_for.lte.${endDate})`,
     order: "suggested_for.asc,created_at.desc",
-    limit: 50,
+    limit: 100,
   });
   return rows.map(planFromRow).filter((plan): plan is SavedWorkoutPlan => plan != null);
 }
@@ -541,11 +565,27 @@ export async function rescheduleSuggestedWorkoutClient(id: string, suggestedFor:
   const person = await requirePerson();
   const rows = await supabasePublicUpdate<{ id: string; suggested_for: string | null }>(
     "suggested_workouts",
-    { id: `eq.${id}`, person_id: `eq.${person.id}`, program_assignment_id: "is.null" },
+    { id: `eq.${id}`, person_id: `eq.${person.id}`, program_workout_id: "is.null" },
     { suggested_for: suggestedFor },
   );
   if (!rows[0]) throw new Error("The planned session could not be moved.");
   return rows[0];
+}
+
+export async function archiveProgrammeSupportPlansClient(
+  assignmentId: string,
+  excludingIds: string[] = [],
+) {
+  const person = await requirePerson();
+  const filters: Record<string, string> = {
+    person_id: `eq.${person.id}`,
+    program_assignment_id: `eq.${assignmentId}`,
+    program_workout_id: "is.null",
+    status: "in.(pending,accepted)",
+  };
+  if (excludingIds.length) filters.id = `not.in.(${excludingIds.join(",")})`;
+  await supabasePublicUpdate("suggested_workouts", filters, { status: "archived" });
+  return { ok: true };
 }
 
 export async function getWorkoutLifecycleClient(limit = 12): Promise<WorkoutLifecycleRecord[]> {

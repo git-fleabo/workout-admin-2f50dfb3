@@ -127,6 +127,15 @@ test(
           "utf8",
         ),
       );
+      sql(
+        readFileSync(
+          new URL(
+            "../supabase/migrations/20261004191240_add_programme_support_plans.sql",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      );
       sql(`insert into public.people values('${id(1)}'),('${id(2)}');
       insert into public.exercises values('${id(10)}'); insert into public.programs values('${id(11)}',true);
       insert into public.program_workouts values ${[0, 1, 2].map((i) => `('${id(20 + i)}','${id(11)}',${i})`).join(",")};
@@ -179,6 +188,50 @@ test(
         `select public.create_personal_programme('${id(1)}','${id(11)}','My block','2026-10-05',${json(sessions)},'My notes')`,
         id(1),
       );
+      await t.test("programme support plans require a same-person active exercise goal", () => {
+        sql(
+          `insert into public.goals values('${id(60)}','${id(1)}','active','${id(10)}'),('${id(61)}','${id(2)}','active','${id(10)}'),('${id(62)}','${id(1)}','paused','${id(10)}')`,
+        );
+        sql(
+          `insert into public.suggested_workouts(id,person_id,program_assignment_id,training_location_id,status,title,suggested_for,plan_kind,goal_id)
+           values('${id(63)}','${id(1)}','${assignment}','${id(30)}','pending','Handstand practice','2026-10-07','skill','${id(60)}')`,
+          id(1),
+        );
+        assert.equal(
+          sql(
+            `select plan_kind||':'||goal_id::text from public.suggested_workouts where id='${id(63)}'`,
+            id(1),
+          ),
+          `skill:${id(60)}`,
+        );
+        assert.throws(
+          () =>
+            sql(
+              `insert into public.suggested_workouts(person_id,program_assignment_id,training_location_id,status,title,plan_kind,goal_id)
+               values('${id(1)}','${assignment}','${id(30)}','pending','Wrong kind','other','${id(60)}')`,
+              id(1),
+            ),
+          /Only skill plans/,
+        );
+        assert.throws(
+          () =>
+            sql(
+              `insert into public.suggested_workouts(person_id,program_assignment_id,training_location_id,status,title,plan_kind,goal_id)
+               values('${id(1)}','${assignment}','${id(30)}','pending','Wrong owner','skill','${id(61)}')`,
+              id(1),
+            ),
+          /accessible active exercise goal/,
+        );
+        assert.throws(
+          () =>
+            sql(
+              `insert into public.suggested_workouts(person_id,program_assignment_id,training_location_id,status,title,plan_kind,goal_id)
+               values('${id(1)}','${assignment}','${id(30)}','pending','Paused goal','skill','${id(62)}')`,
+              id(1),
+            ),
+          /accessible active exercise goal/,
+        );
+      });
       const save = (updates: unknown[], person = id(1)) =>
         sql(
           `select public.save_personal_programme_sessions('${assignment}',${json(updates)})`,

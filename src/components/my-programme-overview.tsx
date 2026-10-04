@@ -41,6 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PersonalProgrammeEditor } from "@/components/personal-programme-editor";
+import { ProgrammeSupportPlanner } from "@/components/programme-support-planner";
 import { formatUKDate } from "@/lib/date";
 import { buildProgrammeWeekOverview } from "@/lib/programme-overview";
 import {
@@ -348,6 +349,11 @@ export function MyProgrammeOverview({
                     </Button>
                   </div>
                 ) : null}
+                <ProgrammeSupportPlanner
+                  assignmentId={active.id}
+                  programmeName={template.name}
+                  sessions={personal.sessions}
+                />
                 <PersonalProgrammeEditor
                   assignment={active}
                   template={template}

@@ -222,8 +222,6 @@ export function TodayPage() {
     queryFn: () => getMyProgrammeOverviewClient(),
     staleTime: 30_000,
   });
-  const linkedProgrammePlans = plans.data?.filter((plan) => plan.programAssignmentId) ?? [];
-  const extraPlans = plans.data?.filter((plan) => !plan.programAssignmentId) ?? [];
   const recent = useQuery({
     queryKey: ["recent-workouts", 300],
     queryFn: () => getRecentLogsClient(300),
@@ -237,9 +235,19 @@ export function TodayPage() {
   const activeProgramme = programmeOverview.data?.assignments.find(
     (assignment) => assignment.status === "active",
   );
+  const linkedProgrammePlans = plans.data?.filter((plan) => plan.programWorkoutId) ?? [];
+  const programmeSupportPlans =
+    plans.data?.filter(
+      (plan) =>
+        plan.programAssignmentId &&
+        plan.programAssignmentId === activeProgramme?.id &&
+        !plan.programWorkoutId,
+    ) ?? [];
+  const extraPlans = plans.data?.filter((plan) => !plan.programAssignmentId) ?? [];
+  const scheduledTrainingPlans = [...programmeSupportPlans, ...extraPlans];
   useEffect(() => {
-    if (activeProgramme && extraPlans.length) setOtherWaysOpen(true);
-  }, [activeProgramme, extraPlans.length]);
+    if (activeProgramme && scheduledTrainingPlans.length) setOtherWaysOpen(true);
+  }, [activeProgramme, scheduledTrainingPlans.length]);
   const activeTemplate = programmeOverview.data?.templates.find(
     (template) => template.id === activeProgramme?.programId,
   );
@@ -936,7 +944,7 @@ export function TodayPage() {
         className="rounded-xl border border-border bg-card/30 p-4"
       >
         <summary className="cursor-pointer text-sm font-semibold">
-          {extraPlans.length
+          {scheduledTrainingPlans.length
             ? "Scheduled training"
             : activeProgramme
               ? "Other ways to train"
@@ -947,15 +955,15 @@ export function TodayPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-base font-semibold">
-                  {extraPlans.length ? "Your planned sessions" : "Next workout"}
+                  {scheduledTrainingPlans.length ? "Your planned sessions" : "Next workout"}
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  {extraPlans.length
+                  {scheduledTrainingPlans.length
                     ? "Open the session planned for today, or start another one early."
                     : "Saved plans appear first; otherwise recent history provides a starting point."}
                 </p>
               </div>
-              {!extraPlans.length ? (
+              {!scheduledTrainingPlans.length ? (
                 <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-secondary/30 p-1">
                   {(["home", "gym"] as PlannerLocation[]).map((location) => (
                     <button
@@ -983,9 +991,9 @@ export function TodayPage() {
               <LoadingRow label="Loading saved workouts…" />
             ) : plans.error || recent.error || library.error ? (
               <ErrorCard label="The next workout could not be loaded." />
-            ) : extraPlans.length ? (
+            ) : scheduledTrainingPlans.length ? (
               <div className="grid gap-3 md:grid-cols-2">
-                {extraPlans.map((plan) => (
+                {scheduledTrainingPlans.map((plan) => (
                   <Card key={plan.suggestedWorkoutId} className="border-cyan-400/25">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-3">

@@ -32,6 +32,16 @@ lifecycle and sync through Supabase. Migration `20261004142817_add_scheduled_tra
 was applied and verified without changing existing training records; see the dated scheduled-training
 verification note.
 
+Personal programmes now have a separate **Supporting goals** planner. It can combine up to two
+active exercise-linked calisthenics goals or configured mobility practices with the next four weeks
+of saved strength dates. Skills default to short work beside strength sessions; mobility defaults to
+separate days. The exact proposed dates are reviewed before saving, then appear as ordinary movable
+sessions on Plan. Once the programme starts, Today offers the next session for each supporting goal.
+Supporting plans link to the programme for lifecycle cleanup but never carry a `program_workout_id`,
+so they cannot replace a strength prescription or advance programme progress. Migration
+`20261004191240_add_programme_support_plans.sql` was applied and verified without changing existing
+training records; see the dated programme-support verification note.
+
 ## Product Direction
 
 train n track should be organised around the training loop rather than around database categories:

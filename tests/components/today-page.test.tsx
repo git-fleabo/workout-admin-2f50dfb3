@@ -117,6 +117,55 @@ describe("TodayPage branching", () => {
     expect(screen.getByRole("button", { name: "Start session" })).toBeInTheDocument();
   });
 
+  it("holds supporting sessions back until their programme starts", async () => {
+    mocks.plans = [
+      {
+        ...savedPlan,
+        title: "Handstand practice",
+        planKind: "skill",
+        programAssignmentId: "assignment-1",
+        goalId: "goal-1",
+      },
+    ];
+    mocks.programmeOverview.assignments = [
+      {
+        id: "assignment-1",
+        programId: "programme-1",
+        status: "paused",
+        currentWorkoutIndex: 0,
+      },
+    ];
+
+    renderToday();
+
+    expect(await screen.findByText("No saved next workout yet.")).toBeInTheDocument();
+    expect(screen.queryByText("Handstand practice")).not.toBeInTheDocument();
+  });
+
+  it("offers the next supporting session once its programme is active", async () => {
+    mocks.plans = [
+      {
+        ...savedPlan,
+        title: "Handstand practice",
+        planKind: "skill",
+        programAssignmentId: "assignment-1",
+        goalId: "goal-1",
+      },
+    ];
+    mocks.programmeOverview.assignments = [
+      {
+        id: "assignment-1",
+        programId: "programme-1",
+        status: "active",
+        currentWorkoutIndex: 0,
+      },
+    ];
+
+    renderToday();
+
+    expect(await screen.findByText("Handstand practice")).toBeInTheDocument();
+  });
+
   it("puts the next programme session before daily practice with return choices", async () => {
     mocks.programmeOffers = [programmeOffer];
 

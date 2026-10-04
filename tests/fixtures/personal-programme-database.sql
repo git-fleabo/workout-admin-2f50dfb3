@@ -32,6 +32,10 @@ create table public.program_assignment_exercise_pools(
 );
 create table public.training_locations(id uuid primary key,person_id uuid,kind text,is_active boolean);
 create table public.sessions(id uuid primary key,person_id uuid,completed boolean);
+create table public.goals(
+ id uuid primary key default gen_random_uuid(),person_id uuid not null references public.people,
+ status text not null,exercise_id uuid references public.exercises
+);
 create table public.mobility_practice_runs(
  id uuid primary key default gen_random_uuid(),person_id uuid not null references public.people,
  status text not null check(status in ('active','paused','archived'))
@@ -53,11 +57,15 @@ create table public.suggested_workout_sets(
 grant select on public.people,public.exercises,public.programs,public.program_workouts to authenticated;
 grant select,insert,update on public.program_assignments,public.program_assignment_exercises,
  public.program_assignment_exercise_pools,public.suggested_workouts,public.suggested_workout_entries,
- public.suggested_workout_sets,public.training_locations,public.sessions,public.mobility_practice_runs to authenticated;
+ public.suggested_workout_sets,public.training_locations,public.sessions,public.goals,
+ public.mobility_practice_runs to authenticated;
 alter table public.people enable row level security;
 create policy people_access on public.people to authenticated using(app_private.person_is_accessible(id));
 alter table public.mobility_practice_runs enable row level security;
 create policy mobility_runs_access on public.mobility_practice_runs to authenticated
+ using(app_private.person_is_accessible(person_id)) with check(app_private.person_is_accessible(person_id));
+alter table public.goals enable row level security;
+create policy goals_access on public.goals to authenticated
  using(app_private.person_is_accessible(person_id)) with check(app_private.person_is_accessible(person_id));
 alter table public.program_assignments enable row level security;
 create policy assignments_access on public.program_assignments to authenticated using(app_private.person_is_accessible(person_id)) with check(app_private.person_is_accessible(person_id));

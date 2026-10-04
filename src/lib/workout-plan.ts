@@ -14,6 +14,7 @@ export type WorkoutPlanKind =
   | "climbing"
   | "yoga"
   | "mobility"
+  | "skill"
   | "other";
 export type SessionDifficulty = "standard" | "hard" | "very_hard";
 export type StrengthFocus = "full_body" | "upper" | "lower";
@@ -105,6 +106,7 @@ export function inferWorkoutPlanKind(draft: WorkoutPlanDraft): WorkoutPlanKind {
   const modes = new Set(draft.movements.map((movement) => movement.trackingMode));
   if (types.has("yoga")) return "yoga";
   if (types.has("climbing") || modes.has("climbing")) return "climbing";
+  if (types.has("skills/calisthenics")) return "skill";
   if (types.has("strength")) return "strength";
   if (types.has("conditioning") || modes.has("conditioning")) return "conditioning";
   return "other";
