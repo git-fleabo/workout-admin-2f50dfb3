@@ -8,16 +8,19 @@ import {
   Layers3,
   Mountain,
   Pencil,
+  Play,
   RotateCcw,
+  Trash2,
   Trophy,
   Users,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -26,8 +29,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatUKDateShort } from "@/lib/date";
+import { MOBILITY_SKILLS, type MobilityRun } from "@/lib/mobility-practice";
+import type { SavedWorkoutPlan } from "@/lib/supabase-plans.browser";
 import type { ProgrammeScheduleSession } from "@/lib/supabase-programmes.browser";
+import type { PlannerLocation } from "@/lib/workout-plan";
 import type { WeeklyPlan, WeeklyPlanAdjustments, WeeklyPlanItemKind } from "@/lib/weekly-plan";
 import { cn } from "@/lib/utils";
 
@@ -113,15 +126,48 @@ export function WeeklyPlanOverview({
   programmeSessions,
   adjustments,
   onAdjustDay,
+  scheduledPlans = [],
+  mobilityRuns = [],
+  scheduling = false,
+  onScheduleYoga,
+  onScheduleMobility,
+  onPlanClimbing,
+  onStartScheduledPlan,
+  onMoveScheduledPlan,
+  onRemoveScheduledPlan,
 }: {
   plan: WeeklyPlan;
   programmeSessions: ProgrammeScheduleSession[];
   adjustments: WeeklyPlanAdjustments;
   onAdjustDay: (date: string, items: WeeklyPlanItemKind[] | null) => void;
+  scheduledPlans?: SavedWorkoutPlan[];
+  mobilityRuns?: MobilityRun[];
+  scheduling?: boolean;
+  onScheduleYoga?: (date: string, location: PlannerLocation, durationMinutes: number) => void;
+  onScheduleMobility?: (date: string, runId: string, location: PlannerLocation) => void;
+  onPlanClimbing?: (date: string) => void;
+  onStartScheduledPlan?: (plan: SavedWorkoutPlan) => void;
+  onMoveScheduledPlan?: (id: string, date: string) => void;
+  onRemoveScheduledPlan?: (id: string) => void;
 }) {
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [selectedProgrammeSession, setSelectedProgrammeSession] =
     useState<ProgrammeScheduleSession | null>(null);
+  const [selectedScheduledPlan, setSelectedScheduledPlan] = useState<SavedWorkoutPlan | null>(null);
+  const [moveDate, setMoveDate] = useState("");
+  const [scheduleLocation, setScheduleLocation] = useState<PlannerLocation>("home");
+  const [yogaMinutes, setYogaMinutes] = useState("30");
+  const [mobilityRunId, setMobilityRunId] = useState(mobilityRuns[0]?.id ?? "");
+
+  useEffect(() => {
+    if (!mobilityRuns.length) {
+      setMobilityRunId("");
+      return;
+    }
+    if (!mobilityRuns.some((run) => run.id === mobilityRunId)) {
+      setMobilityRunId(mobilityRuns[0].id);
+    }
+  }, [mobilityRunId, mobilityRuns]);
   const currentProgrammeSession = programmeSessions.find((session) => session.status === "current");
   const editingDay = plan.days.find((day) => day.date === editingDate);
   const editingItems = editingDay ? (adjustments[editingDay.date] ?? editingDay.inferredItems) : [];
@@ -182,6 +228,7 @@ export function WeeklyPlanOverview({
                 (session) => session.date === day.date,
               );
               const completed = day.completedItems.length > 0;
+              const dayPlans = scheduledPlans.filter((saved) => saved.suggestedFor === day.date);
               return (
                 <div
                   key={day.date}
@@ -222,6 +269,33 @@ export function WeeklyPlanOverview({
                         </p>
                       </button>
                     ))}
+                    {dayPlans.map((saved) => (
+                      <button
+                        type="button"
+                        key={saved.suggestedWorkoutId}
+                        onClick={() => {
+                          setSelectedScheduledPlan(saved);
+                          setMoveDate(saved.suggestedFor ?? day.date);
+                        }}
+                        className="w-full rounded-lg border border-cyan-400/25 bg-cyan-400/[0.07] p-2 text-left transition hover:border-cyan-300/50 hover:bg-cyan-400/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                      >
+                        <span className="flex items-center gap-1 text-[10px] font-medium capitalize text-cyan-200">
+                          {saved.status === "completed" ? (
+                            <CheckCircle2 className="h-3 w-3 text-emerald-300" />
+                          ) : saved.planKind === "climbing" ? (
+                            <Mountain className="h-3 w-3" />
+                          ) : saved.planKind === "mobility" ? (
+                            <HeartPulse className="h-3 w-3" />
+                          ) : (
+                            <CalendarRange className="h-3 w-3" />
+                          )}
+                          {saved.planKind}
+                        </span>
+                        <span className="mt-1 block line-clamp-2 text-[10px] leading-snug text-foreground/80">
+                          {saved.title}
+                        </span>
+                      </button>
+                    ))}
                     {day.completedItems.map((item) => (
                       <div key={`done-${item}`} className="flex items-center gap-1">
                         <CheckCircle2 className="h-3 w-3 text-emerald-300" />
@@ -233,7 +307,8 @@ export function WeeklyPlanOverview({
                     ))}
                     {!completed &&
                     plannedItems.length === 0 &&
-                    scheduledProgrammeSessions.length === 0 ? (
+                    scheduledProgrammeSessions.length === 0 &&
+                    dayPlans.length === 0 ? (
                       <span className="text-[10px] text-muted-foreground/70">Open</span>
                     ) : null}
                   </div>
@@ -249,6 +324,8 @@ export function WeeklyPlanOverview({
                         <span className="sm:hidden">Adjust extras</span>
                         <span className="hidden sm:inline">Adjust other training</span>
                       </>
+                    ) : dayPlans.length ? (
+                      "Plan or move sessions"
                     ) : (
                       "Adjust day"
                     )}
@@ -323,6 +400,105 @@ export function WeeklyPlanOverview({
               );
             })}
           </div>
+          <div className="space-y-3 border-t border-border pt-4">
+            <div>
+              <p className="text-sm font-semibold">Schedule a session you can start</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                These sessions sync across devices and appear on Today.
+              </p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="text-xs">
+                Training place
+                <Select
+                  value={scheduleLocation}
+                  onValueChange={(value) => setScheduleLocation(value as PlannerLocation)}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="home">Home</SelectItem>
+                    <SelectItem value="gym">Gym</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="text-xs">
+                Yoga minutes
+                <Input
+                  className="mt-1"
+                  type="number"
+                  min={5}
+                  max={180}
+                  value={yogaMinutes}
+                  onChange={(event) => setYogaMinutes(event.target.value)}
+                />
+              </label>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!editingDay || scheduling || !onScheduleYoga}
+                onClick={() => {
+                  if (!editingDay) return;
+                  onScheduleYoga?.(
+                    editingDay.date,
+                    scheduleLocation,
+                    Math.max(5, Number(yogaMinutes) || 30),
+                  );
+                  setEditingDate(null);
+                }}
+              >
+                Plan yoga
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!editingDay || scheduling || !onPlanClimbing}
+                onClick={() => {
+                  if (!editingDay) return;
+                  onPlanClimbing?.(editingDay.date);
+                  setEditingDate(null);
+                }}
+              >
+                Build climbing
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!editingDay || scheduling || !mobilityRuns.length || !onScheduleMobility}
+                onClick={() => {
+                  if (!editingDay || !mobilityRunId) return;
+                  onScheduleMobility?.(editingDay.date, mobilityRunId, scheduleLocation);
+                  setEditingDate(null);
+                }}
+              >
+                Plan mobility
+              </Button>
+            </div>
+            {mobilityRuns.length ? (
+              <label className="text-xs">
+                Mobility practice
+                <Select value={mobilityRunId} onValueChange={setMobilityRunId}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Choose an active practice" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {mobilityRuns.map((run) => (
+                      <SelectItem key={run.id} value={run.id}>
+                        {MOBILITY_SKILLS[run.skill].label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Start and configure a mobility practice before scheduling it.
+              </p>
+            )}
+          </div>
           <DialogFooter className="gap-2 sm:justify-between">
             <Button
               variant="ghost"
@@ -334,6 +510,83 @@ export function WeeklyPlanOverview({
             <Button size="sm" onClick={() => setEditingDate(null)}>
               Done
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(selectedScheduledPlan)}
+        onOpenChange={(open) => !open && setSelectedScheduledPlan(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{selectedScheduledPlan?.title ?? "Scheduled session"}</DialogTitle>
+            <DialogDescription>
+              {selectedScheduledPlan
+                ? `${selectedScheduledPlan.planKind} · ${selectedScheduledPlan.movements
+                    .map((movement) => movement.exercise)
+                    .join(" · ")}`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedScheduledPlan ? (
+            <div className="space-y-3">
+              <label className="text-xs">
+                Planned date
+                <Input
+                  className="mt-1"
+                  type="date"
+                  value={moveDate}
+                  disabled={selectedScheduledPlan.status === "completed"}
+                  onChange={(event) => setMoveDate(event.target.value)}
+                />
+              </label>
+              {selectedScheduledPlan.status !== "completed" &&
+              moveDate !== selectedScheduledPlan.suggestedFor ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!moveDate || scheduling}
+                  onClick={() => {
+                    onMoveScheduledPlan?.(selectedScheduledPlan.suggestedWorkoutId, moveDate);
+                    setSelectedScheduledPlan(null);
+                  }}
+                >
+                  Move session
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+          <DialogFooter className="gap-2 sm:justify-between">
+            {selectedScheduledPlan?.status !== "completed" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-destructive"
+                disabled={scheduling}
+                onClick={() => {
+                  if (!selectedScheduledPlan) return;
+                  onRemoveScheduledPlan?.(selectedScheduledPlan.suggestedWorkoutId);
+                  setSelectedScheduledPlan(null);
+                }}
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" /> Remove
+              </Button>
+            ) : (
+              <span />
+            )}
+            {selectedScheduledPlan?.status !== "completed" ? (
+              <Button
+                type="button"
+                onClick={() =>
+                  selectedScheduledPlan && onStartScheduledPlan?.(selectedScheduledPlan)
+                }
+              >
+                <Play className="mr-1.5 h-4 w-4" /> Start session
+              </Button>
+            ) : (
+              <Button onClick={() => setSelectedScheduledPlan(null)}>Done</Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

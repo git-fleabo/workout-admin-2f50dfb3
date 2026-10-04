@@ -21,9 +21,16 @@ programme evidence, all prescribed straight sets at one load, and complete effor
 the saved limit. Suggestions do not silently change future targets.
 
 Migration `20261004132906_editable_personal_programmes.sql` was applied narrowly to the existing
-Supabase project on 2026-10-04 and verified without changing existing training records. The remaining
-release steps are to push locally committed code through GitHub Desktop and publish through Lovable.
-No live personal programme was created. See the dated database verification note for evidence.
+Supabase project on 2026-10-04 and verified without changing existing training records. Its frontend
+was subsequently pushed through GitHub and Lovable by Noam. No live personal programme was created.
+See the dated database verification note for evidence.
+
+The Plan screen now turns the current week into an executable schedule. Yoga, a configured mobility
+practice, and generated climbing/strength/conditioning sessions can be attached to dates, moved or
+removed, and started from either the week or Today. These plans use the existing suggested-workout
+lifecycle and sync through Supabase. Migration `20261004142817_add_scheduled_training_plans.sql`
+was applied and verified without changing existing training records; see the dated scheduled-training
+verification note.
 
 ## Product Direction
 

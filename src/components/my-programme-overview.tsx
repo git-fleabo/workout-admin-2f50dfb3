@@ -335,11 +335,25 @@ export function MyProgrammeOverview({
             </details>
 
             {active.personalProgramme ? (
-              <PersonalProgrammeEditor
-                assignment={active}
-                template={template}
-                lockedWorkoutIds={overview.data.lockedWorkoutIds ?? []}
-              />
+              <div className="space-y-4">
+                {active.status === "paused" ? (
+                  <div className="rounded-lg border border-cyan-400/30 bg-cyan-400/[0.07] p-4">
+                    <p className="font-medium">Review everything before you start</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Open each session below to see its saved targets. Use Edit to change
+                      exercises, sets, loads, reps or rest, and use the arrows to change the order.
+                    </p>
+                    <Button asChild size="sm" variant="outline" className="mt-3">
+                      <a href="#programme-editor">Review and edit sessions</a>
+                    </Button>
+                  </div>
+                ) : null}
+                <PersonalProgrammeEditor
+                  assignment={active}
+                  template={template}
+                  lockedWorkoutIds={overview.data.lockedWorkoutIds ?? []}
+                />
+              </div>
             ) : (
               <p className="text-xs text-muted-foreground">
                 To personalise the whole block, choose “Make my version” in the programme library.
@@ -359,12 +373,20 @@ export function MyProgrammeOverview({
                 </Button>
               ) : null}
               {active.status === "paused" ? (
-                <Button
-                  disabled={activate.isPending || otherActive}
-                  onClick={() => activate.mutate(active.id)}
-                >
-                  Start programme
-                </Button>
+                <div>
+                  <Button
+                    disabled={activate.isPending || otherActive}
+                    onClick={() => activate.mutate(active.id)}
+                  >
+                    Start programme
+                  </Button>
+                  {!otherActive ? (
+                    <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+                      Starting makes session 1 available on Today. Your later sessions remain
+                      editable until you begin them.
+                    </p>
+                  ) : null}
+                </div>
               ) : (
                 <Button asChild>
                   <Link to="/">Go to next workout</Link>

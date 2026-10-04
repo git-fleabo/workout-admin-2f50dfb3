@@ -28,12 +28,29 @@ over older client/admin-first roadmap items below.
   the locally tested migration. RLS, grants, RPC guards and API visibility were verified.
   Counts and full-row fingerprints of 15 existing training/programme tables are unchanged;
   both new personal-programme tables remain empty. No live personal programme was created.
-  The frontend still needs GitHub Desktop push and Lovable publishing. Do not blanket-push
-  migrations: the remote ledger has historical divergence. See
+  Noam subsequently completed the GitHub and Lovable release. Do not blanket-push migrations:
+  the remote ledger has historical divergence. See
   `docs/personal-programme-database-verification-2026-10-04.md` for release evidence.
 - Test database lifecycle with `PERSONAL_PROGRAMME_PG_BIN=/path/to/postgres/bin npm run test:database`.
   The tests create and remove a private temporary cluster; they never use the live project.
   Without this variable database tests report skipped, not verified.
+
+## 2026-10-04 Executable Weekly Planning
+
+- `Plan → Your week at a glance` now combines programme dates with saved Yoga, Mobility,
+  Climbing, Strength and Conditioning sessions. Saved sessions sync through Supabase and can be
+  moved, removed or started from the week.
+- A day can create a duration-led Yoga session directly, schedule one of the person's configured
+  active mobility practices, or open the existing Climbing builder with that date selected. The
+  general builder also has an explicit planned date.
+- Today keeps scheduled non-programme sessions visible even while a programme is active. Each card
+  shows its type and date and can start early. Existing programme priority and progress remain.
+- A paused personal programme now explains the pre-start path. Every session exposes its saved
+  targets, and future sessions retain Edit and sequence controls before activation.
+- Migration `20261004142817_add_scheduled_training_plans.sql` is live. It adds `plan_kind` and an
+  optional mobility-run foreign key to `suggested_workouts`, plus indexes and a security-invoker
+  ownership/active-status guard. Existing workout and mobility counts and comparable fingerprints
+  were unchanged. See `docs/scheduled-training-database-verification-2026-10-04.md`.
 
 ## Project Status
 

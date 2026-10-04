@@ -118,9 +118,63 @@ test(
           "utf8",
         ),
       );
-      sql(`insert into public.exercises values('${id(10)}'); insert into public.programs values('${id(11)}',true);
+      sql(
+        readFileSync(
+          new URL(
+            "../supabase/migrations/20261004142817_add_scheduled_training_plans.sql",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      );
+      sql(`insert into public.people values('${id(1)}'),('${id(2)}');
+      insert into public.exercises values('${id(10)}'); insert into public.programs values('${id(11)}',true);
       insert into public.program_workouts values ${[0, 1, 2].map((i) => `('${id(20 + i)}','${id(11)}',${i})`).join(",")};
       insert into public.training_locations values('${id(30)}','${id(1)}','gym',true),('${id(31)}','${id(2)}','gym',true);`);
+      await t.test("scheduled mobility plans require an accessible active practice", () => {
+        sql(
+          `insert into public.mobility_practice_runs values('${id(50)}','${id(1)}','active'),('${id(51)}','${id(2)}','active'),('${id(52)}','${id(1)}','paused')`,
+        );
+        sql(
+          `insert into public.suggested_workouts(id,person_id,training_location_id,status,title,suggested_for,plan_kind,mobility_practice_run_id)
+           values('${id(53)}','${id(1)}','${id(30)}','pending','Shoulder practice','2026-10-06','mobility','${id(50)}')`,
+          id(1),
+        );
+        assert.equal(
+          sql(
+            `select plan_kind||':'||suggested_for::text from public.suggested_workouts where id='${id(53)}'`,
+            id(1),
+          ),
+          "mobility:2026-10-06",
+        );
+        assert.throws(
+          () =>
+            sql(
+              `insert into public.suggested_workouts(person_id,training_location_id,status,title,plan_kind,mobility_practice_run_id)
+               values('${id(1)}','${id(30)}','pending','Wrong owner','mobility','${id(51)}')`,
+              id(1),
+            ),
+          /Choose an active mobility practice/,
+        );
+        assert.throws(
+          () =>
+            sql(
+              `insert into public.suggested_workouts(person_id,training_location_id,status,title,plan_kind,mobility_practice_run_id)
+               values('${id(1)}','${id(30)}','pending','Paused practice','mobility','${id(52)}')`,
+              id(1),
+            ),
+          /Choose an active mobility practice/,
+        );
+        assert.throws(
+          () =>
+            sql(
+              `insert into public.suggested_workouts(person_id,training_location_id,status,title,plan_kind,mobility_practice_run_id)
+               values('${id(1)}','${id(30)}','pending','Wrong kind','yoga','${id(50)}')`,
+              id(1),
+            ),
+          /Only mobility plans/,
+        );
+      });
       const assignment = sql(
         `select public.create_personal_programme('${id(1)}','${id(11)}','My block','2026-10-05',${json(sessions)},'My notes')`,
         id(1),

@@ -862,6 +862,11 @@ create table if not exists public.suggested_workouts (
   program_workout_id uuid references public.program_workouts(id) on delete set null,
   training_location_id uuid references public.training_locations(id) on delete set null,
   suggested_for date,
+  plan_kind text check (
+    plan_kind is null or plan_kind in (
+      'strength', 'conditioning', 'climbing', 'yoga', 'mobility', 'other'
+    )
+  ),
   status text not null default 'pending'
     check (status in ('pending', 'accepted', 'completed', 'skipped', 'archived')),
   title text not null,
@@ -876,6 +881,10 @@ create table if not exists public.suggested_workouts (
 create trigger suggested_workouts_set_updated_at
 before update on public.suggested_workouts
 for each row execute function public.set_updated_at();
+
+create index suggested_workouts_person_schedule_idx
+  on public.suggested_workouts (person_id, suggested_for, status)
+  where suggested_for is not null;
 
 create table if not exists public.suggested_workout_entries (
   id uuid primary key default gen_random_uuid(),
@@ -2872,6 +2881,55 @@ create unique index mobility_practice_one_current_per_skill_idx
 create trigger mobility_practice_runs_set_updated_at
 before update on public.mobility_practice_runs
 for each row execute function public.set_updated_at();
+
+alter table public.suggested_workouts
+  add column mobility_practice_run_id uuid
+  references public.mobility_practice_runs(id) on delete set null;
+
+create index suggested_workouts_mobility_run_idx
+  on public.suggested_workouts (mobility_practice_run_id)
+  where mobility_practice_run_id is not null;
+
+create function app_private.guard_scheduled_mobility_plan()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if new.mobility_practice_run_id is null then
+    if new.plan_kind = 'mobility' then
+      raise exception 'Choose an active mobility practice.';
+    end if;
+    return new;
+  end if;
+
+  if new.plan_kind is distinct from 'mobility' then
+    raise exception 'Only mobility plans can use a mobility practice.';
+  end if;
+
+  if not exists (
+    select 1
+    from public.mobility_practice_runs run
+    where run.id = new.mobility_practice_run_id
+      and run.person_id = new.person_id
+      and run.status = 'active'
+      and app_private.person_is_accessible(run.person_id)
+  ) then
+    raise exception 'Choose an active mobility practice.';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger guard_scheduled_mobility_plan
+before insert or update of person_id, plan_kind, mobility_practice_run_id
+on public.suggested_workouts
+for each row execute function app_private.guard_scheduled_mobility_plan();
+
+revoke all on function app_private.guard_scheduled_mobility_plan() from public, anon;
+grant execute on function app_private.guard_scheduled_mobility_plan() to authenticated;
 
 create table public.mobility_assessment_results (
   id uuid primary key default gen_random_uuid(),

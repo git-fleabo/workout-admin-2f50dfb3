@@ -74,6 +74,8 @@ const savedPlan = {
   title: "Upper Strength",
   locationKind: "gym",
   status: "planned",
+  planKind: "strength",
+  suggestedFor: new Date().toISOString().slice(0, 10),
   movements: [{ exercise: "Bench Press", setRows: [{ reps: "5", weight: "60" }], restTime: "" }],
 };
 
@@ -111,7 +113,8 @@ describe("TodayPage branching", () => {
     renderToday();
 
     expect(await screen.findByText("Upper Strength")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Start workout" })).toBeInTheDocument();
+    expect(screen.getByText("Today")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start session" })).toBeInTheDocument();
   });
 
   it("puts the next programme session before daily practice with return choices", async () => {

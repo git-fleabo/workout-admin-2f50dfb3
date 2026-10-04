@@ -11,6 +11,7 @@ $$;
 create function app_private.person_is_accessible(person_id uuid) returns boolean language sql stable as $$
 select person_id = auth.uid()
 $$;
+create table public.people(id uuid primary key);
 create table public.exercises(id uuid primary key);
 create table public.programs(id uuid primary key,is_template boolean not null);
 create table public.program_workouts(id uuid primary key,program_id uuid references public.programs,sequence_index integer);
@@ -31,6 +32,10 @@ create table public.program_assignment_exercise_pools(
 );
 create table public.training_locations(id uuid primary key,person_id uuid,kind text,is_active boolean);
 create table public.sessions(id uuid primary key,person_id uuid,completed boolean);
+create table public.mobility_practice_runs(
+ id uuid primary key default gen_random_uuid(),person_id uuid not null references public.people,
+ status text not null check(status in ('active','paused','archived'))
+);
 create table public.suggested_workouts(
  id uuid primary key default gen_random_uuid(),person_id uuid,program_assignment_id uuid references public.program_assignments,
  program_workout_id uuid references public.program_workouts,training_location_id uuid references public.training_locations,
@@ -45,10 +50,15 @@ create table public.suggested_workout_sets(
  id uuid primary key default gen_random_uuid(),suggested_workout_entry_id uuid references public.suggested_workout_entries,
  set_number integer,reps numeric,weight numeric,duration_seconds numeric,rpe numeric,completed boolean
 );
-grant select on public.exercises,public.programs,public.program_workouts to authenticated;
+grant select on public.people,public.exercises,public.programs,public.program_workouts to authenticated;
 grant select,insert,update on public.program_assignments,public.program_assignment_exercises,
  public.program_assignment_exercise_pools,public.suggested_workouts,public.suggested_workout_entries,
- public.suggested_workout_sets,public.training_locations,public.sessions to authenticated;
+ public.suggested_workout_sets,public.training_locations,public.sessions,public.mobility_practice_runs to authenticated;
+alter table public.people enable row level security;
+create policy people_access on public.people to authenticated using(app_private.person_is_accessible(id));
+alter table public.mobility_practice_runs enable row level security;
+create policy mobility_runs_access on public.mobility_practice_runs to authenticated
+ using(app_private.person_is_accessible(person_id)) with check(app_private.person_is_accessible(person_id));
 alter table public.program_assignments enable row level security;
 create policy assignments_access on public.program_assignments to authenticated using(app_private.person_is_accessible(person_id)) with check(app_private.person_is_accessible(person_id));
 alter table public.training_locations enable row level security;

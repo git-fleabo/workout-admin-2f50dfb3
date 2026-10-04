@@ -56,9 +56,18 @@ import {
   type CircuitIntensity,
 } from "@/lib/circuit-generator";
 import { getLibraryClient, getRecentLogsClient } from "@/lib/supabase-log.browser";
-import { saveWorkoutPlanClient } from "@/lib/supabase-plans.browser";
+import {
+  getScheduledWorkoutPlansClient,
+  rescheduleSuggestedWorkoutClient,
+  saveWorkoutPlanClient,
+  updateSuggestedWorkoutStatusClient,
+  type SavedWorkoutPlan,
+} from "@/lib/supabase-plans.browser";
 import { getSupabaseSession } from "@/lib/supabase-public";
+import { listMobilityDataClient } from "@/lib/supabase-mobility.browser";
+import { buildMobilityWorkoutDraft } from "@/lib/mobility-practice";
 import { getMovementMetricProfile } from "@/lib/movement-metrics";
+import { readWorkoutDraftSummary, workoutSessionDraftKey } from "@/lib/workout-local-state";
 import {
   getActiveProgrammeRefreshClient,
   getUpcomingProgrammeScheduleClient,
@@ -74,6 +83,8 @@ import {
 } from "@/lib/weekly-plan";
 import {
   buildGuidedStrengthSession,
+  buildYogaWorkoutDraft,
+  inferWorkoutPlanKind,
   SESSION_DIFFICULTY_OPTIONS,
   STRENGTH_FOCUS_OPTIONS,
   WORKOUT_PLAN_DRAFT_KEY,
@@ -224,6 +235,7 @@ function PlanPage() {
   const [climbingInputs, setClimbingInputs] =
     useState<ClimbingBuilderInputs>(DEFAULT_CLIMBING_INPUTS);
   const [climbingBuild, setClimbingBuild] = useState<ClimbingCircuitBuild | null>(null);
+  const [plannedFor, setPlannedFor] = useState(todayISO());
 
   useEffect(() => {
     const storedLocation = window.localStorage.getItem(WORKOUT_PLAN_LOCATION_KEY);
@@ -388,6 +400,27 @@ function PlanPage() {
       }),
     staleTime: 30_000,
   });
+  const scheduledPlans = useQuery({
+    queryKey: ["scheduled-workout-plans", weeklyPlan.startDate, weeklyPlan.endDate],
+    queryFn: () => getScheduledWorkoutPlansClient(weeklyPlan.startDate, weeklyPlan.endDate),
+    staleTime: 30_000,
+  });
+  const mobilityData = useQuery({
+    queryKey: ["mobility-practice"],
+    queryFn: listMobilityDataClient,
+    staleTime: 30_000,
+  });
+  const activeMobilityRuns = useMemo(
+    () =>
+      (mobilityData.data?.runs ?? []).filter(
+        (run) =>
+          run.status === "active" &&
+          (mobilityData.data?.drills ?? []).some(
+            (drill) => drill.runId === run.id && drill.isActive,
+          ),
+      ),
+    [mobilityData.data],
+  );
   const programmeRefresh = useQuery({
     queryKey: ["programme-refresh"],
     queryFn: getActiveProgrammeRefreshClient,
@@ -950,8 +983,116 @@ function PlanPage() {
     };
   };
 
+  const refreshScheduledPlans = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["scheduled-workout-plans"] }),
+      queryClient.invalidateQueries({ queryKey: ["next-suggested-workouts"] }),
+    ]);
+
+  const scheduleSession = useMutation({
+    mutationFn: async (
+      request:
+        | {
+            kind: "yoga";
+            date: string;
+            location: PlannerLocation;
+            durationMinutes: number;
+          }
+        | { kind: "mobility"; date: string; location: PlannerLocation; runId: string },
+    ) => {
+      if (request.kind === "yoga") {
+        return saveWorkoutPlanClient({
+          draft: buildYogaWorkoutDraft({
+            durationMinutes: request.durationMinutes,
+            locationKind: request.location,
+          }),
+          readiness: "normal",
+          status: "pending",
+          suggestedFor: request.date,
+          planKind: "yoga",
+        });
+      }
+      const run = activeMobilityRuns.find((item) => item.id === request.runId);
+      if (!run) throw new Error("Choose an active mobility practice.");
+      if (!library.data) throw new Error("Your exercise Library is still loading.");
+      const draft = buildMobilityWorkoutDraft({
+        run,
+        drills: (mobilityData.data?.drills ?? []).filter((drill) => drill.runId === run.id),
+        library: library.data.exercises,
+        locationKind: request.location,
+      });
+      return saveWorkoutPlanClient({
+        draft,
+        readiness: "normal",
+        status: "pending",
+        suggestedFor: request.date,
+        planKind: "mobility",
+      });
+    },
+    onSuccess: async (saved) => {
+      await refreshScheduledPlans();
+      toast.success("Session added to your week", {
+        description: `${saved.title} · ${formatUKDate(saved.suggestedFor)}`,
+      });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const moveScheduledPlan = useMutation({
+    mutationFn: ({ id, date }: { id: string; date: string }) =>
+      rescheduleSuggestedWorkoutClient(id, date),
+    onSuccess: async () => {
+      await refreshScheduledPlans();
+      toast.success("Planned session moved");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const removeScheduledPlan = useMutation({
+    mutationFn: (id: string) => updateSuggestedWorkoutStatusClient(id, "archived"),
+    onSuccess: async () => {
+      await refreshScheduledPlans();
+      toast.success("Planned session removed");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const startScheduledPlan = async (plan: SavedWorkoutPlan) => {
+    if (readWorkoutDraftSummary(window.localStorage.getItem(workoutSessionDraftKey()))) {
+      toast.message("Resume or cancel your current workout first", {
+        description: "Your unfinished workout is being kept safe on Today.",
+      });
+      return;
+    }
+    try {
+      await updateSuggestedWorkoutStatusClient(plan.suggestedWorkoutId, "accepted");
+      window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(plan));
+      await refreshScheduledPlans();
+      await navigate({ to: "/log" });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The session could not be started.");
+    }
+  };
+
+  const openClimbingPlanner = (date: string) => {
+    setPlannedFor(date);
+    setPlannerMode("climbing");
+    window.setTimeout(() => {
+      const builder = document.getElementById("next-workout-builder") as HTMLDetailsElement | null;
+      if (!builder) return;
+      builder.open = true;
+      builder.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   const savePlan = useMutation({
     mutationFn: async (status: "pending" | "accepted") => {
+      if (
+        status === "accepted" &&
+        readWorkoutDraftSummary(window.localStorage.getItem(workoutSessionDraftKey()))
+      ) {
+        throw new Error("Resume or cancel your current workout on Today before starting another.");
+      }
       const draft = currentDraft();
       if (!draft) throw new Error("Add at least one movement before saving.");
       if (
@@ -970,17 +1111,19 @@ function PlanPage() {
         draft,
         readiness: difficulty === "standard" ? "normal" : "fresh",
         status,
+        suggestedFor: plannedFor,
+        planKind: inferWorkoutPlanKind(draft),
       });
     },
-    onSuccess: (draft, status) => {
-      queryClient.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
+    onSuccess: async (draft, status) => {
+      await refreshScheduledPlans();
       if (status === "accepted") {
         window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(draft));
-        navigate({ to: "/log" });
+        await navigate({ to: "/log" });
         return;
       }
-      toast.success("Next workout saved", {
-        description: `${draft.title} will be waiting on the workout logger.`,
+      toast.success("Workout added to your week", {
+        description: `${draft.title} · ${formatUKDate(draft.suggestedFor)}`,
       });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -1004,6 +1147,33 @@ function PlanPage() {
           programmeSessions={programmeSchedule.data ?? []}
           adjustments={weeklyAdjustments}
           onAdjustDay={adjustWeeklyDay}
+          scheduledPlans={scheduledPlans.data ?? []}
+          mobilityRuns={activeMobilityRuns}
+          scheduling={
+            scheduleSession.isPending ||
+            moveScheduledPlan.isPending ||
+            removeScheduledPlan.isPending
+          }
+          onScheduleYoga={(date, scheduleLocation, durationMinutes) =>
+            scheduleSession.mutate({
+              kind: "yoga",
+              date,
+              location: scheduleLocation,
+              durationMinutes,
+            })
+          }
+          onScheduleMobility={(date, runId, scheduleLocation) =>
+            scheduleSession.mutate({
+              kind: "mobility",
+              date,
+              runId,
+              location: scheduleLocation,
+            })
+          }
+          onPlanClimbing={openClimbingPlanner}
+          onStartScheduledPlan={(plan) => void startScheduledPlan(plan)}
+          onMoveScheduledPlan={(id, date) => moveScheduledPlan.mutate({ id, date })}
+          onRemoveScheduledPlan={(id) => removeScheduledPlan.mutate(id)}
         />
       ) : null}
 
@@ -1043,6 +1213,16 @@ function PlanPage() {
               targets before saving it.
             </p>
           </div>
+
+          <label className="block max-w-xs text-sm font-medium">
+            Planned date
+            <Input
+              className="mt-1"
+              type="date"
+              value={plannedFor}
+              onChange={(event) => setPlannedFor(event.target.value)}
+            />
+          </label>
 
           <div className="space-y-2">
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">

@@ -10,7 +10,9 @@ import {
 import { buildClimbingCircuit } from "../src/lib/climbing-circuit-generator.ts";
 import {
   buildGuidedStrengthSession,
+  buildYogaWorkoutDraft,
   buildWorkoutSuggestion,
+  inferWorkoutPlanKind,
   readWorkoutPlanDraft,
 } from "../src/lib/workout-plan.ts";
 
@@ -356,6 +358,20 @@ test("local plan drafts allow setless climbing without weakening other movement 
       }),
     ),
     null,
+  );
+});
+
+test("a planned yoga session is duration-led, bounded and classified for the weekly schedule", () => {
+  const draft = buildYogaWorkoutDraft({ durationMinutes: 35, locationKind: "home" });
+
+  assert.equal(draft.title, "Yoga practice");
+  assert.equal(draft.movements[0].trackingMode, "duration");
+  assert.equal(draft.movements[0].targets.durationMinutes, "35");
+  assert.equal(inferWorkoutPlanKind(draft), "yoga");
+  assert.ok(readWorkoutPlanDraft(JSON.stringify(draft)));
+  assert.equal(
+    buildYogaWorkoutDraft({ durationMinutes: 500 }).movements[0].targets.durationMinutes,
+    "180",
   );
 });
 

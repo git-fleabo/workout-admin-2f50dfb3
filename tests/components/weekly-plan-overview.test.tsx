@@ -4,6 +4,7 @@ import { expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 
 import type { ProgrammeScheduleSession } from "@/lib/supabase-programmes.browser";
+import type { SavedWorkoutPlan } from "@/lib/supabase-plans.browser";
 import type { WeeklyPlan } from "@/lib/weekly-plan";
 
 vi.mock("@tanstack/react-router", () => ({
@@ -133,4 +134,73 @@ it("shows programme rest once without repeating it as guidance", async () => {
 
   expect(screen.getByText("Rest 60–90 seconds")).toBeVisible();
   expect(screen.queryByText("Rest 60–90 seconds between sets.")).not.toBeInTheDocument();
+});
+
+it("shows a dated saved session and can launch it from the week", async () => {
+  const start = vi.fn();
+  const scheduledPlan = {
+    version: 1,
+    suggestedWorkoutId: "saved-1",
+    title: "Yoga practice",
+    locationKind: "home",
+    basis: "Planned from the week",
+    status: "pending",
+    readiness: "normal",
+    createdAt: "2026-09-27T12:00:00Z",
+    programAssignmentId: null,
+    programWorkoutId: null,
+    suggestedFor: "2026-09-28",
+    planKind: "yoga",
+    movements: [
+      {
+        exercise: "Yoga Flow",
+        workoutType: "Yoga",
+        trackingMode: "duration",
+        targets: {
+          durationMinutes: "30",
+          distance: "",
+          distanceUnit: "",
+          rounds: "",
+          height: "",
+          detail: "",
+        },
+        sourceDate: "",
+        reason: "Scheduled",
+        setRows: [{ reps: "", weight: "", durationSeconds: "", rpe: "", completed: true }],
+      },
+    ],
+  } as SavedWorkoutPlan;
+
+  render(
+    <WeeklyPlanOverview
+      plan={plan}
+      programmeSessions={[]}
+      adjustments={{}}
+      scheduledPlans={[scheduledPlan]}
+      onAdjustDay={vi.fn()}
+      onStartScheduledPlan={start}
+    />,
+  );
+
+  await userEvent.click(screen.getByRole("button", { name: /yoga\s*yoga practice/i }));
+  await userEvent.click(screen.getByRole("button", { name: "Start session" }));
+  expect(start).toHaveBeenCalledWith(scheduledPlan);
+});
+
+it("adds a yoga session to the selected day with an executable prescription", async () => {
+  const scheduleYoga = vi.fn();
+  render(
+    <WeeklyPlanOverview
+      plan={plan}
+      programmeSessions={[]}
+      adjustments={{}}
+      onAdjustDay={vi.fn()}
+      onScheduleYoga={scheduleYoga}
+    />,
+  );
+
+  await userEvent.click(screen.getByRole("button", { name: "Adjust day" }));
+  await userEvent.click(screen.getByRole("button", { name: "Plan yoga" }));
+
+  expect(scheduleYoga).toHaveBeenCalledWith("2026-09-28", "home", 30);
 });

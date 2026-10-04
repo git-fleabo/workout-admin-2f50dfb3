@@ -8,6 +8,13 @@ export const WORKOUT_TRAINING_LOCATION_KEY = "training-location-id";
 
 export type PlannerReadiness = "normal" | "fresh" | "tired";
 export type PlannerLocation = "home" | "gym";
+export type WorkoutPlanKind =
+  | "strength"
+  | "conditioning"
+  | "climbing"
+  | "yoga"
+  | "mobility"
+  | "other";
 export type SessionDifficulty = "standard" | "hard" | "very_hard";
 export type StrengthFocus = "full_body" | "upper" | "lower";
 export type RecentWorkoutLog = Awaited<ReturnType<typeof getRecentLogsClient>>["recent"][number];
@@ -91,6 +98,59 @@ export type WorkoutPlanSuggestion = WorkoutPlanDraft & {
   fallbackUsed: boolean;
   pattern: "repeat" | "rotation" | "manual";
 };
+
+export function inferWorkoutPlanKind(draft: WorkoutPlanDraft): WorkoutPlanKind {
+  if (draft.mobilityRunId) return "mobility";
+  const types = new Set(draft.movements.map((movement) => movement.workoutType.toLowerCase()));
+  const modes = new Set(draft.movements.map((movement) => movement.trackingMode));
+  if (types.has("yoga")) return "yoga";
+  if (types.has("climbing") || modes.has("climbing")) return "climbing";
+  if (types.has("strength")) return "strength";
+  if (types.has("conditioning") || modes.has("conditioning")) return "conditioning";
+  return "other";
+}
+
+export function buildYogaWorkoutDraft({
+  durationMinutes = 30,
+  locationKind = "home",
+}: {
+  durationMinutes?: number;
+  locationKind?: PlannerLocation;
+} = {}): WorkoutPlanDraft {
+  const duration = Math.max(5, Math.min(180, Math.round(durationMinutes)));
+  return {
+    version: 1,
+    title: "Yoga practice",
+    locationKind,
+    basis: "Planned from your weekly training schedule.",
+    movements: [
+      {
+        exercise: "Yoga Flow",
+        workoutType: "Yoga",
+        trackingMode: "duration",
+        targets: {
+          durationMinutes: String(duration),
+          distance: "",
+          distanceUnit: "",
+          rounds: "",
+          height: "",
+          detail: "",
+        },
+        sourceDate: "",
+        reason: "Your scheduled yoga practice.",
+        setRows: [
+          {
+            reps: "",
+            weight: "",
+            durationSeconds: "",
+            rpe: "",
+            completed: true,
+          },
+        ],
+      },
+    ],
+  };
+}
 
 export type WorkoutBasisOption = {
   date: string;

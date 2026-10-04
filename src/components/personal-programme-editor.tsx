@@ -580,11 +580,14 @@ export function PersonalProgrammeEditor({
     >
       <div>
         <h3 id="programme-editor-heading" className="font-semibold">
-          Your programme, session by session
+          {assignment.status === "paused"
+            ? "Review and edit before you start"
+            : "Your programme, session by session"}
         </h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          Edit future workouts or move them within the sequence. Started and completed sessions stay
-          fixed; dates are reminders, so train when ready.
+          Open Saved targets for the exact prescription. Edit future workouts or move them within
+          the sequence. Started and completed sessions stay fixed; dates are reminders, so train
+          when ready.
         </p>
       </div>
       {library.error && (
@@ -653,28 +656,26 @@ export function PersonalProgrammeEditor({
                   .map((movement) => `${movement.exercise} (${movement.setRows.length} sets)`)
                   .join(" · ")}
               </p>
-              {!canEdit && (
-                <details className="mt-2">
-                  <summary className="cursor-pointer text-xs">Saved targets</summary>
-                  {session.plan.movements.map((movement) => (
-                    <p key={movement.programmeKey} className="mt-1 text-xs">
-                      {movement.exercise}:{" "}
-                      {movement.setRows
-                        .map((set) =>
-                          [
-                            set.weight ? `${set.weight} kg` : "",
-                            set.reps ? `${set.reps} reps` : "",
-                            set.durationSeconds ? `${set.durationSeconds}s` : "",
-                          ]
-                            .filter(Boolean)
-                            .join(" × "),
-                        )
-                        .join(" / ")}{" "}
-                      · Rest {movement.restTime || "as needed"}
-                    </p>
-                  ))}
-                </details>
-              )}
+              <details className="mt-2">
+                <summary className="cursor-pointer text-xs font-medium">Saved targets</summary>
+                {session.plan.movements.map((movement) => (
+                  <p key={movement.programmeKey} className="mt-1 text-xs">
+                    {movement.exercise}:{" "}
+                    {movement.setRows
+                      .map((set) =>
+                        [
+                          set.weight ? `${set.weight} kg` : "",
+                          set.reps ? `${set.reps} reps` : "",
+                          set.durationSeconds ? `${set.durationSeconds}s` : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" × "),
+                      )
+                      .join(" / ")}{" "}
+                    · Rest {movement.restTime || "as needed"}
+                  </p>
+                ))}
+              </details>
             </div>
           );
         })}

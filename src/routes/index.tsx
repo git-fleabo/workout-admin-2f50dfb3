@@ -237,6 +237,9 @@ export function TodayPage() {
   const activeProgramme = programmeOverview.data?.assignments.find(
     (assignment) => assignment.status === "active",
   );
+  useEffect(() => {
+    if (activeProgramme && extraPlans.length) setOtherWaysOpen(true);
+  }, [activeProgramme, extraPlans.length]);
   const activeTemplate = programmeOverview.data?.templates.find(
     (template) => template.id === activeProgramme?.programId,
   );
@@ -933,15 +936,23 @@ export function TodayPage() {
         className="rounded-xl border border-border bg-card/30 p-4"
       >
         <summary className="cursor-pointer text-sm font-semibold">
-          {activeProgramme ? "Other ways to train" : "Choose a workout"}
+          {extraPlans.length
+            ? "Scheduled training"
+            : activeProgramme
+              ? "Other ways to train"
+              : "Choose a workout"}
         </summary>
         <div className="mt-4 space-y-5">
           <section className="space-y-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h2 className="text-base font-semibold">Next workout</h2>
+                <h2 className="text-base font-semibold">
+                  {extraPlans.length ? "Your planned sessions" : "Next workout"}
+                </h2>
                 <p className="text-xs text-muted-foreground">
-                  Saved plans appear first; otherwise recent history provides a starting point.
+                  {extraPlans.length
+                    ? "Open the session planned for today, or start another one early."
+                    : "Saved plans appear first; otherwise recent history provides a starting point."}
                 </p>
               </div>
               {!extraPlans.length ? (
@@ -981,8 +992,15 @@ export function TodayPage() {
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="font-semibold">{plan.title}</p>
-                            {plan.programAssignmentId ? (
-                              <Badge variant="secondary">Programme</Badge>
+                            <Badge variant="secondary" className="capitalize">
+                              {plan.planKind}
+                            </Badge>
+                            {plan.suggestedFor ? (
+                              <Badge variant={plan.suggestedFor === today ? "default" : "outline"}>
+                                {plan.suggestedFor === today
+                                  ? "Today"
+                                  : formatUKDate(plan.suggestedFor)}
+                              </Badge>
                             ) : null}
                             <Badge variant="outline" className="capitalize">
                               <MapPin className="mr-1 h-3 w-3" /> {plan.locationKind}
@@ -1012,7 +1030,11 @@ export function TodayPage() {
                         ) : (
                           <Play className="mr-2 h-4 w-4" />
                         )}
-                        {draft ? "Resume draft first" : "Start workout"}
+                        {draft
+                          ? "Resume draft first"
+                          : plan.suggestedFor && plan.suggestedFor > today
+                            ? "Start early"
+                            : "Start session"}
                       </Button>
                     </CardContent>
                   </Card>

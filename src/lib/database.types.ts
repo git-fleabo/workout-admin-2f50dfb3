@@ -2261,7 +2261,9 @@ export type Database = {
           completed_session_id: string | null;
           created_at: string;
           id: string;
+          mobility_practice_run_id: string | null;
           notes: string | null;
+          plan_kind: string | null;
           person_id: string;
           program_assignment_id: string | null;
           program_workout_id: string | null;
@@ -2277,7 +2279,9 @@ export type Database = {
           completed_session_id?: string | null;
           created_at?: string;
           id?: string;
+          mobility_practice_run_id?: string | null;
           notes?: string | null;
+          plan_kind?: string | null;
           person_id: string;
           program_assignment_id?: string | null;
           program_workout_id?: string | null;
@@ -2293,7 +2297,9 @@ export type Database = {
           completed_session_id?: string | null;
           created_at?: string;
           id?: string;
+          mobility_practice_run_id?: string | null;
           notes?: string | null;
+          plan_kind?: string | null;
           person_id?: string;
           program_assignment_id?: string | null;
           program_workout_id?: string | null;
@@ -2310,6 +2316,13 @@ export type Database = {
             columns: ["completed_session_id"];
             isOneToOne: false;
             referencedRelation: "sessions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "suggested_workouts_mobility_practice_run_id_fkey";
+            columns: ["mobility_practice_run_id"];
+            isOneToOne: false;
+            referencedRelation: "mobility_practice_runs";
             referencedColumns: ["id"];
           },
           {
