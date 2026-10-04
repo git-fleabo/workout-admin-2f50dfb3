@@ -348,7 +348,8 @@ export function WeeklyPlanOverview({
               <Badge className="border-fuchsia-400/25 bg-fuchsia-400/10 text-fuchsia-200">
                 Programme
               </Badge>
-              {selectedProgrammeSession?.status === "upcoming" ? (
+              {selectedProgrammeSession?.status === "upcoming" &&
+              !selectedProgrammeSession.isPersonal ? (
                 <Badge variant="outline">Provisional</Badge>
               ) : null}
               {selectedProgrammeSession?.isCatchUp ? (
@@ -372,7 +373,9 @@ export function WeeklyPlanOverview({
                   ? `This is your next unfinished session. It was originally planned for ${formatUKDateShort(
                       selectedProgrammeSession.scheduledDate,
                     )}, and completing it will move the programme forward.`
-                  : "This preview uses your current training maxes and latest programme review. Later sessions are provisional and may adjust after earlier workouts."}
+                  : selectedProgrammeSession.isPersonal
+                    ? "These are the targets saved in your personal programme. Edit future sessions on Plan before you train."
+                    : "This preview uses your current training maxes and latest programme review. Later sessions are provisional and may adjust after earlier workouts."}
               </div>
 
               {selectedProgrammeSession.movements.length ? (
@@ -438,6 +441,11 @@ export function WeeklyPlanOverview({
           ) : null}
 
           <DialogFooter>
+            {selectedProgrammeSession?.isPersonal ? (
+              <Button asChild variant="outline">
+                <Link to="/plan">Edit in My Programme</Link>
+              </Button>
+            ) : null}
             {selectedProgrammeSession?.isCatchUp ? (
               <Button asChild>
                 <Link to="/">Start from Today</Link>

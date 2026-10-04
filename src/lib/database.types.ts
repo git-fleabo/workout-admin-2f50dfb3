@@ -8,6 +8,62 @@ export type Database = {
   };
   public: {
     Tables: {
+      personal_programmes: {
+        Row: { assignment_id: string; name: string; created_at: string };
+        Insert: { assignment_id: string; name: string; created_at?: string };
+        Update: { assignment_id?: string; name?: string; created_at?: string };
+        Relationships: [
+          {
+            foreignKeyName: "personal_programmes_assignment_id_fkey";
+            columns: ["assignment_id"];
+            isOneToOne: true;
+            referencedRelation: "program_assignments";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      personal_programme_sessions: {
+        Row: {
+          assignment_id: string;
+          program_workout_id: string;
+          name: string;
+          scheduled_on: string;
+          plan: Json;
+          revision: number;
+        };
+        Insert: {
+          assignment_id: string;
+          program_workout_id: string;
+          name: string;
+          scheduled_on: string;
+          plan: Json;
+          revision?: number;
+        };
+        Update: {
+          assignment_id?: string;
+          program_workout_id?: string;
+          name?: string;
+          scheduled_on?: string;
+          plan?: Json;
+          revision?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "personal_programme_sessions_assignment_id_fkey";
+            columns: ["assignment_id"];
+            isOneToOne: false;
+            referencedRelation: "personal_programmes";
+            referencedColumns: ["assignment_id"];
+          },
+          {
+            foreignKeyName: "personal_programme_sessions_program_workout_id_fkey";
+            columns: ["program_workout_id"];
+            isOneToOne: false;
+            referencedRelation: "program_workouts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       activity_types: {
         Row: {
           created_at: string;
@@ -2409,6 +2465,35 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      create_personal_programme: {
+        Args: {
+          p_person_id: string;
+          p_program_id: string;
+          p_name: string;
+          p_started_on: string;
+          p_sessions: Json;
+          p_notes?: string | null;
+        };
+        Returns: string;
+      };
+      save_personal_programme_sessions: {
+        Args: { p_assignment_id: string; p_updates: Json };
+        Returns: number;
+      };
+      start_personal_programme_session: {
+        Args: {
+          p_assignment_id: string;
+          p_workout_id: string;
+          p_revision: number;
+          p_location_id: string;
+          p_easier?: boolean;
+        };
+        Returns: string;
+      };
+      change_programme_run: {
+        Args: { p_assignment_id: string; p_action: string; p_started_on?: string };
+        Returns: string;
+      };
       apply_programme_exercise_updates: {
         Args: { p_assignment_id: string; p_updates: Json };
         Returns: number;

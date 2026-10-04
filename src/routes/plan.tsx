@@ -101,12 +101,15 @@ import {
 } from "@/lib/climbing-circuit-generator";
 
 export const Route = createFileRoute("/plan")({
+  validateSearch: (search: Record<string, unknown>): { programme?: string } => ({
+    programme: typeof search.programme === "string" ? search.programme : undefined,
+  }),
   head: () => ({
     meta: [
-      { title: "Plan Next Workout · Train & Track" },
+      { title: "My Programme & Planning · Train & Track" },
       {
         name: "description",
-        content: "Preview your programme week or plan an additional workout.",
+        content: "Edit your personal programme, review saved targets and plan additional workouts.",
       },
     ],
   }),
@@ -183,6 +186,7 @@ function methodBlockSummary(block: WorkoutPlanMethodBlock) {
 }
 
 function PlanPage() {
+  const { programme: selectedProgrammeId } = Route.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const history = useQuery({
@@ -988,7 +992,10 @@ function PlanPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Plan</h1>
       </header>
 
-      <MyProgrammeOverview />
+      <MyProgrammeOverview
+        key={selectedProgrammeId ?? "current"}
+        initialAssignmentId={selectedProgrammeId}
+      />
       <MobilityPracticeOverview />
 
       {!history.isLoading && !library.isLoading && !history.error && !library.error ? (

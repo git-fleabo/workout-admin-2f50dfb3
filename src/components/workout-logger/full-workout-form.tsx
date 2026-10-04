@@ -1,3 +1,4 @@
+import { progressionSummary } from "@/lib/programme-progression";
 import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -139,6 +140,9 @@ function useCompleteSuggestedWorkoutMutation(queryClient: QueryClient) {
       void queryClient.invalidateQueries({ queryKey: ["workout-lifecycle"] });
       void queryClient.invalidateQueries({ queryKey: ["programme-workout-offers"] });
       void queryClient.invalidateQueries({ queryKey: ["programme-assignments"] });
+      void queryClient.invalidateQueries({ queryKey: ["programme-exercise-rule"] });
+      void queryClient.invalidateQueries({ queryKey: ["my-programme-overview"] });
+      void queryClient.invalidateQueries({ queryKey: ["programme-schedule"] });
     },
   });
 }
@@ -1698,6 +1702,9 @@ export function FullWorkoutForm() {
           height: movement.targets.height,
           detail: movement.targets.detail,
           restTime: movement.restTime ?? "",
+          notes: movement.progression
+            ? [progressionSummary(movement.progression), movement.reason].filter(Boolean).join(". ")
+            : "",
           setRows: movement.setRows.map((set) => ({
             ...set,
             completed: true,

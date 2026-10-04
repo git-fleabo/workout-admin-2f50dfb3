@@ -1,5 +1,6 @@
 import type { getRecentLogsClient, WorkoutSetMethodInput } from "./supabase-log.browser.ts";
 import { getTrackingModeValue, type TrackingMode } from "./movement-metrics.ts";
+import type { ProgrammeProgression } from "./programme-progression.ts";
 
 export const WORKOUT_PLAN_DRAFT_KEY = "workout-plan-draft";
 export const WORKOUT_PLAN_LOCATION_KEY = "workout-plan-location";
@@ -42,6 +43,7 @@ export type WorkoutPlanTargets = {
 };
 
 export type WorkoutPlanMovement = {
+  progression?: ProgrammeProgression;
   exercise: string;
   workoutType: string;
   trackingMode: TrackingMode;
@@ -73,6 +75,7 @@ export type RecentWorkoutMethodBlock = WorkoutPlanMethodBlock & {
 };
 
 export type WorkoutPlanDraft = {
+  personalProgramme?: boolean;
   version: 1;
   suggestedWorkoutId?: string;
   mobilityRunId?: string;

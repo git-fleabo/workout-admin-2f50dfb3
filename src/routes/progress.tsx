@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -54,6 +54,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatUKDate, formatUKDateShort } from "@/lib/date";
+import { getProgrammeExerciseContextClient } from "@/lib/supabase-personal-programmes.browser";
+import { programmeProgressDecision } from "@/lib/programme-progression";
 import { buildProgressDecision, type ProgressDecision } from "@/lib/progress-decision";
 import {
   getExerciseHistoryClient,
@@ -757,6 +759,12 @@ function ProgressPage() {
     enabled: Boolean(exercise),
     staleTime: 60_000,
   });
+  const programmeRule = useQuery({
+    queryKey: ["programme-exercise-rule", exercise?.id],
+    queryFn: () => getProgrammeExerciseContextClient(exercise!.id),
+    enabled: Boolean(exercise),
+    staleTime: 30_000,
+  });
   const methodOptions = useMemo(() => {
     const methods = new Map<string, string>();
     for (const point of history.data?.points ?? []) {
@@ -868,12 +876,27 @@ function ProgressPage() {
   );
 
   const decision = useMemo(() => {
+    if (programmeRule.isLoading || programmeRule.error)
+      return {
+        kind: "baseline" as const,
+        label: programmeRule.error ? "Check your programme targets" : "Checking programme targets",
+        detail:
+          "Your programme’s own rule takes priority. Review My Programme before changing this exercise’s load.",
+        evidence: [],
+      };
+    const context = programmeRule.data;
+    if (context)
+      return programmeProgressDecision({
+        rule: context.movement.progression,
+        plannedSets: context.movement.setRows.length,
+        point: analysis.current.find((point) => point.sessionId === context.completedSessionId),
+      });
     return buildProgressDecision({
       points: analysis.current,
       performanceChange: analysis.performanceChange,
       volumeChange: analysis.volumeChange,
     });
-  }, [analysis]);
+  }, [analysis, programmeRule.data, programmeRule.isLoading, programmeRule.error]);
   const lastLogged =
     history.data?.points.reduce<string | null>(
       (latest, point) => (latest == null || point.date > latest ? point.date : latest),
@@ -1068,7 +1091,29 @@ function ProgressPage() {
               </p>
             </Card>
           ) : metricProfile === "weighted" ? (
-            <DecisionCard decision={decision} exerciseName={exercise?.name ?? "This exercise"} />
+            <>
+              <DecisionCard decision={decision} exerciseName={exercise?.name ?? "This exercise"} />
+              {programmeRule.data ? (
+                <div className="rounded-lg border border-primary/20 p-3 text-sm">
+                  <p>
+                    Progression from {programmeRule.data.programmeName} · next:{" "}
+                    {programmeRule.data.session.name}
+                  </p>
+                  <Button asChild variant="outline" size="sm" className="mt-2">
+                    <Link to="/plan">Review future programme targets</Link>
+                  </Button>
+                </div>
+              ) : programmeRule.isLoading ? (
+                <p className="text-xs text-muted-foreground">
+                  Checking your programme’s progression rule…
+                </p>
+              ) : programmeRule.error ? (
+                <p role="alert" className="text-sm text-destructive">
+                  Your programme rule could not be loaded. Check My Programme before changing
+                  targets.
+                </p>
+              ) : null}
+            </>
           ) : null}
 
           <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -1622,7 +1667,8 @@ function PerformanceChart({
           margin={{ top: 12, right: 12, left: -12, bottom: 0 }}
           onClick={(state) => {
             const payload = state?.activePayload?.[0]?.payload as
-              { sessionId?: string } | undefined;
+              | { sessionId?: string }
+              | undefined;
             if (payload?.sessionId) onSelectSession(payload.sessionId);
           }}
           className="cursor-pointer"
@@ -1691,7 +1737,8 @@ function HoldPerformanceChart({
           margin={{ top: 12, right: 12, left: -12, bottom: 0 }}
           onClick={(state) => {
             const payload = state?.activePayload?.[0]?.payload as
-              { sessionId?: string } | undefined;
+              | { sessionId?: string }
+              | undefined;
             if (payload?.sessionId) onSelectSession(payload.sessionId);
           }}
           className="cursor-pointer"
@@ -1834,7 +1881,8 @@ function MetricTrendChart({
           margin={{ top: 12, right: 12, left: -12, bottom: 0 }}
           onClick={(state) => {
             const payload = state?.activePayload?.[0]?.payload as
-              { sessionId?: string } | undefined;
+              | { sessionId?: string }
+              | undefined;
             if (payload?.sessionId) onSelectSession(payload.sessionId);
           }}
           className="cursor-pointer"

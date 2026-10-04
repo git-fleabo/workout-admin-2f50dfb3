@@ -1,8 +1,35 @@
 # Workout App Context
 
-Last updated: 2026-08-17
+Last updated: 2026-10-04
 
 This file is the handoff document for the train n track workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
+
+## 2026-10-04 Personal Programme Direction
+
+The primary personal flow is now: choose an existing source model, make a personal version,
+edit future sessions on Plan, activate it, then start the saved prescription from Today and
+log the work actually performed. Source templates remain unchanged. This takes precedence
+over older client/admin-first roadmap items below.
+
+- Personal versions are scoped to an existing programme run, using `personal_programmes`
+  and `personal_programme_sessions`. They start paused so the whole block can be reviewed.
+- Edit exercise selections/order, set targets, rest, dates, location kind and progression.
+  Copy changes to matching later slots only through an explicit preview; copying exact
+  targets can replace the source model's periodisation. Session reordering swaps content
+  within stable template workout IDs; dates remain attached to their sequence positions.
+- Fixed session targets, rep-range progression and source programme rules are separate.
+  Personal plans do not inherit generic five-rep progression or automatic max updates.
+- Started prescriptions are saved independently in suggested-workout entries/sets.
+  Completed/skipped/started sessions cannot be edited. Restart creates a new personal
+  run and retains completed history and the archived original run.
+- Migration `20261004122209_editable_personal_programmes.sql` is prepared and tested
+  locally, **not yet applied to the live project**. Install this exact migration before
+  publishing the matching frontend. Existing runs can load while the tables are absent,
+  but creating personal versions needs the database update. Do not blanket-push migrations:
+  the remote ledger has historical divergence. No live training records were changed.
+- Test database lifecycle with `PERSONAL_PROGRAMME_PG_BIN=/path/to/postgres/bin npm run test:database`.
+  The tests create and remove a private temporary cluster; they never use the live project.
+  Without this variable database tests report skipped, not verified.
 
 ## Project Status
 

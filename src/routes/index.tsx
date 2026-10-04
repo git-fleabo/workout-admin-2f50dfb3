@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { progressionSummary } from "@/lib/programme-progression";
 import { MobilityPracticeOverview } from "@/components/mobility-practice-overview";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -106,12 +107,18 @@ function formatTime(value: string) {
 function targetSummary(movement: WorkoutPlanMovement) {
   const rows = movement.setRows;
   const first = rows[0];
-  const sameTarget = rows.every((row) => row.reps === first?.reps && row.weight === first?.weight);
+  const sameTarget = rows.every(
+    (row) =>
+      row.reps === first?.reps &&
+      row.weight === first?.weight &&
+      row.durationSeconds === first?.durationSeconds,
+  );
   if (sameTarget) {
     return [
       `${rows.length} ${rows.length === 1 ? "set" : "sets"}`,
       first?.weight ? `${first.weight} kg` : "",
       first?.reps ? `${first.reps} reps` : "",
+      first?.durationSeconds ? `${first.durationSeconds} sec` : "",
       movement.restTime ? `Rest ${movement.restTime}` : "",
     ]
       .filter(Boolean)
@@ -119,7 +126,11 @@ function targetSummary(movement: WorkoutPlanMovement) {
   }
   const targets = `${rows.length} sets · ${rows
     .map((row) =>
-      [row.weight ? `${row.weight} kg` : "", row.reps ? `${row.reps} reps` : ""]
+      [
+        row.weight ? `${row.weight} kg` : "",
+        row.reps ? `${row.reps} reps` : "",
+        row.durationSeconds ? `${row.durationSeconds} sec` : "",
+      ]
         .filter(Boolean)
         .join(" × "),
     )
@@ -208,7 +219,7 @@ export function TodayPage() {
   });
   const programmeOverview = useQuery({
     queryKey: ["my-programme-overview"],
-    queryFn: getMyProgrammeOverviewClient,
+    queryFn: () => getMyProgrammeOverviewClient(),
     staleTime: 30_000,
   });
   const linkedProgrammePlans = plans.data?.filter((plan) => plan.programAssignmentId) ?? [];
@@ -347,6 +358,7 @@ export function TodayPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["programme-workout-offers"] }),
         queryClient.invalidateQueries({ queryKey: ["next-suggested-workouts"] }),
+        queryClient.invalidateQueries({ queryKey: ["my-programme-overview"] }),
       ]);
       await navigate({ to: "/log" });
     } catch (error) {
@@ -496,6 +508,9 @@ export function TodayPage() {
               const selectedLocation =
                 availableLocations.find((location) => location.id === requestedLocationId) ??
                 availableLocations.find(
+                  (location) => location.kind === offer.personalSession?.plan.locationKind,
+                ) ??
+                availableLocations.find(
                   (location) => location.id === rememberedTrainingLocationId,
                 ) ??
                 availableLocations.find((location) => location.kind === "gym") ??
@@ -546,12 +561,19 @@ export function TodayPage() {
                     ) : null}
 
                     <div className="mt-4 divide-y divide-border rounded-lg border border-border bg-background/30">
-                      {offer.movements.map((movement) => (
+                      {offer.movements.map((movement, movementIndex) => (
                         <div
-                          key={movement.exercise}
+                          key={`${movement.exercise}:${movementIndex}`}
                           className="flex items-baseline justify-between gap-3 p-3"
                         >
-                          <p className="text-sm font-medium">{movement.exercise}</p>
+                          <div>
+                            <p className="text-sm font-medium">{movement.exercise}</p>
+                            {movement.progression ? (
+                              <p className="mt-1 text-[11px] text-muted-foreground">
+                                {progressionSummary(movement.progression)}
+                              </p>
+                            ) : null}
+                          </div>
                           <p className="text-right text-[11px] text-foreground/75">
                             {targetSummary(movement)}
                           </p>
@@ -726,11 +748,14 @@ export function TodayPage() {
                 : null;
             const suggestedDate =
               nextWorkout && activeProgramme
-                ? programmeWorkoutScheduledDate(
+                ? (activeProgramme.personalProgramme?.sessions.find(
+                    (session) => session.workoutId === nextWorkout.id,
+                  )?.scheduledDate ??
+                  programmeWorkoutScheduledDate(
                     activeProgramme.startedOn,
                     nextWorkout.weekNumber,
                     nextWorkout.dayNumber,
-                  )
+                  ))
                 : null;
             const completedCount = Math.max(
               0,
@@ -1010,8 +1035,8 @@ export function TodayPage() {
                   </div>
 
                   <div className="mt-4 divide-y divide-border rounded-lg border border-border bg-background/30">
-                    {recommendation.movements.slice(0, 2).map((movement) => (
-                      <div key={movement.exercise} className="p-3">
+                    {recommendation.movements.slice(0, 2).map((movement, movementIndex) => (
+                      <div key={`${movement.exercise}:${movementIndex}`} className="p-3">
                         <div className="flex flex-wrap items-baseline justify-between gap-1">
                           <p className="text-sm font-medium">{movement.exercise}</p>
                           <p className="text-[11px] text-foreground/75">

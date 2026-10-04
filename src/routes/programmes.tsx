@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
@@ -36,7 +36,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -56,10 +55,11 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { listLibraryClient } from "@/lib/supabase-library.browser";
+import { createPersonalProgrammeClient } from "@/lib/supabase-personal-programmes.browser";
+import { todayISO } from "@/lib/date";
 import { getProgrammeMethodSetup, JACKED_DUMBBELL_METHOD } from "@/lib/programme-methods";
 import {
   createNextProgrammeCycleClient,
-  createProgrammeAssignmentClient,
   changeProgrammeRunClient,
   listProgrammeAssignmentsClient,
   listProgrammeTemplatesClient,
@@ -376,7 +376,7 @@ function ProgrammeTemplatesPage() {
                         onClick={() => setSetupTemplate(selected)}
                         disabled={!getProgrammeMethodSetup(selected.methodType)}
                       >
-                        <Plus className="mr-1.5 h-4 w-4" /> Set up programme
+                        <Plus className="mr-1.5 h-4 w-4" /> Make my version
                       </Button>
                     </div>
                   </div>
@@ -418,8 +418,8 @@ function ProgrammeTemplatesPage() {
                   <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
                   <p>
                     {selected.methodType === JACKED_DUMBBELL_METHOD
-                      ? "This protected template can be assigned directly. Its movements use canonical Library exercises, while Today keeps the actual JACKED path, sets, reps, and dumbbell load editable."
-                      : "Templates remain protected and read only. An assignment stores the person, start date, movement mappings, and training maxes; scheduled sessions then appear in Today and Plan."}
+                      ? "Make an editable personal version. JACKED’s source rules remain the starting guidance; you can fill in your own targets and change future sessions before training."
+                      : "Make your own version to edit future exercises, sets, reps, rest and dates. The original template remains protected."}
                   </p>
                 </CardContent>
               </Card>
@@ -523,7 +523,9 @@ function AssignmentList({
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-semibold">{template?.name ?? "Programme"}</h3>
+                      <h3 className="font-semibold">
+                        {assignment.personalProgramme?.name ?? template?.name ?? "Programme"}
+                      </h3>
                       <Badge variant={assignment.status === "active" ? "default" : "secondary"}>
                         {titleCase(assignment.status)}
                       </Badge>
@@ -588,6 +590,13 @@ function AssignmentList({
                     </AlertDialog>
                   </div>
                 </div>
+                {assignment.personalProgramme && assignment.status !== "complete" ? (
+                  <Button asChild className="mt-3" size="sm" variant="outline">
+                    <Link to="/plan" search={{ programme: assignment.id }}>
+                      Edit my programme
+                    </Link>
+                  </Button>
+                ) : null}
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   {assignment.exercises.map((exercise) => (
                     <div key={exercise.id} className="rounded-md border border-border px-3 py-2">
@@ -646,7 +655,7 @@ function AssignmentList({
                 ) : null}
                 {assignment.status === "complete" ? (
                   <Button className="mt-3 w-full" onClick={() => onNextCycle(assignment.id)}>
-                    Create next 12-week cycle
+                    Create next cycle
                   </Button>
                 ) : null}
               </Card>
@@ -686,17 +695,13 @@ function ProgrammeSetupDialog({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const navigate = useNavigate();
   const slots = useMemo(() => programmeSlots(template), [template]);
   const methodSetup = getProgrammeMethodSetup(template.methodType);
-  const [startedOn, setStartedOn] = useState(() => new Date().toISOString().slice(0, 10));
-  const [status, setStatus] = useState<"active" | "paused">("active");
+  const [startedOn, setStartedOn] = useState(todayISO);
+  const [personalName, setPersonalName] = useState(() => `My ${template.name}`);
   const [notes, setNotes] = useState("");
   const [slotSetup, setSlotSetup] = useState<Record<string, SlotSetup>>({});
-  const [poolSetup, setPoolSetup] = useState<Record<string, string[]>>({
-    power: [],
-    accessory: [],
-    pull: [],
-  });
   const [defaultsApplied, setDefaultsApplied] = useState(false);
   const library = useQuery({
     queryKey: ["programme-assignment-library", "current"],
@@ -756,10 +761,12 @@ function ProgrammeSetupDialog({
   }, [defaultsApplied, enabledExercises, slots, template.methodType]);
 
   const createMutation = useMutation({
-    mutationFn: (input: ProgrammeAssignmentInput) => createProgrammeAssignmentClient(input),
-    onSuccess: () => {
-      toast.success(`${template.name} assigned`);
+    mutationFn: (input: ProgrammeAssignmentInput) =>
+      createPersonalProgrammeClient(template, input, personalName),
+    onSuccess: (assignmentId) => {
+      toast.success("Personal programme saved for editing");
       onCreated();
+      navigate({ to: "/plan", search: { programme: assignmentId } });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -777,24 +784,12 @@ function ProgrammeSetupDialog({
     });
   }
 
-  function togglePool(role: "power" | "accessory" | "pull", exerciseId: string) {
-    setPoolSetup((current) => {
-      const selected = current[role] ?? [];
-      return {
-        ...current,
-        [role]: selected.includes(exerciseId)
-          ? selected.filter((id) => id !== exerciseId)
-          : [...selected, exerciseId],
-      };
-    });
-  }
-
   function submit() {
     if (!isComplete) return;
     createMutation.mutate({
       programId: template.id,
       personId,
-      status,
+      status: "paused",
       startedOn,
       notes,
       exercises: slots.flatMap((slot) => {
@@ -806,6 +801,7 @@ function ProgrammeSetupDialog({
             slotKey: slot.key,
             exerciseId: setup.exerciseId,
             exerciseName: exercise?.name ?? slot.label,
+            focusArea: exercise?.focusArea,
             trainingMax: methodSetup?.trainingMax ? Number(setup.trainingMax) : null,
             enabled:
               template.methodType !== ADAPTIVE_STRENGTH_METHOD ||
@@ -813,20 +809,6 @@ function ProgrammeSetupDialog({
           },
         ];
       }),
-      pools: Object.entries(poolSetup).flatMap(([role, exerciseIds]) =>
-        exerciseIds.flatMap((exerciseId) => {
-          const exercise = allEnabledExercises.find((item) => item.id === exerciseId);
-          return exercise
-            ? [
-                {
-                  role: role as "power" | "accessory" | "pull",
-                  exerciseId,
-                  exerciseName: exercise.name,
-                },
-              ]
-            : [];
-        }),
-      ),
     });
   }
 
@@ -834,11 +816,11 @@ function ProgrammeSetupDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Set up {template.name}</DialogTitle>
+          <DialogTitle>Make your version of {template.name}</DialogTitle>
           <DialogDescription>
             {isDirectProgramme
-              ? "Choose when the programme starts. Its named movements load directly into the workout logger."
-              : "Choose a start date and map the first lift. Additional lifts are optional."}
+              ? "Choose a start date. Review and edit your personal sessions on Plan before starting."
+              : "Choose your exercises and training maxes to prepare the starting targets. Your copy is saved paused, ready to edit on Plan."}
           </DialogDescription>
         </DialogHeader>
 
@@ -853,79 +835,19 @@ function ProgrammeSetupDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="programme-status">Initial status</Label>
-            <Select value={status} onValueChange={(value: "active" | "paused") => setStatus(value)}>
-              <SelectTrigger id="programme-status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="paused">Paused</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label htmlFor="personal-programme-name">Your programme name</Label>
+            <Input
+              id="personal-programme-name"
+              value={personalName}
+              onChange={(event) => setPersonalName(event.target.value)}
+            />
           </div>
         </div>
 
-        {template.methodType === ADAPTIVE_STRENGTH_METHOD && enabledExercises.length ? (
-          <div className="space-y-3 rounded-lg border border-border p-3">
-            <div>
-              <h3 className="text-sm font-semibold">Optional Library pools</h3>
-              <p className="text-xs text-muted-foreground">
-                Choose any movements you want offered before a session. You can still edit the
-                loaded workout, and Library’s existing add-exercise flow is unchanged.
-              </p>
-            </div>
-            {(
-              [
-                {
-                  role: "power" as const,
-                  label: "Power choices",
-                  items: allEnabledExercises.filter(
-                    (item) =>
-                      item.workoutType.toLowerCase() === "power" ||
-                      /jump|throw|swing|slam/i.test(item.name),
-                  ),
-                },
-                {
-                  role: "accessory" as const,
-                  label: "Accessory choices",
-                  items: allEnabledExercises.filter(
-                    (item) => !selectedIds.includes(item.id) && item.workoutType === "Strength",
-                  ),
-                },
-                {
-                  role: "pull" as const,
-                  label: "Pull choices",
-                  items: allEnabledExercises.filter((item) =>
-                    /row|pull|pulldown|scapular|hang/i.test(item.name),
-                  ),
-                },
-              ] as const
-            ).map((group) => (
-              <div key={group.role}>
-                <p className="text-xs font-medium">{group.label}</p>
-                <div className="mt-2 grid max-h-36 gap-2 overflow-y-auto sm:grid-cols-2">
-                  {group.items.length ? (
-                    group.items.map((exercise) => (
-                      <label
-                        key={exercise.id}
-                        className="flex items-center gap-2 rounded border border-border px-2 py-1.5 text-xs"
-                      >
-                        <Checkbox
-                          checked={(poolSetup[group.role] ?? []).includes(exercise.id)}
-                          onCheckedChange={() => togglePool(group.role, exercise.id)}
-                        />
-                        {exercise.name}
-                      </label>
-                    ))
-                  ) : (
-                    <p className="text-xs text-muted-foreground">No matching enabled movements.</p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : null}
+        <p className="text-xs text-muted-foreground">
+          Add or swap supporting exercises in your personal sessions after saving this starting
+          structure.
+        </p>
 
         {!isDirectProgramme ? (
           <div className="space-y-3">
@@ -1033,9 +955,12 @@ function ProgrammeSetupDialog({
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={!isComplete || createMutation.isPending}>
+          <Button
+            onClick={submit}
+            disabled={!isComplete || !personalName.trim() || createMutation.isPending}
+          >
             {createMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Create assignment
+            Save my programme
           </Button>
         </DialogFooter>
       </DialogContent>

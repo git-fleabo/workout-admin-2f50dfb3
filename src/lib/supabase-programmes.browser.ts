@@ -22,6 +22,8 @@ import {
   type TechniqueRating,
 } from "./adaptive-strength";
 import type { PlannerLocation, WorkoutPlanDraft, WorkoutPlanMovement } from "./workout-plan";
+import { listPersonalProgrammesClient } from "./supabase-personal-programmes.browser";
+import type { PersonalProgramme, PersonalProgrammeSession } from "./personal-programme";
 
 export type ProgrammeTemplateEntry = {
   id: string;
@@ -101,6 +103,7 @@ export type ProgrammeExercisePoolItem = {
 };
 
 export type ProgrammeAssignment = {
+  personalProgramme?: PersonalProgramme;
   id: string;
   programId: string;
   personId: string;
@@ -127,6 +130,7 @@ export type ProgrammeAssignmentInput = {
     exerciseId: string;
     exerciseName: string;
     trainingMax: number | null;
+    focusArea?: string;
     enabled?: boolean;
   }>;
   pools?: Array<{
@@ -144,6 +148,7 @@ export type ProgrammeSelectionOffer = {
 };
 
 export type ProgrammeWorkoutOffer = {
+  personalSession?: PersonalProgrammeSession;
   assignmentId: string;
   programWorkoutId: string;
   programmeName: string;
@@ -161,6 +166,7 @@ export type ProgrammeWorkoutOffer = {
 };
 
 export type ProgrammeScheduleSession = {
+  isPersonal?: boolean;
   assignmentId: string;
   programWorkoutId: string;
   programmeName: string;
@@ -414,10 +420,11 @@ export async function listProgrammeAssignmentsClient(
     status: includeArchived ? undefined : "in.(active,paused,complete)",
     order: "created_at.desc",
   });
-  return rows.map(mapAssignment);
+  const personal = await listPersonalProgrammesClient();
+  return rows.map((row) => ({ ...mapAssignment(row), personalProgramme: personal.get(row.id) }));
 }
 
-export async function getMyProgrammeOverviewClient() {
+export async function getMyProgrammeOverviewClient(selectedAssignmentId?: string) {
   const person = await getCurrentPerson();
   if (!person) throw new Error("Connect your training profile first.");
   const [assignments, templates] = await Promise.all([
@@ -427,15 +434,40 @@ export async function getMyProgrammeOverviewClient() {
   const active = assignments.find(
     (assignment) => assignment.personId === person.id && assignment.status === "active",
   );
-  const skippedPlans = active
+  const current =
+    assignments.find(
+      (assignment) =>
+        assignment.id === selectedAssignmentId &&
+        assignment.personId === person.id &&
+        assignment.status === "paused" &&
+        assignment.personalProgramme,
+    ) ??
+    active ??
+    assignments.find(
+      (assignment) =>
+        assignment.personId === person.id &&
+        assignment.status === "paused" &&
+        assignment.personalProgramme,
+    );
+  const skippedPlans = current
     ? await supabasePublicSelect<{ program_workout_id: string | null }>("suggested_workouts", {
         select: "program_workout_id",
         person_id: `eq.${person.id}`,
-        program_assignment_id: `eq.${active.id}`,
+        program_assignment_id: `eq.${current.id}`,
         status: "eq.skipped",
       })
     : [];
+  const lockedPlans = current
+    ? await supabasePublicSelect<{ program_workout_id: string | null }>("suggested_workouts", {
+        select: "program_workout_id",
+        program_assignment_id: `eq.${current.id}`,
+        status: "in.(accepted,completed,skipped)",
+      })
+    : [];
   return {
+    lockedWorkoutIds: lockedPlans.flatMap((plan) =>
+      plan.program_workout_id ? [plan.program_workout_id] : [],
+    ),
     assignments: assignments.filter((assignment) => assignment.personId === person.id),
     templates,
     skippedWorkoutIds: skippedPlans.flatMap((plan) =>
@@ -483,6 +515,42 @@ export async function getUpcomingProgrammeScheduleClient(
     );
 
     for (const workout of template.workouts) {
+      const personalSession = assignment.personalProgramme?.sessions.find(
+        (session) => session.workoutId === workout.id,
+      );
+      if (personalSession) {
+        const windowDate = programmeWorkoutWindowDate({
+          scheduledDate: personalSession.scheduledDate,
+          startDate,
+          endDate,
+          isCurrent: workout.sequenceIndex === assignment.currentWorkoutIndex,
+          includeOverdueCurrent: options.includeOverdueCurrent,
+        });
+        if (windowDate)
+          sessions.push({
+            isPersonal: true,
+            assignmentId: assignment.id,
+            programWorkoutId: workout.id,
+            programmeName: assignment.personalProgramme!.name,
+            workoutName: personalSession.name,
+            date: windowDate.date,
+            scheduledDate: personalSession.scheduledDate,
+            isCatchUp: windowDate.isCatchUp,
+            weekNumber: workout.weekNumber,
+            sessionNumber: workout.sessionNumber,
+            workoutNumber: workout.sequenceIndex + 1,
+            movementNames: personalSession.plan.movements.map((movement) => movement.exercise),
+            movements: personalSession.plan.movements,
+            selectionNotes: [],
+            status:
+              workout.sequenceIndex < assignment.currentWorkoutIndex
+                ? "completed"
+                : workout.sequenceIndex === assignment.currentWorkoutIndex
+                  ? "current"
+                  : "upcoming",
+          });
+        continue;
+      }
       const scheduledDate = programmeWorkoutScheduledDate(
         assignment.startedOn,
         workout.weekNumber,
@@ -655,9 +723,9 @@ export async function setProgrammeAssignmentStatusClient(
   id: string,
   status: "active" | "paused" | "archived",
 ) {
+  const assignments = await listProgrammeAssignmentsClient();
+  const source = assignments.find((assignment) => assignment.id === id);
   if (status === "active") {
-    const assignments = await listProgrammeAssignmentsClient();
-    const source = assignments.find((assignment) => assignment.id === id);
     if (!source) throw new Error("The programme assignment could not be found.");
     if (
       assignments.some(
@@ -681,12 +749,13 @@ export async function setProgrammeAssignmentStatusClient(
       "suggested_workouts",
       {
         program_assignment_id: `eq.${id}`,
-        status: "in.(pending,accepted)",
+        status:
+          source?.personalProgramme && status === "paused" ? "eq.pending" : "in.(pending,accepted)",
       },
       { status: "archived" },
     );
   }
-  return mapAssignment(rows[0]);
+  return { ...mapAssignment(rows[0]), personalProgramme: source?.personalProgramme };
 }
 
 export async function changeProgrammeRunClient(assignmentId: string, action: "restart" | "end") {
@@ -725,6 +794,31 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
     const method = getProgrammeMethodSetup(template?.methodType ?? null);
     if (!template || !workout || !method || !template.methodType) continue;
     if (linkedKeys.has(`${assignment.id}:${workout.id}`)) continue;
+
+    const personalSession = assignment.personalProgramme?.sessions.find(
+      (session) => session.workoutId === workout.id,
+    );
+    if (personalSession) {
+      offers.push({
+        assignmentId: assignment.id,
+        programWorkoutId: workout.id,
+        programmeName: assignment.personalProgramme!.name,
+        workoutName: personalSession.name,
+        workoutNumber: assignment.currentWorkoutIndex + 1,
+        totalWorkouts: template.workouts.length,
+        scheduledDate: personalSession.scheduledDate,
+        weekNumber: workout.weekNumber,
+        sessionNumber: workout.sessionNumber,
+        methodType: "personal_programme",
+        basis:
+          "Targets from your personal programme. Progression follows each exercise's saved rule.",
+        movements: personalSession.plan.movements,
+        exerciseIds: personalSession.plan.movements.map((movement) => movement.exerciseId),
+        selections: [],
+        personalSession,
+      });
+      continue;
+    }
 
     const mappingBySlot = new Map(
       assignment.exercises.map((exercise) => [exercise.slotKey, exercise]),
@@ -852,12 +946,49 @@ export async function startProgrammeWorkoutClient(
   if (offer.methodType !== JACKED_DUMBBELL_METHOD) {
     for (const exerciseId of offer.exerciseIds) {
       const mappedExercise = libraryById.get(exerciseId);
-      if (!mappedExercise?.availableLocationIds.includes(location.id)) {
+      if (
+        !mappedExercise?.active ||
+        !mappedExercise.enabled ||
+        !mappedExercise.availableLocationIds.includes(location.id)
+      ) {
         throw new Error(
           `${mappedExercise?.name ?? "A mapped movement"} is not available at ${location.name}.`,
         );
       }
     }
+  }
+  if (offer.personalSession) {
+    const suggestedWorkoutId = await supabasePublicRpc<string>("start_personal_programme_session", {
+      p_assignment_id: assignmentId,
+      p_workout_id: offer.programWorkoutId,
+      p_revision: offer.personalSession.revision,
+      p_location_id: location.id,
+      p_easier: easier,
+    });
+    const movements = easier
+      ? offer.movements.map((movement) => ({
+          ...movement,
+          setRows: movement.setRows
+            .slice(0, Math.max(1, movement.setRows.length - 1))
+            .map((set) => ({
+              ...set,
+              weight: set.weight ? String(Math.round(Number(set.weight) * 90) / 100) : "",
+            })),
+        }))
+      : offer.movements;
+    return {
+      version: 1,
+      personalProgramme: true,
+      suggestedWorkoutId,
+      title: `${offer.programmeName} · ${offer.workoutName}`,
+      locationKind,
+      trainingLocationId: location.id,
+      basis: easier
+        ? "Personal programme · easier return: one fewer set where possible and about 10% lighter."
+        : offer.basis,
+      movements,
+      methodBlocks: [],
+    };
   }
   const selectedMovements: Array<{
     role: ProgrammeSelectionRole;
@@ -1039,7 +1170,7 @@ export async function applyProgrammeReviewClient(suggestedWorkoutId: string, ses
     }),
   ]);
   const assignment = assignments.find((item) => item.id === link.program_assignment_id);
-  if (!assignment) return { reviewed: 0 };
+  if (!assignment || assignment.personalProgramme) return { reviewed: 0 };
   const prescriptionBySlot = new Map(
     prescriptions.filter((item) => item.slot_key).map((item) => [item.slot_key!, item]),
   );
@@ -1122,7 +1253,10 @@ export async function getActiveProgrammeRefreshClient(): Promise<ProgrammeAssign
   if (!currentPerson) throw new Error("Connect your training profile first.");
   return (
     (await listProgrammeAssignmentsClient()).find(
-      (assignment) => assignment.personId === currentPerson.id && assignment.status === "active",
+      (assignment) =>
+        assignment.personId === currentPerson.id &&
+        assignment.status === "active" &&
+        !assignment.personalProgramme,
     ) ?? null
   );
 }
@@ -1187,6 +1321,7 @@ export async function createNextProgrammeCycleClient(assignmentId: string) {
   if (!source || source.status !== "complete") {
     throw new Error("Complete the current 12-week cycle before creating the next one.");
   }
+  if (source.personalProgramme) return changeProgrammeRunClient(source.id, "restart");
   const active = (await listProgrammeAssignmentsClient()).some(
     (assignment) => assignment.personId === source.personId && assignment.status === "active",
   );

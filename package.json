@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "test:components": "vitest run --config vitest.config.ts",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test:database": "node --experimental-strip-types --test tests/*.database.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

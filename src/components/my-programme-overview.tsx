@@ -40,21 +40,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PersonalProgrammeEditor } from "@/components/personal-programme-editor";
 import { formatUKDate } from "@/lib/date";
 import { buildProgrammeWeekOverview } from "@/lib/programme-overview";
 import {
   changeProgrammeRunClient,
   chooseNextProgrammeSessionClient,
   getMyProgrammeOverviewClient,
+  setProgrammeAssignmentStatusClient,
 } from "@/lib/supabase-programmes.browser";
 
-export function MyProgrammeOverview() {
+export function MyProgrammeOverview({
+  initialAssignmentId,
+}: { initialAssignmentId?: string } = {}) {
   const queryClient = useQueryClient();
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState(initialAssignmentId);
   const [skipOpen, setSkipOpen] = useState(false);
   const [targetWorkoutId, setTargetWorkoutId] = useState("");
   const overview = useQuery({
-    queryKey: ["my-programme-overview"],
-    queryFn: getMyProgrammeOverviewClient,
+    queryKey: ["my-programme-overview", selectedAssignmentId],
+    queryFn: () => getMyProgrammeOverviewClient(selectedAssignmentId),
     staleTime: 30_000,
   });
   const changeRun = useMutation({
@@ -98,6 +103,23 @@ export function MyProgrammeOverview() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const activate = useMutation({
+    mutationFn: (id: string) => setProgrammeAssignmentStatusClient(id, "active"),
+    onSuccess: async () => {
+      await Promise.all(
+        [
+          "my-programme-overview",
+          "programme-assignments",
+          "programme-schedule",
+          "programme-workout-offers",
+          "programme-exercise-rule",
+          "weekly-review",
+        ].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
+      );
+      toast.success("Programme ready on Today");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
   if (overview.isLoading) {
     return <Card className="p-5 text-sm text-muted-foreground">Loading your programme…</Card>;
   }
@@ -110,8 +132,35 @@ export function MyProgrammeOverview() {
   }
 
   const { assignments, templates } = overview.data;
-  const active = assignments.find((assignment) => assignment.status === "active");
-  const template = templates.find((item) => item.id === active?.programId);
+  const active =
+    assignments.find(
+      (assignment) =>
+        assignment.id === selectedAssignmentId &&
+        assignment.status === "paused" &&
+        assignment.personalProgramme,
+    ) ??
+    assignments.find((assignment) => assignment.status === "active") ??
+    assignments.find(
+      (assignment) => assignment.status === "paused" && assignment.personalProgramme,
+    );
+  const startingTemplate = templates.find((item) => item.id === active?.programId);
+  const personal = active?.personalProgramme;
+  const template =
+    startingTemplate && personal
+      ? {
+          ...startingTemplate,
+          name: personal.name,
+          workouts: startingTemplate.workouts.map((workout) => ({
+            ...workout,
+            name:
+              personal.sessions.find((session) => session.workoutId === workout.id)?.name ??
+              workout.name,
+          })),
+        }
+      : startingTemplate;
+  const otherActive = assignments.some(
+    (assignment) => assignment.status === "active" && assignment.id !== active?.id,
+  );
   const previous = assignments.filter((assignment) => assignment.id !== active?.id);
   const templateById = new Map(templates.map((item) => [item.id, item]));
   const total = template?.workouts.length ?? 0;
@@ -179,7 +228,7 @@ export function MyProgrammeOverview() {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-lg font-semibold">{template.name}</h3>
-                  <Badge>Current</Badge>
+                  <Badge>{active.status === "paused" ? "Paused · ready to edit" : "Current"}</Badge>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Run {active.cycleNumber}
@@ -208,7 +257,10 @@ export function MyProgrammeOverview() {
                   {next.name}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Session {currentIndex + 1} of {total}. Start it from Today when you are ready.
+                  Session {currentIndex + 1} of {total}.{" "}
+                  {active.status === "paused"
+                    ? "Review your future sessions, then start the programme."
+                    : "Start it from Today when you are ready."}
                 </p>
               </div>
             ) : null}
@@ -282,8 +334,56 @@ export function MyProgrammeOverview() {
               </Accordion>
             </details>
 
+            {active.personalProgramme ? (
+              <PersonalProgrammeEditor
+                assignment={active}
+                template={template}
+                lockedWorkoutIds={overview.data.lockedWorkoutIds ?? []}
+              />
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                To personalise the whole block, choose “Make my version” in the programme library.
+                This existing run keeps its original rules.
+              </p>
+            )}
+            {otherActive && active.status === "paused" ? (
+              <p className="text-sm text-muted-foreground">
+                Review this version in advance. Pause or end your current programme before starting
+                it.
+              </p>
+            ) : null}
             <div className="flex flex-wrap gap-2 border-t border-border pt-4">
-              {laterWorkouts.length ? (
+              {selectedAssignmentId && otherActive ? (
+                <Button variant="outline" onClick={() => setSelectedAssignmentId(undefined)}>
+                  Back to current programme
+                </Button>
+              ) : null}
+              {active.status === "paused" ? (
+                <Button
+                  disabled={activate.isPending || otherActive}
+                  onClick={() => activate.mutate(active.id)}
+                >
+                  Start programme
+                </Button>
+              ) : (
+                <Button asChild>
+                  <Link to="/">Go to next workout</Link>
+                </Button>
+              )}
+              {active.status === "active" ? (
+                <Button
+                  variant="outline"
+                  disabled={activate.isPending}
+                  onClick={() => {
+                    void setProgrammeAssignmentStatusClient(active.id, "paused")
+                      .then(() => queryClient.invalidateQueries())
+                      .catch((error: Error) => toast.error(error.message));
+                  }}
+                >
+                  Pause programme
+                </Button>
+              ) : null}
+              {active.status === "active" && laterWorkouts.length ? (
                 <Button
                   size="sm"
                   variant="outline"
@@ -297,7 +397,7 @@ export function MyProgrammeOverview() {
               ) : null}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button size="sm" variant="outline" disabled={changeRun.isPending}>
+                  <Button size="sm" variant="outline" disabled={changeRun.isPending || otherActive}>
                     <RotateCcw className="mr-1.5 h-4 w-4" /> Start again
                   </Button>
                 </AlertDialogTrigger>
@@ -417,14 +517,24 @@ export function MyProgrammeOverview() {
                   className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/30 px-3 py-2 text-sm"
                 >
                   <div>
-                    <p className="font-medium">{pastTemplate?.name ?? "Programme"}</p>
+                    <p className="font-medium">
+                      {assignment.personalProgramme?.name ?? pastTemplate?.name ?? "Programme"}
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       Position {assignment.currentWorkoutIndex} of{" "}
                       {pastTemplate?.workouts.length ?? "?"} sessions ·{" "}
                       {assignment.status === "archived" ? "past run" : assignment.status}
                     </p>
                   </div>
-                  {assignment.status === "paused" ? (
+                  {assignment.status === "paused" && assignment.personalProgramme ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectedAssignmentId(assignment.id)}
+                    >
+                      Edit programme
+                    </Button>
+                  ) : assignment.status === "paused" ? (
                     <Button asChild size="sm" variant="outline">
                       <Link to="/programmes">Manage</Link>
                     </Button>

@@ -1,6 +1,28 @@
 # train n track Product Roadmap
 
-Last updated: 2026-07-22
+Last updated: 2026-10-04
+
+## Current Personal Priority
+
+The app is for Noam's own training. The next release concentrates on one loop:
+**choose a source model → edit a personal block → train the saved next session → review actual work**.
+Client/admin expansion and additional generators are secondary. Source templates are starting
+points, not evidence that every adaptation retains the model's original effectiveness.
+
+The editable personal programme is implemented locally. Future sessions can change exercises,
+order, sets, repetitions/load or hold targets, rest, location kind, suggested dates and progression.
+An explicit preview controls copying changes to matching future slots. Periodised source targets
+remain intact unless deliberately edited or replaced. Started/completed/skipped prescriptions
+and completed history stay protected through restart and end.
+
+Progress uses each personal exercise's saved rule: explicit session targets, a chosen rep range
+and load increment, or retained source rules. Load-increase suggestions require matching completed
+programme evidence, all prescribed straight sets at one load, and complete effort records within
+the saved limit. Suggestions do not silently change future targets.
+
+Before rollout, apply migration `20261004122209_editable_personal_programmes.sql` narrowly to the
+existing Supabase project, then push locally committed code through GitHub Desktop and publish
+through Lovable. These are separate steps. No live programme was created by this implementation.
 
 ## Product Direction
 

@@ -15,6 +15,7 @@ import type {
 } from "./workout-plan";
 import { getTrackingModeValue, TRACKING_MODE_OPTIONS, type TrackingMode } from "./movement-metrics";
 import type { SuggestedWorkoutStatus } from "./workout-lifecycle";
+import { progressionSchema } from "./personal-programme";
 import { applyProgrammeReviewClient } from "./supabase-programmes.browser";
 
 type SuggestedSetRow = {
@@ -64,6 +65,7 @@ type SuggestedWorkoutRow = {
   completed_session_id?: string | null;
   program_assignment_id: string | null;
   program_workout_id: string | null;
+  training_location_id?: string | null;
   training_locations: { kind: string | null; name: string | null } | null;
   suggested_workout_entries: SuggestedEntryRow[] | null;
   suggested_workout_method_blocks: SuggestedMethodBlockRow[] | null;
@@ -170,6 +172,7 @@ function metricText(metrics: Record<string, unknown> | null, key: string) {
 function targetMetricsForSave(movement: WorkoutPlanMovement) {
   const targets = movement.targets;
   return {
+    ...(movement.progression ? { progression: movement.progression } : {}),
     ...(toNumber(targets.durationMinutes) == null
       ? {}
       : { duration_minutes: toNumber(targets.durationMinutes) }),
@@ -225,6 +228,10 @@ function movementFromRow(entry: SuggestedEntryRow): WorkoutPlanMovement {
     (a, b) => a.set_number - b.set_number,
   );
   return {
+    progression: (() => {
+      const rule = progressionSchema.safeParse(entry.target_metrics?.progression);
+      return rule.success ? rule.data : undefined;
+    })(),
     exercise: entry.name,
     workoutType: entry.workout_type ?? "Other",
     trackingMode: trackingModeFromRow(entry),
@@ -293,9 +300,11 @@ function planFromRow(row: SuggestedWorkoutRow): SavedWorkoutPlan | null {
     suggestedWorkoutId: row.id,
     title: row.title,
     locationKind,
+    trainingLocationId: row.training_location_id ?? undefined,
     basis: row.basis ?? "Saved workout plan.",
     movements,
     methodBlocks,
+    personalProgramme: movements.some((movement) => movement.progression != null),
     readiness: row.readiness,
     status: row.status,
     createdAt: row.created_at,
@@ -461,7 +470,7 @@ export async function getNextSuggestedWorkoutsClient() {
   const person = await requirePerson();
   const rows = await supabasePublicSelect<SuggestedWorkoutRow>("suggested_workouts", {
     select:
-      "id,title,basis,readiness,status,created_at,program_assignment_id,program_workout_id,training_locations(kind,name),suggested_workout_entries(id,name,workout_type,order_index,source_date,reason,tracking_mode,target_metrics,suggested_workout_sets(id,set_number,reps,weight,duration_seconds,rpe,completed,suggested_workout_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion,config))),suggested_workout_method_blocks(id,training_method_id,method_name,family,order_index,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,block_duration_seconds,work_interval_seconds,rest_interval_seconds,config,suggested_workout_method_block_entries(suggested_workout_entry_id,sequence_index))",
+      "id,title,basis,readiness,status,created_at,program_assignment_id,program_workout_id,training_location_id,training_locations(kind,name),suggested_workout_entries(id,name,workout_type,order_index,source_date,reason,tracking_mode,target_metrics,suggested_workout_sets(id,set_number,reps,weight,duration_seconds,rpe,completed,suggested_workout_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion,config))),suggested_workout_method_blocks(id,training_method_id,method_name,family,order_index,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,block_duration_seconds,work_interval_seconds,rest_interval_seconds,config,suggested_workout_method_block_entries(suggested_workout_entry_id,sequence_index))",
     status: "in.(pending,accepted)",
     person_id: `eq.${person.id}`,
     order: "created_at.desc",
