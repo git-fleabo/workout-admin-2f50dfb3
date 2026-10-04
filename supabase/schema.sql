@@ -3025,7 +3025,7 @@ grant execute on function public.save_mobility_workout(uuid, jsonb, jsonb, jsonb
   to authenticated;
 
 
--- 2026-10-04: Editable personal programmes (repository migration; live installation pending).
+-- 2026-10-04: Editable personal programmes (applied to Training Admin on 2026-10-04).
 -- Personal prescriptions belong to one run. Source templates and completed sessions remain intact.
 create table public.personal_programmes (
   assignment_id uuid primary key references public.program_assignments(id) on delete cascade,

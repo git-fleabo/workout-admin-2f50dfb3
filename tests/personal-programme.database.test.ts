@@ -112,7 +112,7 @@ test(
       sql(
         readFileSync(
           new URL(
-            "../supabase/migrations/20261004122209_editable_personal_programmes.sql",
+            "../supabase/migrations/20261004132906_editable_personal_programmes.sql",
             import.meta.url,
           ),
           "utf8",

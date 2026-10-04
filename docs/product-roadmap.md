@@ -20,9 +20,10 @@ and load increment, or retained source rules. Load-increase suggestions require 
 programme evidence, all prescribed straight sets at one load, and complete effort records within
 the saved limit. Suggestions do not silently change future targets.
 
-Before rollout, apply migration `20261004122209_editable_personal_programmes.sql` narrowly to the
-existing Supabase project, then push locally committed code through GitHub Desktop and publish
-through Lovable. These are separate steps. No live programme was created by this implementation.
+Migration `20261004132906_editable_personal_programmes.sql` was applied narrowly to the existing
+Supabase project on 2026-10-04 and verified without changing existing training records. The remaining
+release steps are to push locally committed code through GitHub Desktop and publish through Lovable.
+No live personal programme was created. See the dated database verification note for evidence.
 
 ## Product Direction
 
