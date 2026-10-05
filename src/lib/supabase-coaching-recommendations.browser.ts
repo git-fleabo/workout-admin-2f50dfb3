@@ -1,22 +1,28 @@
 import { getCurrentPerson } from "./supabase-people.browser";
 import { supabasePublicRpc, supabasePublicSelect } from "./supabase-public";
-import type { WeeklyCoachRecommendation } from "./weekly-coach-recommendation";
+import type {
+  WeeklyCoachDecisionHistory,
+  WeeklyCoachRecommendation,
+  WeeklyCoachRecommendationType,
+} from "./weekly-coach-recommendation";
 
 type RecommendationDecisionRow = {
   id: string;
+  week_start: string;
   recommendation_key: string;
+  recommendation_type: WeeklyCoachRecommendationType;
+  subject_focus_id: string;
   decision: "accepted" | "rejected";
+  original_date: string;
   proposed_date: string;
   chosen_date: string | null;
   decided_at: string;
 };
 
-export type CoachingRecommendationDecision = {
+export type CoachingRecommendationDecision = WeeklyCoachDecisionHistory & {
   id: string;
   recommendationKey: string;
-  decision: "accepted" | "rejected";
-  proposedDate: string;
-  chosenDate: string | null;
+  originalDate: string;
   decidedAt: string;
 };
 
@@ -26,21 +32,27 @@ async function requirePerson() {
   return person;
 }
 
-export async function listCoachingRecommendationDecisionsClient(weekStart: string) {
+export async function listCoachingRecommendationDecisionsClient(throughWeek: string) {
   const person = await requirePerson();
   const rows = await supabasePublicSelect<RecommendationDecisionRow>(
     "coaching_recommendation_decisions",
     {
-      select: "id,recommendation_key,decision,proposed_date,chosen_date,decided_at",
+      select:
+        "id,week_start,recommendation_key,recommendation_type,subject_focus_id,decision,original_date,proposed_date,chosen_date,decided_at",
       person_id: `eq.${person.id}`,
-      week_start: `eq.${weekStart}`,
+      week_start: `lte.${throughWeek}`,
       order: "decided_at.desc",
+      limit: 100,
     },
   );
   return rows.map((row) => ({
     id: row.id,
+    weekStart: row.week_start,
     recommendationKey: row.recommendation_key,
+    recommendationType: row.recommendation_type,
+    subjectFocusId: row.subject_focus_id,
     decision: row.decision,
+    originalDate: row.original_date,
     proposedDate: row.proposed_date,
     chosenDate: row.chosen_date,
     decidedAt: row.decided_at,
@@ -58,13 +70,17 @@ export async function decideCoachingRecommendationClient({
   decision: "accepted" | "rejected";
   chosenDate?: string;
 }) {
-  return supabasePublicRpc<string>("decide_coaching_recommendation", {
+  return supabasePublicRpc<string>("decide_coaching_recommendation_v2", {
+    p_recommendation_type: recommendation.type,
     p_recommendation_key: recommendation.key,
     p_suggested_workout_id: recommendation.suggestedWorkoutId,
     p_week_start: weekStart,
     p_original_date: recommendation.fromDate,
     p_proposed_date: recommendation.proposedDate,
-    p_chosen_date: decision === "accepted" ? (chosenDate ?? recommendation.proposedDate) : null,
+    p_chosen_date:
+      decision === "accepted" && recommendation.type === "move_session"
+        ? (chosenDate ?? recommendation.proposedDate)
+        : null,
     p_decision: decision,
     p_rationale: recommendation.rationale,
   });

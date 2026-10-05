@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TrainingContextCard } from "@/components/training-context-card";
+import { WeeklyCoachRecommendationCard } from "@/components/weekly-coach-recommendation-card";
 import type { WeeklyPlan } from "@/lib/weekly-plan";
 
 const plan: WeeklyPlan = {
@@ -187,5 +188,32 @@ describe("training context card", () => {
     await waitFor(() =>
       expect(onDecision).toHaveBeenCalledWith(expect.any(Object), "rejected", undefined),
     );
+  });
+
+  it("requires review before skipping a maintenance support session", async () => {
+    const onDecision = vi.fn(async () => undefined);
+    render(
+      <WeeklyCoachRecommendationCard
+        recommendation={{
+          key: "skip-support:support-1:2026-10-09",
+          type: "skip_support_session",
+          suggestedWorkoutId: "support-1",
+          subjectFocusId: "goal:maintenance",
+          sessionLabel: "Handstand maintenance",
+          fromDate: "2026-10-09",
+          proposedDate: "2026-10-09",
+          title: "Skip Handstand maintenance this week",
+          rationale: "The week exceeds the saved training-day limit.",
+          learningNote: "You declined 1 similar reduction.",
+        }}
+        pending={false}
+        onDecision={onDecision}
+      />,
+    );
+
+    expect(screen.queryByLabelText("Move to")).not.toBeInTheDocument();
+    expect(screen.getByText(/Learned from your reviews/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Skip this session" }));
+    await waitFor(() => expect(onDecision).toHaveBeenCalledWith("accepted", undefined));
   });
 });

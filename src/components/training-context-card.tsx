@@ -29,6 +29,7 @@ import {
 } from "@/lib/training-context";
 import {
   buildWeeklyCoachRecommendation,
+  type WeeklyCoachDecisionHistory,
   type WeeklyCoachRecommendation,
 } from "@/lib/weekly-coach-recommendation";
 import type { WeeklyPlan, WeeklyPlanAdjustments } from "@/lib/weekly-plan";
@@ -91,6 +92,7 @@ export function TrainingContextCard({
   savingPreferences = false,
   onSavePreferences,
   decidedRecommendationKeys = [],
+  recommendationHistory = [],
   recommendationPending = false,
   onRecommendationDecision,
 }: {
@@ -103,6 +105,7 @@ export function TrainingContextCard({
   savingPreferences?: boolean;
   onSavePreferences?: (preferences: CoachingPreferences) => Promise<void>;
   decidedRecommendationKeys?: string[];
+  recommendationHistory?: WeeklyCoachDecisionHistory[];
   recommendationPending?: boolean;
   onRecommendationDecision?: (
     recommendation: WeeklyCoachRecommendation,
@@ -134,9 +137,18 @@ export function TrainingContextCard({
         context,
         plan,
         preferences: coachingPreferences,
+        scheduledPlans,
         decidedKeys: decidedRecommendationKeys,
+        history: recommendationHistory,
       }),
-    [coachingPreferences, context, decidedRecommendationKeys, plan],
+    [
+      coachingPreferences,
+      context,
+      decidedRecommendationKeys,
+      plan,
+      recommendationHistory,
+      scheduledPlans,
+    ],
   );
 
   return (
@@ -187,6 +199,12 @@ export function TrainingContextCard({
             <Badge variant="outline">
               Max {coachingPreferences.maxDemandingDays} demanding days
             </Badge>
+            {recommendationHistory.length ? (
+              <Badge variant="outline">
+                Learned from {recommendationHistory.length} review
+                {recommendationHistory.length === 1 ? "" : "s"}
+              </Badge>
+            ) : null}
           </>
         ) : null}
         {visibleKinds.map((kind) => {
@@ -245,7 +263,8 @@ export function TrainingContextCard({
 
       <p className="text-xs text-muted-foreground">
         The coach checks this week against your saved priorities and capacity. It can propose one
-        editable move, but applies it only after you accept. Readiness remains deferred.
+        reviewed schedule change or maintenance reduction, but applies it only after you accept.
+        Readiness remains deferred.
       </p>
     </Card>
   );

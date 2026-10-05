@@ -437,6 +437,20 @@ function PlanPage() {
     queryFn: () => listCoachingRecommendationDecisionsClient(weeklyPlan.startDate),
     staleTime: 30_000,
   });
+  const currentWeekCoachingDecisions = useMemo(
+    () =>
+      (coachingDecisions.data ?? []).filter(
+        (decision) => decision.weekStart === weeklyPlan.startDate,
+      ),
+    [coachingDecisions.data, weeklyPlan.startDate],
+  );
+  const coachingDecisionHistory = useMemo(
+    () =>
+      (coachingDecisions.data ?? []).filter(
+        (decision) => decision.weekStart < weeklyPlan.startDate,
+      ),
+    [coachingDecisions.data, weeklyPlan.startDate],
+  );
   const coachingFocusOptions = useMemo(
     () => buildCoachingFocusOptions(coachingGoals.data?.items ?? [], mobilityData.data?.runs ?? []),
     [coachingGoals.data?.items, mobilityData.data?.runs],
@@ -1053,7 +1067,10 @@ function PlanPage() {
       if (variables.decision === "accepted") {
         await refreshScheduledPlans();
         toast.success("Coach suggestion applied", {
-          description: `${variables.recommendation.sessionLabel} moved to ${formatUKDate(variables.chosenDate ?? variables.recommendation.proposedDate)}.`,
+          description:
+            variables.recommendation.type === "move_session"
+              ? `${variables.recommendation.sessionLabel} moved to ${formatUKDate(variables.chosenDate ?? variables.recommendation.proposedDate)}.`
+              : `${variables.recommendation.sessionLabel} was skipped for this week.`,
         });
       } else {
         toast.success("Suggestion dismissed", {
@@ -1237,9 +1254,10 @@ function PlanPage() {
                 }
               : undefined
           }
-          decidedRecommendationKeys={(coachingDecisions.data ?? []).map(
+          decidedRecommendationKeys={currentWeekCoachingDecisions.map(
             (decision) => decision.recommendationKey,
           )}
+          recommendationHistory={coachingDecisionHistory}
           recommendationPending={decideCoachingRecommendation.isPending}
           onRecommendationDecision={
             coachingDecisions.isSuccess

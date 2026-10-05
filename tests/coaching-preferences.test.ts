@@ -60,3 +60,25 @@ test("coaching decisions apply one reviewed move atomically and preserve program
     /revoke all on function public\.decide_coaching_recommendation[\s\S]*from anon/i,
   );
 });
+
+test("adaptive coaching history learns by focus and only skips maintenance support", async () => {
+  const sql = await readFile(
+    new URL(
+      "../supabase/migrations/20261005130000_add_adaptive_coaching_history.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(sql, /add column subject_focus_id text/i);
+  assert.match(sql, /'skip_support_session'/i);
+  assert.match(sql, /create function public\.decide_coaching_recommendation_v2/i);
+  assert.match(sql, /security invoker/i);
+  assert.match(sql, /v_program_assignment_id is null/i);
+  assert.match(sql, /v_subject_focus_id = any\(preference\.maintenance_focus_ids\)/i);
+  assert.match(sql, /set status = 'skipped'/i);
+  assert.doesNotMatch(sql, /security definer/i);
+  assert.match(
+    sql,
+    /revoke all on function public\.decide_coaching_recommendation_v2[\s\S]*from anon/i,
+  );
+});

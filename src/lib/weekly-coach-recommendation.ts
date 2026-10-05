@@ -1,4 +1,5 @@
 import type { CoachingPreferences } from "./coaching-preferences.ts";
+import type { SavedWorkoutPlan } from "./supabase-plans.browser.ts";
 import type {
   TrainingContext,
   TrainingContextKind,
@@ -6,17 +7,42 @@ import type {
 } from "./training-context.ts";
 import type { WeeklyPlan } from "./weekly-plan.ts";
 
-export type WeeklyCoachRecommendation = {
+export type WeeklyCoachRecommendationType = "move_session" | "skip_support_session";
+
+export type WeeklyCoachDecisionHistory = {
+  weekStart: string;
+  recommendationType: WeeklyCoachRecommendationType;
+  subjectFocusId: string;
+  decision: "accepted" | "rejected";
+  proposedDate: string;
+  chosenDate: string | null;
+};
+
+type WeeklyCoachRecommendationBase = {
   key: string;
-  type: "move_session";
+  type: WeeklyCoachRecommendationType;
   suggestedWorkoutId: string;
+  subjectFocusId: string;
   sessionLabel: string;
   fromDate: string;
   proposedDate: string;
-  availableDates: string[];
   title: string;
   rationale: string;
+  learningNote: string | null;
 };
+
+export type WeeklyCoachMoveRecommendation = WeeklyCoachRecommendationBase & {
+  type: "move_session";
+  availableDates: string[];
+};
+
+export type WeeklyCoachSkipSupportRecommendation = WeeklyCoachRecommendationBase & {
+  type: "skip_support_session";
+};
+
+export type WeeklyCoachRecommendation =
+  | WeeklyCoachMoveRecommendation
+  | WeeklyCoachSkipSupportRecommendation;
 
 const DAY_MS = 86_400_000;
 const DEMANDING = new Set<TrainingContextKind>(["strength", "climbing", "conditioning"]);
@@ -25,6 +51,10 @@ function dayName(date: string) {
   return new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: "UTC" }).format(
     new Date(`${date}T00:00:00Z`),
   );
+}
+
+function dayIndex(date: string) {
+  return new Date(`${date}T00:00:00Z`).getUTCDay();
 }
 
 function longestConsecutiveRun(dates: string[]) {
@@ -68,18 +98,58 @@ function focusRank(session: TrainingContextSession, preferences: CoachingPrefere
   return 2;
 }
 
-export function buildWeeklyCoachRecommendation({
+function relevantHistory(
+  history: WeeklyCoachDecisionHistory[],
+  type: WeeklyCoachRecommendationType,
+  focusId: string,
+  currentWeek: string,
+) {
+  return history.filter(
+    (item) =>
+      item.weekStart < currentWeek &&
+      item.recommendationType === type &&
+      item.subjectFocusId === focusId,
+  );
+}
+
+function decisionPenalty(history: WeeklyCoachDecisionHistory[]) {
+  return history.reduce((score, item) => score + (item.decision === "rejected" ? 20 : -5), 0);
+}
+
+function preferredDayScore(date: string, history: WeeklyCoachDecisionHistory[]) {
+  const target = dayIndex(date);
+  return history.reduce((score, item) => {
+    if (item.decision !== "accepted" || !item.chosenDate || dayIndex(item.chosenDate) !== target) {
+      return score;
+    }
+    return score + (item.chosenDate === item.proposedDate ? 1 : 3);
+  }, 0);
+}
+
+function moveLearningNote(date: string, history: WeeklyCoachDecisionHistory[]) {
+  const matching = history.filter(
+    (item) =>
+      item.decision === "accepted" &&
+      item.chosenDate &&
+      dayIndex(item.chosenDate) === dayIndex(date),
+  );
+  if (!matching.length) return null;
+  return matching.length === 1
+    ? `A previous review favoured ${dayName(date)} for similar work.`
+    : `${matching.length} previous reviews favoured ${dayName(date)} for similar work.`;
+}
+
+function buildMoveRecommendation({
   context,
   plan,
   preferences,
-  decidedKeys = [],
+  history,
 }: {
   context: TrainingContext;
   plan: WeeklyPlan;
   preferences: CoachingPreferences;
-  decidedKeys?: string[];
-}): WeeklyCoachRecommendation | null {
-  if (!preferences.saved || decidedKeys.length > 0) return null;
+  history: WeeklyCoachDecisionHistory[];
+}): WeeklyCoachMoveRecommendation | null {
   const demandingByDate = new Map<string, TrainingContextSession[]>();
   for (const session of context.sessions.filter((item) => DEMANDING.has(item.kind))) {
     demandingByDate.set(session.date, [...(demandingByDate.get(session.date) ?? []), session]);
@@ -99,17 +169,27 @@ export function buildWeeklyCoachRecommendation({
         DEMANDING.has(session.kind) &&
         (overlapDates.has(session.date) || hasLongRun),
     )
-    .sort(
-      (left, right) =>
+    .sort((left, right) => {
+      const leftHistory = relevantHistory(history, "move_session", left.focusId, plan.startDate);
+      const rightHistory = relevantHistory(history, "move_session", right.focusId, plan.startDate);
+      return (
         Number(!overlapDates.has(left.date)) - Number(!overlapDates.has(right.date)) ||
+        decisionPenalty(leftHistory) - decisionPenalty(rightHistory) ||
         focusRank(left, preferences) - focusRank(right, preferences) ||
-        left.date.localeCompare(right.date),
-    );
+        left.date.localeCompare(right.date)
+      );
+    });
   const baselineScore = pressureScore(context.sessions, preferences);
 
   for (const session of movable) {
     const suggestedWorkoutId = session.id.replace(/^scheduled:/, "");
     const key = `move:${suggestedWorkoutId}:${session.date}`;
+    const sessionHistory = relevantHistory(
+      history,
+      "move_session",
+      session.focusId,
+      plan.startDate,
+    );
     const alternatives = plan.days
       .map((day) => day.date)
       .filter((date) => date !== session.date && !(demandingByDate.get(date)?.length ?? 0))
@@ -124,6 +204,7 @@ export function buildWeeklyCoachRecommendation({
         return {
           date,
           score: pressureScore(moved, preferences),
+          preferredDayScore: preferredDayScore(date, sessionHistory),
           capacitySafe:
             movedOccupiedDays <= Math.max(context.occupiedDays, preferences.weeklyTrainingDays) &&
             movedDemandingDays <= Math.max(context.demandingDays, preferences.maxDemandingDays),
@@ -139,6 +220,7 @@ export function buildWeeklyCoachRecommendation({
       .sort(
         (left, right) =>
           left.score - right.score ||
+          right.preferredDayScore - left.preferredDayScore ||
           Number(right.alreadyOccupied) - Number(left.alreadyOccupied) ||
           left.distance - right.distance ||
           left.date.localeCompare(right.date),
@@ -152,13 +234,118 @@ export function buildWeeklyCoachRecommendation({
       key,
       type: "move_session",
       suggestedWorkoutId,
+      subjectFocusId: session.focusId,
       sessionLabel: session.label,
       fromDate: session.date,
       proposedDate,
       availableDates: alternatives.map((option) => option.date),
       title: `Move ${session.label} to ${dayName(proposedDate)}`,
       rationale: `${reason} ${dayName(proposedDate)} reduces that pressure without moving a programme session.`,
+      learningNote: moveLearningNote(proposedDate, sessionHistory),
     };
   }
   return null;
+}
+
+function buildSkipSupportRecommendation({
+  context,
+  plan,
+  preferences,
+  scheduledPlans,
+  history,
+}: {
+  context: TrainingContext;
+  plan: WeeklyPlan;
+  preferences: CoachingPreferences;
+  scheduledPlans: SavedWorkoutPlan[];
+  history: WeeklyCoachDecisionHistory[];
+}): WeeklyCoachSkipSupportRecommendation | null {
+  if (context.occupiedDays <= preferences.weeklyTrainingDays) return null;
+  const planById = new Map(scheduledPlans.map((item) => [item.suggestedWorkoutId, item]));
+  const sessionsByDate = new Map<string, TrainingContextSession[]>();
+  for (const session of context.sessions) {
+    sessionsByDate.set(session.date, [...(sessionsByDate.get(session.date) ?? []), session]);
+  }
+  const candidates = context.sessions
+    .filter((session) => {
+      if (
+        session.source !== "scheduled" ||
+        session.completed ||
+        !preferences.maintenanceFocusIds.includes(session.focusId) ||
+        (sessionsByDate.get(session.date)?.length ?? 0) !== 1
+      ) {
+        return false;
+      }
+      const saved = planById.get(session.id.replace(/^scheduled:/, ""));
+      return Boolean(
+        saved?.programAssignmentId &&
+        !saved.programWorkoutId &&
+        (saved.goalId || saved.mobilityRunId) &&
+        (saved.status === "pending" || saved.status === "accepted"),
+      );
+    })
+    .sort((left, right) => {
+      const leftHistory = relevantHistory(
+        history,
+        "skip_support_session",
+        left.focusId,
+        plan.startDate,
+      );
+      const rightHistory = relevantHistory(
+        history,
+        "skip_support_session",
+        right.focusId,
+        plan.startDate,
+      );
+      return (
+        decisionPenalty(leftHistory) - decisionPenalty(rightHistory) ||
+        right.date.localeCompare(left.date)
+      );
+    });
+  const session = candidates[0];
+  if (!session) return null;
+  const suggestedWorkoutId = session.id.replace(/^scheduled:/, "");
+  const sessionHistory = relevantHistory(
+    history,
+    "skip_support_session",
+    session.focusId,
+    plan.startDate,
+  );
+  const rejected = sessionHistory.filter((item) => item.decision === "rejected").length;
+  return {
+    key: `skip-support:${suggestedWorkoutId}:${session.date}`,
+    type: "skip_support_session",
+    suggestedWorkoutId,
+    subjectFocusId: session.focusId,
+    sessionLabel: session.label,
+    fromDate: session.date,
+    proposedDate: session.date,
+    title: `Skip ${session.label} this week`,
+    rationale: `Your saved week currently uses ${context.occupiedDays} training days, above your limit of ${preferences.weeklyTrainingDays}. Skipping this maintenance session frees one complete day without changing your strength programme or higher priorities.`,
+    learningNote: rejected
+      ? `You declined ${rejected} similar reduction${rejected === 1 ? "" : "s"}; this appears only because no safe schedule move resolves the limit.`
+      : null,
+  };
+}
+
+export function buildWeeklyCoachRecommendation({
+  context,
+  plan,
+  preferences,
+  scheduledPlans = [],
+  decidedKeys = [],
+  history = [],
+}: {
+  context: TrainingContext;
+  plan: WeeklyPlan;
+  preferences: CoachingPreferences;
+  scheduledPlans?: SavedWorkoutPlan[];
+  decidedKeys?: string[];
+  history?: WeeklyCoachDecisionHistory[];
+}): WeeklyCoachRecommendation | null {
+  if (!preferences.saved || decidedKeys.length > 0) return null;
+  return (
+    buildMoveRecommendation({ context, plan, preferences, history }) ??
+    buildSkipSupportRecommendation({ context, plan, preferences, scheduledPlans, history })
+  );
 }

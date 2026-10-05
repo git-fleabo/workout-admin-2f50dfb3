@@ -37,7 +37,10 @@ export function WeeklyCoachRecommendationCard({
 
   const decide = async (decision: "accepted" | "rejected") => {
     try {
-      await onDecision(decision, decision === "accepted" ? chosenDate : undefined);
+      await onDecision(
+        decision,
+        decision === "accepted" && recommendation.type === "move_session" ? chosenDate : undefined,
+      );
     } catch {
       // The parent mutation reports the error and leaves the recommendation available.
     }
@@ -54,27 +57,34 @@ export function WeeklyCoachRecommendationCard({
           </div>
           <p className="mt-2 text-sm font-medium">{recommendation.title}</p>
           <p className="mt-1 max-w-2xl text-xs text-muted-foreground">{recommendation.rationale}</p>
+          {recommendation.learningNote ? (
+            <p className="mt-2 max-w-2xl text-xs text-fuchsia-200">
+              Learned from your reviews: {recommendation.learningNote}
+            </p>
+          ) : null}
         </div>
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        <div className="min-w-52 space-y-1.5">
-          <label className="text-xs font-medium" htmlFor="coach-destination-date">
-            Move to
-          </label>
-          <Select value={chosenDate} onValueChange={setChosenDate} disabled={pending}>
-            <SelectTrigger id="coach-destination-date">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {recommendation.availableDates.map((date) => (
-                <SelectItem key={date} value={date}>
-                  {dayLabel(date)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {recommendation.type === "move_session" ? (
+          <div className="min-w-52 space-y-1.5">
+            <label className="text-xs font-medium" htmlFor="coach-destination-date">
+              Move to
+            </label>
+            <Select value={chosenDate} onValueChange={setChosenDate} disabled={pending}>
+              <SelectTrigger id="coach-destination-date">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {recommendation.availableDates.map((date) => (
+                  <SelectItem key={date} value={date}>
+                    {dayLabel(date)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={() => void decide("accepted")} disabled={pending}>
             {pending ? (
@@ -82,7 +92,7 @@ export function WeeklyCoachRecommendationCard({
             ) : (
               <ArrowRight className="mr-1 h-3.5 w-3.5" />
             )}
-            Apply move
+            {recommendation.type === "move_session" ? "Apply move" : "Skip this session"}
           </Button>
           <Button
             size="sm"
@@ -95,7 +105,9 @@ export function WeeklyCoachRecommendationCard({
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
-        Accepting moves this planned extra session only. Your strength programme remains unchanged.
+        {recommendation.type === "move_session"
+          ? "Accepting moves this planned extra session only. Your strength programme remains unchanged."
+          : "Accepting skips this maintenance support session only. Your strength programme and higher priorities remain unchanged."}
       </p>
     </div>
   );

@@ -254,6 +254,7 @@ export type Database = {
           rationale: string;
           recommendation_key: string;
           recommendation_type: string;
+          subject_focus_id: string;
           suggested_workout_id: string;
           week_start: string;
         };
@@ -268,6 +269,7 @@ export type Database = {
           rationale: string;
           recommendation_key: string;
           recommendation_type: string;
+          subject_focus_id: string;
           suggested_workout_id: string;
           week_start: string;
         };
@@ -282,6 +284,7 @@ export type Database = {
           rationale?: string;
           recommendation_key?: string;
           recommendation_type?: string;
+          subject_focus_id?: string;
           suggested_workout_id?: string;
           week_start?: string;
         };
@@ -2600,6 +2603,20 @@ export type Database = {
           p_proposed_date: string;
           p_rationale: string;
           p_recommendation_key: string;
+          p_suggested_workout_id: string;
+          p_week_start: string;
+        };
+        Returns: string;
+      };
+      decide_coaching_recommendation_v2: {
+        Args: {
+          p_chosen_date: string | null;
+          p_decision: string;
+          p_original_date: string;
+          p_proposed_date: string;
+          p_rationale: string;
+          p_recommendation_key: string;
+          p_recommendation_type: string;
           p_suggested_workout_id: string;
           p_week_start: string;
         };

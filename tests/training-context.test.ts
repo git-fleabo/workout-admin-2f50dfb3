@@ -225,3 +225,136 @@ test("the coach proposes one editable move and never moves a programme session",
     null,
   );
 });
+
+test("the coach learns a preferred destination day from accepted and edited moves", () => {
+  const plan = weeklyPlan();
+  const preferences = {
+    primaryFocusId: "programme",
+    secondaryFocusIds: [],
+    maintenanceFocusIds: [],
+    weeklyTrainingDays: 4,
+    weeklyMinutes: 300,
+    maxDemandingDays: 3,
+    saved: true,
+  };
+  const context = buildTrainingContext({
+    plan,
+    programmeSessions: [programme("2026-10-05")],
+    scheduledPlans: [scheduled("climb", "2026-10-05", "climbing")],
+    adjustments: {},
+  });
+  const recommendation = buildWeeklyCoachRecommendation({
+    context,
+    plan,
+    preferences,
+    history: [
+      {
+        weekStart: "2026-09-28",
+        recommendationType: "move_session",
+        subjectFocusId: "kind:climbing",
+        decision: "accepted",
+        proposedDate: "2026-09-29",
+        chosenDate: "2026-10-02",
+      },
+    ],
+  });
+
+  assert.ok(recommendation);
+  assert.equal(recommendation.type, "move_session");
+  assert.equal(recommendation.proposedDate, "2026-10-09");
+  assert.match(recommendation.learningNote ?? "", /previous review favoured Friday/i);
+});
+
+test("rejected suggestions lower the priority of similar future moves", () => {
+  const plan = weeklyPlan();
+  const preferences = {
+    primaryFocusId: "programme",
+    secondaryFocusIds: [],
+    maintenanceFocusIds: [],
+    weeklyTrainingDays: 4,
+    weeklyMinutes: 300,
+    maxDemandingDays: 3,
+    saved: true,
+  };
+  const context = buildTrainingContext({
+    plan,
+    programmeSessions: [programme("2026-10-05"), programme("2026-10-06")],
+    scheduledPlans: [
+      scheduled("climb", "2026-10-05", "climbing"),
+      scheduled("conditioning", "2026-10-06", "conditioning"),
+    ],
+    adjustments: {},
+  });
+  const recommendation = buildWeeklyCoachRecommendation({
+    context,
+    plan,
+    preferences,
+    history: [
+      {
+        weekStart: "2026-09-28",
+        recommendationType: "move_session",
+        subjectFocusId: "kind:climbing",
+        decision: "rejected",
+        proposedDate: "2026-09-29",
+        chosenDate: null,
+      },
+    ],
+  });
+
+  assert.ok(recommendation);
+  assert.equal(recommendation.type, "move_session");
+  assert.equal(recommendation.suggestedWorkoutId, "conditioning");
+});
+
+test("the coach can reduce one maintenance support session when the week exceeds its day limit", () => {
+  const plan = weeklyPlan();
+  const maintenance = {
+    ...scheduled("maintenance", "2026-10-09", "skill"),
+    title: "Handstand maintenance",
+    programAssignmentId: "assignment-1",
+    goalId: "maintenance-goal",
+  };
+  const scheduledPlans = [
+    scheduled("mobility-1", "2026-10-05", "mobility"),
+    scheduled("mobility-2", "2026-10-06", "mobility"),
+    scheduled("mobility-3", "2026-10-07", "mobility"),
+    scheduled("mobility-4", "2026-10-08", "mobility"),
+    maintenance,
+  ];
+  const preferences = {
+    primaryFocusId: "programme",
+    secondaryFocusIds: [],
+    maintenanceFocusIds: ["goal:maintenance-goal"],
+    weeklyTrainingDays: 4,
+    weeklyMinutes: 300,
+    maxDemandingDays: 3,
+    saved: true,
+  };
+  const context = buildTrainingContext({
+    plan,
+    programmeSessions: [],
+    scheduledPlans,
+    adjustments: {},
+  });
+  const recommendation = buildWeeklyCoachRecommendation({
+    context,
+    plan,
+    preferences,
+    scheduledPlans,
+  });
+
+  assert.ok(recommendation);
+  assert.equal(recommendation.type, "skip_support_session");
+  assert.equal(recommendation.suggestedWorkoutId, "maintenance");
+  assert.match(recommendation.rationale, /maintenance session frees one complete day/i);
+
+  assert.equal(
+    buildWeeklyCoachRecommendation({
+      context,
+      plan,
+      preferences: { ...preferences, maintenanceFocusIds: [] },
+      scheduledPlans,
+    }),
+    null,
+  );
+});
