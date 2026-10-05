@@ -4,11 +4,17 @@ import type { SavedWorkoutPlan } from "./supabase-plans.browser.ts";
 import type { WorkoutPlanDraft, WorkoutPlanKind } from "./workout-plan.ts";
 import type { WeeklyPlan } from "./weekly-plan.ts";
 import type { WeeklyCoachRollover } from "./weekly-coach-rollover.ts";
+import type { CoachReadinessSnapshot } from "./coach-readiness.ts";
+import type { WeeklyCoachDecisionHistory } from "./weekly-coach-recommendation.ts";
 import {
   buildWeeklyCoachCapacity,
   projectWeeklyCoachCapacity,
   type WeeklyCoachCapacity,
 } from "./weekly-coach-capacity.ts";
+import {
+  buildWeeklyCoachAdaptation,
+  type WeeklyCoachAdaptation,
+} from "./weekly-coach-adaptation.ts";
 
 export type WeeklyCoachDraftPriority = "primary" | "supporting" | "maintenance";
 
@@ -47,6 +53,7 @@ export type WeeklyCoachDraft = {
   rollover: WeeklyCoachRollover | null;
   preferences: CoachingPreferences;
   capacity: WeeklyCoachCapacity;
+  adaptation: WeeklyCoachAdaptation;
 };
 
 function dayDistance(left: string, right: string) {
@@ -134,6 +141,8 @@ export function buildWeeklyCoachDraft({
   candidates,
   today,
   rollover = null,
+  readiness,
+  history = [],
 }: {
   plan: WeeklyPlan;
   programmeSessions: ProgrammeScheduleSession[];
@@ -142,6 +151,8 @@ export function buildWeeklyCoachDraft({
   candidates: WeeklyCoachDraftCandidate[];
   today: string;
   rollover?: WeeklyCoachRollover | null;
+  readiness?: CoachReadinessSnapshot;
+  history?: WeeklyCoachDecisionHistory[];
 }): WeeklyCoachDraft {
   const weekDates = plan.days
     .map((day) => day.date)
@@ -196,13 +207,20 @@ export function buildWeeklyCoachDraft({
     scheduledPlans,
     preferences,
   });
+  const adaptation = buildWeeklyCoachAdaptation({
+    readiness,
+    capacity: existingCapacity,
+    history,
+    currentWeek: plan.startDate,
+    rollover,
+  });
   let plannedMinutes = existingCapacity.plannedMinutes;
 
   const additions: WeeklyCoachDraftAddition[] = [];
   if (preferences.saved && existingCapacity.status !== "over_limit") {
     const candidateByFocus = new Map(candidates.map((candidate) => [candidate.focusId, candidate]));
     for (const item of priorityOrder(preferences)) {
-      if (additions.length >= (rollover?.additionLimit ?? 2) || represented.has(item.focusId)) {
+      if (additions.length >= adaptation.additionLimit || represented.has(item.focusId)) {
         continue;
       }
       const candidate = candidateByFocus.get(item.focusId);
@@ -268,6 +286,7 @@ export function buildWeeklyCoachDraft({
     rollover,
     preferences,
     capacity,
+    adaptation,
   };
 }
 

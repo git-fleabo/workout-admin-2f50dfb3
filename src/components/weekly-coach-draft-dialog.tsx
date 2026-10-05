@@ -143,11 +143,21 @@ export function WeeklyCoachDraftDialog({
               <div>
                 <p className="text-sm font-medium">{draft.summary}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  The draft can add up to {draft.rollover?.additionLimit ?? 2} missing priorities
-                  and will not move or replace anything already saved.
+                  The draft can add up to {draft.adaptation.additionLimit} missing priorities and
+                  will not move or replace anything already saved.
                 </p>
               </div>
             </div>
+          </div>
+
+          <div className="rounded-lg border border-fuchsia-400/25 bg-fuchsia-400/[0.04] p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium">{draft.adaptation.title}</p>
+              <Badge variant="outline" className="capitalize">
+                {draft.adaptation.mode}
+              </Badge>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">{draft.adaptation.detail}</p>
           </div>
 
           {draft.rollover ? (

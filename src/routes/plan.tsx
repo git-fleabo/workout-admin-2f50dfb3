@@ -733,8 +733,12 @@ function PlanPage() {
         candidates: weeklyCoachCandidates,
         today: todayISO(),
         rollover: weeklyCoachRollover,
+        readiness: coachReadiness,
+        history: coachingDecisionHistory,
       }),
     [
+      coachReadiness,
+      coachingDecisionHistory,
       coachingPreferences.data,
       programmeSchedule.data,
       scheduledPlans.data,

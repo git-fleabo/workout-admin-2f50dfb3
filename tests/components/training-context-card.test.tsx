@@ -412,6 +412,18 @@ describe("training context card", () => {
           additions: [addition],
           summary: "1 missing priority can be added without moving your saved sessions.",
           rollover: null,
+          adaptation: {
+            mode: "build",
+            title: "Build within capacity",
+            detail: "Recovery and adherence support one reviewed progression.",
+            additionLimit: 2,
+            allowDoseProgression: true,
+            preferOptionalReduction: false,
+            frequencyAction: "Fill missing priorities within capacity.",
+            doseAction: "Allow one proven support-dose step after review.",
+            placementAction: "Use the lowest-pressure dates.",
+            evidence: ["Recovery and adherence: ready", "Capacity: within limits"],
+          },
           preferences: {
             primaryFocusId: "programme",
             secondaryFocusIds: ["goal:handstand"],
@@ -465,6 +477,8 @@ describe("training context card", () => {
 
     expect(screen.getByText("Saved weekly capacity")).toBeInTheDocument();
     expect(screen.getByText("45/300")).toBeInTheDocument();
+    expect(screen.getByText("Adaptive coach stance")).toBeInTheDocument();
+    expect(screen.getByText("Build within capacity")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Draft my week/ }));
     expect(screen.getByRole("heading", { name: "Review your drafted week" })).toBeInTheDocument();
     expect(screen.getByText("Entire proposed week")).toBeInTheDocument();

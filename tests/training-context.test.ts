@@ -462,3 +462,103 @@ test("a too-hard outcome deprioritises the same support progression next time", 
 
   assert.equal(recommendation?.suggestedWorkoutId, "pull-up-next");
 });
+
+test("a protective stance can reduce optional frequency before the day limit is exceeded", () => {
+  const plan = weeklyPlan();
+  const maintenance = {
+    ...scheduled("maintenance", "2026-10-09", "mobility"),
+    title: "Pike mobility maintenance",
+    programAssignmentId: "assignment-1",
+    mobilityRunId: "pike-run",
+  };
+  const preferences = {
+    primaryFocusId: "programme",
+    secondaryFocusIds: [],
+    maintenanceFocusIds: ["mobility:pike-run"],
+    weeklyTrainingDays: 4,
+    weeklyMinutes: 300,
+    maxDemandingDays: 3,
+    saved: true,
+  };
+  const context = buildTrainingContext({
+    plan,
+    programmeSessions: [],
+    scheduledPlans: [maintenance],
+    adjustments: {},
+  });
+  const recommendation = buildWeeklyCoachRecommendation({
+    context,
+    plan,
+    preferences,
+    scheduledPlans: [maintenance],
+    adaptation: {
+      mode: "protect",
+      title: "Protect recovery this week",
+      detail: "Recovery pressure supports one optional reduction.",
+      additionLimit: 0,
+      allowDoseProgression: false,
+      preferOptionalReduction: true,
+      frequencyAction: "Omit one optional session.",
+      doseAction: "Reduce one small step.",
+      placementAction: "Separate demanding work.",
+      evidence: ["Pain evidence: elevated"],
+    },
+  });
+
+  assert.equal(context.occupiedDays, 1);
+  assert.equal(recommendation?.type, "skip_support_session");
+  assert.equal(recommendation?.suggestedWorkoutId, "maintenance");
+  assert.match(recommendation?.rationale ?? "", /protective week/i);
+});
+
+test("a maintain stance does not offer a support-dose progression", () => {
+  const plan = weeklyPlan();
+  const context = buildTrainingContext({
+    plan,
+    programmeSessions: [],
+    scheduledPlans: [],
+    adjustments: {},
+  });
+  const recommendation = buildWeeklyCoachRecommendation({
+    context,
+    plan,
+    preferences: {
+      primaryFocusId: "programme",
+      secondaryFocusIds: ["goal:skill"],
+      maintenanceFocusIds: [],
+      weeklyTrainingDays: 4,
+      weeklyMinutes: 300,
+      maxDemandingDays: 3,
+      saved: true,
+    },
+    doseOpportunities: [
+      {
+        suggestedWorkoutId: "support-1",
+        subjectFocusId: "goal:skill",
+        sessionLabel: "Handstand practice",
+        date: "2026-10-06",
+        adjustment: "progress",
+        currentSets: 3,
+        currentValue: 5,
+        targetSets: 3,
+        targetValue: 6,
+        doseUnit: "reps",
+        rationale: "Four successful weeks support a small increase.",
+      },
+    ],
+    adaptation: {
+      mode: "maintain",
+      title: "Keep the week steady",
+      detail: "Evidence is still settling.",
+      additionLimit: 1,
+      allowDoseProgression: false,
+      preferOptionalReduction: false,
+      frequencyAction: "Hold frequency.",
+      doseAction: "Hold dose.",
+      placementAction: "Resolve overlaps.",
+      evidence: ["Adherence is unsettled"],
+    },
+  });
+
+  assert.equal(recommendation, null);
+});

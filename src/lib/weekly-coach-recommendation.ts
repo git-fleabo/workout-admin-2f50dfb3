@@ -7,6 +7,7 @@ import type {
   TrainingContextSession,
 } from "./training-context.ts";
 import type { WeeklyPlan } from "./weekly-plan.ts";
+import type { WeeklyCoachAdaptation } from "./weekly-coach-adaptation.ts";
 
 export type WeeklyCoachRecommendationType =
   | "move_session"
@@ -288,14 +289,18 @@ function buildSkipSupportRecommendation({
   preferences,
   scheduledPlans,
   history,
+  preferOptionalReduction = false,
 }: {
   context: TrainingContext;
   plan: WeeklyPlan;
   preferences: CoachingPreferences;
   scheduledPlans: SavedWorkoutPlan[];
   history: WeeklyCoachDecisionHistory[];
+  preferOptionalReduction?: boolean;
 }): WeeklyCoachSkipSupportRecommendation | null {
-  if (context.occupiedDays <= preferences.weeklyTrainingDays) return null;
+  if (!preferOptionalReduction && context.occupiedDays <= preferences.weeklyTrainingDays) {
+    return null;
+  }
   const planById = new Map(scheduledPlans.map((item) => [item.suggestedWorkoutId, item]));
   const sessionsByDate = new Map<string, TrainingContextSession[]>();
   for (const session of context.sessions) {
@@ -307,7 +312,7 @@ function buildSkipSupportRecommendation({
         session.source !== "scheduled" ||
         session.completed ||
         !preferences.maintenanceFocusIds.includes(session.focusId) ||
-        (sessionsByDate.get(session.date)?.length ?? 0) !== 1
+        (!preferOptionalReduction && (sessionsByDate.get(session.date)?.length ?? 0) !== 1)
       ) {
         return false;
       }
@@ -356,7 +361,9 @@ function buildSkipSupportRecommendation({
     fromDate: session.date,
     proposedDate: session.date,
     title: `Skip ${session.label} this week`,
-    rationale: `Your saved week currently uses ${context.occupiedDays} training days, above your limit of ${preferences.weeklyTrainingDays}. Skipping this maintenance session frees one complete day without changing your strength programme or higher priorities.`,
+    rationale: preferOptionalReduction
+      ? `Recovery, adherence, capacity or a recent outcome calls for a protective week. Skipping this maintenance session removes one optional demand without changing your strength programme or higher priorities.`
+      : `Your saved week currently uses ${context.occupiedDays} training days, above your limit of ${preferences.weeklyTrainingDays}. Skipping this maintenance session frees one complete day without changing your strength programme or higher priorities.`,
     learningNote: rejected
       ? `You declined ${rejected} similar reduction${rejected === 1 ? "" : "s"}; this appears only because no safe schedule move resolves the limit.`
       : null,
@@ -468,6 +475,7 @@ export function buildWeeklyCoachRecommendation({
   doseOpportunities = [],
   decidedKeys = [],
   history = [],
+  adaptation,
 }: {
   context: TrainingContext;
   plan: WeeklyPlan;
@@ -476,11 +484,30 @@ export function buildWeeklyCoachRecommendation({
   doseOpportunities?: SupportDoseOpportunity[];
   decidedKeys?: string[];
   history?: WeeklyCoachDecisionHistory[];
+  adaptation?: WeeklyCoachAdaptation;
 }): WeeklyCoachRecommendation | null {
   if (!preferences.saved || decidedKeys.length > 0) return null;
-  return (
-    buildMoveRecommendation({ context, plan, preferences, history }) ??
-    buildSkipSupportRecommendation({ context, plan, preferences, scheduledPlans, history }) ??
-    buildDoseRecommendation({ opportunities: doseOpportunities, plan, preferences, history })
-  );
+  const move = buildMoveRecommendation({ context, plan, preferences, history });
+  const skip = buildSkipSupportRecommendation({
+    context,
+    plan,
+    preferences,
+    scheduledPlans,
+    history,
+    preferOptionalReduction: adaptation?.preferOptionalReduction,
+  });
+  const dose = (adjustment?: SupportDoseOpportunity["adjustment"]) =>
+    buildDoseRecommendation({
+      opportunities: adjustment
+        ? doseOpportunities.filter((item) => item.adjustment === adjustment)
+        : doseOpportunities,
+      plan,
+      preferences,
+      history,
+    });
+
+  if (adaptation?.mode === "protect") return move ?? dose("reduce") ?? skip;
+  if (adaptation?.mode === "maintain") return move ?? skip;
+  if (adaptation?.mode === "build") return move ?? skip ?? dose("progress");
+  return move ?? skip ?? dose();
 }

@@ -18,6 +18,7 @@ import { Card } from "@/components/ui/card";
 import { WeeklyCoachRecommendationCard } from "@/components/weekly-coach-recommendation-card";
 import { WeeklyCoachDraftDialog } from "@/components/weekly-coach-draft-dialog";
 import { WeeklyCoachCapacitySummary } from "@/components/weekly-coach-capacity-summary";
+import { WeeklyCoachAdaptationSummary } from "@/components/weekly-coach-adaptation-summary";
 import type { CoachReadinessSnapshot, SupportDoseOpportunity } from "@/lib/coach-readiness";
 import type { CoachOutcomeReview } from "@/lib/coach-outcome";
 import {
@@ -167,6 +168,13 @@ export function TrainingContextCard({
   const visibleKinds = (Object.keys(KIND_VIEW) as TrainingContextKind[]).filter(
     (kind) => context.counts[kind] > 0,
   );
+  const savedCapacity = useMemo(
+    () =>
+      weekDraft && coachingPreferences.saved
+        ? projectWeeklyCoachCapacity(weekDraft.capacity, weekDraft.preferences, [])
+        : null,
+    [coachingPreferences.saved, weekDraft],
+  );
   const recommendation = useMemo(
     () =>
       buildWeeklyCoachRecommendation({
@@ -177,6 +185,7 @@ export function TrainingContextCard({
         doseOpportunities,
         decidedKeys: decidedRecommendationKeys,
         history: recommendationHistory,
+        adaptation: weekDraft?.adaptation,
       }),
     [
       coachingPreferences,
@@ -186,6 +195,7 @@ export function TrainingContextCard({
       plan,
       recommendationHistory,
       scheduledPlans,
+      weekDraft?.adaptation,
     ],
   );
   const reviewedOutcomeCount = recommendationHistory.filter((item) => item.outcomeRating).length;
@@ -193,13 +203,6 @@ export function TrainingContextCard({
     date: day.date,
     sessions: context.sessions.filter((session) => session.date === day.date),
   }));
-  const savedCapacity = useMemo(
-    () =>
-      weekDraft && coachingPreferences.saved
-        ? projectWeeklyCoachCapacity(weekDraft.capacity, weekDraft.preferences, [])
-        : null,
-    [coachingPreferences.saved, weekDraft],
-  );
   const reviewItemCount =
     Number(Boolean(strengthReview)) + Number(Boolean(outcomeReview ?? recommendation));
 
@@ -310,6 +313,10 @@ export function TrainingContextCard({
 
       {savedCapacity ? (
         <WeeklyCoachCapacitySummary capacity={savedCapacity} title="Saved weekly capacity" />
+      ) : null}
+
+      {weekDraft?.adaptation && coachingPreferences.saved ? (
+        <WeeklyCoachAdaptationSummary adaptation={weekDraft.adaptation} />
       ) : null}
 
       <div className="flex flex-wrap gap-2">
@@ -449,10 +456,10 @@ export function TrainingContextCard({
       </details>
 
       <p className="text-xs text-muted-foreground">
-        Draft my week can fill up to two missing priorities without moving saved sessions. Other
-        schedule, support-dose and strength changes stay separate, and every proposal is applied
-        only after you accept it. Completed changes are checked against logged evidence; when that
-        evidence is unclear, one short check-in teaches the next recommendation.
+        Draft my week follows the current adaptive stance when filling missing priorities. The coach
+        can propose one reviewed frequency, dose or placement change at a time; your strength
+        programme stays separate. Completed changes are checked against logged evidence, and one
+        short check-in fills any important gap.
       </p>
     </Card>
   );

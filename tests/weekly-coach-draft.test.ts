@@ -249,3 +249,30 @@ test("the draft does not exceed the saved minute budget", () => {
   assert.equal(draft.capacity.plannedMinutes, 30);
   assert.equal(draft.additions.length, 0);
 });
+
+test("recovery pressure stops the draft from adding optional sessions", () => {
+  const draft = buildWeeklyCoachDraft({
+    plan,
+    programmeSessions: [programme(dates[0])],
+    scheduledPlans: [],
+    preferences,
+    candidates: [candidate("goal:handstand", "skill"), candidate("mobility:shoulder", "mobility")],
+    today: dates[0],
+    readiness: {
+      status: "reduce",
+      title: "Reduce support dose",
+      detail: "Pain or recovery pressure supports less optional work.",
+      evidence: ["Pain evidence: highest recorded score 5/10"],
+      maxPain: 5,
+      hardDays: 2,
+      effortCoverage: 80,
+      supportAdherence: 100,
+      supportDue: 4,
+      recoveryLevel: "deload",
+    },
+  });
+
+  assert.equal(draft.adaptation.mode, "protect");
+  assert.equal(draft.adaptation.additionLimit, 0);
+  assert.equal(draft.additions.length, 0);
+});
