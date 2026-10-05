@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildStrengthProgrammeFollowUpProposal,
   buildStrengthProgrammeReview,
+  strengthSetAdjustmentForWorkout,
   type ProgrammeStrengthWeekReview,
 } from "../src/lib/strength-programme-review.ts";
 import type {
@@ -190,6 +191,8 @@ test("lighter week adds only the reduction missing from each automatic exercise 
   assert.equal(review.exercises[0]?.proposedCombinedAdjustmentPercent, -2.5);
   assert.equal(review.exercises[1]?.proposedManualAdjustmentPercent, 0);
   assert.equal(review.exercises[1]?.proposedCombinedAdjustmentPercent, -5);
+  assert.equal(review.exercises[0]?.proposedSetAdjustment, 0);
+  assert.equal(review.sessions[0]?.movements[0]?.movement.setRows.length, 3);
   assert.equal(review.sessions[0]?.movements[0]?.movement.setRows[0]?.weight, "75");
 });
 
@@ -205,7 +208,8 @@ test("deload review caps combined intensity at five points lower without double 
   assert.equal(review.exercises[0]?.proposedCombinedAdjustmentPercent, -5);
   assert.equal(review.exercises[1]?.proposedManualAdjustmentPercent, 0);
   assert.equal(review.exercises[1]?.proposedCombinedAdjustmentPercent, -5);
-  assert.equal(review.sessions[0]?.movements[0]?.movement.setRows.length, 3);
+  assert.equal(review.exercises[0]?.proposedSetAdjustment, -1);
+  assert.equal(review.sessions[0]?.movements[0]?.movement.setRows.length, 2);
   assert.equal(review.sessions[0]?.movements[0]?.movement.setRows[0]?.weight, "70");
 });
 
@@ -215,13 +219,16 @@ test("review edits recalculate the exact preview before apply", () => {
     template,
     recovery: recovery("deload"),
     manualAdjustments: { "mapping-1": -2.5, "mapping-2": 2.5 },
+    setAdjustments: { "mapping-1": 0, "mapping-2": -1 },
   });
 
   assert.ok(review);
   assert.equal(review.exercises[0]?.proposedCombinedAdjustmentPercent, -2.5);
   assert.equal(review.exercises[1]?.proposedCombinedAdjustmentPercent, -2.5);
   assert.equal(review.sessions[0]?.movements[0]?.movement.setRows[0]?.weight, "75");
+  assert.equal(review.sessions[0]?.movements[0]?.movement.setRows.length, 3);
   assert.equal(review.sessions[0]?.movements[1]?.movement.setRows[0]?.weight, "57.5");
+  assert.equal(review.sessions[0]?.movements[1]?.movement.setRows.length, 2);
 });
 
 function appliedReview(
@@ -241,6 +248,7 @@ function appliedReview(
       automaticAdjustmentPercent: exercise.loadAdjustmentPercent,
       manualAdjustmentPercent: exercise.id === "mapping-1" ? -5 : 0,
       combinedAdjustmentPercent: -5,
+      setAdjustment: -1,
     })),
     appliedAt: "2026-10-12T08:00:00Z",
     outcomes: assignment.exercises.flatMap((exercise) =>
@@ -268,6 +276,8 @@ test("successful reviewed week restores temporary overrides when current recover
   assert.equal(proposal.previousReviewId, "review-1");
   assert.equal(proposal.manualAdjustments["mapping-1"], 0);
   assert.equal(proposal.manualAdjustments["mapping-2"], 0);
+  assert.equal(proposal.setAdjustments["mapping-1"], 0);
+  assert.equal(proposal.setAdjustments["mapping-2"], 0);
 });
 
 test("unclear reviewed outcomes hold the previous combined reduction", () => {
@@ -281,6 +291,8 @@ test("unclear reviewed outcomes hold the previous combined reduction", () => {
   assert.equal(proposal.recommendationKind, "hold");
   assert.equal(proposal.manualAdjustments["mapping-1"], -5);
   assert.equal(proposal.manualAdjustments["mapping-2"], 0);
+  assert.equal(proposal.setAdjustments["mapping-1"], -1);
+  assert.equal(proposal.setAdjustments["mapping-2"], -1);
 });
 
 test("pain or poor technique extends a conservative reduction", () => {
@@ -294,4 +306,15 @@ test("pain or poor technique extends a conservative reduction", () => {
   assert.equal(proposal.recommendationKind, "extend");
   assert.equal(proposal.manualAdjustments["mapping-1"], -5);
   assert.equal(proposal.manualAdjustments["mapping-2"], 0);
+  assert.equal(proposal.setAdjustments["mapping-1"], -1);
+  assert.equal(proposal.setAdjustments["mapping-2"], -1);
+});
+
+test("week-scoped set adjustments apply only to their reviewed workout range", () => {
+  const review = appliedReview(["progress", "progress"]);
+
+  assert.equal(strengthSetAdjustmentForWorkout(review, "mapping-1", 2), -1);
+  assert.equal(strengthSetAdjustmentForWorkout(review, "mapping-1", 3), -1);
+  assert.equal(strengthSetAdjustmentForWorkout(review, "mapping-1", 4), 0);
+  assert.equal(strengthSetAdjustmentForWorkout(review, "unknown", 2), 0);
 });

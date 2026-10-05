@@ -29,6 +29,11 @@ type WorkoutReviewRow = {
   decision: ProgrammeStrengthWeekOutcome["decision"];
 };
 
+export type ActiveProgrammeStrengthVolumeReview = Pick<
+  ProgrammeStrengthWeekReview,
+  "startWorkoutIndex" | "endWorkoutIndex" | "exercises"
+>;
+
 function numberOrNull(value: unknown) {
   if (value == null || String(value).trim() === "") return null;
   const number = Number(value);
@@ -45,6 +50,7 @@ function readExercises(value: unknown): ProgrammeStrengthWeekReviewExercise[] {
     const automaticAdjustmentPercent = numberOrNull(source.automatic_adjustment_percent);
     const manualAdjustmentPercent = numberOrNull(source.manual_adjustment_percent);
     const combinedAdjustmentPercent = numberOrNull(source.combined_adjustment_percent);
+    const setAdjustment = numberOrNull(source.set_adjustment) ?? 0;
     if (
       !assignmentExerciseId ||
       !exerciseName ||
@@ -61,9 +67,35 @@ function readExercises(value: unknown): ProgrammeStrengthWeekReviewExercise[] {
         automaticAdjustmentPercent,
         manualAdjustmentPercent,
         combinedAdjustmentPercent,
+        setAdjustment,
       },
     ];
   });
+}
+
+export async function getActiveProgrammeStrengthVolumeReviewClient(
+  assignmentId: string,
+  personId: string,
+): Promise<ActiveProgrammeStrengthVolumeReview | null> {
+  const rows = await supabasePublicSelect<StrengthWeekReviewRow>(
+    "programme_strength_week_reviews",
+    {
+      select: "start_workout_index,end_workout_index,applied_adjustments,applied_at",
+      program_assignment_id: `eq.${assignmentId}`,
+      person_id: `eq.${personId}`,
+      status: "eq.active",
+      order: "applied_at.desc",
+      limit: 1,
+    },
+  );
+  const row = rows[0];
+  return row
+    ? {
+        startWorkoutIndex: row.start_workout_index,
+        endWorkoutIndex: row.end_workout_index,
+        exercises: readExercises(row.applied_adjustments),
+      }
+    : null;
 }
 
 export async function getLatestProgrammeStrengthWeekReviewClient(
@@ -127,6 +159,7 @@ export async function applyProgrammeStrengthWeekReviewClient(input: {
     exerciseId: string;
     manualAdjustmentPercent: number;
     combinedAdjustmentPercent: number;
+    setAdjustment: number;
   }>;
 }) {
   return supabasePublicRpc<string>("apply_programme_strength_week_review", {
@@ -141,6 +174,7 @@ export async function applyProgrammeStrengthWeekReviewClient(input: {
       exercise_id: adjustment.exerciseId,
       manual_adjustment_percent: adjustment.manualAdjustmentPercent,
       combined_adjustment_percent: adjustment.combinedAdjustmentPercent,
+      set_adjustment: adjustment.setAdjustment,
     })),
     p_previous_review_id: input.previousReviewId,
   });

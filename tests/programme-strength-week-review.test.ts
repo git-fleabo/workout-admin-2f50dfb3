@@ -58,3 +58,17 @@ test("the public review RPC runs with caller privileges and the self-reference i
   assert.match(hardening, /programme_strength_week_reviews_insertable/i);
   assert.match(hardening, /programme_strength_week_reviews_updatable/i);
 });
+
+const volumeReview = readFileSync(
+  new URL(
+    "../supabase/migrations/20261005182137_add_week_scoped_strength_volume.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
+
+test("strength review volume is constrained and stored with the reviewed week", () => {
+  assert.match(volumeReview, /security invoker/i);
+  assert.match(volumeReview, /v_set_adjustment not in \(-1, 0\)/i);
+  assert.match(volumeReview, /'set_adjustment', v_set_adjustment/i);
+});

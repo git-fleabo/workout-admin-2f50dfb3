@@ -139,7 +139,7 @@ const recovery: WeeklyRecoveryRecommendation = {
 };
 
 describe("strength programme review", () => {
-  it("shows the exact prescription and applies only the reviewed load override", async () => {
+  it("shows the exact prescription and applies the reviewed load and set choices", async () => {
     const onSave = vi.fn(async () => undefined);
     const onApplyReview = vi.fn(async () => undefined);
     const user = userEvent.setup();
@@ -159,8 +159,12 @@ describe("strength programme review", () => {
     await user.click(screen.getByRole("button", { name: "Review exact week" }));
 
     expect(screen.getByText("Exact upcoming prescriptions")).toBeInTheDocument();
-    expect(screen.getByText(/3 × 5 reps @ 70 kg/)).toBeInTheDocument();
+    expect(screen.getByText(/2 × 5 reps @ 70 kg/)).toBeInTheDocument();
     expect(screen.getByText(/Rest 150–180s/)).toBeInTheDocument();
+
+    screen.getAllByRole("combobox")[1]!.focus();
+    await user.keyboard("{Enter}{ArrowUp}{Enter}");
+    expect(screen.getByText(/3 × 5 reps @ 70 kg/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Apply reviewed week" }));
     await waitFor(() =>
@@ -172,6 +176,7 @@ describe("strength programme review", () => {
             expect.objectContaining({
               assignmentExerciseId: "mapping-1",
               proposedManualAdjustmentPercent: -5,
+              proposedSetAdjustment: 0,
             }),
           ],
         }),
@@ -196,6 +201,7 @@ describe("strength programme review", () => {
           automaticAdjustmentPercent: 0,
           manualAdjustmentPercent: -5,
           combinedAdjustmentPercent: -5,
+          setAdjustment: -1,
         },
       ],
       appliedAt: "2026-10-05T08:00:00Z",

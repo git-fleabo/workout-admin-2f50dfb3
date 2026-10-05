@@ -645,6 +645,7 @@ function PlanPage() {
           exerciseId: exercise.assignmentExerciseId,
           manualAdjustmentPercent: exercise.proposedManualAdjustmentPercent,
           combinedAdjustmentPercent: exercise.proposedCombinedAdjustmentPercent,
+          setAdjustment: exercise.proposedSetAdjustment,
         })),
       }),
     onSuccess: async () => {

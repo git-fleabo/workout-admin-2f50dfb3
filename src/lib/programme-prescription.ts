@@ -37,6 +37,7 @@ export function buildProgrammeMovementPrescription(input: {
   exercise: ProgrammePrescriptionExercise;
   methodType: string | null;
   defaultSetChoice: string | null;
+  setAdjustment?: number;
 }): WorkoutPlanMovement | null {
   const method = getProgrammeMethodSetup(input.methodType);
   if (!method) return null;
@@ -46,7 +47,7 @@ export function buildProgrammeMovementPrescription(input: {
     maximum: input.entry.intensityMaxPercent ?? input.entry.intensityPercent,
     adjustment: input.exercise.loadAdjustmentPercent + input.exercise.manualAdjustmentPercent,
   });
-  const setRows = method.buildSetRows({
+  const baseSetRows = method.buildSetRows({
     minimumSets: input.entry.minSets,
     maximumSets: input.entry.maxSets,
     minimumReps: input.entry.minReps,
@@ -56,6 +57,8 @@ export function buildProgrammeMovementPrescription(input: {
     trainingMax: input.exercise.trainingMax,
     roundingIncrement: programmeWeightIncrementKg(input.exercise.focusArea),
   });
+  const setAdjustment = Math.max(-1, Math.min(0, Math.trunc(input.setAdjustment ?? 0)));
+  const setRows = baseSetRows.slice(0, Math.max(1, baseSetRows.length + setAdjustment));
   if (!setRows.length) return null;
 
   const restTime = input.entry.rest?.trim() || suggestedRestForIntensity(plannedIntensity);
@@ -82,6 +85,7 @@ export function buildProgrammeMovementPrescription(input: {
       input.entry.rpeCap != null ? `RPE cap ${input.entry.rpeCap}.` : null,
       restTime ? `Rest ${restTime} between sets.` : null,
       input.exercise.lastDecision ? `Last review: ${input.exercise.lastDecision}.` : null,
+      setAdjustment < 0 ? "Weekly review: one fewer working set." : null,
       input.entry.isOptional ? "Optional movement." : null,
       input.entry.notes,
     ]

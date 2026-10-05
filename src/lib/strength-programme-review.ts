@@ -17,6 +17,7 @@ export type StrengthProgrammeReviewExercise = {
   currentManualAdjustmentPercent: number;
   proposedManualAdjustmentPercent: number;
   proposedCombinedAdjustmentPercent: number;
+  proposedSetAdjustment: number;
   reason: string;
 };
 
@@ -56,6 +57,7 @@ export type ProgrammeStrengthWeekReviewExercise = {
   automaticAdjustmentPercent: number;
   manualAdjustmentPercent: number;
   combinedAdjustmentPercent: number;
+  setAdjustment: number;
 };
 
 export type ProgrammeStrengthWeekOutcome = {
@@ -80,6 +82,23 @@ export type ProgrammeStrengthWeekReview = {
   outcomes: ProgrammeStrengthWeekOutcome[];
 };
 
+export function strengthSetAdjustmentForWorkout(
+  review: Pick<
+    ProgrammeStrengthWeekReview,
+    "startWorkoutIndex" | "endWorkoutIndex" | "exercises"
+  > | null,
+  assignmentExerciseId: string,
+  workoutIndex: number,
+) {
+  if (!review || workoutIndex < review.startWorkoutIndex || workoutIndex > review.endWorkoutIndex) {
+    return 0;
+  }
+  return (
+    review.exercises.find((exercise) => exercise.assignmentExerciseId === assignmentExerciseId)
+      ?.setAdjustment ?? 0
+  );
+}
+
 export type StrengthProgrammeReviewProposal = {
   recommendationKind: StrengthProgrammeRecommendationKind;
   previousReviewId: string | null;
@@ -87,6 +106,7 @@ export type StrengthProgrammeReviewProposal = {
   detail: string;
   evidence: string[];
   manualAdjustments: Record<string, number>;
+  setAdjustments: Record<string, number>;
   exerciseReasons: Record<string, string>;
 };
 
@@ -152,6 +172,7 @@ export function buildStrengthProgrammeFollowUpProposal({
   if (assignment.currentWorkoutIndex <= appliedReview.endWorkoutIndex) return null;
 
   const manualAdjustments: Record<string, number> = {};
+  const setAdjustments: Record<string, number> = {};
   const exerciseReasons: Record<string, string> = {};
   const decisions: Array<"restore" | "hold" | "extend"> = [];
   const outcomeEvidence: string[] = [];
@@ -183,6 +204,7 @@ export function buildStrengthProgrammeFollowUpProposal({
     } else if (allProgressed && recovery.level === "normal") {
       decision = "restore";
       manualAdjustments[exercise.id] = 0;
+      setAdjustments[exercise.id] = 0;
       exerciseReasons[exercise.id] =
         "Every recorded exposure progressed and current recovery is stable, so remove the temporary weekly override.";
       decisions.push(decision);
@@ -201,6 +223,8 @@ export function buildStrengthProgrammeFollowUpProposal({
     manualAdjustments[exercise.id] = clampStrengthManualAdjustment(
       targetCombined - exercise.loadAdjustmentPercent,
     );
+    setAdjustments[exercise.id] =
+      decision === "extend" || recovery.level === "deload" ? -1 : appliedExercise.setAdjustment;
     const counts = outcomes.reduce(
       (result, outcome) => ({ ...result, [outcome.decision]: result[outcome.decision] + 1 }),
       { progress: 0, repeat: 0, regress: 0 },
@@ -243,6 +267,7 @@ export function buildStrengthProgrammeFollowUpProposal({
       `Current recovery: ${recovery.level}`,
     ],
     manualAdjustments,
+    setAdjustments,
     exerciseReasons,
   };
 }
@@ -252,7 +277,7 @@ function reviewCopy(recovery: WeeklyRecoveryRecommendation) {
     return {
       title: "Draft a lighter strength week",
       detail:
-        "The coach has capped each lift at five percentage points below its programmed intensity. Review every exact prescription before applying it.",
+        "The coach has capped each lift at five percentage points below its programmed intensity and removed one working set. Review every exact prescription before applying it.",
     };
   }
   if (recovery.level === "lighter") {
@@ -286,12 +311,14 @@ export function buildStrengthProgrammeReview({
   template,
   recovery,
   manualAdjustments,
+  setAdjustments,
   proposal,
 }: {
   assignment: ProgrammeAssignment;
   template: ProgrammeTemplate;
   recovery: WeeklyRecoveryRecommendation;
   manualAdjustments?: Record<string, number>;
+  setAdjustments?: Record<string, number>;
   proposal?: StrengthProgrammeReviewProposal | null;
 }): StrengthProgrammeReview | null {
   if (
@@ -327,6 +354,17 @@ export function buildStrengthProgrammeReview({
         proposal?.manualAdjustments[exercise.id] ??
         recommendation.manual,
     );
+    const proposedSetAdjustment = Math.max(
+      -1,
+      Math.min(
+        0,
+        Math.trunc(
+          setAdjustments?.[exercise.id] ??
+            proposal?.setAdjustments[exercise.id] ??
+            (recovery.level === "deload" ? -1 : 0),
+        ),
+      ),
+    );
     return [
       {
         assignmentExerciseId: exercise.id,
@@ -337,6 +375,7 @@ export function buildStrengthProgrammeReview({
         currentManualAdjustmentPercent: exercise.manualAdjustmentPercent,
         proposedManualAdjustmentPercent: proposedManual,
         proposedCombinedAdjustmentPercent: exercise.loadAdjustmentPercent + proposedManual,
+        proposedSetAdjustment,
         reason: proposal?.exerciseReasons[exercise.id] ?? recommendation.reason,
       },
     ];
@@ -365,6 +404,7 @@ export function buildStrengthProgrammeReview({
         },
         methodType: template.methodType,
         defaultSetChoice: template.defaultSetChoice,
+        setAdjustment: reviewExercise.proposedSetAdjustment,
       });
       return movement
         ? [
@@ -409,7 +449,8 @@ export function buildStrengthProgrammeReview({
     sessions,
     changedExerciseCount: exercises.filter(
       (exercise) =>
-        exercise.proposedManualAdjustmentPercent !== exercise.currentManualAdjustmentPercent,
+        exercise.proposedManualAdjustmentPercent !== exercise.currentManualAdjustmentPercent ||
+        exercise.proposedSetAdjustment !== 0,
     ).length,
   };
 }

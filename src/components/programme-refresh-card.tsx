@@ -39,6 +39,11 @@ const ADJUSTMENT_OPTIONS = [
   { value: 5, label: "Much heavier", detail: "5 percentage points higher" },
 ] as const;
 
+const SET_ADJUSTMENT_OPTIONS = [
+  { value: 0, label: "Keep programmed sets" },
+  { value: -1, label: "One fewer working set" },
+] as const;
+
 function points(value: number) {
   if (value === 0) return "No change";
   return `${value > 0 ? "+" : ""}${value} pts`;
@@ -92,6 +97,7 @@ export function ProgrammeRefreshCard({
   );
   const [mode, setMode] = useState<"coach" | "manual" | null>(null);
   const [draftAdjustments, setDraftAdjustments] = useState<Record<string, number>>({});
+  const [draftSetAdjustments, setDraftSetAdjustments] = useState<Record<string, number>>({});
   const [draftTrainingMaxes, setDraftTrainingMaxes] = useState<Record<string, string>>({});
   const awaitingAppliedWeek =
     appliedReview != null && assignment.currentWorkoutIndex <= appliedReview.endWorkoutIndex;
@@ -118,9 +124,10 @@ export function ProgrammeRefreshCard({
         template,
         recovery,
         manualAdjustments: mode === "coach" ? draftAdjustments : undefined,
+        setAdjustments: mode === "coach" ? draftSetAdjustments : undefined,
         proposal: followUpProposal,
       }),
-    [assignment, draftAdjustments, followUpProposal, mode, recovery, template],
+    [assignment, draftAdjustments, draftSetAdjustments, followUpProposal, mode, recovery, template],
   );
   const activeOverrides = exercises.filter((exercise) => exercise.manualAdjustmentPercent !== 0);
   const changed = exercises.flatMap((exercise) => {
@@ -142,8 +149,12 @@ export function ProgrammeRefreshCard({
     return !Number.isFinite(value) || value < 0.5 || value > 1000;
   });
 
-  const resetDrafts = (adjustments: Record<string, number>) => {
+  const resetDrafts = (
+    adjustments: Record<string, number>,
+    setAdjustments: Record<string, number> = {},
+  ) => {
     setDraftAdjustments(adjustments);
+    setDraftSetAdjustments(setAdjustments);
     setDraftTrainingMaxes(
       Object.fromEntries(exercises.map((exercise) => [exercise.id, String(exercise.trainingMax)])),
     );
@@ -156,6 +167,12 @@ export function ProgrammeRefreshCard({
         defaultCoachReview.exercises.map((exercise) => [
           exercise.assignmentExerciseId,
           exercise.proposedManualAdjustmentPercent,
+        ]),
+      ),
+      Object.fromEntries(
+        defaultCoachReview.exercises.map((exercise) => [
+          exercise.assignmentExerciseId,
+          exercise.proposedSetAdjustment,
         ]),
       ),
     );
@@ -289,6 +306,7 @@ export function ProgrammeRefreshCard({
                         }
                       >
                         Proposed {points(exercise.proposedCombinedAdjustmentPercent)}
+                        {exercise.proposedSetAdjustment < 0 ? " · one fewer set" : ""}
                       </Badge>
                     </div>
                     <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
@@ -311,6 +329,27 @@ export function ProgrammeRefreshCard({
                         {ADJUSTMENT_OPTIONS.map((option) => (
                           <SelectItem key={option.value} value={String(option.value)}>
                             {option.label} · {option.detail}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="mt-3 text-xs font-medium">Weekly set choice</p>
+                    <Select
+                      value={String(exercise.proposedSetAdjustment)}
+                      onValueChange={(value) =>
+                        setDraftSetAdjustments((current) => ({
+                          ...current,
+                          [exercise.assignmentExerciseId]: Number(value),
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SET_ADJUSTMENT_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={String(option.value)}>
+                            {option.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -350,9 +389,9 @@ export function ProgrammeRefreshCard({
               </div>
 
               <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.05] p-3 text-xs leading-relaxed text-muted-foreground">
-                Applying this review changes only the temporary load override used to calculate
-                unstarted sessions. Completed workouts, started drafts, dates, training maxes and
-                the programme template stay as they are.
+                Applying this review changes the temporary load override and set count used to
+                calculate this reviewed week. Completed workouts, started drafts, dates, training
+                maxes and the programme template stay as they are.
               </div>
             </div>
           ) : (
@@ -451,9 +490,10 @@ export function ProgrammeRefreshCard({
               {mode === "coach" ? "Apply reviewed week" : "Refresh upcoming sessions"}
             </Button>
           </DialogFooter>
-          {mode === "coach" && !changed.length ? (
+          {mode === "coach" && coachReview?.changedExerciseCount === 0 ? (
             <p className="text-center text-[11px] text-muted-foreground">
-              No load change is needed. Applying saves this reviewed week for the follow-up check.
+              No load or set change is needed. Applying saves this reviewed week for the follow-up
+              check.
             </p>
           ) : null}
         </DialogContent>

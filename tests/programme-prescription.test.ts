@@ -71,6 +71,27 @@ test("programme preview applies the latest adaptive review and explicit rest", (
   assert.match(movement.reason, /Last review: regress/);
 });
 
+test("a weekly volume review removes at most one working set and keeps one set minimum", () => {
+  const reduced = buildProgrammeMovementPrescription({
+    entry: baseEntry,
+    exercise: baseExercise,
+    methodType: "adaptive_strength_12_week",
+    defaultSetChoice: "minimum",
+    setAdjustment: -1,
+  });
+  const minimum = buildProgrammeMovementPrescription({
+    entry: { ...baseEntry, minSets: 1, maxSets: 1 },
+    exercise: baseExercise,
+    methodType: "adaptive_strength_12_week",
+    defaultSetChoice: "minimum",
+    setAdjustment: -1,
+  });
+
+  assert.equal(reduced?.setRows.length, 2);
+  assert.match(reduced?.reason ?? "", /one fewer working set/i);
+  assert.equal(minimum?.setRows.length, 1);
+});
+
 test("programme preview fails closed when an exact load cannot be calculated", () => {
   assert.equal(
     buildProgrammeMovementPrescription({

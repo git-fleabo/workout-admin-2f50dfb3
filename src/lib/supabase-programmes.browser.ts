@@ -24,6 +24,8 @@ import {
 import type { PlannerLocation, WorkoutPlanDraft, WorkoutPlanMovement } from "./workout-plan";
 import { listPersonalProgrammesClient } from "./supabase-personal-programmes.browser";
 import type { PersonalProgramme, PersonalProgrammeSession } from "./personal-programme";
+import { getActiveProgrammeStrengthVolumeReviewClient } from "./supabase-programme-strength-review.browser";
+import { strengthSetAdjustmentForWorkout } from "./strength-programme-review";
 
 export type ProgrammeTemplateEntry = {
   id: string;
@@ -510,6 +512,10 @@ export async function getUpcomingProgrammeScheduleClient(
     }
     const template = templateById.get(assignment.programId);
     if (!template) continue;
+    const activeVolumeReview =
+      template.methodType === "adaptive_strength_12_week"
+        ? await getActiveProgrammeStrengthVolumeReviewClient(assignment.id, currentPerson.id)
+        : null;
     const mappingBySlot = new Map(
       assignment.exercises.map((exercise) => [exercise.slotKey, exercise]),
     );
@@ -596,6 +602,11 @@ export async function getUpcomingProgrammeScheduleClient(
           exercise: mapping,
           methodType: template.methodType,
           defaultSetChoice: template.defaultSetChoice,
+          setAdjustment: strengthSetAdjustmentForWorkout(
+            activeVolumeReview,
+            mapping.id,
+            workout.sequenceIndex,
+          ),
         });
         return movement ? [movement] : [];
       });
@@ -794,6 +805,10 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
     const method = getProgrammeMethodSetup(template?.methodType ?? null);
     if (!template || !workout || !method || !template.methodType) continue;
     if (linkedKeys.has(`${assignment.id}:${workout.id}`)) continue;
+    const activeVolumeReview =
+      template.methodType === "adaptive_strength_12_week"
+        ? await getActiveProgrammeStrengthVolumeReviewClient(assignment.id, currentPerson.id)
+        : null;
 
     const personalSession = assignment.personalProgramme?.sessions.find(
       (session) => session.workoutId === workout.id,
@@ -878,6 +893,11 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
         exercise: mapping,
         methodType: template.methodType,
         defaultSetChoice: template.defaultSetChoice,
+        setAdjustment: strengthSetAdjustmentForWorkout(
+          activeVolumeReview,
+          mapping.id,
+          workout.sequenceIndex,
+        ),
       });
       if (!movement) {
         invalid = true;
