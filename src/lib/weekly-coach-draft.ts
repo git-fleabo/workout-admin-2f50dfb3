@@ -54,6 +54,7 @@ export type WeeklyCoachDraft = {
   preferences: CoachingPreferences;
   capacity: WeeklyCoachCapacity;
   adaptation: WeeklyCoachAdaptation;
+  sourceFingerprint: string;
 };
 
 function dayDistance(left: string, right: string) {
@@ -84,6 +85,93 @@ function priorityOrder(preferences: CoachingPreferences) {
       item.focusId !== "programme" &&
       items.findIndex((candidate) => candidate.focusId === item.focusId) === index,
   );
+}
+
+function sourceFingerprint({
+  plan,
+  programmeSessions,
+  scheduledPlans,
+  preferences,
+  candidates,
+  readiness,
+  history,
+  rollover,
+  adaptation,
+}: {
+  plan: WeeklyPlan;
+  programmeSessions: ProgrammeScheduleSession[];
+  scheduledPlans: SavedWorkoutPlan[];
+  preferences: CoachingPreferences;
+  candidates: WeeklyCoachDraftCandidate[];
+  readiness?: CoachReadinessSnapshot;
+  history: WeeklyCoachDecisionHistory[];
+  rollover: WeeklyCoachRollover | null;
+  adaptation: WeeklyCoachAdaptation;
+}) {
+  return JSON.stringify({
+    version: 1,
+    week: [plan.startDate, plan.endDate],
+    completed: plan.days.map((day) => [day.date, [...day.completedItems].sort()]),
+    programme: programmeSessions
+      .map((session) => [
+        session.assignmentId,
+        session.programWorkoutId,
+        session.date,
+        session.status,
+      ])
+      .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))),
+    scheduled: scheduledPlans
+      .map((saved) => [
+        saved.suggestedWorkoutId,
+        saved.suggestedFor,
+        saved.status,
+        saved.planKind,
+        saved.goalId,
+        saved.mobilityRunId,
+      ])
+      .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))),
+    preferences,
+    candidates: candidates
+      .map((candidate) => [
+        candidate.focusId,
+        candidate.sourceId,
+        candidate.planKind,
+        candidate.programAssignmentId,
+        candidate.estimatedMinutes,
+        candidate.draft,
+      ])
+      .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))),
+    readiness: readiness
+      ? [
+          readiness.status,
+          readiness.maxPain,
+          readiness.hardDays,
+          readiness.effortCoverage,
+          readiness.supportAdherence,
+          readiness.supportDue,
+          readiness.recoveryLevel,
+        ]
+      : null,
+    outcomes: history
+      .filter((item) => item.weekStart < plan.startDate && item.outcomeRating)
+      .map((item) => [
+        item.weekStart,
+        item.recommendationType,
+        item.subjectFocusId,
+        item.outcomeRating,
+      ])
+      .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)))
+      .slice(-12),
+    rollover: rollover
+      ? [rollover.status, rollover.adherencePercent, rollover.additionLimit]
+      : null,
+    adaptation: [
+      adaptation.mode,
+      adaptation.additionLimit,
+      adaptation.confidence,
+      adaptation.hasMixedEvidence,
+    ],
+  });
 }
 
 function chooseDate({
@@ -264,6 +352,17 @@ export function buildWeeklyCoachDraft({
     preferences,
     additions,
   });
+  const fingerprint = sourceFingerprint({
+    plan,
+    programmeSessions: programmeInWeek,
+    scheduledPlans: scheduledInWeek,
+    preferences,
+    candidates,
+    readiness,
+    history,
+    rollover,
+    adaptation,
+  });
 
   const summary = !preferences.saved
     ? "Save your coaching priorities before drafting the week."
@@ -287,6 +386,7 @@ export function buildWeeklyCoachDraft({
     preferences,
     capacity,
     adaptation,
+    sourceFingerprint: fingerprint,
   };
 }
 
@@ -294,7 +394,11 @@ export function validateWeeklyCoachDraftSelection(
   draft: WeeklyCoachDraft,
   additions: WeeklyCoachDraftAddition[],
 ) {
-  if (additions.length > 2) return "Choose no more than two additions.";
+  if (additions.length > draft.adaptation.additionLimit) {
+    return draft.adaptation.additionLimit === 0
+      ? "The current coach stance does not allow optional additions. Refresh the week and review the evidence."
+      : `Choose no more than ${draft.adaptation.additionLimit} addition${draft.adaptation.additionLimit === 1 ? "" : "s"} for the current coach stance.`;
+  }
   const focusIds = additions.map((addition) => addition.focusId);
   if (new Set(focusIds).size !== focusIds.length) return "Each priority can be added only once.";
   if (

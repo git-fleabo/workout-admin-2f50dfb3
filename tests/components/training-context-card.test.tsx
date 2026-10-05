@@ -414,6 +414,9 @@ describe("training context card", () => {
           rollover: null,
           adaptation: {
             mode: "build",
+            confidence: "high",
+            hasMixedEvidence: false,
+            guardrail: "Only one reviewed change can be applied before the next outcome check.",
             title: "Build within capacity",
             detail: "Recovery and adherence support one reviewed progression.",
             additionLimit: 2,
@@ -424,6 +427,7 @@ describe("training context card", () => {
             placementAction: "Use the lowest-pressure dates.",
             evidence: ["Recovery and adherence: ready", "Capacity: within limits"],
           },
+          sourceFingerprint: "test-week-revision",
           preferences: {
             primaryFocusId: "programme",
             secondaryFocusIds: ["goal:handstand"],

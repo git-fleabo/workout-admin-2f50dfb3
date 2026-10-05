@@ -7,6 +7,9 @@ export type WeeklyCoachAdaptationMode = "build" | "maintain" | "protect";
 
 export type WeeklyCoachAdaptation = {
   mode: WeeklyCoachAdaptationMode;
+  confidence: "low" | "medium" | "high";
+  hasMixedEvidence: boolean;
+  guardrail: string;
   title: string;
   detail: string;
   additionLimit: 0 | 1 | 2;
@@ -47,6 +50,20 @@ export function buildWeeklyCoachAdaptation({
 }): WeeklyCoachAdaptation {
   const outcomes = recentReviewedOutcomes(history, currentWeek);
   const latestOutcome = outcomes[0]?.outcomeRating ?? null;
+  const positiveSignals = [
+    readiness?.status === "ready",
+    capacity.status === "balanced",
+    rollover?.status === "steady",
+    latestOutcome === "right" || latestOutcome === "too_easy",
+  ].filter(Boolean).length;
+  const protectiveSignals = [
+    readiness?.status === "reduce",
+    capacity.status === "over_limit",
+    rollover?.status === "rebuild",
+    latestOutcome === "too_hard",
+  ].filter(Boolean).length;
+  const hasMixedEvidence = positiveSignals > 0 && protectiveSignals > 0;
+  const confidence = readiness ? (rollover && latestOutcome ? "high" : "medium") : "low";
   const strongProtect =
     readiness?.status === "reduce" ||
     capacity.status === "over_limit" ||
@@ -75,10 +92,22 @@ export function buildWeeklyCoachAdaptation({
     outcomeEvidence,
   ];
   if (rollover) evidence.push(`Last week: ${rollover.title}`);
+  if (hasMixedEvidence) {
+    evidence.push("Guardrail: protective evidence takes priority over progression evidence");
+  }
+
+  const guardrail = hasMixedEvidence
+    ? "The signals disagree, so the coach uses the more conservative action until the next review."
+    : confidence === "low"
+      ? "The coach will not progress dose until recovery evidence is available."
+      : "Only one reviewed change can be applied before the next outcome check.";
 
   if (mode === "protect") {
     return {
       mode,
+      confidence,
+      hasMixedEvidence,
+      guardrail,
       title: "Protect recovery this week",
       detail: strongProtect
         ? "The coach will reduce one optional demand before adding work. Your strength programme remains a separate review."
@@ -98,6 +127,9 @@ export function buildWeeklyCoachAdaptation({
   if (mode === "maintain") {
     return {
       mode,
+      confidence,
+      hasMixedEvidence,
+      guardrail,
       title: "Keep the week steady",
       detail:
         "The coach will preserve current support dose and make only a small placement or frequency change when the saved week needs it.",
@@ -112,6 +144,9 @@ export function buildWeeklyCoachAdaptation({
   }
   return {
     mode,
+    confidence,
+    hasMixedEvidence,
+    guardrail,
     title: "Build within capacity",
     detail:
       "Recovery, adherence and recent outcomes allow one proven progression while the full week stays inside your limits.",

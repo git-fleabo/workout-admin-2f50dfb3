@@ -276,3 +276,82 @@ test("recovery pressure stops the draft from adding optional sessions", () => {
   assert.equal(draft.adaptation.additionLimit, 0);
   assert.equal(draft.additions.length, 0);
 });
+
+test("the draft revision changes when the saved week or recovery evidence changes", () => {
+  const base = buildWeeklyCoachDraft({
+    plan,
+    programmeSessions: [programme(dates[0])],
+    scheduledPlans: [],
+    preferences,
+    candidates: [candidate("goal:handstand", "skill")],
+    today: dates[0],
+  });
+  const changedWeek = buildWeeklyCoachDraft({
+    plan,
+    programmeSessions: [programme(dates[0])],
+    scheduledPlans: [scheduled("climbing", dates[2], "climbing")],
+    preferences,
+    candidates: [candidate("goal:handstand", "skill")],
+    today: dates[0],
+  });
+  const changedRecovery = buildWeeklyCoachDraft({
+    plan,
+    programmeSessions: [programme(dates[0])],
+    scheduledPlans: [],
+    preferences,
+    candidates: [candidate("goal:handstand", "skill")],
+    today: dates[0],
+    readiness: {
+      status: "hold",
+      title: "Hold the current dose",
+      detail: "Evidence is unsettled.",
+      evidence: [],
+      maxPain: 1,
+      hardDays: 1,
+      effortCoverage: 50,
+      supportAdherence: 70,
+      supportDue: 4,
+      recoveryLevel: "normal",
+    },
+  });
+
+  assert.notEqual(base.sourceFingerprint, changedWeek.sourceFingerprint);
+  assert.notEqual(base.sourceFingerprint, changedRecovery.sourceFingerprint);
+});
+
+test("selection validation enforces the adaptive addition limit", () => {
+  const openDraft = buildWeeklyCoachDraft({
+    plan,
+    programmeSessions: [programme(dates[0])],
+    scheduledPlans: [],
+    preferences,
+    candidates: [candidate("goal:handstand", "skill"), candidate("mobility:shoulder", "mobility")],
+    today: dates[0],
+  });
+  const cautiousDraft = buildWeeklyCoachDraft({
+    plan,
+    programmeSessions: [programme(dates[0])],
+    scheduledPlans: [],
+    preferences,
+    candidates: [candidate("goal:handstand", "skill"), candidate("mobility:shoulder", "mobility")],
+    today: dates[0],
+    readiness: {
+      status: "hold",
+      title: "Hold the current dose",
+      detail: "Evidence is unsettled.",
+      evidence: [],
+      maxPain: 1,
+      hardDays: 1,
+      effortCoverage: 50,
+      supportAdherence: 70,
+      supportDue: 4,
+      recoveryLevel: "normal",
+    },
+  });
+
+  assert.equal(cautiousDraft.adaptation.additionLimit, 1);
+  assert.match(
+    validateWeeklyCoachDraftSelection(cautiousDraft, openDraft.additions) ?? "",
+    /no more than 1 addition/i,
+  );
+});

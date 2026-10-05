@@ -33,7 +33,8 @@ export function WeeklyCoachAdaptationSummary({
             ? "Protect"
             : adaptation.mode === "build"
               ? "Build"
-              : "Maintain"}
+              : "Maintain"}{" "}
+          · {adaptation.confidence} confidence
         </Badge>
       </div>
 
@@ -57,6 +58,10 @@ export function WeeklyCoachAdaptationSummary({
           <p className="mt-1 text-xs text-muted-foreground">{adaptation.placementAction}</p>
         </div>
       </div>
+
+      <p className="rounded-lg border border-border/70 bg-background/25 p-2.5 text-xs text-muted-foreground">
+        {adaptation.guardrail}
+      </p>
 
       <div className="flex flex-wrap gap-1.5">
         {adaptation.evidence.map((item) => (

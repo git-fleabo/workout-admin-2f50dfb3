@@ -493,6 +493,9 @@ test("a protective stance can reduce optional frequency before the day limit is 
     scheduledPlans: [maintenance],
     adaptation: {
       mode: "protect",
+      confidence: "high",
+      hasMixedEvidence: false,
+      guardrail: "One reviewed change at a time.",
       title: "Protect recovery this week",
       detail: "Recovery pressure supports one optional reduction.",
       additionLimit: 0,
@@ -548,6 +551,9 @@ test("a maintain stance does not offer a support-dose progression", () => {
     ],
     adaptation: {
       mode: "maintain",
+      confidence: "medium",
+      hasMixedEvidence: false,
+      guardrail: "One reviewed change at a time.",
       title: "Keep the week steady",
       detail: "Evidence is still settling.",
       additionLimit: 1,

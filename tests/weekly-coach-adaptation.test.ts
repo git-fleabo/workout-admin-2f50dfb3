@@ -142,3 +142,27 @@ test("a low-completion rebuild keeps one manageable supporting action", () => {
   assert.equal(adaptation.preferOptionalReduction, false);
   assert.match(adaptation.frequencyAction, /one supporting session/i);
 });
+
+test("contradictory progression and recovery signals resolve conservatively", () => {
+  const adaptation = buildWeeklyCoachAdaptation({
+    readiness: readiness("reduce"),
+    capacity: capacity("balanced"),
+    currentWeek: "2026-10-05",
+    history: [
+      {
+        weekStart: "2026-09-28",
+        recommendationType: "adjust_support_dose",
+        subjectFocusId: "goal:handstand",
+        decision: "accepted",
+        proposedDate: "2026-09-30",
+        chosenDate: null,
+        outcomeRating: "too_easy",
+      },
+    ],
+  });
+
+  assert.equal(adaptation.mode, "protect");
+  assert.equal(adaptation.hasMixedEvidence, true);
+  assert.match(adaptation.guardrail, /more conservative action/i);
+  assert.ok(adaptation.evidence.some((item) => item.includes("protective evidence")));
+});

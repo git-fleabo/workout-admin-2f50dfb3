@@ -1353,22 +1353,130 @@ function PlanPage() {
       const validationError = validateWeeklyCoachDraftSelection(weeklyCoachDraft, additions);
       if (validationError) throw new Error(validationError);
       if (!additions.length) throw new Error("Choose at least one session to add.");
-      const candidateByFocus = new Map(
-        weeklyCoachCandidates.map((candidate) => [candidate.focusId, candidate]),
+
+      const today = todayISO();
+      const [freshHistory, freshLoad, freshProgramme, freshScheduled, freshPreferences] =
+        await Promise.all([
+          getRecentLogsClient(300),
+          getWeeklyLoadHistoryClient(90),
+          getUpcomingProgrammeScheduleClient(weeklyPlan.startDate, weeklyPlan.endDate, ["active"], {
+            includeOverdueCurrent: true,
+          }),
+          getScheduledWorkoutPlansClient(weeklyPlan.startDate, weeklyPlan.endDate),
+          getCoachingPreferencesClient(),
+        ]);
+      const scopes = new Map(
+        (library.data?.exercises ?? []).map((exercise) => [
+          exercise.name.toLowerCase(),
+          exercise.locationScope,
+        ]),
       );
+      const freshWeeklyPlan = buildWeeklyPlan(
+        {
+          home: freshHistory.recent.filter((log) => {
+            const scope = scopes.get(log.exercise.toLowerCase());
+            return scope === "home" || scope === "both";
+          }),
+          gym: freshHistory.recent.filter((log) => {
+            const scope = scopes.get(log.exercise.toLowerCase());
+            return scope === "gym" || scope === "both";
+          }),
+        },
+        today,
+        freshLoad,
+      );
+      if (
+        freshWeeklyPlan.startDate !== weeklyCoachDraft.startDate ||
+        freshWeeklyPlan.endDate !== weeklyCoachDraft.endDate
+      ) {
+        throw new Error("The training week has changed. Refresh Plan and review the new week.");
+      }
+      const freshAssignmentIds = Array.from(
+        new Set([
+          ...freshScheduled
+            .filter((plan) => plan.programAssignmentId && !plan.programWorkoutId)
+            .map((plan) => plan.programAssignmentId as string),
+          ...freshProgramme.map((session) => session.assignmentId),
+        ]),
+      ).sort();
+      const [freshSupportHistory, freshRolloverReview, freshDecisions] = await Promise.all([
+        Promise.all(
+          freshAssignmentIds.map((assignmentId) =>
+            getProgrammeSupportBlockHistoryClient(assignmentId),
+          ),
+        ).then((groups) => groups.flat()),
+        getWeeklyReviewClient(moveWeeklyReviewWeek(freshWeeklyPlan.startDate, -1)),
+        listCoachingRecommendationDecisionsClient(freshWeeklyPlan.startDate),
+      ]);
+      const freshReadiness = buildCoachReadinessSnapshot({
+        logs: freshHistory.recent,
+        loadHistory: freshLoad,
+        plan: freshWeeklyPlan,
+        adjustments: weeklyAdjustments,
+        supportPlans: freshSupportHistory,
+        today,
+      });
+      const freshDecisionHistory = buildCoachOutcomeState({
+        decisions: freshDecisions,
+        logs: freshHistory.recent,
+        today,
+      }).history.filter((decision) => decision.weekStart < freshWeeklyPlan.startDate);
+      const freshRollover = freshRolloverReview
+        ? buildWeeklyCoachRollover({
+            review: freshRolloverReview,
+            preferences: freshPreferences,
+          })
+        : null;
+      const freshDraft = buildWeeklyCoachDraft({
+        plan: freshWeeklyPlan,
+        programmeSessions: freshProgramme,
+        scheduledPlans: freshScheduled,
+        preferences: freshPreferences,
+        candidates: weeklyCoachCandidates,
+        today,
+        rollover: freshRollover,
+        readiness: freshReadiness,
+        history: freshDecisionHistory,
+      });
+      if (freshDraft.sourceFingerprint !== weeklyCoachDraft.sourceFingerprint) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["workout-planner-history"] }),
+          queryClient.invalidateQueries({ queryKey: ["weekly-load-history"] }),
+          queryClient.invalidateQueries({ queryKey: ["programme-schedule"] }),
+          queryClient.invalidateQueries({ queryKey: ["scheduled-workout-plans"] }),
+          queryClient.invalidateQueries({ queryKey: ["coaching-preferences"] }),
+          queryClient.invalidateQueries({ queryKey: ["coaching-support-evidence"] }),
+          queryClient.invalidateQueries({ queryKey: ["coaching-recommendation-decisions"] }),
+          queryClient.invalidateQueries({ queryKey: ["weekly-coach-rollover"] }),
+        ]);
+        throw new Error(
+          "Your saved week or coaching evidence changed while this draft was open. Review the refreshed draft before applying it.",
+        );
+      }
+      const refreshedAdditions = additions.map((selected) => {
+        const current = freshDraft.additions.find((item) => item.focusId === selected.focusId);
+        if (!current) {
+          throw new Error(`${selected.title} is no longer available in the refreshed draft.`);
+        }
+        return { ...current, date: selected.date };
+      });
+      const freshValidationError = validateWeeklyCoachDraftSelection(
+        freshDraft,
+        refreshedAdditions,
+      );
+      if (freshValidationError) throw new Error(freshValidationError);
+
       const insertedIds: string[] = [];
       try {
-        for (const addition of additions) {
-          const candidate = candidateByFocus.get(addition.focusId);
-          if (!candidate) throw new Error(`${addition.title} is no longer available.`);
+        for (const addition of refreshedAdditions) {
           const saved = await saveWorkoutPlanClient({
-            draft: candidate.draft,
+            draft: addition.draft,
             readiness: "normal",
             status: "pending",
             suggestedFor: addition.date,
-            planKind: candidate.planKind,
-            programAssignmentId: candidate.programAssignmentId ?? undefined,
-            goalId: candidate.goalId ?? undefined,
+            planKind: addition.planKind,
+            programAssignmentId: addition.programAssignmentId ?? undefined,
+            goalId: addition.goalId ?? undefined,
             replaceExisting: false,
           });
           insertedIds.push(saved.suggestedWorkoutId);
