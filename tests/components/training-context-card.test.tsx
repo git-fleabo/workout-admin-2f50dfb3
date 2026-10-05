@@ -92,11 +92,18 @@ describe("training context card", () => {
             planKind: "skill",
           },
         ]}
+        strengthReview={<div>Strength week review</div>}
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Training context" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Weekly coach review" })).toBeInTheDocument();
     expect(screen.getByText("Read only")).toBeInTheDocument();
+    expect(screen.getByText("Exact upcoming week")).toBeInTheDocument();
+    expect(screen.getByText("2 saved sessions")).toBeInTheDocument();
+    expect(screen.getByText("Strength block · Session A")).toBeInTheDocument();
+    expect(screen.getByText("Handstand practice")).toBeInTheDocument();
+    expect(screen.getByText("Strength week review")).toBeInTheDocument();
+    expect(screen.getByText("1 available")).toBeInTheDocument();
     expect(screen.getByText(/Strength 1/)).toBeInTheDocument();
     expect(screen.getByText(/Skill 1/)).toBeInTheDocument();
     expect(screen.getByText(/Skill practice is attached to strength days/)).toBeInTheDocument();
@@ -180,10 +187,13 @@ describe("training context card", () => {
           saved: true,
         }}
         onRecommendationDecision={onDecision}
+        strengthReview={<div>Strength review available</div>}
       />,
     );
 
     expect(screen.getByText("Coach suggestion")).toBeInTheDocument();
+    expect(screen.getByText("Strength review available")).toBeInTheDocument();
+    expect(screen.getByText("2 available")).toBeInTheDocument();
     expect(screen.getByText(/Move Climbing session to Tuesday/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Not this week" }));
     await waitFor(() =>

@@ -1459,6 +1459,32 @@ function PlanPage() {
                 }
               : undefined
           }
+          strengthReview={
+            programmeRefresh.error || programmeStrengthReview.error ? (
+              <div className="rounded-lg border border-destructive/35 p-3 text-sm text-destructive">
+                Upcoming programme adjustments could not be loaded.
+              </div>
+            ) : programmeRefresh.data ? (
+              <ProgrammeRefreshCard
+                assignment={programmeRefresh.data.assignment}
+                template={programmeRefresh.data.template}
+                recovery={strengthRecovery}
+                appliedReview={programmeStrengthReview.data ?? null}
+                saving={
+                  programmeRefreshMutation.isPending || programmeStrengthReviewMutation.isPending
+                }
+                onSave={async (updates) => {
+                  await programmeRefreshMutation.mutateAsync({
+                    assignmentId: programmeRefresh.data!.assignment.id,
+                    updates,
+                  });
+                }}
+                onApplyReview={async (review) => {
+                  await programmeStrengthReviewMutation.mutateAsync(review);
+                }}
+              />
+            ) : null
+          }
         />
       ) : null}
       <MobilityPracticeOverview />
@@ -1496,31 +1522,6 @@ function PlanPage() {
           onStartScheduledPlan={(plan) => void startScheduledPlan(plan)}
           onMoveScheduledPlan={(id, date) => moveScheduledPlan.mutate({ id, date })}
           onRemoveScheduledPlan={(id) => removeScheduledPlan.mutate(id)}
-        />
-      ) : null}
-
-      {programmeRefresh.error || programmeStrengthReview.error ? (
-        <Card className="border-destructive/35">
-          <CardContent className="p-4 text-sm text-destructive">
-            Upcoming programme adjustments could not be loaded.
-          </CardContent>
-        </Card>
-      ) : programmeRefresh.data ? (
-        <ProgrammeRefreshCard
-          assignment={programmeRefresh.data.assignment}
-          template={programmeRefresh.data.template}
-          recovery={strengthRecovery}
-          appliedReview={programmeStrengthReview.data ?? null}
-          saving={programmeRefreshMutation.isPending || programmeStrengthReviewMutation.isPending}
-          onSave={async (updates) => {
-            await programmeRefreshMutation.mutateAsync({
-              assignmentId: programmeRefresh.data!.assignment.id,
-              updates,
-            });
-          }}
-          onApplyReview={async (review) => {
-            await programmeStrengthReviewMutation.mutateAsync(review);
-          }}
         />
       ) : null}
 

@@ -1,6 +1,7 @@
 import {
   Activity,
   BrainCircuit,
+  CalendarDays,
   Dumbbell,
   HeartPulse,
   Info,
@@ -8,7 +9,7 @@ import {
   Sparkles,
   TriangleAlert,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 
 import { CoachSetupDialog } from "@/components/coach-setup-dialog";
 import { CoachOutcomeReviewCard } from "@/components/coach-outcome-review-card";
@@ -80,6 +81,15 @@ function SignalIcon({ tone }: { tone: TrainingContextSignal["tone"] }) {
   return <Info className="mt-0.5 h-4 w-4 text-sky-300" />;
 }
 
+function dayLabel(date: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T00:00:00Z`));
+}
+
 export function TrainingContextCard({
   plan,
   programmeSessions,
@@ -104,6 +114,7 @@ export function TrainingContextCard({
   outcomeReview,
   outcomePending = false,
   onOutcomeReview,
+  strengthReview,
 }: {
   plan: WeeklyPlan;
   programmeSessions: ProgrammeScheduleSession[];
@@ -126,6 +137,7 @@ export function TrainingContextCard({
   outcomeReview?: CoachOutcomeReview | null;
   outcomePending?: boolean;
   onOutcomeReview?: (decisionId: string, rating: CoachOutcomeRating) => Promise<void>;
+  strengthReview?: ReactNode;
 }) {
   const focusLabels = useMemo(
     () => Object.fromEntries(focusOptions.map((option) => [option.id, option.label])),
@@ -167,6 +179,21 @@ export function TrainingContextCard({
     ],
   );
   const reviewedOutcomeCount = recommendationHistory.filter((item) => item.outcomeRating).length;
+  const reviewDays = plan.days.map((day) => ({
+    date: day.date,
+    sessions: context.sessions.filter((session) => session.date === day.date),
+  }));
+  const reviewItemCount =
+    Number(Boolean(strengthReview)) + Number(Boolean(outcomeReview ?? recommendation));
+
+  const priorityLabel = (focusId: string) => {
+    if (!coachingPreferences.saved) return focusId === "programme" ? "Programme" : null;
+    if (focusId === coachingPreferences.primaryFocusId) return "Primary";
+    if (coachingPreferences.secondaryFocusIds.includes(focusId)) return "Supporting";
+    if (coachingPreferences.maintenanceFocusIds.includes(focusId)) return "Maintenance";
+    if (focusId === "programme") return "Programme";
+    return null;
+  };
 
   return (
     <Card className="space-y-4 border-blue-400/25 bg-blue-400/[0.04] p-4">
@@ -174,15 +201,15 @@ export function TrainingContextCard({
         <div>
           <div className="flex items-center gap-2">
             <BrainCircuit className="h-4 w-4 text-blue-300" />
-            <h2 className="font-semibold">Training context</h2>
+            <h2 className="font-semibold">Weekly coach review</h2>
             <Badge variant="outline">
               {coachingPreferences.saved ? "Coach active" : "Read only"}
             </Badge>
           </div>
           <p className="mt-1 text-sm font-medium">{context.headline}</p>
           <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
-            One view of booked strength, climbing, conditioning, skills and recovery. It explains
-            the current week without changing your programme.
+            Review the complete saved week and every proposed coaching change before applying
+            anything.
           </p>
         </div>
         <div className="flex flex-col items-end gap-2 text-right text-xs text-muted-foreground">
@@ -201,6 +228,57 @@ export function TrainingContextCard({
             />
           ) : null}
         </div>
+      </div>
+
+      <div className="space-y-2 rounded-xl border border-border bg-background/20 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <CalendarDays className="h-4 w-4 text-blue-300" />
+            <p className="text-sm font-semibold">Exact upcoming week</p>
+          </div>
+          <Badge variant="outline">
+            {context.sessions.length} saved session{context.sessions.length === 1 ? "" : "s"}
+          </Badge>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {reviewDays.map((day) => (
+            <div key={day.date} className="rounded-lg border border-border/70 p-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {dayLabel(day.date)}
+              </p>
+              {day.sessions.length ? (
+                <div className="mt-2 space-y-2">
+                  {day.sessions.map((session) => {
+                    const view = KIND_VIEW[session.kind];
+                    const Icon = view.icon;
+                    const priority = priorityLabel(session.focusId);
+                    return (
+                      <div key={session.id}>
+                        <p className="text-xs font-medium leading-snug">{session.label}</p>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          <Badge variant="outline" className={view.className}>
+                            <Icon className="mr-1 h-3 w-3" /> {view.label}
+                          </Badge>
+                          {priority ? <Badge variant="secondary">{priority}</Badge> : null}
+                          {session.completed ? <Badge variant="secondary">Done</Badge> : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="mt-2 text-xs text-muted-foreground">Open</p>
+              )}
+            </div>
+          ))}
+        </div>
+        {context.expectations.length ? (
+          <p className="text-[11px] text-muted-foreground">
+            {context.expectations.length} learned expectation
+            {context.expectations.length === 1 ? " is" : "s are"} excluded from this exact view
+            until you save a session.
+          </p>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -244,91 +322,106 @@ export function TrainingContextCard({
         ) : null}
       </div>
 
-      {context.signals.length ? (
-        <div className="grid gap-2 sm:grid-cols-2">
-          {context.signals.map((signal) => (
-            <div
-              key={`${signal.title}:${signal.detail}`}
-              className="flex gap-2 rounded-lg border border-border p-3"
-            >
-              <SignalIcon tone={signal.tone} />
-              <div>
-                <p className="text-sm font-medium">{signal.title}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{signal.detail}</p>
-              </div>
-            </div>
-          ))}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-semibold">Changes to review</p>
+          <Badge variant="outline">
+            {reviewItemCount ? `${reviewItemCount} available` : "No change currently needed"}
+          </Badge>
         </div>
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          Save sessions or adjust the weekly plan to give the coach more concrete context.
-        </p>
-      )}
 
-      {readiness ? (
-        <div className="space-y-3 rounded-xl border border-cyan-400/25 bg-cyan-400/[0.04] p-4">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <HeartPulse className="h-4 w-4 text-cyan-300" />
-                <p className="text-sm font-semibold">Readiness evidence</p>
-              </div>
-              <p className="mt-2 text-sm font-medium">{readiness.title}</p>
-              <p className="mt-1 max-w-2xl text-xs text-muted-foreground">{readiness.detail}</p>
-            </div>
-            <Badge variant="outline" className="border-cyan-400/30 text-cyan-200">
-              {readiness.status === "ready"
-                ? "Ready to review"
-                : readiness.status === "reduce"
-                  ? "Reduce"
-                  : readiness.status === "hold"
-                    ? "Hold"
-                    : "Building evidence"}
-            </Badge>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {readiness.evidence.map((item) => (
-              <p
-                key={item}
-                className="rounded-lg border border-border/70 bg-background/25 p-2.5 text-xs text-muted-foreground"
-              >
-                {item}
-              </p>
-            ))}
-          </div>
-        </div>
-      ) : null}
+        {strengthReview}
 
-      {outcomeReview && onOutcomeReview ? (
-        <CoachOutcomeReviewCard
-          review={outcomeReview}
-          pending={outcomePending}
-          onReview={onOutcomeReview}
-        />
-      ) : coachingPreferences.saved && onRecommendationDecision ? (
-        recommendation ? (
-          <WeeklyCoachRecommendationCard
-            recommendation={recommendation}
-            pending={recommendationPending}
-            onDecision={(decision, chosenDate) =>
-              onRecommendationDecision(recommendation, decision, chosenDate)
-            }
+        {outcomeReview && onOutcomeReview ? (
+          <CoachOutcomeReviewCard
+            review={outcomeReview}
+            pending={outcomePending}
+            onReview={onOutcomeReview}
           />
-        ) : (
-          <div className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-            {decidedRecommendationKeys.length
-              ? "Your coaching decision for this week is recorded."
-              : "No safe session move is suggested from the current saved schedule."}
-          </div>
-        )
-      ) : null}
+        ) : coachingPreferences.saved && onRecommendationDecision ? (
+          recommendation ? (
+            <WeeklyCoachRecommendationCard
+              recommendation={recommendation}
+              pending={recommendationPending}
+              onDecision={(decision, chosenDate) =>
+                onRecommendationDecision(recommendation, decision, chosenDate)
+              }
+            />
+          ) : (
+            <div className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+              {decidedRecommendationKeys.length
+                ? "Your schedule or support decision for this week is recorded."
+                : "No safe schedule or support change is suggested from the current saved week."}
+            </div>
+          )
+        ) : null}
+      </div>
+
+      <details className="rounded-xl border border-border bg-background/15 p-3">
+        <summary className="cursor-pointer text-sm font-medium">Why the coach thinks this</summary>
+        <div className="mt-3 space-y-3">
+          {context.signals.length ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {context.signals.map((signal) => (
+                <div
+                  key={`${signal.title}:${signal.detail}`}
+                  className="flex gap-2 rounded-lg border border-border p-3"
+                >
+                  <SignalIcon tone={signal.tone} />
+                  <div>
+                    <p className="text-sm font-medium">{signal.title}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{signal.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Save sessions or adjust the weekly plan to give the coach more concrete context.
+            </p>
+          )}
+
+          {readiness ? (
+            <div className="space-y-3 rounded-xl border border-cyan-400/25 bg-cyan-400/[0.04] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <HeartPulse className="h-4 w-4 text-cyan-300" />
+                    <p className="text-sm font-semibold">Readiness evidence</p>
+                  </div>
+                  <p className="mt-2 text-sm font-medium">{readiness.title}</p>
+                  <p className="mt-1 max-w-2xl text-xs text-muted-foreground">{readiness.detail}</p>
+                </div>
+                <Badge variant="outline" className="border-cyan-400/30 text-cyan-200">
+                  {readiness.status === "ready"
+                    ? "Ready to review"
+                    : readiness.status === "reduce"
+                      ? "Reduce"
+                      : readiness.status === "hold"
+                        ? "Hold"
+                        : "Building evidence"}
+                </Badge>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {readiness.evidence.map((item) => (
+                  <p
+                    key={item}
+                    className="rounded-lg border border-border/70 bg-background/25 p-2.5 text-xs text-muted-foreground"
+                  >
+                    {item}
+                  </p>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </details>
 
       <p className="text-xs text-muted-foreground">
-        The coach checks this week against your saved priorities and capacity. It can propose one
-        reviewed schedule change or maintenance reduction, but applies it only after you accept.
-        Readiness can also hold, progress, or reduce an upcoming support dose while leaving the
-        strength programme unchanged. Completed changes are checked against logged evidence; when
-        that evidence is unclear, one short check-in teaches the next recommendation.
+        The coach can surface one bounded schedule or support change alongside one reviewed strength
+        change. Each proposal is applied separately only after you accept it. Completed changes are
+        checked against logged evidence; when that evidence is unclear, one short check-in teaches
+        the next recommendation.
       </p>
     </Card>
   );
