@@ -21,7 +21,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatUKDate } from "@/lib/date";
-import { buildStrengthProgrammeReview } from "@/lib/strength-programme-review";
+import {
+  buildStrengthProgrammeFollowUpProposal,
+  buildStrengthProgrammeReview,
+  type ProgrammeStrengthWeekReview,
+  type StrengthProgrammeReview,
+} from "@/lib/strength-programme-review";
 import type { ProgrammeAssignment, ProgrammeTemplate } from "@/lib/supabase-programmes.browser";
 import type { WeeklyRecoveryRecommendation } from "@/lib/weekly-recovery";
 import type { WorkoutPlanMovement } from "@/lib/workout-plan";
@@ -61,12 +66,15 @@ export function ProgrammeRefreshCard({
   assignment,
   template,
   recovery,
+  appliedReview,
   saving,
   onSave,
+  onApplyReview,
 }: {
   assignment: ProgrammeAssignment;
   template: ProgrammeTemplate;
   recovery: WeeklyRecoveryRecommendation;
+  appliedReview: ProgrammeStrengthWeekReview | null;
   saving: boolean;
   onSave: (
     updates: Array<{
@@ -75,6 +83,7 @@ export function ProgrammeRefreshCard({
       manualAdjustmentPercent: number;
     }>,
   ) => Promise<void>;
+  onApplyReview: (review: StrengthProgrammeReview) => Promise<void>;
 }) {
   const exercises = useMemo(
     () =>
@@ -84,10 +93,24 @@ export function ProgrammeRefreshCard({
   const [mode, setMode] = useState<"coach" | "manual" | null>(null);
   const [draftAdjustments, setDraftAdjustments] = useState<Record<string, number>>({});
   const [draftTrainingMaxes, setDraftTrainingMaxes] = useState<Record<string, string>>({});
-  const defaultCoachReview = useMemo(
-    () => buildStrengthProgrammeReview({ assignment, template, recovery }),
-    [assignment, recovery, template],
+  const awaitingAppliedWeek =
+    appliedReview != null && assignment.currentWorkoutIndex <= appliedReview.endWorkoutIndex;
+  const followUpProposal = useMemo(
+    () =>
+      appliedReview
+        ? buildStrengthProgrammeFollowUpProposal({ assignment, recovery, appliedReview })
+        : null,
+    [appliedReview, assignment, recovery],
   );
+  const defaultCoachReview = useMemo(() => {
+    if (awaitingAppliedWeek) return null;
+    return buildStrengthProgrammeReview({
+      assignment,
+      template,
+      recovery,
+      proposal: followUpProposal,
+    });
+  }, [assignment, awaitingAppliedWeek, followUpProposal, recovery, template]);
   const coachReview = useMemo(
     () =>
       buildStrengthProgrammeReview({
@@ -95,8 +118,9 @@ export function ProgrammeRefreshCard({
         template,
         recovery,
         manualAdjustments: mode === "coach" ? draftAdjustments : undefined,
+        proposal: followUpProposal,
       }),
-    [assignment, draftAdjustments, mode, recovery, template],
+    [assignment, draftAdjustments, followUpProposal, mode, recovery, template],
   );
   const activeOverrides = exercises.filter((exercise) => exercise.manualAdjustmentPercent !== 0);
   const changed = exercises.flatMap((exercise) => {
@@ -149,7 +173,8 @@ export function ProgrammeRefreshCard({
 
   const save = async () => {
     try {
-      await onSave(changed);
+      if (mode === "coach" && coachReview) await onApplyReview(coachReview);
+      else await onSave(changed);
       setMode(null);
     } catch {
       // The parent mutation owns the user-facing error toast; keep the dialog open for correction.
@@ -167,9 +192,15 @@ export function ProgrammeRefreshCard({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-sm font-semibold">
-                  {defaultCoachReview?.title ?? "Refresh upcoming sessions"}
+                  {awaitingAppliedWeek
+                    ? "Strength review applied"
+                    : (defaultCoachReview?.title ?? "Refresh upcoming sessions")}
                 </p>
-                {defaultCoachReview?.programmeWeek ? (
+                {awaitingAppliedWeek ? (
+                  <Badge variant="secondary" className="text-[10px]">
+                    Awaiting results
+                  </Badge>
+                ) : defaultCoachReview?.programmeWeek ? (
                   <Badge variant="outline" className="text-[10px]">
                     Programme week {defaultCoachReview.programmeWeek}
                   </Badge>
@@ -180,8 +211,10 @@ export function ProgrammeRefreshCard({
                 )}
               </div>
               <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">
-                {defaultCoachReview?.detail ??
-                  "Amend a training max or review a lift after a week that felt too hard or too easy. Every unstarted programme session is recalculated from the saved values."}
+                {awaitingAppliedWeek
+                  ? `Complete programme week ${appliedReview?.programmeWeek ?? "review"}. The coach will compare the recorded lift outcomes before drafting the following week.`
+                  : (defaultCoachReview?.detail ??
+                    "Amend a training max or review a lift after a week that felt too hard or too easy. Every unstarted programme session is recalculated from the saved values.")}
               </p>
               {activeOverrides.length ? (
                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -227,7 +260,7 @@ export function ProgrammeRefreshCard({
               <div className="rounded-lg border border-cyan-400/20 bg-cyan-400/[0.05] p-3">
                 <p className="text-xs font-medium">Why this draft</p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  {recovery.detail}
+                  {coachReview.detail}
                 </p>
                 <ul className="mt-2 space-y-1 text-[11px] text-muted-foreground">
                   {coachReview.evidence.map((item) => (
@@ -405,14 +438,22 @@ export function ProgrammeRefreshCard({
             <Button variant="ghost" onClick={() => setMode(null)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={save} disabled={saving || !changed.length || hasInvalidTrainingMax}>
+            <Button
+              onClick={save}
+              disabled={
+                saving ||
+                hasInvalidTrainingMax ||
+                (mode === "manual" && !changed.length) ||
+                (mode === "coach" && !coachReview)
+              }
+            >
               {saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
               {mode === "coach" ? "Apply reviewed week" : "Refresh upcoming sessions"}
             </Button>
           </DialogFooter>
           {mode === "coach" && !changed.length ? (
             <p className="text-center text-[11px] text-muted-foreground">
-              The current programme already matches this review.
+              No load change is needed. Applying saves this reviewed week for the follow-up check.
             </p>
           ) : null}
         </DialogContent>

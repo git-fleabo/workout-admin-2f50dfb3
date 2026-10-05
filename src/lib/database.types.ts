@@ -1765,6 +1765,79 @@ export type Database = {
           },
         ];
       };
+      programme_strength_week_reviews: {
+        Row: {
+          applied_adjustments: Json;
+          applied_at: string;
+          end_workout_index: number;
+          id: string;
+          person_id: string;
+          previous_review_id: string | null;
+          program_assignment_id: string;
+          programme_week: number | null;
+          recommendation_kind: string;
+          recovery_level: string;
+          resolved_at: string | null;
+          start_workout_index: number;
+          status: string;
+          workout_ids: string[];
+        };
+        Insert: {
+          applied_adjustments: Json;
+          applied_at?: string;
+          end_workout_index: number;
+          id?: string;
+          person_id: string;
+          previous_review_id?: string | null;
+          program_assignment_id: string;
+          programme_week?: number | null;
+          recommendation_kind: string;
+          recovery_level: string;
+          resolved_at?: string | null;
+          start_workout_index: number;
+          status?: string;
+          workout_ids: string[];
+        };
+        Update: {
+          applied_adjustments?: Json;
+          applied_at?: string;
+          end_workout_index?: number;
+          id?: string;
+          person_id?: string;
+          previous_review_id?: string | null;
+          program_assignment_id?: string;
+          programme_week?: number | null;
+          recommendation_kind?: string;
+          recovery_level?: string;
+          resolved_at?: string | null;
+          start_workout_index?: number;
+          status?: string;
+          workout_ids?: string[];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "programme_strength_week_reviews_person_id_fkey";
+            columns: ["person_id"];
+            isOneToOne: false;
+            referencedRelation: "people";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "programme_strength_week_reviews_previous_review_id_fkey";
+            columns: ["previous_review_id"];
+            isOneToOne: false;
+            referencedRelation: "programme_strength_week_reviews";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "programme_strength_week_reviews_program_assignment_id_fkey";
+            columns: ["program_assignment_id"];
+            isOneToOne: false;
+            referencedRelation: "program_assignments";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       program_workouts: {
         Row: {
           created_at: string;
@@ -2708,6 +2781,20 @@ export type Database = {
       apply_programme_exercise_updates: {
         Args: { p_assignment_id: string; p_updates: Json };
         Returns: number;
+      };
+      apply_programme_strength_week_review: {
+        Args: {
+          p_adjustments: Json;
+          p_assignment_id: string;
+          p_end_workout_index: number;
+          p_previous_review_id?: string;
+          p_programme_week: number;
+          p_recommendation_kind: string;
+          p_recovery_level: string;
+          p_start_workout_index: number;
+          p_workout_ids: string[];
+        };
+        Returns: string;
       };
       apply_programme_manual_adjustments: {
         Args: { p_adjustments: Json; p_assignment_id: string };

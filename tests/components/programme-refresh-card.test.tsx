@@ -84,6 +84,43 @@ const template: ProgrammeTemplate = {
         },
       ],
     },
+    {
+      id: "week-2-a",
+      name: "Week 2 A",
+      sequenceIndex: 1,
+      weekNumber: 2,
+      dayNumber: 1,
+      sessionNumber: 1,
+      description: null,
+      entries: [
+        {
+          id: "entry-2",
+          exerciseId: null,
+          name: "Squat",
+          slotKey: "squat",
+          orderIndex: 0,
+          sets: "3",
+          reps: "5",
+          minSets: 3,
+          maxSets: 4,
+          minReps: 5,
+          maxReps: 6,
+          intensityPercent: 75,
+          intensityMinPercent: 75,
+          intensityMaxPercent: 80,
+          percentBase: "training_max",
+          roundingIncrement: 5,
+          isOptional: false,
+          weight: null,
+          duration: null,
+          rpe: null,
+          rpeCap: 8,
+          selectionRole: null,
+          rest: null,
+          notes: null,
+        },
+      ],
+    },
   ],
 };
 
@@ -104,14 +141,17 @@ const recovery: WeeklyRecoveryRecommendation = {
 describe("strength programme review", () => {
   it("shows the exact prescription and applies only the reviewed load override", async () => {
     const onSave = vi.fn(async () => undefined);
+    const onApplyReview = vi.fn(async () => undefined);
     const user = userEvent.setup();
     render(
       <ProgrammeRefreshCard
         assignment={assignment}
         template={template}
         recovery={recovery}
+        appliedReview={null}
         saving={false}
         onSave={onSave}
+        onApplyReview={onApplyReview}
       />,
     );
 
@@ -124,13 +164,83 @@ describe("strength programme review", () => {
 
     await user.click(screen.getByRole("button", { name: "Apply reviewed week" }));
     await waitFor(() =>
-      expect(onSave).toHaveBeenCalledWith([
-        {
-          exerciseId: "mapping-1",
-          trainingMax: 100,
-          manualAdjustmentPercent: -5,
-        },
-      ]),
+      expect(onApplyReview).toHaveBeenCalledWith(
+        expect.objectContaining({
+          programmeWeek: 1,
+          recommendationKind: "reduce",
+          exercises: [
+            expect.objectContaining({
+              assignmentExerciseId: "mapping-1",
+              proposedManualAdjustmentPercent: -5,
+            }),
+          ],
+        }),
+      ),
     );
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("waits for the applied week, then drafts a restore from successful outcomes", async () => {
+    const appliedReview = {
+      id: "review-1",
+      programmeWeek: 1,
+      startWorkoutIndex: 0,
+      endWorkoutIndex: 0,
+      workoutIds: ["week-1-a"],
+      recoveryLevel: "deload" as const,
+      recommendationKind: "reduce" as const,
+      exercises: [
+        {
+          assignmentExerciseId: "mapping-1",
+          exerciseName: "High Bar Squat",
+          automaticAdjustmentPercent: 0,
+          manualAdjustmentPercent: -5,
+          combinedAdjustmentPercent: -5,
+        },
+      ],
+      appliedAt: "2026-10-05T08:00:00Z",
+      outcomes: [],
+    };
+    const { rerender } = render(
+      <ProgrammeRefreshCard
+        assignment={assignment}
+        template={template}
+        recovery={recovery}
+        appliedReview={appliedReview}
+        saving={false}
+        onSave={vi.fn()}
+        onApplyReview={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Strength review applied")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Review exact week" })).not.toBeInTheDocument();
+
+    rerender(
+      <ProgrammeRefreshCard
+        assignment={{ ...assignment, currentWorkoutIndex: 1 }}
+        template={template}
+        recovery={{ ...recovery, level: "normal", detail: "Recovery is stable." }}
+        appliedReview={{
+          ...appliedReview,
+          outcomes: [
+            {
+              assignmentExerciseId: "mapping-1",
+              workoutId: "week-1-a",
+              decision: "progress",
+              rpe: 7,
+              technique: "good",
+              pain: 0,
+            },
+          ],
+        }}
+        saving={false}
+        onSave={vi.fn()}
+        onApplyReview={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Return to automatic strength progression")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Review exact week" })).toBeInTheDocument();
   });
 });

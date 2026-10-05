@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildStrengthProgrammeReview } from "../src/lib/strength-programme-review.ts";
+import {
+  buildStrengthProgrammeFollowUpProposal,
+  buildStrengthProgrammeReview,
+  type ProgrammeStrengthWeekReview,
+} from "../src/lib/strength-programme-review.ts";
 import type {
   ProgrammeAssignment,
   ProgrammeTemplate,
@@ -218,4 +222,76 @@ test("review edits recalculate the exact preview before apply", () => {
   assert.equal(review.exercises[1]?.proposedCombinedAdjustmentPercent, -2.5);
   assert.equal(review.sessions[0]?.movements[0]?.movement.setRows[0]?.weight, "75");
   assert.equal(review.sessions[0]?.movements[1]?.movement.setRows[0]?.weight, "57.5");
+});
+
+function appliedReview(
+  decisions: Array<"progress" | "repeat" | "regress">,
+): ProgrammeStrengthWeekReview {
+  return {
+    id: "review-1",
+    programmeWeek: 2,
+    startWorkoutIndex: 2,
+    endWorkoutIndex: 3,
+    workoutIds: ["week-2-a", "week-2-b"],
+    recoveryLevel: "deload",
+    recommendationKind: "reduce",
+    exercises: assignment.exercises.map((exercise) => ({
+      assignmentExerciseId: exercise.id,
+      exerciseName: exercise.exerciseName,
+      automaticAdjustmentPercent: exercise.loadAdjustmentPercent,
+      manualAdjustmentPercent: exercise.id === "mapping-1" ? -5 : 0,
+      combinedAdjustmentPercent: -5,
+    })),
+    appliedAt: "2026-10-12T08:00:00Z",
+    outcomes: assignment.exercises.flatMap((exercise) =>
+      decisions.map((decision, index) => ({
+        assignmentExerciseId: exercise.id,
+        workoutId: index === 0 ? "week-2-a" : "week-2-b",
+        decision,
+        rpe: decision === "regress" ? 9 : 7,
+        technique: decision === "regress" ? ("poor" as const) : ("good" as const),
+        pain: decision === "regress" ? 4 : 0,
+      })),
+    ),
+  };
+}
+
+test("successful reviewed week restores temporary overrides when current recovery is stable", () => {
+  const proposal = buildStrengthProgrammeFollowUpProposal({
+    assignment: { ...assignment, currentWorkoutIndex: 4 },
+    recovery: recovery("normal"),
+    appliedReview: appliedReview(["progress", "progress"]),
+  });
+
+  assert.ok(proposal);
+  assert.equal(proposal.recommendationKind, "restore");
+  assert.equal(proposal.previousReviewId, "review-1");
+  assert.equal(proposal.manualAdjustments["mapping-1"], 0);
+  assert.equal(proposal.manualAdjustments["mapping-2"], 0);
+});
+
+test("unclear reviewed outcomes hold the previous combined reduction", () => {
+  const proposal = buildStrengthProgrammeFollowUpProposal({
+    assignment: { ...assignment, currentWorkoutIndex: 4 },
+    recovery: recovery("normal"),
+    appliedReview: appliedReview(["progress", "repeat"]),
+  });
+
+  assert.ok(proposal);
+  assert.equal(proposal.recommendationKind, "hold");
+  assert.equal(proposal.manualAdjustments["mapping-1"], -5);
+  assert.equal(proposal.manualAdjustments["mapping-2"], 0);
+});
+
+test("pain or poor technique extends a conservative reduction", () => {
+  const proposal = buildStrengthProgrammeFollowUpProposal({
+    assignment: { ...assignment, currentWorkoutIndex: 4 },
+    recovery: recovery("normal"),
+    appliedReview: appliedReview(["progress", "regress"]),
+  });
+
+  assert.ok(proposal);
+  assert.equal(proposal.recommendationKind, "extend");
+  assert.equal(proposal.manualAdjustments["mapping-1"], -5);
+  assert.equal(proposal.manualAdjustments["mapping-2"], 0);
 });

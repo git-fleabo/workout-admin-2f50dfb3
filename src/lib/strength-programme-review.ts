@@ -36,6 +36,10 @@ export type StrengthProgrammeReviewSession = {
 
 export type StrengthProgrammeReview = {
   programmeWeek: number | null;
+  startWorkoutIndex: number;
+  endWorkoutIndex: number;
+  recommendationKind: StrengthProgrammeRecommendationKind;
+  previousReviewId: string | null;
   title: string;
   detail: string;
   evidence: string[];
@@ -44,9 +48,51 @@ export type StrengthProgrammeReview = {
   changedExerciseCount: number;
 };
 
+export type StrengthProgrammeRecommendationKind = "keep" | "reduce" | "restore" | "hold" | "extend";
+
+export type ProgrammeStrengthWeekReviewExercise = {
+  assignmentExerciseId: string;
+  exerciseName: string;
+  automaticAdjustmentPercent: number;
+  manualAdjustmentPercent: number;
+  combinedAdjustmentPercent: number;
+};
+
+export type ProgrammeStrengthWeekOutcome = {
+  assignmentExerciseId: string;
+  workoutId: string;
+  decision: "progress" | "repeat" | "regress";
+  rpe: number | null;
+  technique: "good" | "acceptable" | "poor" | null;
+  pain: number | null;
+};
+
+export type ProgrammeStrengthWeekReview = {
+  id: string;
+  programmeWeek: number | null;
+  startWorkoutIndex: number;
+  endWorkoutIndex: number;
+  workoutIds: string[];
+  recoveryLevel: WeeklyRecoveryRecommendation["level"];
+  recommendationKind: StrengthProgrammeRecommendationKind;
+  exercises: ProgrammeStrengthWeekReviewExercise[];
+  appliedAt: string;
+  outcomes: ProgrammeStrengthWeekOutcome[];
+};
+
+export type StrengthProgrammeReviewProposal = {
+  recommendationKind: StrengthProgrammeRecommendationKind;
+  previousReviewId: string | null;
+  title: string;
+  detail: string;
+  evidence: string[];
+  manualAdjustments: Record<string, number>;
+  exerciseReasons: Record<string, string>;
+};
+
 const SUPPORTED_MANUAL_ADJUSTMENTS = [-5, -2.5, 0, 2.5, 5] as const;
 
-function clampManualAdjustment(value: number) {
+export function clampStrengthManualAdjustment(value: number) {
   return SUPPORTED_MANUAL_ADJUSTMENTS.reduce((closest, option) =>
     Math.abs(option - value) < Math.abs(closest - value) ? option : closest,
   );
@@ -60,7 +106,7 @@ function recommendationForExercise(
   if (recovery.level === "deload") {
     const combined = Math.min(automatic, -5);
     return {
-      manual: clampManualAdjustment(combined - automatic),
+      manual: clampStrengthManualAdjustment(combined - automatic),
       reason:
         automatic <= -5
           ? "The last exercise review already supplies the full five-point reduction."
@@ -70,7 +116,7 @@ function recommendationForExercise(
   if (recovery.level === "lighter") {
     const combined = Math.min(automatic, -2.5);
     return {
-      manual: clampManualAdjustment(combined - automatic),
+      manual: clampStrengthManualAdjustment(combined - automatic),
       reason:
         automatic <= -2.5
           ? "The last exercise review already supplies at least the proposed lighter loading."
@@ -85,6 +131,119 @@ function recommendationForExercise(
         : exercise.lastDecision === "repeat"
           ? "Keep the automatic repeat adjustment from the last exercise review."
           : "Use the programme's automatic progression without an extra weekly override.",
+  };
+}
+
+function followUpPriority(kind: "restore" | "hold" | "extend") {
+  if (kind === "extend") return 3;
+  if (kind === "hold") return 2;
+  return 1;
+}
+
+export function buildStrengthProgrammeFollowUpProposal({
+  assignment,
+  recovery,
+  appliedReview,
+}: {
+  assignment: ProgrammeAssignment;
+  recovery: WeeklyRecoveryRecommendation;
+  appliedReview: ProgrammeStrengthWeekReview;
+}): StrengthProgrammeReviewProposal | null {
+  if (assignment.currentWorkoutIndex <= appliedReview.endWorkoutIndex) return null;
+
+  const manualAdjustments: Record<string, number> = {};
+  const exerciseReasons: Record<string, string> = {};
+  const decisions: Array<"restore" | "hold" | "extend"> = [];
+  const outcomeEvidence: string[] = [];
+
+  for (const appliedExercise of appliedReview.exercises) {
+    const exercise = assignment.exercises.find(
+      (candidate) => candidate.id === appliedExercise.assignmentExerciseId,
+    );
+    if (!exercise?.enabled) continue;
+    const outcomes = appliedReview.outcomes.filter(
+      (outcome) => outcome.assignmentExerciseId === exercise.id,
+    );
+    const hasRegression = outcomes.some(
+      (outcome) =>
+        outcome.decision === "regress" ||
+        outcome.technique === "poor" ||
+        (outcome.pain != null && outcome.pain >= 4),
+    );
+    const allProgressed =
+      outcomes.length > 0 && outcomes.every((outcome) => outcome.decision === "progress");
+    let decision: "restore" | "hold" | "extend";
+    let targetCombined = appliedExercise.combinedAdjustmentPercent;
+
+    if (hasRegression) {
+      decision = "extend";
+      targetCombined = Math.min(targetCombined, -5);
+      exerciseReasons[exercise.id] =
+        "Pain, technique or effort evidence triggered a regression, so keep at least the full five-point reduction for another week.";
+    } else if (allProgressed && recovery.level === "normal") {
+      decision = "restore";
+      manualAdjustments[exercise.id] = 0;
+      exerciseReasons[exercise.id] =
+        "Every recorded exposure progressed and current recovery is stable, so remove the temporary weekly override.";
+      decisions.push(decision);
+      outcomeEvidence.push(`${exercise.exerciseName}: all reviewed exposures progressed`);
+      continue;
+    } else {
+      decision = "hold";
+      if (recovery.level === "deload") targetCombined = Math.min(targetCombined, -5);
+      if (recovery.level === "lighter") targetCombined = Math.min(targetCombined, -2.5);
+      exerciseReasons[exercise.id] = outcomes.length
+        ? "The completed week did not provide clear evidence to restore full loading, so repeat the reviewed reduction."
+        : "There is not enough exercise-level outcome evidence to remove the reviewed reduction yet.";
+    }
+
+    decisions.push(decision);
+    manualAdjustments[exercise.id] = clampStrengthManualAdjustment(
+      targetCombined - exercise.loadAdjustmentPercent,
+    );
+    const counts = outcomes.reduce(
+      (result, outcome) => ({ ...result, [outcome.decision]: result[outcome.decision] + 1 }),
+      { progress: 0, repeat: 0, regress: 0 },
+    );
+    outcomeEvidence.push(
+      `${exercise.exerciseName}: ${counts.progress} progressed, ${counts.repeat} repeated, ${counts.regress} regressed`,
+    );
+  }
+
+  if (!decisions.length) return null;
+  const recommendationKind = decisions.reduce((strongest, decision) =>
+    followUpPriority(decision) > followUpPriority(strongest) ? decision : strongest,
+  );
+  const copy =
+    recommendationKind === "extend"
+      ? {
+          title: "Extend the lighter strength loading",
+          detail:
+            "At least one lift regressed during the reviewed week. The next draft keeps a conservative reduction while the automatic exercise review remains in force.",
+        }
+      : recommendationKind === "hold"
+        ? {
+            title: "Hold the reviewed strength adjustment",
+            detail:
+              "The completed week does not yet support removing every temporary reduction. The next draft repeats the proven loading for another week.",
+          }
+        : {
+            title: "Return to automatic strength progression",
+            detail:
+              "The reviewed week progressed with stable current recovery. The next draft removes the temporary weekly overrides and retains each lift's automatic review.",
+          };
+
+  return {
+    recommendationKind,
+    previousReviewId: appliedReview.id,
+    ...copy,
+    evidence: [
+      `Completed programme week ${appliedReview.programmeWeek ?? "review"}`,
+      ...outcomeEvidence,
+      `Current recovery: ${recovery.level}`,
+    ],
+    manualAdjustments,
+    exerciseReasons,
   };
 }
 
@@ -127,11 +286,13 @@ export function buildStrengthProgrammeReview({
   template,
   recovery,
   manualAdjustments,
+  proposal,
 }: {
   assignment: ProgrammeAssignment;
   template: ProgrammeTemplate;
   recovery: WeeklyRecoveryRecommendation;
   manualAdjustments?: Record<string, number>;
+  proposal?: StrengthProgrammeReviewProposal | null;
 }): StrengthProgrammeReview | null {
   if (
     assignment.personalProgramme ||
@@ -143,12 +304,28 @@ export function buildStrengthProgrammeReview({
 
   const workouts = targetWorkouts(assignment, template);
   if (!workouts.length) return null;
+  const targetSlotKeys = new Set(
+    workouts.flatMap((workout) =>
+      workout.entries.flatMap((entry) =>
+        entry.slotKey && !entry.selectionRole ? [entry.slotKey] : [],
+      ),
+    ),
+  );
 
   const exercises = assignment.exercises.flatMap<StrengthProgrammeReviewExercise>((exercise) => {
-    if (!exercise.enabled || !exercise.exerciseId || exercise.trainingMax == null) return [];
+    if (
+      !exercise.enabled ||
+      !exercise.exerciseId ||
+      exercise.trainingMax == null ||
+      !targetSlotKeys.has(exercise.slotKey)
+    ) {
+      return [];
+    }
     const recommendation = recommendationForExercise(exercise, recovery);
-    const proposedManual = clampManualAdjustment(
-      manualAdjustments?.[exercise.id] ?? recommendation.manual,
+    const proposedManual = clampStrengthManualAdjustment(
+      manualAdjustments?.[exercise.id] ??
+        proposal?.manualAdjustments[exercise.id] ??
+        recommendation.manual,
     );
     return [
       {
@@ -160,7 +337,7 @@ export function buildStrengthProgrammeReview({
         currentManualAdjustmentPercent: exercise.manualAdjustmentPercent,
         proposedManualAdjustmentPercent: proposedManual,
         proposedCombinedAdjustmentPercent: exercise.loadAdjustmentPercent + proposedManual,
-        reason: recommendation.reason,
+        reason: proposal?.exerciseReasons[exercise.id] ?? recommendation.reason,
       },
     ];
   });
@@ -213,11 +390,21 @@ export function buildStrengthProgrammeReview({
   });
   if (sessions.some((session) => !session.movements.length)) return null;
 
-  const copy = reviewCopy(recovery);
+  const copy = proposal ?? {
+    ...reviewCopy(recovery),
+    recommendationKind: recovery.level === "normal" ? ("keep" as const) : ("reduce" as const),
+    previousReviewId: null,
+    evidence: recovery.evidence,
+  };
   return {
     programmeWeek: workouts[0]?.weekNumber ?? null,
-    ...copy,
-    evidence: recovery.evidence,
+    startWorkoutIndex: workouts[0]!.sequenceIndex,
+    endWorkoutIndex: workouts[workouts.length - 1]!.sequenceIndex,
+    recommendationKind: copy.recommendationKind,
+    previousReviewId: copy.previousReviewId,
+    title: copy.title,
+    detail: copy.detail,
+    evidence: copy.evidence,
     exercises,
     sessions,
     changedExerciseCount: exercises.filter(
