@@ -998,6 +998,12 @@ begin
     raise exception 'The linked programme assignment could not be found.';
   end if;
 
+  if workout_row.program_workout_id is null then
+    return query
+    select assignment_row.id, assignment_row.current_workout_index, assignment_row.status;
+    return;
+  end if;
+
   if workout_row.status <> 'completed' then
     select programme_workout.id
     into expected_workout_id

@@ -34,6 +34,23 @@ export type SkillGoalExercise = {
   availableLocationKinds: Array<"home" | "gym" | "other">;
 };
 
+export type SkillPracticeHistoryEntry = {
+  date: string;
+  plannedSets: number;
+  plannedDose: number;
+  successful: boolean;
+};
+
+export type SkillPracticeDoseRecommendation = {
+  sets: number;
+  value: number;
+  unit: "reps" | "seconds";
+  decision: "start" | "repeat" | "progress" | "goal_reached";
+  completedWeeks: number;
+  successfulWeeks: number;
+  explanation: string;
+};
+
 const DAY_MS = 86_400_000;
 
 function parseISO(value: string) {
@@ -162,15 +179,19 @@ function firstPositiveNumber(value: string, fallback: number) {
   return Number.isFinite(number) && number > 0 ? number : fallback;
 }
 
-export function isSupportedSkillGoal(goal: GoalRow, exercise?: SkillGoalExercise) {
-  if (!exercise || goal.status !== "active" || goal.exerciseId !== exercise.id) return false;
-  if (exercise.workoutType.trim().toLowerCase() !== "skills/calisthenics") return false;
-  const trackingMode = (goal.trackingMode ||
+function skillTrackingMode(goal: GoalRow, exercise: SkillGoalExercise) {
+  return (goal.trackingMode ||
     getTrackingModeValue({
       workoutType: exercise.workoutType,
       movement: exercise.name,
       defaultMetric: exercise.metric,
     })) as TrackingMode;
+}
+
+export function isSupportedSkillGoal(goal: GoalRow, exercise?: SkillGoalExercise) {
+  if (!exercise || goal.status !== "active" || goal.exerciseId !== exercise.id) return false;
+  if (exercise.workoutType.trim().toLowerCase() !== "skills/calisthenics") return false;
+  const trackingMode = skillTrackingMode(goal, exercise);
   return ["reps_only", "hold", "grip_hold"].includes(trackingMode);
 }
 
@@ -178,14 +199,102 @@ export function defaultSkillGoalLocation(exercise: SkillGoalExercise): PlannerLo
   return exercise.availableLocationKinds.includes("home") ? "home" : "gym";
 }
 
+export function recommendSkillPracticeDose({
+  goal,
+  exercise,
+  history = [],
+}: {
+  goal: GoalRow;
+  exercise: SkillGoalExercise;
+  history?: SkillPracticeHistoryEntry[];
+}): SkillPracticeDoseRecommendation {
+  const trackingMode = skillTrackingMode(goal, exercise);
+  const hold = trackingMode === "hold" || trackingMode === "grip_hold";
+  const unit = hold ? "seconds" : "reps";
+  const startingSets = Math.min(
+    6,
+    Math.max(1, Math.round(firstPositiveNumber(exercise.suggestedSets, 3))),
+  );
+  const startingValue = Math.round(
+    firstPositiveNumber(exercise.suggestedReps, trackingMode === "reps_only" ? 5 : 10),
+  );
+  const latest = [...history].sort((left, right) => left.date.localeCompare(right.date)).at(-1);
+  if (!latest) {
+    return {
+      sets: startingSets,
+      value: startingValue,
+      unit,
+      decision: "start",
+      completedWeeks: 0,
+      successfulWeeks: 0,
+      explanation: `Start with the enabled Library dose: ${startingSets} × ${startingValue} ${unit}.`,
+    };
+  }
+
+  const sameDose = history.filter(
+    (entry) => entry.plannedSets === latest.plannedSets && entry.plannedDose === latest.plannedDose,
+  );
+  const entriesByWeek = new Map<string, SkillPracticeHistoryEntry[]>();
+  for (const entry of sameDose) {
+    const week = mondayOf(entry.date);
+    entriesByWeek.set(week, [...(entriesByWeek.get(week) ?? []), entry]);
+  }
+  const completedWeeks = entriesByWeek.size;
+  const successfulWeeks = Array.from(entriesByWeek.values()).filter((entries) =>
+    entries.every((entry) => entry.successful),
+  ).length;
+  const base = {
+    sets: latest.plannedSets,
+    value: latest.plannedDose,
+    unit,
+    completedWeeks,
+    successfulWeeks,
+  };
+
+  if (successfulWeeks < 4) {
+    const remaining = 4 - successfulWeeks;
+    return {
+      ...base,
+      decision: "repeat",
+      explanation:
+        completedWeeks >= 4
+          ? `Repeat ${latest.plannedSets} × ${latest.plannedDose} ${unit}; fewer than four weeks were completed at the planned dose.`
+          : `Repeat ${latest.plannedSets} × ${latest.plannedDose} ${unit} until it has been completed in ${remaining} more ${remaining === 1 ? "week" : "weeks"}.`,
+    };
+  }
+
+  const target = goal.targetValue && goal.targetValue > 0 ? goal.targetValue : null;
+  if (target != null && latest.plannedDose >= target) {
+    return {
+      ...base,
+      decision: "goal_reached",
+      explanation: `The practice dose has reached the ${target} ${unit} goal. Keep it here while you confirm the result in training.`,
+    };
+  }
+
+  const increment = hold ? 2 : 1;
+  const nextValue =
+    target == null
+      ? latest.plannedDose + increment
+      : Math.min(target, latest.plannedDose + increment);
+  return {
+    ...base,
+    value: nextValue,
+    decision: "progress",
+    explanation: `Four successful weeks support a small increase from ${latest.plannedDose} to ${nextValue} ${unit} per set.`,
+  };
+}
+
 export function buildSkillGoalDraft({
   goal,
   exercise,
   locationKind,
+  dose,
 }: {
   goal: GoalRow;
   exercise: SkillGoalExercise;
   locationKind: PlannerLocation;
+  dose?: Pick<SkillPracticeDoseRecommendation, "sets" | "value" | "explanation">;
 }): WorkoutPlanDraft {
   if (!isSupportedSkillGoal(goal, exercise)) {
     throw new Error("Choose an active calisthenics goal linked to an enabled Library movement.");
@@ -193,22 +302,19 @@ export function buildSkillGoalDraft({
   if (!exercise.availableLocationKinds.includes(locationKind)) {
     throw new Error(`${exercise.name} is not available at ${locationKind}.`);
   }
-  const trackingMode = (goal.trackingMode ||
-    getTrackingModeValue({
-      workoutType: exercise.workoutType,
-      movement: exercise.name,
-      defaultMetric: exercise.metric,
-    })) as TrackingMode;
-  const sets = Math.min(6, Math.max(1, Math.round(firstPositiveNumber(exercise.suggestedSets, 3))));
-  const dose = firstPositiveNumber(exercise.suggestedReps, trackingMode === "reps_only" ? 5 : 10);
+  const trackingMode = skillTrackingMode(goal, exercise);
+  const recommended = recommendSkillPracticeDose({ goal, exercise });
+  const sets = Math.min(6, Math.max(1, Math.round(dose?.sets ?? recommended.sets)));
+  const doseValue = Math.max(1, Math.round(dose?.value ?? recommended.value));
   const hold = trackingMode === "hold" || trackingMode === "grip_hold";
   return {
     version: 1,
     title: `${goal.goal} practice`,
     locationKind,
-    basis: `Supporting practice for ${goal.goal}. The starting dose comes from the enabled Library movement and remains editable before training.`,
+    basis: `Supporting practice for ${goal.goal}. ${dose?.explanation ?? recommended.explanation} The dose remains editable before training.`,
     movements: [
       {
+        exerciseId: exercise.id,
         exercise: exercise.name,
         workoutType: exercise.workoutType,
         trackingMode,
@@ -226,9 +332,9 @@ export function buildSkillGoalDraft({
         reason: "Short skill practice placed around the primary strength programme.",
         restTime: "As needed for high-quality attempts",
         setRows: Array.from({ length: sets }, () => ({
-          reps: hold ? "" : String(dose),
+          reps: hold ? "" : String(doseValue),
           weight: "",
-          durationSeconds: hold ? String(dose) : "",
+          durationSeconds: hold ? String(doseValue) : "",
           rpe: "",
           completed: true,
         })),

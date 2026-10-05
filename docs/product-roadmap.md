@@ -42,6 +42,14 @@ so they cannot replace a strength prescription or advance programme progress. Mi
 `20261004191240_add_programme_support_plans.sql` was applied and verified without changing existing
 training records; see the dated programme-support verification note.
 
+Calisthenics goals can now be created inside the Supporting goals planner from an enabled Library
+movement. The planner proposes the Library dose first, then reviews linked completed sessions in
+four-week blocks. A hold rises by two seconds per set or a repetition practice by one rep only after
+the same dose was fully completed in four different weeks; otherwise it repeats. Sets and dose stay
+editable before the next block is saved. Migration
+`20261004193959_allow_programme_support_completion.sql` also makes support-session completion
+explicitly return without advancing the strength programme.
+
 ## Product Direction
 
 train n track should be organised around the training loop rather than around database categories:

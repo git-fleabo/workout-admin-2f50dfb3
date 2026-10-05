@@ -52,6 +52,7 @@ export type WorkoutPlanTargets = {
 
 export type WorkoutPlanMovement = {
   progression?: ProgrammeProgression;
+  exerciseId?: string;
   exercise: string;
   workoutType: string;
   trackingMode: TrackingMode;

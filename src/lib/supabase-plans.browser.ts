@@ -46,6 +46,7 @@ type SuggestedSetSegmentRow = {
 
 type SuggestedEntryRow = {
   id: string;
+  exercise_id: string | null;
   name: string;
   workout_type: string | null;
   order_index: number;
@@ -241,6 +242,7 @@ function movementFromRow(entry: SuggestedEntryRow): WorkoutPlanMovement {
       const rule = progressionSchema.safeParse(entry.target_metrics?.progression);
       return rule.success ? rule.data : undefined;
     })(),
+    exerciseId: entry.exercise_id ?? undefined,
     exercise: entry.name,
     workoutType: entry.workout_type ?? "Other",
     trackingMode: trackingModeFromRow(entry),
@@ -387,6 +389,7 @@ export async function saveWorkoutPlanClient({
     for (const [movementIndex, movement] of draft.movements.entries()) {
       const entries = await supabasePublicInsert<{ id: string }>("suggested_workout_entries", {
         suggested_workout_id: workout.id,
+        exercise_id: movement.exerciseId || null,
         name: movement.exercise,
         workout_type: movement.workoutType || null,
         order_index: movementIndex,
@@ -521,7 +524,7 @@ export async function saveWorkoutPlanClient({
 }
 
 const SAVED_WORKOUT_SELECT =
-  "id,title,basis,readiness,status,created_at,suggested_for,plan_kind,goal_id,mobility_practice_run_id,program_assignment_id,program_workout_id,training_location_id,training_locations(kind,name),suggested_workout_entries(id,name,workout_type,order_index,source_date,reason,tracking_mode,target_metrics,suggested_workout_sets(id,set_number,reps,weight,duration_seconds,rpe,completed,suggested_workout_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion,config))),suggested_workout_method_blocks(id,training_method_id,method_name,family,order_index,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,block_duration_seconds,work_interval_seconds,rest_interval_seconds,config,suggested_workout_method_block_entries(suggested_workout_entry_id,sequence_index))";
+  "id,title,basis,readiness,status,created_at,suggested_for,plan_kind,goal_id,mobility_practice_run_id,program_assignment_id,program_workout_id,training_location_id,training_locations(kind,name),suggested_workout_entries(id,exercise_id,name,workout_type,order_index,source_date,reason,tracking_mode,target_metrics,suggested_workout_sets(id,set_number,reps,weight,duration_seconds,rpe,completed,suggested_workout_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion,config))),suggested_workout_method_blocks(id,training_method_id,method_name,family,order_index,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,block_duration_seconds,work_interval_seconds,rest_interval_seconds,config,suggested_workout_method_block_entries(suggested_workout_entry_id,sequence_index))";
 
 export async function getNextSuggestedWorkoutsClient() {
   const person = await requirePerson();

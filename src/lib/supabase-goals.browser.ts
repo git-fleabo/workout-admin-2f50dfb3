@@ -138,7 +138,7 @@ export async function addGoalClient(fields: GoalFields) {
     notes: fields.notes,
     status: "active",
   });
-  return { ok: true, row: inserted[0] ? "Supabase" : null };
+  return { ok: true, goalId: inserted[0]?.id ?? null, row: inserted[0] ? "Supabase" : null };
 }
 
 export async function updateGoalClient(id: string, fields: GoalFields) {

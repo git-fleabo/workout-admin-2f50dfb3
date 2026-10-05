@@ -6,6 +6,7 @@ import {
   buildSkillGoalDraft,
   isSupportedSkillGoal,
   programmeSupportHorizon,
+  recommendSkillPracticeDose,
   type SkillGoalExercise,
 } from "../src/lib/programme-support.ts";
 import type { GoalRow } from "../src/lib/training-types.ts";
@@ -93,6 +94,87 @@ test("a calisthenics hold goal becomes an editable Library-based practice", () =
   assert.equal(draft.movements[0].setRows.length, 3);
   assert.equal(draft.movements[0].setRows[0].durationSeconds, "10");
   assert.match(draft.movements[0].targets.detail, /30 seconds/);
+  assert.equal(draft.movements[0].exerciseId, exercise.id);
+});
+
+test("skill practice progresses only after four successful weeks at one dose", () => {
+  const first = recommendSkillPracticeDose({ goal, exercise });
+  assert.equal(first.decision, "start");
+  assert.equal(first.value, 10);
+
+  const threeWeeks = ["2026-09-07", "2026-09-14", "2026-09-21"].map((date) => ({
+    date,
+    plannedSets: 3,
+    plannedDose: 10,
+    successful: true,
+  }));
+  const repeat = recommendSkillPracticeDose({ goal, exercise, history: threeWeeks });
+  assert.equal(repeat.decision, "repeat");
+  assert.equal(repeat.value, 10);
+
+  const progress = recommendSkillPracticeDose({
+    goal,
+    exercise,
+    history: [
+      ...threeWeeks,
+      { date: "2026-09-28", plannedSets: 3, plannedDose: 10, successful: true },
+    ],
+  });
+  assert.equal(progress.decision, "progress");
+  assert.equal(progress.value, 12);
+
+  const draft = buildSkillGoalDraft({
+    goal,
+    exercise,
+    locationKind: "home",
+    dose: progress,
+  });
+  assert.equal(draft.movements[0].setRows[0].durationSeconds, "12");
+  assert.match(draft.basis, /Four successful weeks/);
+});
+
+test("an incomplete four-week block repeats its dose", () => {
+  const history = ["2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28"].map((date, index) => ({
+    date,
+    plannedSets: 3,
+    plannedDose: 10,
+    successful: index < 3,
+  }));
+  const recommendation = recommendSkillPracticeDose({ goal, exercise, history });
+  assert.equal(recommendation.decision, "repeat");
+  assert.equal(recommendation.value, 10);
+  assert.equal(recommendation.completedWeeks, 4);
+  assert.equal(recommendation.successfulWeeks, 3);
+});
+
+test("rep practice uses one-rep steps and never proposes past the goal", () => {
+  const repExercise = {
+    ...exercise,
+    name: "Pull-up",
+    metric: "reps",
+    suggestedReps: "5-8",
+  };
+  const repGoal = {
+    ...goal,
+    goal: "Complete 6 pull-ups",
+    trackingMode: "reps_only",
+    goalMetric: "reps" as const,
+    targetValue: 6,
+    targetUnit: "reps",
+  };
+  const history = ["2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28"].map((date) => ({
+    date,
+    plannedSets: 3,
+    plannedDose: 5,
+    successful: true,
+  }));
+  const recommendation = recommendSkillPracticeDose({
+    goal: repGoal,
+    exercise: repExercise,
+    history,
+  });
+  assert.equal(recommendation.unit, "reps");
+  assert.equal(recommendation.value, 6);
 });
 
 test("free-text and non-calisthenics goals are excluded from automatic programming", () => {

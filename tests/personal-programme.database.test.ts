@@ -136,6 +136,15 @@ test(
           "utf8",
         ),
       );
+      sql(
+        readFileSync(
+          new URL(
+            "../supabase/migrations/20261004193959_allow_programme_support_completion.sql",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      );
       sql(`insert into public.people values('${id(1)}'),('${id(2)}');
       insert into public.exercises values('${id(10)}'); insert into public.programs values('${id(11)}',true);
       insert into public.program_workouts values ${[0, 1, 2].map((i) => `('${id(20 + i)}','${id(11)}',${i})`).join(",")};
@@ -203,6 +212,29 @@ test(
             id(1),
           ),
           `skill:${id(60)}`,
+        );
+        sql(`insert into public.sessions values('${id(64)}','${id(1)}',true)`);
+        assert.equal(
+          sql(
+            `select program_assignment_id::text||':'||current_workout_index||':'||assignment_status
+             from public.complete_suggested_workout('${id(63)}','${id(64)}')`,
+            id(1),
+          ),
+          `${assignment}:0:paused`,
+        );
+        assert.equal(
+          sql(
+            `select status||':'||completed_session_id::text from public.suggested_workouts where id='${id(63)}'`,
+            id(1),
+          ),
+          `completed:${id(64)}`,
+        );
+        assert.equal(
+          sql(
+            `select current_workout_index::text from public.program_assignments where id='${assignment}'`,
+            id(1),
+          ),
+          "0",
         );
         assert.throws(
           () =>
