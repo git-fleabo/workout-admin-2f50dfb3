@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { WeeklyCoachRecommendationCard } from "@/components/weekly-coach-recommendation-card";
 import { WeeklyCoachDraftDialog } from "@/components/weekly-coach-draft-dialog";
+import { WeeklyCoachCapacitySummary } from "@/components/weekly-coach-capacity-summary";
 import type { CoachReadinessSnapshot, SupportDoseOpportunity } from "@/lib/coach-readiness";
 import type { CoachOutcomeReview } from "@/lib/coach-outcome";
 import {
@@ -40,6 +41,7 @@ import {
 } from "@/lib/weekly-coach-recommendation";
 import type { WeeklyPlan, WeeklyPlanAdjustments } from "@/lib/weekly-plan";
 import type { WeeklyCoachDraft, WeeklyCoachDraftAddition } from "@/lib/weekly-coach-draft";
+import { projectWeeklyCoachCapacity } from "@/lib/weekly-coach-capacity";
 
 const KIND_VIEW: Record<
   TrainingContextKind,
@@ -191,6 +193,13 @@ export function TrainingContextCard({
     date: day.date,
     sessions: context.sessions.filter((session) => session.date === day.date),
   }));
+  const savedCapacity = useMemo(
+    () =>
+      weekDraft && coachingPreferences.saved
+        ? projectWeeklyCoachCapacity(weekDraft.capacity, weekDraft.preferences, [])
+        : null,
+    [coachingPreferences.saved, weekDraft],
+  );
   const reviewItemCount =
     Number(Boolean(strengthReview)) + Number(Boolean(outcomeReview ?? recommendation));
 
@@ -298,6 +307,10 @@ export function TrainingContextCard({
           </p>
         ) : null}
       </div>
+
+      {savedCapacity ? (
+        <WeeklyCoachCapacitySummary capacity={savedCapacity} title="Saved weekly capacity" />
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         {coachingPreferences.saved ? (

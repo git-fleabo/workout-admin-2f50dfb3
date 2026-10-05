@@ -354,6 +354,7 @@ describe("training context card", () => {
       goalId: "handstand",
       mobilityRunId: null,
       programAssignmentId: "assignment-1",
+      estimatedMinutes: 15,
       date: "2026-10-05",
       priority: "supporting" as const,
       reason: "Placed beside a saved strength session.",
@@ -411,15 +412,65 @@ describe("training context card", () => {
           additions: [addition],
           summary: "1 missing priority can be added without moving your saved sessions.",
           rollover: null,
+          preferences: {
+            primaryFocusId: "programme",
+            secondaryFocusIds: ["goal:handstand"],
+            maintenanceFocusIds: [],
+            weeklyTrainingDays: 4,
+            weeklyMinutes: 300,
+            maxDemandingDays: 3,
+            saved: true,
+          },
+          capacity: {
+            status: "balanced",
+            headline: "The planned week fits inside your saved capacity.",
+            weeklyMinutes: 300,
+            plannedMinutes: 60,
+            remainingMinutes: 240,
+            weeklyTrainingDays: 4,
+            plannedDays: 1,
+            remainingDays: 3,
+            maxDemandingDays: 3,
+            demandingDays: 1,
+            remainingDemandingDays: 2,
+            sessions: [
+              {
+                id: "programme:assignment-1:workout-1",
+                date: "2026-10-05",
+                title: "Strength block · Session A",
+                kind: "strength",
+                minutes: 45,
+                demanding: true,
+                source: "programme",
+              },
+              {
+                id: "proposed:weekly-draft:goal:handstand",
+                date: "2026-10-05",
+                title: "Handstand practice",
+                kind: "skill",
+                minutes: 15,
+                demanding: false,
+                source: "proposed",
+              },
+            ],
+            byKind: [
+              { kind: "strength", sessions: 1, minutes: 45 },
+              { kind: "skill", sessions: 1, minutes: 15 },
+            ],
+          },
         }}
         onApplyWeekDraft={onApply}
       />,
     );
 
+    expect(screen.getByText("Saved weekly capacity")).toBeInTheDocument();
+    expect(screen.getByText("45/300")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Draft my week/ }));
     expect(screen.getByRole("heading", { name: "Review your drafted week" })).toBeInTheDocument();
     expect(screen.getByText("Entire proposed week")).toBeInTheDocument();
     expect(screen.getByText("Wall handstand · 3 sets · 10s")).toBeInTheDocument();
+    expect(screen.getByText("Capacity after these choices")).toBeInTheDocument();
+    expect(screen.getByText("60/300")).toBeInTheDocument();
     expect(onApply).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Add 1 session" }));

@@ -148,6 +148,7 @@ import {
   type WeeklyCoachDraftCandidate,
 } from "@/lib/weekly-coach-draft";
 import { buildWeeklyCoachRollover } from "@/lib/weekly-coach-rollover";
+import { estimateWorkoutDraftMinutes } from "@/lib/weekly-coach-capacity";
 import {
   buildClimbingCircuit,
   CLIMBING_GOAL_OPTIONS,
@@ -647,6 +648,12 @@ function PlanPage() {
         exercise,
         history: coachingSupportEvidence.data?.skillHistory[goal.id] ?? [],
       });
+      const draft = buildSkillGoalDraft({
+        goal,
+        exercise,
+        locationKind: defaultSkillGoalLocation(exercise),
+        dose,
+      });
       return [
         {
           focusId: `goal:${goal.id}`,
@@ -654,16 +661,12 @@ function PlanPage() {
           kind: "skill" as const,
           title: goal.goal,
           defaultPlacement: "with_strength" as const,
-          draft: buildSkillGoalDraft({
-            goal,
-            exercise,
-            locationKind: defaultSkillGoalLocation(exercise),
-            dose,
-          }),
+          draft,
           planKind: "skill" as const,
           goalId: goal.id,
           mobilityRunId: null,
           programAssignmentId: weeklyCoachAssignmentId,
+          estimatedMinutes: estimateWorkoutDraftMinutes(draft, "skill"),
         },
       ];
     });
@@ -702,6 +705,7 @@ function PlanPage() {
             goalId: null,
             mobilityRunId: run.id,
             programAssignmentId: weeklyCoachAssignmentId,
+            estimatedMinutes: estimateWorkoutDraftMinutes(draft, "mobility"),
           },
         ];
       } catch {

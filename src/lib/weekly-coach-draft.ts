@@ -4,6 +4,11 @@ import type { SavedWorkoutPlan } from "./supabase-plans.browser.ts";
 import type { WorkoutPlanDraft, WorkoutPlanKind } from "./workout-plan.ts";
 import type { WeeklyPlan } from "./weekly-plan.ts";
 import type { WeeklyCoachRollover } from "./weekly-coach-rollover.ts";
+import {
+  buildWeeklyCoachCapacity,
+  projectWeeklyCoachCapacity,
+  type WeeklyCoachCapacity,
+} from "./weekly-coach-capacity.ts";
 
 export type WeeklyCoachDraftPriority = "primary" | "supporting" | "maintenance";
 
@@ -18,6 +23,7 @@ export type WeeklyCoachDraftCandidate = {
   goalId: string | null;
   mobilityRunId: string | null;
   programAssignmentId: string | null;
+  estimatedMinutes: number;
 };
 
 export type WeeklyCoachDraftAddition = WeeklyCoachDraftCandidate & {
@@ -39,6 +45,8 @@ export type WeeklyCoachDraft = {
   additions: WeeklyCoachDraftAddition[];
   summary: string;
   rollover: WeeklyCoachRollover | null;
+  preferences: CoachingPreferences;
+  capacity: WeeklyCoachCapacity;
 };
 
 function dayDistance(left: string, right: string) {
@@ -161,6 +169,7 @@ export function buildWeeklyCoachDraft({
     new Set([
       ...programmeInWeek.map((session) => session.date),
       ...scheduledInWeek.map((saved) => saved.suggestedFor as string),
+      ...plan.days.filter((day) => day.completedItems.length).map((day) => day.date),
     ]),
   ).sort();
   const occupiedDates = new Set(existingDates);
@@ -169,17 +178,28 @@ export function buildWeeklyCoachDraft({
     ...scheduledInWeek
       .filter((saved) => saved.planKind === "strength")
       .map((saved) => saved.suggestedFor as string),
+    ...plan.days
+      .filter((day) => day.completedItems.some((item) => item === "home" || item === "gym"))
+      .map((day) => day.date),
   ]);
   const loadByDate = new Map<string, number>();
   for (const date of [
     ...programmeInWeek.map((session) => session.date),
     ...scheduledInWeek.map((saved) => saved.suggestedFor as string),
+    ...plan.days.flatMap((day) => day.completedItems.map(() => day.date)),
   ]) {
     loadByDate.set(date, (loadByDate.get(date) ?? 0) + 1);
   }
+  const existingCapacity = buildWeeklyCoachCapacity({
+    plan,
+    programmeSessions,
+    scheduledPlans,
+    preferences,
+  });
+  let plannedMinutes = existingCapacity.plannedMinutes;
 
   const additions: WeeklyCoachDraftAddition[] = [];
-  if (preferences.saved) {
+  if (preferences.saved && existingCapacity.status !== "over_limit") {
     const candidateByFocus = new Map(candidates.map((candidate) => [candidate.focusId, candidate]));
     for (const item of priorityOrder(preferences)) {
       if (additions.length >= (rollover?.additionLimit ?? 2) || represented.has(item.focusId)) {
@@ -187,6 +207,7 @@ export function buildWeeklyCoachDraft({
       }
       const candidate = candidateByFocus.get(item.focusId);
       if (!candidate) continue;
+      if (plannedMinutes + candidate.estimatedMinutes > preferences.weeklyMinutes) continue;
       const date = chooseDate({
         candidate,
         dates: availableDates,
@@ -214,8 +235,17 @@ export function buildWeeklyCoachDraft({
       represented.add(item.focusId);
       occupiedDates.add(date);
       loadByDate.set(date, (loadByDate.get(date) ?? 0) + 1);
+      plannedMinutes += candidate.estimatedMinutes;
     }
   }
+
+  const capacity = buildWeeklyCoachCapacity({
+    plan,
+    programmeSessions,
+    scheduledPlans,
+    preferences,
+    additions,
+  });
 
   const summary = !preferences.saved
     ? "Save your coaching priorities before drafting the week."
@@ -236,6 +266,8 @@ export function buildWeeklyCoachDraft({
     additions,
     summary,
     rollover,
+    preferences,
+    capacity,
   };
 }
 
@@ -260,6 +292,13 @@ export function validateWeeklyCoachDraftSelection(
   const occupied = new Set([...draft.existingDates, ...additions.map((addition) => addition.date)]);
   if (occupied.size > draft.weeklyTrainingDays) {
     return `This would use ${occupied.size} training days, above your limit of ${draft.weeklyTrainingDays}.`;
+  }
+  const capacity = projectWeeklyCoachCapacity(draft.capacity, draft.preferences, additions);
+  if (capacity.plannedMinutes > capacity.weeklyMinutes) {
+    return `This would use about ${capacity.plannedMinutes} minutes, above your limit of ${capacity.weeklyMinutes}.`;
+  }
+  if (capacity.demandingDays > capacity.maxDemandingDays) {
+    return `This would use ${capacity.demandingDays} demanding days, above your limit of ${capacity.maxDemandingDays}.`;
   }
   return null;
 }

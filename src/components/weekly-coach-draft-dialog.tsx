@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { WeeklyCoachCapacitySummary } from "@/components/weekly-coach-capacity-summary";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +28,7 @@ import {
   type WeeklyCoachDraftAddition,
   type WeeklyCoachDraftPriority,
 } from "@/lib/weekly-coach-draft";
+import { projectWeeklyCoachCapacity } from "@/lib/weekly-coach-capacity";
 
 const PRIORITY_LABEL: Record<WeeklyCoachDraftPriority, string> = {
   primary: "Primary",
@@ -83,6 +85,10 @@ export function WeeklyCoachDraftDialog({
     [additions, selectedIds],
   );
   const validationError = validateWeeklyCoachDraftSelection(draft, selected);
+  const capacity = useMemo(
+    () => projectWeeklyCoachCapacity(draft.capacity, draft.preferences, selected),
+    [draft.capacity, draft.preferences, selected],
+  );
   const days = draft.weekDates.map((date) => ({
     date,
     existing: existingSessions.filter((session) => session.date === date),
@@ -137,8 +143,8 @@ export function WeeklyCoachDraftDialog({
               <div>
                 <p className="text-sm font-medium">{draft.summary}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  The draft can add up to two missing priorities and will not move or replace
-                  anything already saved.
+                  The draft can add up to {draft.rollover?.additionLimit ?? 2} missing priorities
+                  and will not move or replace anything already saved.
                 </p>
               </div>
             </div>
@@ -235,6 +241,8 @@ export function WeeklyCoachDraftDialog({
               Coach setup if you want the coach to place it in the week.
             </div>
           )}
+
+          <WeeklyCoachCapacitySummary capacity={capacity} title="Capacity after these choices" />
 
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">

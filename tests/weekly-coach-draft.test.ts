@@ -78,6 +78,7 @@ function candidate(focusId: string, kind: "skill" | "mobility"): WeeklyCoachDraf
     goalId: kind === "skill" ? sourceId : null,
     mobilityRunId: kind === "mobility" ? sourceId : null,
     programAssignmentId: "assignment-1",
+    estimatedMinutes: 15,
   };
 }
 
@@ -89,6 +90,8 @@ function programme(date: string) {
     workoutName: "Session A",
     date,
     status: "current",
+    movements: [],
+    movementNames: ["Squat"],
   } as ProgrammeScheduleSession;
 }
 
@@ -231,4 +234,18 @@ test("a cautious rollover limits the draft to one addition", () => {
 
   assert.equal(draft.additions.length, 1);
   assert.equal(draft.additions[0].focusId, "goal:handstand");
+});
+
+test("the draft does not exceed the saved minute budget", () => {
+  const draft = buildWeeklyCoachDraft({
+    plan,
+    programmeSessions: [programme(dates[0])],
+    scheduledPlans: [],
+    preferences: { ...preferences, weeklyMinutes: 40 },
+    candidates: [candidate("goal:handstand", "skill")],
+    today: dates[0],
+  });
+
+  assert.equal(draft.capacity.plannedMinutes, 30);
+  assert.equal(draft.additions.length, 0);
 });
