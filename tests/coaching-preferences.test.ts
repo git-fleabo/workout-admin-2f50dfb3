@@ -101,3 +101,24 @@ test("readiness coaching changes only one simple bounded support dose", async ()
   assert.doesNotMatch(sql, /update public\.program_assignments/i);
   assert.doesNotMatch(sql, /security definer/i);
 });
+
+test("coaching outcomes require accepted completed work and remain person scoped", async () => {
+  const sql = await readFile(
+    new URL("../supabase/migrations/20261005140000_add_coaching_outcomes.sql", import.meta.url),
+    "utf8",
+  );
+  assert.match(sql, /create table public\.coaching_recommendation_outcomes/i);
+  assert.match(sql, /outcome_rating in \('too_easy', 'right', 'too_hard'\)/i);
+  assert.match(sql, /app_private\.person_is_accessible\(decision\.person_id\)/i);
+  assert.match(sql, /create function public\.record_coaching_recommendation_outcome/i);
+  assert.match(sql, /decision\.decision = 'accepted'/i);
+  assert.match(sql, /v_workout_status <> 'completed'/i);
+  assert.match(sql, /current_date <= v_week_start \+ 6/i);
+  assert.match(sql, /security invoker/i);
+  assert.match(
+    sql,
+    /revoke all on function public\.record_coaching_recommendation_outcome[\s\S]*from anon/i,
+  );
+  assert.doesNotMatch(sql, /update public\.program_assignments/i);
+  assert.doesNotMatch(sql, /security definer/i);
+});

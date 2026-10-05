@@ -13,6 +13,8 @@ export type WeeklyCoachRecommendationType =
   | "skip_support_session"
   | "adjust_support_dose";
 
+export type CoachOutcomeRating = "too_easy" | "right" | "too_hard";
+
 export type WeeklyCoachDecisionHistory = {
   weekStart: string;
   recommendationType: WeeklyCoachRecommendationType;
@@ -20,6 +22,7 @@ export type WeeklyCoachDecisionHistory = {
   decision: "accepted" | "rejected";
   proposedDate: string;
   chosenDate: string | null;
+  outcomeRating?: CoachOutcomeRating | null;
 };
 
 type WeeklyCoachRecommendationBase = {
@@ -128,7 +131,13 @@ function relevantHistory(
 }
 
 function decisionPenalty(history: WeeklyCoachDecisionHistory[]) {
-  return history.reduce((score, item) => score + (item.decision === "rejected" ? 20 : -5), 0);
+  return history.reduce((score, item) => {
+    if (item.decision === "rejected") return score + 20;
+    if (item.outcomeRating === "right") return score - 12;
+    if (item.outcomeRating === "too_hard") return score + 10;
+    if (item.outcomeRating === "too_easy") return score + 4;
+    return score - 5;
+  }, 0);
 }
 
 function preferredDayScore(date: string, history: WeeklyCoachDecisionHistory[]) {
@@ -137,7 +146,17 @@ function preferredDayScore(date: string, history: WeeklyCoachDecisionHistory[]) 
     if (item.decision !== "accepted" || !item.chosenDate || dayIndex(item.chosenDate) !== target) {
       return score;
     }
-    return score + (item.chosenDate === item.proposedDate ? 1 : 3);
+    const outcomeWeight =
+      item.outcomeRating === "right"
+        ? 4
+        : item.outcomeRating === "too_hard"
+          ? -5
+          : item.outcomeRating === "too_easy"
+            ? 1
+            : item.chosenDate === item.proposedDate
+              ? 1
+              : 3;
+    return score + outcomeWeight;
   }, 0);
 }
 
@@ -146,6 +165,7 @@ function moveLearningNote(date: string, history: WeeklyCoachDecisionHistory[]) {
     (item) =>
       item.decision === "accepted" &&
       item.chosenDate &&
+      item.outcomeRating !== "too_hard" &&
       dayIndex(item.chosenDate) === dayIndex(date),
   );
   if (!matching.length) return null;
@@ -378,8 +398,26 @@ function buildDoseRecommendation({
       if (preferences.maintenanceFocusIds.includes(item.subjectFocusId)) return 2;
       return 3;
     };
+    const outcomePenalty = (
+      item: SupportDoseOpportunity,
+      itemHistory: WeeklyCoachDecisionHistory[],
+    ) =>
+      itemHistory.reduce((score, review) => {
+        if (review.decision === "rejected") return score;
+        if (item.adjustment === "progress") {
+          if (review.outcomeRating === "too_hard") return score + 35;
+          if (review.outcomeRating === "right") return score - 10;
+          if (review.outcomeRating === "too_easy") return score - 15;
+        } else {
+          if (review.outcomeRating === "too_hard") return score - 15;
+          if (review.outcomeRating === "right") return score + 5;
+          if (review.outcomeRating === "too_easy") return score + 15;
+        }
+        return score;
+      }, 0);
     return (
       decisionPenalty(leftHistory) - decisionPenalty(rightHistory) ||
+      outcomePenalty(left, leftHistory) - outcomePenalty(right, rightHistory) ||
       focusPriority(left) - focusPriority(right) ||
       left.date.localeCompare(right.date)
     );
@@ -394,9 +432,10 @@ function buildDoseRecommendation({
   );
   const accepted = opportunityHistory.filter((item) => item.decision === "accepted").length;
   const rejected = opportunityHistory.filter((item) => item.decision === "rejected").length;
+  const outcomes = opportunityHistory.filter((item) => item.outcomeRating).length;
   const learningNote =
     accepted || rejected
-      ? `${accepted} similar dose review${accepted === 1 ? "" : "s"} accepted · ${rejected} declined.`
+      ? `${accepted} similar dose review${accepted === 1 ? "" : "s"} accepted · ${rejected} declined${outcomes ? ` · ${outcomes} outcome${outcomes === 1 ? "" : "s"} reviewed` : ""}.`
       : null;
   return {
     key: `dose:${opportunity.adjustment}:${opportunity.suggestedWorkoutId}:${opportunity.date}`,

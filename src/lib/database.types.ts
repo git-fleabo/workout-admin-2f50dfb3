@@ -308,6 +308,35 @@ export type Database = {
           },
         ];
       };
+      coaching_recommendation_outcomes: {
+        Row: {
+          decision_id: string;
+          id: string;
+          outcome_rating: string;
+          recorded_at: string;
+        };
+        Insert: {
+          decision_id: string;
+          id?: string;
+          outcome_rating: string;
+          recorded_at?: string;
+        };
+        Update: {
+          decision_id?: string;
+          id?: string;
+          outcome_rating?: string;
+          recorded_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "coaching_recommendation_outcomes_decision_id_fkey";
+            columns: ["decision_id"];
+            isOneToOne: true;
+            referencedRelation: "coaching_recommendation_decisions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       data_quality_audit_events: {
         Row: {
           action: string;
@@ -2637,6 +2666,13 @@ export type Database = {
           p_recommendation_type: string;
           p_suggested_workout_id: string;
           p_week_start: string;
+        };
+        Returns: string;
+      };
+      record_coaching_recommendation_outcome: {
+        Args: {
+          p_decision_id: string;
+          p_outcome_rating: string;
         };
         Returns: string;
       };

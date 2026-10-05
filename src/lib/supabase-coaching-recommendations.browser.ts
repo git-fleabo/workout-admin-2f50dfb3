@@ -4,6 +4,7 @@ import type {
   WeeklyCoachDecisionHistory,
   WeeklyCoachRecommendation,
   WeeklyCoachRecommendationType,
+  CoachOutcomeRating,
 } from "./weekly-coach-recommendation";
 
 type RecommendationDecisionRow = {
@@ -16,7 +17,19 @@ type RecommendationDecisionRow = {
   original_date: string;
   proposed_date: string;
   chosen_date: string | null;
+  action_details: Record<string, unknown> | null;
   decided_at: string;
+  suggested_workouts: {
+    title: string;
+    status: string;
+    completed_session_id: string | null;
+  } | null;
+};
+
+type RecommendationOutcomeRow = {
+  decision_id: string;
+  outcome_rating: CoachOutcomeRating;
+  recorded_at: string;
 };
 
 export type CoachingRecommendationDecision = WeeklyCoachDecisionHistory & {
@@ -24,6 +37,12 @@ export type CoachingRecommendationDecision = WeeklyCoachDecisionHistory & {
   recommendationKey: string;
   originalDate: string;
   decidedAt: string;
+  sessionLabel: string;
+  workoutStatus: string;
+  completedSessionId: string | null;
+  outcomeRating: CoachOutcomeRating | null;
+  outcomeRecordedAt: string | null;
+  adjustment: "progress" | "reduce" | null;
 };
 
 async function requirePerson() {
@@ -34,17 +53,22 @@ async function requirePerson() {
 
 export async function listCoachingRecommendationDecisionsClient(throughWeek: string) {
   const person = await requirePerson();
-  const rows = await supabasePublicSelect<RecommendationDecisionRow>(
-    "coaching_recommendation_decisions",
-    {
+  const [rows, outcomes] = await Promise.all([
+    supabasePublicSelect<RecommendationDecisionRow>("coaching_recommendation_decisions", {
       select:
-        "id,week_start,recommendation_key,recommendation_type,subject_focus_id,decision,original_date,proposed_date,chosen_date,decided_at",
+        "id,week_start,recommendation_key,recommendation_type,subject_focus_id,decision,original_date,proposed_date,chosen_date,action_details,decided_at,suggested_workouts!inner(title,status,completed_session_id)",
       person_id: `eq.${person.id}`,
       week_start: `lte.${throughWeek}`,
       order: "decided_at.desc",
       limit: 100,
-    },
-  );
+    }),
+    supabasePublicSelect<RecommendationOutcomeRow>("coaching_recommendation_outcomes", {
+      select: "decision_id,outcome_rating,recorded_at",
+      order: "recorded_at.desc",
+      limit: 100,
+    }),
+  ]);
+  const outcomeByDecision = new Map(outcomes.map((outcome) => [outcome.decision_id, outcome]));
   return rows.map((row) => ({
     id: row.id,
     weekStart: row.week_start,
@@ -56,7 +80,29 @@ export async function listCoachingRecommendationDecisionsClient(throughWeek: str
     proposedDate: row.proposed_date,
     chosenDate: row.chosen_date,
     decidedAt: row.decided_at,
+    sessionLabel: row.suggested_workouts?.title ?? "Reviewed session",
+    workoutStatus: row.suggested_workouts?.status ?? "unknown",
+    completedSessionId: row.suggested_workouts?.completed_session_id ?? null,
+    outcomeRating: outcomeByDecision.get(row.id)?.outcome_rating ?? null,
+    outcomeRecordedAt: outcomeByDecision.get(row.id)?.recorded_at ?? null,
+    adjustment:
+      row.action_details?.adjustment === "progress" || row.action_details?.adjustment === "reduce"
+        ? row.action_details.adjustment
+        : null,
   }));
+}
+
+export async function recordCoachingRecommendationOutcomeClient({
+  decisionId,
+  rating,
+}: {
+  decisionId: string;
+  rating: CoachOutcomeRating;
+}) {
+  return supabasePublicRpc<string>("record_coaching_recommendation_outcome", {
+    p_decision_id: decisionId,
+    p_outcome_rating: rating,
+  });
 }
 
 export async function decideCoachingRecommendationClient({

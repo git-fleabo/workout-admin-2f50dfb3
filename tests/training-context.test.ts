@@ -402,3 +402,63 @@ test("the coach offers a reviewed support dose after schedule pressure is resolv
   assert.equal(recommendation.targetValue, 6);
   assert.match(recommendation.title, /Progress Handstand practice/);
 });
+
+test("a too-hard outcome deprioritises the same support progression next time", () => {
+  const plan = weeklyPlan();
+  const context = buildTrainingContext({
+    plan,
+    programmeSessions: [],
+    scheduledPlans: [],
+    adjustments: {},
+  });
+  const opportunity = {
+    date: "2026-10-06",
+    adjustment: "progress" as const,
+    currentSets: 3,
+    currentValue: 5,
+    targetSets: 3,
+    targetValue: 6,
+    doseUnit: "reps" as const,
+    rationale: "Four successful weeks support a small increase.",
+  };
+  const recommendation = buildWeeklyCoachRecommendation({
+    context,
+    plan,
+    preferences: {
+      primaryFocusId: "programme",
+      secondaryFocusIds: ["goal:handstand", "goal:pull-up"],
+      maintenanceFocusIds: [],
+      weeklyTrainingDays: 4,
+      weeklyMinutes: 300,
+      maxDemandingDays: 3,
+      saved: true,
+    },
+    doseOpportunities: [
+      {
+        ...opportunity,
+        suggestedWorkoutId: "handstand-next",
+        subjectFocusId: "goal:handstand",
+        sessionLabel: "Handstand practice",
+      },
+      {
+        ...opportunity,
+        suggestedWorkoutId: "pull-up-next",
+        subjectFocusId: "goal:pull-up",
+        sessionLabel: "Pull-up practice",
+      },
+    ],
+    history: [
+      {
+        weekStart: "2026-09-28",
+        recommendationType: "adjust_support_dose",
+        subjectFocusId: "goal:handstand",
+        decision: "accepted",
+        proposedDate: "2026-09-29",
+        chosenDate: null,
+        outcomeRating: "too_hard",
+      },
+    ],
+  });
+
+  assert.equal(recommendation?.suggestedWorkoutId, "pull-up-next");
+});

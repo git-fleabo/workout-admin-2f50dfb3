@@ -41,6 +41,7 @@ import { MyProgrammeOverview } from "@/components/my-programme-overview";
 import { MobilityPracticeOverview } from "@/components/mobility-practice-overview";
 import { TrainingContextCard } from "@/components/training-context-card";
 import { buildCoachReadinessSnapshot, buildSupportDoseOpportunities } from "@/lib/coach-readiness";
+import { buildCoachOutcomeState } from "@/lib/coach-outcome";
 import { formatUKDate, todayISO } from "@/lib/date";
 import {
   buildCircuit,
@@ -116,9 +117,13 @@ import {
 import {
   decideCoachingRecommendationClient,
   listCoachingRecommendationDecisionsClient,
+  recordCoachingRecommendationOutcomeClient,
 } from "@/lib/supabase-coaching-recommendations.browser";
 import { listGoalsClient } from "@/lib/supabase-goals.browser";
-import type { WeeklyCoachRecommendation } from "@/lib/weekly-coach-recommendation";
+import type {
+  CoachOutcomeRating,
+  WeeklyCoachRecommendation,
+} from "@/lib/weekly-coach-recommendation";
 import {
   buildClimbingCircuit,
   CLIMBING_GOAL_OPTIONS,
@@ -486,12 +491,18 @@ function PlanPage() {
       ),
     [coachingDecisions.data, weeklyPlan.startDate],
   );
-  const coachingDecisionHistory = useMemo(
+  const coachOutcomeState = useMemo(
     () =>
-      (coachingDecisions.data ?? []).filter(
-        (decision) => decision.weekStart < weeklyPlan.startDate,
-      ),
-    [coachingDecisions.data, weeklyPlan.startDate],
+      buildCoachOutcomeState({
+        decisions: coachingDecisions.data ?? [],
+        logs: history.data?.recent ?? [],
+        today: todayISO(),
+      }),
+    [coachingDecisions.data, history.data?.recent],
+  );
+  const coachingDecisionHistory = useMemo(
+    () => coachOutcomeState.history.filter((decision) => decision.weekStart < weeklyPlan.startDate),
+    [coachOutcomeState.history, weeklyPlan.startDate],
   );
   const coachingFocusOptions = useMemo(
     () => buildCoachingFocusOptions(coachingGoals.data?.items ?? [], mobilityData.data?.runs ?? []),
@@ -1174,6 +1185,24 @@ function PlanPage() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const recordCoachingOutcome = useMutation({
+    mutationFn: ({ decisionId, rating }: { decisionId: string; rating: CoachOutcomeRating }) =>
+      recordCoachingRecommendationOutcomeClient({ decisionId, rating }),
+    onSuccess: async (_result, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: ["coaching-recommendation-decisions", weeklyPlan.startDate],
+      });
+      toast.success("Coach check-in recorded", {
+        description:
+          variables.rating === "right"
+            ? "The coach will favour similar changes when the same conditions return."
+            : variables.rating === "too_hard"
+              ? "The coach will be more cautious with similar changes."
+              : "The coach will allow a little more work when similar conditions return.",
+      });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const scheduleSession = useMutation({
     mutationFn: async (
@@ -1355,6 +1384,15 @@ function PlanPage() {
           )}
           recommendationHistory={coachingDecisionHistory}
           recommendationPending={decideCoachingRecommendation.isPending}
+          outcomeReview={coachOutcomeState.pendingReview}
+          outcomePending={recordCoachingOutcome.isPending}
+          onOutcomeReview={
+            coachingDecisions.isSuccess
+              ? async (decisionId, rating) => {
+                  await recordCoachingOutcome.mutateAsync({ decisionId, rating });
+                }
+              : undefined
+          }
           onRecommendationDecision={
             coachingDecisions.isSuccess
               ? async (recommendation, decision, chosenDate) => {

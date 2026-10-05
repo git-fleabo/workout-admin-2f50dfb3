@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TrainingContextCard } from "@/components/training-context-card";
+import { CoachOutcomeReviewCard } from "@/components/coach-outcome-review-card";
 import { WeeklyCoachRecommendationCard } from "@/components/weekly-coach-recommendation-card";
 import type { WeeklyPlan } from "@/lib/weekly-plan";
 
@@ -276,5 +277,27 @@ describe("training context card", () => {
     expect(screen.getByText("Readiness evidence")).toBeInTheDocument();
     expect(screen.getByText("Hold the current dose")).toBeInTheDocument();
     expect(screen.getByText("Hold")).toBeInTheDocument();
+  });
+
+  it("records an unclear completed outcome with one tap", async () => {
+    const onReview = vi.fn(async () => undefined);
+    render(
+      <CoachOutcomeReviewCard
+        review={{
+          decisionId: "decision-1",
+          recommendationType: "adjust_support_dose",
+          sessionLabel: "Handstand practice",
+          question: "How did this support dose feel?",
+          detail: "The completed workout needs your input.",
+        }}
+        pending={false}
+        onReview={onReview}
+      />,
+    );
+
+    expect(screen.getByText("Coach check-in")).toBeInTheDocument();
+    expect(screen.getByText("One tap")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "About right" }));
+    await waitFor(() => expect(onReview).toHaveBeenCalledWith("decision-1", "right"));
   });
 });

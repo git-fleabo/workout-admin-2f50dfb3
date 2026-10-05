@@ -11,10 +11,12 @@ import {
 import { useMemo } from "react";
 
 import { CoachSetupDialog } from "@/components/coach-setup-dialog";
+import { CoachOutcomeReviewCard } from "@/components/coach-outcome-review-card";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { WeeklyCoachRecommendationCard } from "@/components/weekly-coach-recommendation-card";
 import type { CoachReadinessSnapshot, SupportDoseOpportunity } from "@/lib/coach-readiness";
+import type { CoachOutcomeReview } from "@/lib/coach-outcome";
 import {
   DEFAULT_COACHING_PREFERENCES,
   type CoachingFocusOption,
@@ -32,6 +34,7 @@ import {
   buildWeeklyCoachRecommendation,
   type WeeklyCoachDecisionHistory,
   type WeeklyCoachRecommendation,
+  type CoachOutcomeRating,
 } from "@/lib/weekly-coach-recommendation";
 import type { WeeklyPlan, WeeklyPlanAdjustments } from "@/lib/weekly-plan";
 
@@ -98,6 +101,9 @@ export function TrainingContextCard({
   recommendationHistory = [],
   recommendationPending = false,
   onRecommendationDecision,
+  outcomeReview,
+  outcomePending = false,
+  onOutcomeReview,
 }: {
   plan: WeeklyPlan;
   programmeSessions: ProgrammeScheduleSession[];
@@ -117,6 +123,9 @@ export function TrainingContextCard({
     decision: "accepted" | "rejected",
     chosenDate?: string,
   ) => Promise<void>;
+  outcomeReview?: CoachOutcomeReview | null;
+  outcomePending?: boolean;
+  onOutcomeReview?: (decisionId: string, rating: CoachOutcomeRating) => Promise<void>;
 }) {
   const focusLabels = useMemo(
     () => Object.fromEntries(focusOptions.map((option) => [option.id, option.label])),
@@ -157,6 +166,7 @@ export function TrainingContextCard({
       scheduledPlans,
     ],
   );
+  const reviewedOutcomeCount = recommendationHistory.filter((item) => item.outcomeRating).length;
 
   return (
     <Card className="space-y-4 border-blue-400/25 bg-blue-400/[0.04] p-4">
@@ -210,6 +220,11 @@ export function TrainingContextCard({
               <Badge variant="outline">
                 Learned from {recommendationHistory.length} review
                 {recommendationHistory.length === 1 ? "" : "s"}
+              </Badge>
+            ) : null}
+            {reviewedOutcomeCount ? (
+              <Badge variant="outline">
+                {reviewedOutcomeCount} outcome{reviewedOutcomeCount === 1 ? "" : "s"} understood
               </Badge>
             ) : null}
           </>
@@ -284,7 +299,13 @@ export function TrainingContextCard({
         </div>
       ) : null}
 
-      {coachingPreferences.saved && onRecommendationDecision ? (
+      {outcomeReview && onOutcomeReview ? (
+        <CoachOutcomeReviewCard
+          review={outcomeReview}
+          pending={outcomePending}
+          onReview={onOutcomeReview}
+        />
+      ) : coachingPreferences.saved && onRecommendationDecision ? (
         recommendation ? (
           <WeeklyCoachRecommendationCard
             recommendation={recommendation}
@@ -306,7 +327,8 @@ export function TrainingContextCard({
         The coach checks this week against your saved priorities and capacity. It can propose one
         reviewed schedule change or maintenance reduction, but applies it only after you accept.
         Readiness can also hold, progress, or reduce an upcoming support dose while leaving the
-        strength programme unchanged.
+        strength programme unchanged. Completed changes are checked against logged evidence; when
+        that evidence is unclear, one short check-in teaches the next recommendation.
       </p>
     </Card>
   );
