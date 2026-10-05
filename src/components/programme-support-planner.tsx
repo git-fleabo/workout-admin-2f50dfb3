@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,7 @@ import { MOBILITY_SKILLS, buildMobilityWorkoutDraft } from "@/lib/mobility-pract
 import {
   buildProgrammeSupportSchedule,
   buildProgrammeSupportBlockReview,
+  buildProgrammeSupportBlockProgress,
   buildSkillGoalDraft,
   defaultSkillGoalLocation,
   isSupportedSkillGoal,
@@ -235,6 +237,14 @@ export function ProgrammeSupportPlanner({
         programmeDates: window.programmeDates,
       }),
     [blockHistory.data, window.programmeDates],
+  );
+  const blockProgress = useMemo(
+    () =>
+      buildProgrammeSupportBlockProgress({
+        plans: blockHistory.data ?? [],
+        today: todayISO(),
+      }),
+    [blockHistory.data],
   );
 
   const chosenTracks = Object.values(selected);
@@ -560,6 +570,73 @@ export function ProgrammeSupportPlanner({
                 );
               })}
             </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {blockProgress ? (
+        <div className="rounded-lg border border-cyan-400/25 bg-background/35 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <CalendarPlus className="h-4 w-4 text-cyan-300" />
+                <p className="font-medium">
+                  {blockProgress.started
+                    ? "Supporting block in progress"
+                    : "Supporting block scheduled"}
+                </p>
+                <Badge variant="outline">
+                  {blockProgress.started
+                    ? `Week ${blockProgress.currentWeek} of ${blockProgress.totalWeeks}`
+                    : `Starts ${formatUKDate(blockProgress.startDate)}`}
+                </Badge>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {blockProgress.completedSessions} of {blockProgress.plannedSessions} supporting
+                sessions complete.
+              </p>
+            </div>
+            <div className="text-right text-xs text-muted-foreground">
+              <p>
+                {blockProgress.started ? "This week" : "First week"}:{" "}
+                {blockProgress.currentWeekCompletedSessions} of{" "}
+                {blockProgress.currentWeekPlannedSessions}
+              </p>
+              <p className="mt-1">
+                {blockProgress.nextSessionDate
+                  ? `Next: ${formatUKDate(blockProgress.nextSessionDate)}`
+                  : "No remaining session"}
+              </p>
+            </div>
+          </div>
+          <Progress
+            className="mt-3 h-2"
+            value={
+              blockProgress.plannedSessions
+                ? (blockProgress.completedSessions / blockProgress.plannedSessions) * 100
+                : 0
+            }
+          />
+          <div className="mt-3 flex flex-wrap gap-2">
+            {blockProgress.tracks.map((progressTrack) => {
+              const track = available.find((item) => item.id === progressTrack.id);
+              const dose =
+                progressTrack.plannedSets && progressTrack.plannedDose && progressTrack.doseUnit
+                  ? ` · ${progressTrack.plannedSets} × ${progressTrack.plannedDose} ${progressTrack.doseUnit}`
+                  : "";
+              return (
+                <Badge key={progressTrack.id} variant="secondary">
+                  {track?.title ?? "Supporting goal"}
+                  {dose} · {progressTrack.completedSessions}/{progressTrack.plannedSessions}
+                </Badge>
+              );
+            })}
+          </div>
+          {blockProgress.tracks.some((track) => track.kind === "goal") ? (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Skill progression waits for four successful weeks at the same dose. Incomplete work
+              keeps the recommendation unchanged at review.
+            </p>
           ) : null}
         </div>
       ) : null}

@@ -138,6 +138,12 @@ function renderPlanner() {
   );
 }
 
+function dateOffset(days: number) {
+  const date = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 describe("programme supporting goals planner", () => {
   beforeEach(() => {
     mocks.createdGoal = false;
@@ -241,5 +247,27 @@ describe("programme supporting goals planner", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Review next four weeks" }));
     expect(screen.getByRole("checkbox", { name: /Hold a freestanding handstand/ })).toBeChecked();
     expect(screen.getByLabelText("Seconds per set")).toHaveValue(12);
+  });
+
+  it("shows live week, adherence and dose for the active support block", async () => {
+    mocks.blockHistory = [0, 3, 7, 10, 14, 17, 21, 24].map((offset, index) => ({
+      date: dateOffset(offset),
+      status: index === 0 ? "completed" : "pending",
+      goalId: "goal-1",
+      mobilityRunId: null,
+      locationKind: "home",
+      plannedSets: 3,
+      plannedDose: 10,
+      doseUnit: "seconds",
+    }));
+    renderPlanner();
+
+    expect(await screen.findByText("Supporting block in progress")).toBeInTheDocument();
+    expect(screen.getByText("Week 1 of 4")).toBeInTheDocument();
+    expect(screen.getByText(/1 of 8 supporting sessions complete/)).toBeInTheDocument();
+    expect(screen.getByText(/3 × 10 seconds/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Skill progression waits for four successful weeks/),
+    ).toBeInTheDocument();
   });
 });

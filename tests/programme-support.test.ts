@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildProgrammeSupportBlockProgress,
   buildProgrammeSupportBlockReview,
   buildProgrammeSupportSchedule,
   buildSkillGoalDraft,
@@ -141,6 +142,49 @@ test("a support block is not ready for review while its final session is still a
     }),
     null,
   );
+});
+
+test("an active support block reports its current week, adherence and dose", () => {
+  const dates = [
+    "2026-10-05",
+    "2026-10-08",
+    "2026-10-12",
+    "2026-10-15",
+    "2026-10-19",
+    "2026-10-22",
+    "2026-10-26",
+    "2026-10-29",
+  ];
+  const progress = buildProgrammeSupportBlockProgress({
+    today: "2026-10-13",
+    plans: dates.map((date, index) => ({
+      date,
+      status: index < 3 ? "completed" : "pending",
+      goalId: goal.id,
+      mobilityRunId: null,
+      locationKind: "home",
+      plannedSets: 3,
+      plannedDose: 10,
+      doseUnit: "seconds",
+    })),
+  });
+  assert.ok(progress);
+  assert.equal(progress.currentWeek, 2);
+  assert.equal(progress.totalWeeks, 4);
+  assert.equal(progress.completedSessions, 3);
+  assert.equal(progress.currentWeekCompletedSessions, 1);
+  assert.equal(progress.currentWeekPlannedSessions, 2);
+  assert.equal(progress.nextSessionDate, "2026-10-15");
+  assert.deepEqual(progress.tracks[0], {
+    id: `goal:${goal.id}`,
+    kind: "goal",
+    sourceId: goal.id,
+    plannedSessions: 8,
+    completedSessions: 3,
+    plannedSets: 3,
+    plannedDose: 10,
+    doseUnit: "seconds",
+  });
 });
 
 test("a calisthenics hold goal becomes an editable Library-based practice", () => {

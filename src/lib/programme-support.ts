@@ -57,6 +57,9 @@ export type ProgrammeSupportPlanHistoryEntry = {
   goalId: string | null;
   mobilityRunId: string | null;
   locationKind: PlannerLocation;
+  plannedSets?: number;
+  plannedDose?: number;
+  doseUnit?: "reps" | "seconds";
 };
 
 export type ProgrammeSupportReviewTrack = {
@@ -74,6 +77,31 @@ export type ProgrammeSupportBlockReview = {
   plannedSessions: number;
   completedSessions: number;
   tracks: ProgrammeSupportReviewTrack[];
+};
+
+export type ProgrammeSupportProgressTrack = {
+  id: string;
+  kind: ProgrammeSupportKind;
+  sourceId: string;
+  plannedSessions: number;
+  completedSessions: number;
+  plannedSets: number | null;
+  plannedDose: number | null;
+  doseUnit: "reps" | "seconds" | null;
+};
+
+export type ProgrammeSupportBlockProgress = {
+  startDate: string;
+  endDate: string;
+  started: boolean;
+  currentWeek: number;
+  totalWeeks: number;
+  plannedSessions: number;
+  completedSessions: number;
+  currentWeekPlannedSessions: number;
+  currentWeekCompletedSessions: number;
+  nextSessionDate: string | null;
+  tracks: ProgrammeSupportProgressTrack[];
 };
 
 const DAY_MS = 86_400_000;
@@ -263,6 +291,78 @@ export function buildProgrammeSupportBlockReview({
     endDate,
     plannedSessions: block.length,
     completedSessions: block.filter((plan) => plan.status === "completed").length,
+    tracks,
+  };
+}
+
+export function buildProgrammeSupportBlockProgress({
+  plans,
+  today,
+}: {
+  plans: ProgrammeSupportPlanHistoryEntry[];
+  today: string;
+}): ProgrammeSupportBlockProgress | null {
+  const dated = plans
+    .filter((plan) => parseISO(plan.date))
+    .sort((left, right) => left.date.localeCompare(right.date));
+  const endDate = dated.at(-1)?.date;
+  if (!endDate || endDate < today) return null;
+
+  const windowStart = addDays(endDate, -27);
+  const block = dated.filter((plan) => plan.date >= windowStart && plan.date <= endDate);
+  const startDate = block[0]?.date;
+  if (!startDate) return null;
+  const started = startDate <= today;
+  const totalWeeks = Math.min(4, Math.max(1, Math.ceil((dayDistance(startDate, endDate) + 1) / 7)));
+  const currentWeek = started
+    ? Math.min(totalWeeks, Math.floor(dayDistance(startDate, today) / 7) + 1)
+    : 1;
+  const currentWeekStart = addDays(startDate, (currentWeek - 1) * 7);
+  const currentWeekEnd = addDays(currentWeekStart, 6);
+  const currentWeekPlans = block.filter(
+    (plan) => plan.date >= currentWeekStart && plan.date <= currentWeekEnd,
+  );
+  const byTrack = new Map<string, ProgrammeSupportPlanHistoryEntry[]>();
+  for (const plan of block) {
+    const id = plan.goalId
+      ? `goal:${plan.goalId}`
+      : plan.mobilityRunId
+        ? `mobility:${plan.mobilityRunId}`
+        : null;
+    if (!id) continue;
+    byTrack.set(id, [...(byTrack.get(id) ?? []), plan]);
+  }
+  const tracks = Array.from(byTrack.entries()).map(([id, entries]) => {
+    const dose = [...entries]
+      .reverse()
+      .find((entry) => entry.plannedSets && entry.plannedDose && entry.doseUnit);
+    return {
+      id,
+      kind: id.startsWith("goal:") ? ("goal" as const) : ("mobility" as const),
+      sourceId: id.slice(id.indexOf(":") + 1),
+      plannedSessions: entries.length,
+      completedSessions: entries.filter((entry) => entry.status === "completed").length,
+      plannedSets: dose?.plannedSets ?? null,
+      plannedDose: dose?.plannedDose ?? null,
+      doseUnit: dose?.doseUnit ?? null,
+    };
+  });
+  const nextSession = block.find(
+    (plan) => plan.date >= today && plan.status !== "completed" && plan.status !== "skipped",
+  );
+
+  return {
+    startDate,
+    endDate,
+    started,
+    currentWeek,
+    totalWeeks,
+    plannedSessions: block.length,
+    completedSessions: block.filter((plan) => plan.status === "completed").length,
+    currentWeekPlannedSessions: currentWeekPlans.length,
+    currentWeekCompletedSessions: currentWeekPlans.filter((plan) => plan.status === "completed")
+      .length,
+    nextSessionDate: nextSession?.date ?? null,
     tracks,
   };
 }

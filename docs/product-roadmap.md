@@ -1,6 +1,6 @@
 # train n track Product Roadmap
 
-Last updated: 2026-10-04
+Last updated: 2026-10-05
 
 ## Current Personal Priority
 
@@ -54,6 +54,29 @@ When the final date in a supporting block has passed, My Programme now shows a r
 the completed-versus-planned session count. Opening it restores the previous active priorities,
 frequency, placement and location, and loads the next calisthenics dose recommendation. The next
 four weeks are still only created after the user reviews and saves them.
+
+During an active supporting block, My Programme shows the current week, overall and current-week
+completion, next session, and each priority's evaluated dose. This makes the evidence feeding the
+next block review visible while the block is still underway.
+
+## Adaptive Coaching Path
+
+The app is around the middle of the path to a sophisticated adaptive coach. The structured
+programme, exact prescriptions, unified logging, history, weekly planning and explainable progress
+signals provide most of the required foundation. Strength and calisthenics now have cautious
+evidence-to-recommendation loops, while mobility remains deliberately user-directed.
+
+The remaining stages are:
+
+1. Combine strength, climbing, mobility, skills and other weekly load into one current training
+   context rather than reviewing each area separately.
+2. Add a short optional readiness signal and use it with completed work, missed targets, effort and
+   recent load to adjust timing or dose conservatively.
+3. Resolve competing goals explicitly, including which goal is primary, which are maintained and
+   what weekly time or recovery budget is available.
+4. Generate one editable weekly recommendation with clear evidence, confidence and change history.
+5. Learn from accepted, changed and rejected recommendations without silently rewriting a saved
+   programme.
 
 ## Product Direction
 

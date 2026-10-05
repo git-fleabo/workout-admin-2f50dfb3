@@ -40,6 +40,10 @@ type SupportPlanHistoryRow = {
   goal_id: string | null;
   mobility_practice_run_id: string | null;
   training_locations: { kind: string | null } | null;
+  suggested_workout_entries: Array<{
+    tracking_mode: string | null;
+    suggested_workout_sets: PlannedSetRow[] | null;
+  }> | null;
 };
 
 function positiveNumber(value: number | string | null) {
@@ -98,7 +102,7 @@ export async function getProgrammeSkillSupportHistoryClient(assignmentId: string
 
   const history: Record<string, SkillPracticeHistoryEntry[]> = {};
   for (const plan of plans) {
-    const planned = plan.suggested_workout_entries?.[0];
+    const planned = plan.goal_id ? plan.suggested_workout_entries?.[0] : undefined;
     if (!planned || !plan.suggested_for || !plan.completed_session_id) continue;
     const plannedDoses = (planned.suggested_workout_sets ?? [])
       .map((set) => setDose(set, planned.tracking_mode))
@@ -132,7 +136,8 @@ export async function getProgrammeSupportBlockHistoryClient(
   const person = await getCurrentPerson();
   if (!person) throw new Error("This account is not linked to a person.");
   const plans = await supabasePublicSelect<SupportPlanHistoryRow>("suggested_workouts", {
-    select: "suggested_for,status,goal_id,mobility_practice_run_id,training_locations(kind)",
+    select:
+      "suggested_for,status,goal_id,mobility_practice_run_id,training_locations(kind),suggested_workout_entries(tracking_mode,suggested_workout_sets(reps,duration_seconds))",
     person_id: `eq.${person.id}`,
     program_assignment_id: `eq.${assignmentId}`,
     program_workout_id: "is.null",
@@ -142,6 +147,11 @@ export async function getProgrammeSupportBlockHistoryClient(
   });
   return plans.flatMap((plan) => {
     if (!plan.suggested_for || (!plan.goal_id && !plan.mobility_practice_run_id)) return [];
+    const planned = plan.goal_id ? plan.suggested_workout_entries?.[0] : undefined;
+    const plannedDoses = (planned?.suggested_workout_sets ?? [])
+      .map((set) => setDose(set, planned?.tracking_mode ?? null))
+      .filter((value): value is number => value != null);
+    const holds = planned?.tracking_mode === "hold" || planned?.tracking_mode === "grip_hold";
     return [
       {
         date: plan.suggested_for,
@@ -149,6 +159,9 @@ export async function getProgrammeSupportBlockHistoryClient(
         goalId: plan.goal_id,
         mobilityRunId: plan.mobility_practice_run_id,
         locationKind: plan.training_locations?.kind === "home" ? "home" : "gym",
+        plannedSets: plannedDoses.length || undefined,
+        plannedDose: plannedDoses.length ? Math.min(...plannedDoses) : undefined,
+        doseUnit: plannedDoses.length ? (holds ? "seconds" : "reps") : undefined,
       },
     ];
   });
