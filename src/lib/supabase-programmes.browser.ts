@@ -1261,6 +1261,19 @@ export async function getActiveProgrammeRefreshClient(): Promise<ProgrammeAssign
   );
 }
 
+export async function getActiveProgrammeRefreshContextClient(): Promise<{
+  assignment: ProgrammeAssignment;
+  template: ProgrammeTemplate;
+} | null> {
+  const [assignment, templates] = await Promise.all([
+    getActiveProgrammeRefreshClient(),
+    listProgrammeTemplatesClient(),
+  ]);
+  if (!assignment) return null;
+  const template = templates.find((candidate) => candidate.id === assignment.programId);
+  return template ? { assignment, template } : null;
+}
+
 export async function updateProgrammeManualAdjustmentsClient(
   assignmentId: string,
   adjustments: Array<{ exerciseId: string; manualAdjustmentPercent: number }>,

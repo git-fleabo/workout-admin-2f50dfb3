@@ -1,4 +1,4 @@
-import { RefreshCw, SlidersHorizontal } from "lucide-react";
+import { CalendarDays, RefreshCw, SlidersHorizontal, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +20,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { ProgrammeAssignment } from "@/lib/supabase-programmes.browser";
+import { formatUKDate } from "@/lib/date";
+import { buildStrengthProgrammeReview } from "@/lib/strength-programme-review";
+import type { ProgrammeAssignment, ProgrammeTemplate } from "@/lib/supabase-programmes.browser";
+import type { WeeklyRecoveryRecommendation } from "@/lib/weekly-recovery";
+import type { WorkoutPlanMovement } from "@/lib/workout-plan";
 
 const ADJUSTMENT_OPTIONS = [
   { value: -5, label: "Much lighter", detail: "5 percentage points lower" },
@@ -35,12 +39,34 @@ function points(value: number) {
   return `${value > 0 ? "+" : ""}${value} pts`;
 }
 
+function prescriptionSummary(movement: WorkoutPlanMovement) {
+  const sets = movement.setRows;
+  const first = sets[0];
+  const allMatch = sets.every((set) => set.reps === first?.reps && set.weight === first?.weight);
+  if (allMatch && first) {
+    const reps = first.reps ? `${first.reps} reps` : "prescribed reps";
+    const load = first.weight ? ` @ ${first.weight} kg` : "";
+    return `${sets.length} × ${reps}${load}`;
+  }
+  return sets
+    .map((set, index) => {
+      const reps = set.reps ? `${set.reps} reps` : "prescribed reps";
+      const load = set.weight ? ` @ ${set.weight} kg` : "";
+      return `Set ${index + 1}: ${reps}${load}`;
+    })
+    .join(" · ");
+}
+
 export function ProgrammeRefreshCard({
   assignment,
+  template,
+  recovery,
   saving,
   onSave,
 }: {
   assignment: ProgrammeAssignment;
+  template: ProgrammeTemplate;
+  recovery: WeeklyRecoveryRecommendation;
   saving: boolean;
   onSave: (
     updates: Array<{
@@ -55,9 +81,23 @@ export function ProgrammeRefreshCard({
       assignment.exercises.filter((exercise) => exercise.enabled && exercise.trainingMax != null),
     [assignment.exercises],
   );
-  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"coach" | "manual" | null>(null);
   const [draftAdjustments, setDraftAdjustments] = useState<Record<string, number>>({});
   const [draftTrainingMaxes, setDraftTrainingMaxes] = useState<Record<string, string>>({});
+  const defaultCoachReview = useMemo(
+    () => buildStrengthProgrammeReview({ assignment, template, recovery }),
+    [assignment, recovery, template],
+  );
+  const coachReview = useMemo(
+    () =>
+      buildStrengthProgrammeReview({
+        assignment,
+        template,
+        recovery,
+        manualAdjustments: mode === "coach" ? draftAdjustments : undefined,
+      }),
+    [assignment, draftAdjustments, mode, recovery, template],
+  );
   const activeOverrides = exercises.filter((exercise) => exercise.manualAdjustmentPercent !== 0);
   const changed = exercises.flatMap((exercise) => {
     const nextAdjustment = draftAdjustments[exercise.id] ?? exercise.manualAdjustmentPercent;
@@ -78,22 +118,39 @@ export function ProgrammeRefreshCard({
     return !Number.isFinite(value) || value < 0.5 || value > 1000;
   });
 
-  const openReview = () => {
-    setDraftAdjustments(
+  const resetDrafts = (adjustments: Record<string, number>) => {
+    setDraftAdjustments(adjustments);
+    setDraftTrainingMaxes(
+      Object.fromEntries(exercises.map((exercise) => [exercise.id, String(exercise.trainingMax)])),
+    );
+  };
+
+  const openCoachReview = () => {
+    if (!defaultCoachReview) return;
+    resetDrafts(
+      Object.fromEntries(
+        defaultCoachReview.exercises.map((exercise) => [
+          exercise.assignmentExerciseId,
+          exercise.proposedManualAdjustmentPercent,
+        ]),
+      ),
+    );
+    setMode("coach");
+  };
+
+  const openManualReview = () => {
+    resetDrafts(
       Object.fromEntries(
         exercises.map((exercise) => [exercise.id, exercise.manualAdjustmentPercent]),
       ),
     );
-    setDraftTrainingMaxes(
-      Object.fromEntries(exercises.map((exercise) => [exercise.id, String(exercise.trainingMax)])),
-    );
-    setOpen(true);
+    setMode("manual");
   };
 
   const save = async () => {
     try {
       await onSave(changed);
-      setOpen(false);
+      setMode(null);
     } catch {
       // The parent mutation owns the user-facing error toast; keep the dialog open for correction.
     }
@@ -105,18 +162,26 @@ export function ProgrammeRefreshCard({
         <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-3">
             <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cyan-400/25 bg-cyan-400/10 text-cyan-300">
-              <RefreshCw className="h-4 w-4" />
+              <Sparkles className="h-4 w-4" />
             </span>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold">Refresh upcoming sessions</p>
-                <Badge variant="outline" className="text-[10px]">
-                  {assignment.currentWorkoutIndex} completed
-                </Badge>
+                <p className="text-sm font-semibold">
+                  {defaultCoachReview?.title ?? "Refresh upcoming sessions"}
+                </p>
+                {defaultCoachReview?.programmeWeek ? (
+                  <Badge variant="outline" className="text-[10px]">
+                    Programme week {defaultCoachReview.programmeWeek}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px]">
+                    {assignment.currentWorkoutIndex} completed
+                  </Badge>
+                )}
               </div>
               <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">
-                Amend a training max or review a lift after a week that felt too hard or too easy.
-                Every unstarted programme session is recalculated from the saved values.
+                {defaultCoachReview?.detail ??
+                  "Amend a training max or review a lift after a week that felt too hard or too easy. Every unstarted programme session is recalculated from the saved values."}
               </p>
               {activeOverrides.length ? (
                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -129,110 +194,227 @@ export function ProgrammeRefreshCard({
               ) : null}
             </div>
           </div>
-          <Button variant="outline" onClick={openReview} disabled={!exercises.length}>
-            <SlidersHorizontal className="mr-2 h-4 w-4" /> Update programme
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {defaultCoachReview ? (
+              <Button onClick={openCoachReview} disabled={!exercises.length}>
+                <Sparkles className="mr-2 h-4 w-4" /> Review exact week
+              </Button>
+            ) : null}
+            <Button variant="outline" onClick={openManualReview} disabled={!exercises.length}>
+              <SlidersHorizontal className="mr-2 h-4 w-4" /> Adjust manually
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
-      <Dialog open={open} onOpenChange={(nextOpen) => !saving && setOpen(nextOpen)}>
-        <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
+      <Dialog open={mode != null} onOpenChange={(open) => !saving && !open && setMode(null)}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Update programme</DialogTitle>
+            <DialogTitle>
+              {mode === "coach"
+                ? (coachReview?.title ?? "Review next strength week")
+                : "Update programme"}
+            </DialogTitle>
             <DialogDescription>
-              Amend training maxes and load adjustments independently. Upcoming, unstarted
-              prescriptions refresh immediately; completed workouts, started drafts, and scheduled
-              dates do not change.
+              {mode === "coach"
+                ? "This is a draft. Check the precise sessions and load choice for each lift; nothing changes until you apply it."
+                : "Amend training maxes and load adjustments independently. Upcoming, unstarted prescriptions refresh immediately; completed workouts, started drafts, and scheduled dates do not change."}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3">
-            {exercises.map((exercise) => {
-              const automatic = exercise.loadAdjustmentPercent;
-              const manual = draftAdjustments[exercise.id] ?? exercise.manualAdjustmentPercent;
-              const combined = automatic + manual;
-              return (
-                <div
-                  key={exercise.id}
-                  data-testid={`programme-adjustment-${exercise.slotKey}`}
-                  className="rounded-lg border border-border p-3"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-medium">{exercise.exerciseName}</p>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {exercise.trainingMax} kg training max · automatic {points(automatic)}
-                        {exercise.lastDecision ? ` (${exercise.lastDecision})` : ""}
-                      </p>
-                    </div>
-                    <Badge variant={combined < 0 ? "secondary" : "outline"}>
-                      Combined {points(combined)}
-                    </Badge>
-                  </div>
-                  <label
-                    className="mt-3 block text-xs font-medium"
-                    htmlFor={`training-max-${exercise.id}`}
-                  >
-                    Training max (kg)
-                  </label>
-                  <Input
-                    id={`training-max-${exercise.id}`}
-                    data-testid={`programme-training-max-${exercise.slotKey}`}
-                    className="mt-1"
-                    type="number"
-                    min="0.5"
-                    max="1000"
-                    step="0.5"
-                    inputMode="decimal"
-                    value={draftTrainingMaxes[exercise.id] ?? String(exercise.trainingMax)}
-                    onChange={(event) =>
-                      setDraftTrainingMaxes((current) => ({
-                        ...current,
-                        [exercise.id]: event.target.value,
-                      }))
-                    }
-                  />
-                  <p className="mt-3 text-xs font-medium">Upcoming load adjustment</p>
-                  <Select
-                    value={String(manual)}
-                    onValueChange={(value) =>
-                      setDraftAdjustments((current) => ({
-                        ...current,
-                        [exercise.id]: Number(value),
-                      }))
-                    }
-                  >
-                    <SelectTrigger className="mt-3">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ADJUSTMENT_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={String(option.value)}>
-                          {option.label} · {option.detail}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              );
-            })}
-          </div>
+          {mode === "coach" && coachReview ? (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-cyan-400/20 bg-cyan-400/[0.05] p-3">
+                <p className="text-xs font-medium">Why this draft</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {recovery.detail}
+                </p>
+                <ul className="mt-2 space-y-1 text-[11px] text-muted-foreground">
+                  {coachReview.evidence.map((item) => (
+                    <li key={item}>• {item}</li>
+                  ))}
+                </ul>
+              </div>
 
-          <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.05] p-3 text-xs leading-relaxed text-muted-foreground">
-            A training-max change is the new basis for every later percentage calculation in this
-            programme. Manual load changes stay active until reset. Use the lighter options if pain
-            or technique deteriorated; do not use either control to train through pain.
-          </div>
+              <div className="space-y-3">
+                {coachReview.exercises.map((exercise) => (
+                  <div
+                    key={exercise.assignmentExerciseId}
+                    className="rounded-lg border border-border p-3"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">{exercise.exerciseName}</p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                          {exercise.trainingMax} kg training max · automatic{" "}
+                          {points(exercise.automaticAdjustmentPercent)}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={
+                          exercise.proposedCombinedAdjustmentPercent < 0 ? "secondary" : "outline"
+                        }
+                      >
+                        Proposed {points(exercise.proposedCombinedAdjustmentPercent)}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                      {exercise.reason}
+                    </p>
+                    <p className="mt-3 text-xs font-medium">Weekly load choice</p>
+                    <Select
+                      value={String(exercise.proposedManualAdjustmentPercent)}
+                      onValueChange={(value) =>
+                        setDraftAdjustments((current) => ({
+                          ...current,
+                          [exercise.assignmentExerciseId]: Number(value),
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ADJUSTMENT_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={String(option.value)}>
+                            {option.label} · {option.detail}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold">Exact upcoming prescriptions</p>
+                <div className="mt-2 space-y-3">
+                  {coachReview.sessions.map((session) => (
+                    <div key={session.workoutId} className="rounded-lg border border-border p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-medium">{session.workoutName}</p>
+                        {session.scheduledDate ? (
+                          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                            <CalendarDays className="h-3 w-3" />
+                            {formatUKDate(session.scheduledDate)}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="mt-2 space-y-2">
+                        {session.movements.map(({ exerciseId, exerciseName, movement }) => (
+                          <div key={`${session.workoutId}-${exerciseId}`} className="text-xs">
+                            <p className="font-medium">{exerciseName}</p>
+                            <p className="mt-0.5 text-muted-foreground">
+                              {prescriptionSummary(movement)}
+                              {movement.restTime ? ` · Rest ${movement.restTime}` : ""}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.05] p-3 text-xs leading-relaxed text-muted-foreground">
+                Applying this review changes only the temporary load override used to calculate
+                unstarted sessions. Completed workouts, started drafts, dates, training maxes and
+                the programme template stay as they are.
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {exercises.map((exercise) => {
+                const automatic = exercise.loadAdjustmentPercent;
+                const manual = draftAdjustments[exercise.id] ?? exercise.manualAdjustmentPercent;
+                const combined = automatic + manual;
+                return (
+                  <div
+                    key={exercise.id}
+                    data-testid={`programme-adjustment-${exercise.slotKey}`}
+                    className="rounded-lg border border-border p-3"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">{exercise.exerciseName}</p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                          {exercise.trainingMax} kg training max · automatic {points(automatic)}
+                          {exercise.lastDecision ? ` (${exercise.lastDecision})` : ""}
+                        </p>
+                      </div>
+                      <Badge variant={combined < 0 ? "secondary" : "outline"}>
+                        Combined {points(combined)}
+                      </Badge>
+                    </div>
+                    <label
+                      className="mt-3 block text-xs font-medium"
+                      htmlFor={`training-max-${exercise.id}`}
+                    >
+                      Training max (kg)
+                    </label>
+                    <Input
+                      id={`training-max-${exercise.id}`}
+                      data-testid={`programme-training-max-${exercise.slotKey}`}
+                      className="mt-1"
+                      type="number"
+                      min="0.5"
+                      max="1000"
+                      step="0.5"
+                      inputMode="decimal"
+                      value={draftTrainingMaxes[exercise.id] ?? String(exercise.trainingMax)}
+                      onChange={(event) =>
+                        setDraftTrainingMaxes((current) => ({
+                          ...current,
+                          [exercise.id]: event.target.value,
+                        }))
+                      }
+                    />
+                    <p className="mt-3 text-xs font-medium">Upcoming load adjustment</p>
+                    <Select
+                      value={String(manual)}
+                      onValueChange={(value) =>
+                        setDraftAdjustments((current) => ({
+                          ...current,
+                          [exercise.id]: Number(value),
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="mt-3">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ADJUSTMENT_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={String(option.value)}>
+                            {option.label} · {option.detail}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                );
+              })}
+              <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.05] p-3 text-xs leading-relaxed text-muted-foreground">
+                A training-max change is the new basis for every later percentage calculation in
+                this programme. Manual load changes stay active until reset. Use the lighter options
+                if pain or technique deteriorated; do not use either control to train through pain.
+              </div>
+            </div>
+          )}
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)} disabled={saving}>
+            <Button variant="ghost" onClick={() => setMode(null)} disabled={saving}>
               Cancel
             </Button>
             <Button onClick={save} disabled={saving || !changed.length || hasInvalidTrainingMax}>
               {saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Refresh upcoming sessions
+              {mode === "coach" ? "Apply reviewed week" : "Refresh upcoming sessions"}
             </Button>
           </DialogFooter>
+          {mode === "coach" && !changed.length ? (
+            <p className="text-center text-[11px] text-muted-foreground">
+              The current programme already matches this review.
+            </p>
+          ) : null}
         </DialogContent>
       </Dialog>
     </>

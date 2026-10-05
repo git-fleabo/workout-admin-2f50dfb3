@@ -73,7 +73,7 @@ import { getMovementMetricProfile, getTrackingModeValue } from "@/lib/movement-m
 import type { SkillGoalExercise } from "@/lib/programme-support";
 import { readWorkoutDraftSummary, workoutSessionDraftKey } from "@/lib/workout-local-state";
 import {
-  getActiveProgrammeRefreshClient,
+  getActiveProgrammeRefreshContextClient,
   getUpcomingProgrammeScheduleClient,
   updateProgrammeExerciseSettingsClient,
 } from "@/lib/supabase-programmes.browser";
@@ -89,6 +89,7 @@ import {
   type WeeklyPlanAdjustments,
   type WeeklyPlanItemKind,
 } from "@/lib/weekly-plan";
+import { buildWeeklyRecoveryRecommendation } from "@/lib/weekly-recovery";
 import {
   buildGuidedStrengthSession,
   buildYogaWorkoutDraft,
@@ -541,6 +542,17 @@ function PlanPage() {
       weeklyPlan,
     ],
   );
+  const strengthRecovery = useMemo(
+    () =>
+      buildWeeklyRecoveryRecommendation({
+        logs: history.data?.recent ?? [],
+        loadHistory: weeklyLoad.data ?? [],
+        plan: weeklyPlan,
+        adjustments: weeklyAdjustments,
+        today: todayISO(),
+      }),
+    [history.data?.recent, weeklyAdjustments, weeklyLoad.data, weeklyPlan],
+  );
   const supportDoseOpportunities = useMemo(
     () =>
       buildSupportDoseOpportunities({
@@ -581,7 +593,7 @@ function PlanPage() {
   );
   const programmeRefresh = useQuery({
     queryKey: ["programme-refresh"],
-    queryFn: getActiveProgrammeRefreshClient,
+    queryFn: getActiveProgrammeRefreshContextClient,
     staleTime: 30_000,
   });
   const programmeRefreshMutation = useMutation({
@@ -1451,23 +1463,18 @@ function PlanPage() {
           </CardContent>
         </Card>
       ) : programmeRefresh.data ? (
-        <details className="rounded-xl border border-border bg-card/30 p-4">
-          <summary className="cursor-pointer text-sm font-semibold">
-            Adjust future programme targets
-          </summary>
-          <div className="mt-4">
-            <ProgrammeRefreshCard
-              assignment={programmeRefresh.data}
-              saving={programmeRefreshMutation.isPending}
-              onSave={async (updates) => {
-                await programmeRefreshMutation.mutateAsync({
-                  assignmentId: programmeRefresh.data!.id,
-                  updates,
-                });
-              }}
-            />
-          </div>
-        </details>
+        <ProgrammeRefreshCard
+          assignment={programmeRefresh.data.assignment}
+          template={programmeRefresh.data.template}
+          recovery={strengthRecovery}
+          saving={programmeRefreshMutation.isPending}
+          onSave={async (updates) => {
+            await programmeRefreshMutation.mutateAsync({
+              assignmentId: programmeRefresh.data!.assignment.id,
+              updates,
+            });
+          }}
+        />
       ) : null}
 
       <details id="next-workout-builder" className="scroll-mt-24 border-t border-border pt-5">
