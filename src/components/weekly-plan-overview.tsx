@@ -44,7 +44,7 @@ import type { PlannerLocation } from "@/lib/workout-plan";
 import type { WeeklyPlan, WeeklyPlanAdjustments, WeeklyPlanItemKind } from "@/lib/weekly-plan";
 import { cn } from "@/lib/utils";
 
-function programmeMovementGuidance(reason: string, restTime?: string) {
+export function programmeMovementGuidance(reason: string, restTime?: string) {
   const guidance = reason.trim();
   const rest = restTime?.trim();
   return rest && guidance === `Rest ${rest} between sets.` ? "" : guidance;
@@ -63,7 +63,7 @@ const LOCATION_STYLE = {
   },
 } as const;
 
-const ITEM_STYLE: Record<
+export const ITEM_STYLE: Record<
   WeeklyPlanItemKind,
   { label: string; shortLabel: string; icon: typeof Home; badge: string }
 > = {
@@ -101,7 +101,7 @@ const ITEM_STYLE: Record<
   },
 };
 
-const ALL_ITEMS = Object.keys(ITEM_STYLE) as WeeklyPlanItemKind[];
+export const ALL_ITEMS = Object.keys(ITEM_STYLE) as WeeklyPlanItemKind[];
 
 function dayName(date: string, long = false) {
   const parsed = new Date(`${date}T00:00:00Z`);
