@@ -68,9 +68,15 @@ import {
 } from "@/lib/supabase-plans.browser";
 import { getSupabaseSession } from "@/lib/supabase-public";
 import { listMobilityDataClient } from "@/lib/supabase-mobility.browser";
-import { buildMobilityWorkoutDraft } from "@/lib/mobility-practice";
+import { buildMobilityWorkoutDraft, MOBILITY_SKILLS } from "@/lib/mobility-practice";
 import { getMovementMetricProfile, getTrackingModeValue } from "@/lib/movement-metrics";
-import type { SkillGoalExercise } from "@/lib/programme-support";
+import {
+  buildSkillGoalDraft,
+  defaultSkillGoalLocation,
+  isSupportedSkillGoal,
+  recommendSkillPracticeDose,
+  type SkillGoalExercise,
+} from "@/lib/programme-support";
 import { readWorkoutDraftSummary, workoutSessionDraftKey } from "@/lib/workout-local-state";
 import {
   getActiveProgrammeRefreshContextClient,
@@ -115,7 +121,11 @@ import {
   type WorkoutPlanTargets,
 } from "@/lib/workout-plan";
 import { cn } from "@/lib/utils";
-import { buildCoachingFocusOptions, type CoachingPreferences } from "@/lib/coaching-preferences";
+import {
+  buildCoachingFocusOptions,
+  DEFAULT_COACHING_PREFERENCES,
+  type CoachingPreferences,
+} from "@/lib/coaching-preferences";
 import {
   getCoachingPreferencesClient,
   saveCoachingPreferencesClient,
@@ -130,6 +140,12 @@ import type {
   CoachOutcomeRating,
   WeeklyCoachRecommendation,
 } from "@/lib/weekly-coach-recommendation";
+import {
+  buildWeeklyCoachDraft,
+  validateWeeklyCoachDraftSelection,
+  type WeeklyCoachDraftAddition,
+  type WeeklyCoachDraftCandidate,
+} from "@/lib/weekly-coach-draft";
 import {
   buildClimbingCircuit,
   CLIMBING_GOAL_OPTIONS,
@@ -437,13 +453,14 @@ function PlanPage() {
   const coachingSupportAssignmentIds = useMemo(
     () =>
       Array.from(
-        new Set(
-          (scheduledPlans.data ?? [])
+        new Set([
+          ...(scheduledPlans.data ?? [])
             .filter((plan) => plan.programAssignmentId && !plan.programWorkoutId)
             .map((plan) => plan.programAssignmentId as string),
-        ),
+          ...(programmeSchedule.data ?? []).map((session) => session.assignmentId),
+        ]),
       ).sort(),
-    [scheduledPlans.data],
+    [programmeSchedule.data, scheduledPlans.data],
   );
   const coachingSupportEvidence = useQuery({
     queryKey: ["coaching-support-evidence", coachingSupportAssignmentIds],
@@ -601,6 +618,107 @@ function PlanPage() {
     queryFn: getActiveProgrammeRefreshContextClient,
     staleTime: 30_000,
   });
+  const weeklyCoachAssignmentId =
+    programmeSchedule.data?.[0]?.assignmentId ?? programmeRefresh.data?.assignment.id ?? null;
+  const weeklyCoachCandidates = useMemo<WeeklyCoachDraftCandidate[]>(() => {
+    const skillCandidates = (coachingGoals.data?.items ?? []).flatMap((goal) => {
+      const exercise = coachingSkillExercises.find((item) => item.id === goal.exerciseId);
+      if (!isSupportedSkillGoal(goal, exercise) || !exercise) return [];
+      const dose = recommendSkillPracticeDose({
+        goal,
+        exercise,
+        history: coachingSupportEvidence.data?.skillHistory[goal.id] ?? [],
+      });
+      return [
+        {
+          focusId: `goal:${goal.id}`,
+          sourceId: goal.id,
+          kind: "skill" as const,
+          title: goal.goal,
+          defaultPlacement: "with_strength" as const,
+          draft: buildSkillGoalDraft({
+            goal,
+            exercise,
+            locationKind: defaultSkillGoalLocation(exercise),
+            dose,
+          }),
+          planKind: "skill" as const,
+          goalId: goal.id,
+          mobilityRunId: null,
+          programAssignmentId: weeklyCoachAssignmentId,
+        },
+      ];
+    });
+    const mobilityCandidates = activeMobilityRuns.flatMap((run) => {
+      try {
+        const drills = (mobilityData.data?.drills ?? []).filter((drill) => drill.runId === run.id);
+        const activeDrillExercises = drills
+          .filter((drill) => drill.isActive)
+          .map((drill) =>
+            library.data?.exercises.find((exercise) => exercise.id === drill.exerciseId),
+          );
+        const locationKind = (["home", "gym"] as const).find(
+          (kind) =>
+            library.data?.locations.some((location) => location.kind === kind) &&
+            activeDrillExercises.length > 0 &&
+            activeDrillExercises.every((exercise) =>
+              exercise?.availableLocationKinds.includes(kind),
+            ),
+        );
+        if (!locationKind) return [];
+        const draft = buildMobilityWorkoutDraft({
+          run,
+          drills,
+          library: library.data?.exercises ?? [],
+          locationKind,
+        });
+        return [
+          {
+            focusId: `mobility:${run.id}`,
+            sourceId: run.id,
+            kind: "mobility" as const,
+            title: MOBILITY_SKILLS[run.skill].label,
+            defaultPlacement: "separate" as const,
+            draft,
+            planKind: "mobility" as const,
+            goalId: null,
+            mobilityRunId: run.id,
+            programAssignmentId: weeklyCoachAssignmentId,
+          },
+        ];
+      } catch {
+        return [];
+      }
+    });
+    return [...skillCandidates, ...mobilityCandidates];
+  }, [
+    activeMobilityRuns,
+    coachingGoals.data?.items,
+    coachingSkillExercises,
+    coachingSupportEvidence.data?.skillHistory,
+    library.data?.exercises,
+    library.data?.locations,
+    mobilityData.data?.drills,
+    weeklyCoachAssignmentId,
+  ]);
+  const weeklyCoachDraft = useMemo(
+    () =>
+      buildWeeklyCoachDraft({
+        plan: weeklyPlan,
+        programmeSessions: programmeSchedule.data ?? [],
+        scheduledPlans: scheduledPlans.data ?? [],
+        preferences: coachingPreferences.data ?? DEFAULT_COACHING_PREFERENCES,
+        candidates: weeklyCoachCandidates,
+        today: todayISO(),
+      }),
+    [
+      coachingPreferences.data,
+      programmeSchedule.data,
+      scheduledPlans.data,
+      weeklyCoachCandidates,
+      weeklyPlan,
+    ],
+  );
   const programmeStrengthReview = useQuery({
     queryKey: ["programme-strength-week-review", programmeRefresh.data?.assignment.id],
     queryFn: () => getLatestProgrammeStrengthWeekReviewClient(programmeRefresh.data!.assignment.id),
@@ -1202,6 +1320,50 @@ function PlanPage() {
       queryClient.invalidateQueries({ queryKey: ["next-suggested-workouts"] }),
     ]);
 
+  const applyWeeklyCoachDraft = useMutation({
+    mutationFn: async (additions: WeeklyCoachDraftAddition[]) => {
+      const validationError = validateWeeklyCoachDraftSelection(weeklyCoachDraft, additions);
+      if (validationError) throw new Error(validationError);
+      if (!additions.length) throw new Error("Choose at least one session to add.");
+      const candidateByFocus = new Map(
+        weeklyCoachCandidates.map((candidate) => [candidate.focusId, candidate]),
+      );
+      const insertedIds: string[] = [];
+      try {
+        for (const addition of additions) {
+          const candidate = candidateByFocus.get(addition.focusId);
+          if (!candidate) throw new Error(`${addition.title} is no longer available.`);
+          const saved = await saveWorkoutPlanClient({
+            draft: candidate.draft,
+            readiness: "normal",
+            status: "pending",
+            suggestedFor: addition.date,
+            planKind: candidate.planKind,
+            programAssignmentId: candidate.programAssignmentId ?? undefined,
+            goalId: candidate.goalId ?? undefined,
+            replaceExisting: false,
+          });
+          insertedIds.push(saved.suggestedWorkoutId);
+        }
+        return { count: insertedIds.length };
+      } catch (error) {
+        await Promise.all(
+          insertedIds.map((id) =>
+            updateSuggestedWorkoutStatusClient(id, "archived").catch(() => undefined),
+          ),
+        );
+        throw error;
+      }
+    },
+    onSuccess: async ({ count }) => {
+      await refreshScheduledPlans();
+      toast.success(`${count} session${count === 1 ? "" : "s"} added to your week`, {
+        description: "The approved additions are now in Your week at a glance.",
+      });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const decideCoachingRecommendation = useMutation({
     mutationFn: ({
       recommendation,
@@ -1441,6 +1603,19 @@ function PlanPage() {
           recommendationPending={decideCoachingRecommendation.isPending}
           outcomeReview={coachOutcomeState.pendingReview}
           outcomePending={recordCoachingOutcome.isPending}
+          weekDraft={
+            coachingPreferences.isSuccess && coachingGoals.isSuccess && mobilityData.isSuccess
+              ? weeklyCoachDraft
+              : undefined
+          }
+          weekDraftPending={applyWeeklyCoachDraft.isPending}
+          onApplyWeekDraft={
+            coachingPreferences.isSuccess && coachingGoals.isSuccess && mobilityData.isSuccess
+              ? async (additions) => {
+                  await applyWeeklyCoachDraft.mutateAsync(additions);
+                }
+              : undefined
+          }
           onOutcomeReview={
             coachingDecisions.isSuccess
               ? async (decisionId, rating) => {

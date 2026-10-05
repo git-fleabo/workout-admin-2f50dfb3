@@ -1,0 +1,208 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import type { CoachingPreferences } from "../src/lib/coaching-preferences.ts";
+import type { SavedWorkoutPlan } from "../src/lib/supabase-plans.browser.ts";
+import type { ProgrammeScheduleSession } from "../src/lib/supabase-programmes.browser.ts";
+import {
+  buildWeeklyCoachDraft,
+  validateWeeklyCoachDraftSelection,
+  type WeeklyCoachDraftCandidate,
+} from "../src/lib/weekly-coach-draft.ts";
+import type { WeeklyPlan } from "../src/lib/weekly-plan.ts";
+
+const dates = ["05", "06", "07", "08", "09", "10", "11"].map((day) => `2026-10-${day}`);
+
+const plan: WeeklyPlan = {
+  startDate: dates[0],
+  endDate: dates[6],
+  days: dates.map((date) => ({
+    date,
+    expected: [],
+    completed: [],
+    inferredItems: [],
+    completedItems: [],
+  })),
+  locations: {
+    home: {
+      location: "home",
+      frequency: 0,
+      confidence: "none",
+      sourceDays: 0,
+      expectedDates: [],
+      suggestion: null,
+      progressionExercises: [],
+      fatigueExercises: [],
+    },
+    gym: {
+      location: "gym",
+      frequency: 0,
+      confidence: "none",
+      sourceDays: 0,
+      expectedDates: [],
+      suggestion: null,
+      progressionExercises: [],
+      fatigueExercises: [],
+    },
+  },
+  loadPatterns: [],
+};
+
+const preferences: CoachingPreferences = {
+  primaryFocusId: "programme",
+  secondaryFocusIds: ["goal:handstand", "mobility:shoulder"],
+  maintenanceFocusIds: [],
+  weeklyTrainingDays: 3,
+  weeklyMinutes: 300,
+  maxDemandingDays: 3,
+  saved: true,
+};
+
+function candidate(focusId: string, kind: "skill" | "mobility"): WeeklyCoachDraftCandidate {
+  const sourceId = focusId.split(":")[1];
+  return {
+    focusId,
+    sourceId,
+    kind,
+    title: kind === "skill" ? "Handstand" : "Shoulder mobility",
+    defaultPlacement: kind === "skill" ? "with_strength" : "separate",
+    draft: {
+      version: 1,
+      title: kind === "skill" ? "Handstand practice" : "Shoulder mobility practice",
+      locationKind: "home",
+      basis: "Test draft",
+      movements: [],
+      ...(kind === "mobility" ? { mobilityRunId: sourceId } : {}),
+    },
+    planKind: kind,
+    goalId: kind === "skill" ? sourceId : null,
+    mobilityRunId: kind === "mobility" ? sourceId : null,
+    programAssignmentId: "assignment-1",
+  };
+}
+
+function programme(date: string) {
+  return {
+    assignmentId: "assignment-1",
+    programWorkoutId: `workout-${date}`,
+    programmeName: "Strength block",
+    workoutName: "Session A",
+    date,
+    status: "current",
+  } as ProgrammeScheduleSession;
+}
+
+function scheduled(
+  id: string,
+  date: string,
+  planKind: SavedWorkoutPlan["planKind"],
+  goalId: string | null = null,
+) {
+  return {
+    version: 1,
+    suggestedWorkoutId: id,
+    title: id,
+    locationKind: "home",
+    basis: "Test",
+    movements: [],
+    readiness: "normal",
+    status: "pending",
+    createdAt: date,
+    programAssignmentId: null,
+    programWorkoutId: null,
+    goalId,
+    suggestedFor: date,
+    planKind,
+  } as SavedWorkoutPlan;
+}
+
+test("drafting pairs skill work with strength and puts mobility on an open day", () => {
+  const draft = buildWeeklyCoachDraft({
+    plan,
+    programmeSessions: [programme(dates[0])],
+    scheduledPlans: [],
+    preferences,
+    candidates: [candidate("goal:handstand", "skill"), candidate("mobility:shoulder", "mobility")],
+    today: dates[0],
+  });
+
+  assert.equal(draft.additions.length, 2);
+  assert.equal(draft.additions[0].focusId, "goal:handstand");
+  assert.equal(draft.additions[0].date, dates[0]);
+  assert.equal(draft.additions[0].pairedWithStrength, true);
+  assert.equal(draft.additions[1].focusId, "mobility:shoulder");
+  assert.notEqual(draft.additions[1].date, dates[0]);
+  assert.equal(
+    new Set([...draft.existingDates, ...draft.additions.map((item) => item.date)]).size,
+    2,
+  );
+});
+
+test("a priority already saved in the week is not drafted again", () => {
+  const draft = buildWeeklyCoachDraft({
+    plan,
+    programmeSessions: [programme(dates[0])],
+    scheduledPlans: [scheduled("skill", dates[0], "skill", "handstand")],
+    preferences,
+    candidates: [candidate("goal:handstand", "skill"), candidate("mobility:shoulder", "mobility")],
+    today: dates[0],
+  });
+
+  assert.deepEqual(
+    draft.additions.map((item) => item.focusId),
+    ["mobility:shoulder"],
+  );
+});
+
+test("mobility shares a non-strength day when the training-day limit is already full", () => {
+  const draft = buildWeeklyCoachDraft({
+    plan,
+    programmeSessions: [programme(dates[0])],
+    scheduledPlans: [scheduled("climbing", dates[2], "climbing")],
+    preferences: {
+      ...preferences,
+      secondaryFocusIds: ["mobility:shoulder"],
+      weeklyTrainingDays: 2,
+    },
+    candidates: [candidate("mobility:shoulder", "mobility")],
+    today: dates[0],
+  });
+
+  assert.equal(draft.additions[0].date, dates[2]);
+  assert.match(draft.additions[0].reason, /Shares an existing training day/);
+});
+
+test("drafting requires saved coaching priorities", () => {
+  const draft = buildWeeklyCoachDraft({
+    plan,
+    programmeSessions: [programme(dates[0])],
+    scheduledPlans: [],
+    preferences: { ...preferences, saved: false },
+    candidates: [candidate("goal:handstand", "skill")],
+    today: dates[0],
+  });
+
+  assert.equal(draft.additions.length, 0);
+  assert.match(draft.summary, /Save your coaching priorities/);
+});
+
+test("edited dates cannot exceed the saved training-day limit", () => {
+  const draft = buildWeeklyCoachDraft({
+    plan,
+    programmeSessions: [programme(dates[0])],
+    scheduledPlans: [scheduled("climbing", dates[2], "climbing")],
+    preferences: {
+      ...preferences,
+      secondaryFocusIds: ["mobility:shoulder"],
+      weeklyTrainingDays: 2,
+    },
+    candidates: [candidate("mobility:shoulder", "mobility")],
+    today: dates[0],
+  });
+  const movedToOpenDay = [{ ...draft.additions[0], date: dates[4] }];
+
+  assert.match(
+    validateWeeklyCoachDraftSelection(draft, movedToOpenDay) ?? "",
+    /above your limit of 2/,
+  );
+});

@@ -310,4 +310,118 @@ describe("training context card", () => {
     fireEvent.click(screen.getByRole("button", { name: "About right" }));
     await waitFor(() => expect(onReview).toHaveBeenCalledWith("decision-1", "right"));
   });
+
+  it("previews the entire drafted week and saves only after approval", async () => {
+    const onApply = vi.fn(async () => undefined);
+    const addition = {
+      id: "weekly-draft:goal:handstand",
+      focusId: "goal:handstand",
+      sourceId: "handstand",
+      kind: "skill" as const,
+      title: "Handstand",
+      defaultPlacement: "with_strength" as const,
+      draft: {
+        version: 1 as const,
+        title: "Handstand practice",
+        locationKind: "home" as const,
+        basis: "Supporting practice",
+        movements: [
+          {
+            exercise: "Wall handstand",
+            workoutType: "Skills/Calisthenics",
+            trackingMode: "hold" as const,
+            targets: {
+              durationMinutes: "",
+              distance: "",
+              distanceUnit: "",
+              rounds: "",
+              height: "",
+              detail: "Goal: 30 seconds",
+            },
+            sourceDate: "",
+            reason: "Skill practice",
+            setRows: Array.from({ length: 3 }, () => ({
+              reps: "",
+              weight: "",
+              durationSeconds: "10",
+              rpe: "",
+              completed: true,
+            })),
+          },
+        ],
+      },
+      planKind: "skill" as const,
+      goalId: "handstand",
+      mobilityRunId: null,
+      programAssignmentId: "assignment-1",
+      date: "2026-10-05",
+      priority: "supporting" as const,
+      reason: "Placed beside a saved strength session.",
+      pairedWithStrength: true,
+    };
+
+    render(
+      <TrainingContextCard
+        plan={plan}
+        adjustments={{}}
+        programmeSessions={[
+          {
+            assignmentId: "assignment-1",
+            programWorkoutId: "workout-1",
+            programmeName: "Strength block",
+            workoutName: "Session A",
+            date: "2026-10-05",
+            scheduledDate: "2026-10-05",
+            isCatchUp: false,
+            weekNumber: 1,
+            sessionNumber: 1,
+            workoutNumber: 1,
+            movementNames: ["Squat"],
+            movements: [],
+            selectionNotes: [],
+            status: "current",
+          },
+        ]}
+        scheduledPlans={[]}
+        coachingPreferences={{
+          primaryFocusId: "programme",
+          secondaryFocusIds: ["goal:handstand"],
+          maintenanceFocusIds: [],
+          weeklyTrainingDays: 4,
+          weeklyMinutes: 300,
+          maxDemandingDays: 3,
+          saved: true,
+        }}
+        focusOptions={[
+          {
+            id: "programme",
+            label: "Current strength programme",
+            description: "Current plan",
+          },
+          { id: "goal:handstand", label: "Handstand", description: "Active goal" },
+        ]}
+        weekDraft={{
+          startDate: "2026-10-05",
+          endDate: "2026-10-11",
+          today: "2026-10-05",
+          weeklyTrainingDays: 4,
+          existingDates: ["2026-10-05"],
+          weekDates: plan.days.map((day) => day.date),
+          availableDates: plan.days.map((day) => day.date),
+          additions: [addition],
+          summary: "1 missing priority can be added without moving your saved sessions.",
+        }}
+        onApplyWeekDraft={onApply}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Draft my week/ }));
+    expect(screen.getByRole("heading", { name: "Review your drafted week" })).toBeInTheDocument();
+    expect(screen.getByText("Entire proposed week")).toBeInTheDocument();
+    expect(screen.getByText("Wall handstand · 3 sets · 10s")).toBeInTheDocument();
+    expect(onApply).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add 1 session" }));
+    await waitFor(() => expect(onApply).toHaveBeenCalledWith([addition]));
+  });
 });

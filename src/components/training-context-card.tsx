@@ -16,6 +16,7 @@ import { CoachOutcomeReviewCard } from "@/components/coach-outcome-review-card";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { WeeklyCoachRecommendationCard } from "@/components/weekly-coach-recommendation-card";
+import { WeeklyCoachDraftDialog } from "@/components/weekly-coach-draft-dialog";
 import type { CoachReadinessSnapshot, SupportDoseOpportunity } from "@/lib/coach-readiness";
 import type { CoachOutcomeReview } from "@/lib/coach-outcome";
 import {
@@ -38,6 +39,7 @@ import {
   type CoachOutcomeRating,
 } from "@/lib/weekly-coach-recommendation";
 import type { WeeklyPlan, WeeklyPlanAdjustments } from "@/lib/weekly-plan";
+import type { WeeklyCoachDraft, WeeklyCoachDraftAddition } from "@/lib/weekly-coach-draft";
 
 const KIND_VIEW: Record<
   TrainingContextKind,
@@ -115,6 +117,9 @@ export function TrainingContextCard({
   outcomePending = false,
   onOutcomeReview,
   strengthReview,
+  weekDraft,
+  weekDraftPending = false,
+  onApplyWeekDraft,
 }: {
   plan: WeeklyPlan;
   programmeSessions: ProgrammeScheduleSession[];
@@ -138,6 +143,9 @@ export function TrainingContextCard({
   outcomePending?: boolean;
   onOutcomeReview?: (decisionId: string, rating: CoachOutcomeRating) => Promise<void>;
   strengthReview?: ReactNode;
+  weekDraft?: WeeklyCoachDraft;
+  weekDraftPending?: boolean;
+  onApplyWeekDraft?: (additions: WeeklyCoachDraftAddition[]) => Promise<void>;
 }) {
   const focusLabels = useMemo(
     () => Object.fromEntries(focusOptions.map((option) => [option.id, option.label])),
@@ -219,14 +227,24 @@ export function TrainingContextCard({
             </p>
             <p className="mt-1 capitalize">{context.confidence} planning confidence</p>
           </div>
-          {onSavePreferences ? (
-            <CoachSetupDialog
-              preferences={coachingPreferences}
-              focusOptions={focusOptions}
-              saving={savingPreferences}
-              onSave={onSavePreferences}
-            />
-          ) : null}
+          <div className="flex flex-wrap justify-end gap-2">
+            {weekDraft && coachingPreferences.saved && onApplyWeekDraft ? (
+              <WeeklyCoachDraftDialog
+                draft={weekDraft}
+                existingSessions={context.sessions}
+                saving={weekDraftPending}
+                onApply={onApplyWeekDraft}
+              />
+            ) : null}
+            {onSavePreferences ? (
+              <CoachSetupDialog
+                preferences={coachingPreferences}
+                focusOptions={focusOptions}
+                saving={savingPreferences}
+                onSave={onSavePreferences}
+              />
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -418,10 +436,10 @@ export function TrainingContextCard({
       </details>
 
       <p className="text-xs text-muted-foreground">
-        The coach can surface one bounded schedule or support change alongside one reviewed strength
-        change. Each proposal is applied separately only after you accept it. Completed changes are
-        checked against logged evidence; when that evidence is unclear, one short check-in teaches
-        the next recommendation.
+        Draft my week can fill up to two missing priorities without moving saved sessions. Other
+        schedule, support-dose and strength changes stay separate, and every proposal is applied
+        only after you accept it. Completed changes are checked against logged evidence; when that
+        evidence is unclear, one short check-in teaches the next recommendation.
       </p>
     </Card>
   );
