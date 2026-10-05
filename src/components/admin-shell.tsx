@@ -186,7 +186,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         ) : null}
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6 sm:pb-24">{children}</main>
+      <main className={`mx-auto max-w-6xl ${pathname === "/plan" ? "xl:max-w-[1560px]" : ""} px-4 pb-28 pt-6 sm:px-6 sm:pb-24`}>{children}</main>
       <nav
         aria-label="Primary navigation"
         className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-border bg-background/95 px-2 pt-2 shadow-[0_-10px_30px_rgba(0,0,0,0.24)] backdrop-blur sm:hidden [padding-bottom:calc(env(safe-area-inset-bottom)+0.5rem)]"
