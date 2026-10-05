@@ -39,6 +39,7 @@ import { WeeklyPlanOverview } from "@/components/weekly-plan-overview";
 import { ProgrammeRefreshCard } from "@/components/programme-refresh-card";
 import { MyProgrammeOverview } from "@/components/my-programme-overview";
 import { MobilityPracticeOverview } from "@/components/mobility-practice-overview";
+import { TrainingContextCard } from "@/components/training-context-card";
 import { formatUKDate, todayISO } from "@/lib/date";
 import {
   buildCircuit,
@@ -1139,6 +1140,21 @@ function PlanPage() {
         key={selectedProgrammeId ?? "current"}
         initialAssignmentId={selectedProgrammeId}
       />
+      {!history.isLoading &&
+      !library.isLoading &&
+      !programmeSchedule.isLoading &&
+      !scheduledPlans.isLoading &&
+      !history.error &&
+      !library.error &&
+      !programmeSchedule.error &&
+      !scheduledPlans.error ? (
+        <TrainingContextCard
+          plan={weeklyPlan}
+          programmeSessions={programmeSchedule.data ?? []}
+          scheduledPlans={scheduledPlans.data ?? []}
+          adjustments={weeklyAdjustments}
+        />
+      ) : null}
       <MobilityPracticeOverview />
 
       {!history.isLoading && !library.isLoading && !history.error && !library.error ? (

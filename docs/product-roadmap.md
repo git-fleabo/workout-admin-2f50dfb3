@@ -59,6 +59,12 @@ During an active supporting block, My Programme shows the current week, overall 
 completion, next session, and each priority's evaluated dose. This makes the evidence feeding the
 next block review visible while the block is still underway.
 
+Plan now also has a read-only **Training context** card for the coming week. It combines exact
+programme and saved sessions across strength, climbing, conditioning, skills and mobility, keeps
+history-derived expectations visibly separate, and explains clear scheduling pressure such as two
+demanding domains on one day or three demanding days in succession. It also recognizes deliberate
+skill pairing and recovery sessions placed away from demanding work. It does not alter the week.
+
 ## Adaptive Coaching Path
 
 The app is around the middle of the path to a sophisticated adaptive coach. The structured
@@ -69,7 +75,8 @@ evidence-to-recommendation loops, while mobility remains deliberately user-direc
 The remaining stages are:
 
 1. Combine strength, climbing, mobility, skills and other weekly load into one current training
-   context rather than reviewing each area separately.
+   context rather than reviewing each area separately. — initial read-only weekly context
+   implemented
 2. Add a short optional readiness signal and use it with completed work, missed targets, effort and
    recent load to adjust timing or dose conservatively.
 3. Resolve competing goals explicitly, including which goal is primary, which are maintained and
