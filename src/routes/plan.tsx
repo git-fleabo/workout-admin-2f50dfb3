@@ -94,6 +94,7 @@ import {
 } from "@/lib/supabase-programme-support.browser";
 import { listTrainingMethodsClient } from "@/lib/supabase-training-methods.browser";
 import { getWeeklyLoadHistoryClient } from "@/lib/supabase-weekly-load.browser";
+import { getWeeklyReviewClient, moveWeeklyReviewWeek } from "@/lib/supabase-weekly-review.browser";
 import {
   buildWeeklyPlan,
   readWeeklyPlanAdjustments,
@@ -146,6 +147,7 @@ import {
   type WeeklyCoachDraftAddition,
   type WeeklyCoachDraftCandidate,
 } from "@/lib/weekly-coach-draft";
+import { buildWeeklyCoachRollover } from "@/lib/weekly-coach-rollover";
 import {
   buildClimbingCircuit,
   CLIMBING_GOAL_OPTIONS,
@@ -437,6 +439,12 @@ function PlanPage() {
     () => buildWeeklyPlan(weeklyLogs, todayISO(), weeklyLoad.data ?? []),
     [weeklyLoad.data, weeklyLogs],
   );
+  const previousWeekStart = moveWeeklyReviewWeek(weeklyPlan.startDate, -1);
+  const weeklyRolloverReview = useQuery({
+    queryKey: ["weekly-coach-rollover", previousWeekStart],
+    queryFn: () => getWeeklyReviewClient(previousWeekStart),
+    staleTime: 30_000,
+  });
   const programmeSchedule = useQuery({
     queryKey: ["programme-schedule", weeklyPlan.startDate, weeklyPlan.endDate],
     queryFn: () =>
@@ -502,6 +510,16 @@ function PlanPage() {
     queryFn: getCoachingPreferencesClient,
     staleTime: 30_000,
   });
+  const weeklyCoachRollover = useMemo(
+    () =>
+      weeklyRolloverReview.data
+        ? buildWeeklyCoachRollover({
+            review: weeklyRolloverReview.data,
+            preferences: coachingPreferences.data ?? DEFAULT_COACHING_PREFERENCES,
+          })
+        : null,
+    [coachingPreferences.data, weeklyRolloverReview.data],
+  );
   const coachingDecisions = useQuery({
     queryKey: ["coaching-recommendation-decisions", weeklyPlan.startDate],
     queryFn: () => listCoachingRecommendationDecisionsClient(weeklyPlan.startDate),
@@ -710,12 +728,14 @@ function PlanPage() {
         preferences: coachingPreferences.data ?? DEFAULT_COACHING_PREFERENCES,
         candidates: weeklyCoachCandidates,
         today: todayISO(),
+        rollover: weeklyCoachRollover,
       }),
     [
       coachingPreferences.data,
       programmeSchedule.data,
       scheduledPlans.data,
       weeklyCoachCandidates,
+      weeklyCoachRollover,
       weeklyPlan,
     ],
   );

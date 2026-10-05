@@ -206,3 +206,29 @@ test("edited dates cannot exceed the saved training-day limit", () => {
     /above your limit of 2/,
   );
 });
+
+test("a cautious rollover limits the draft to one addition", () => {
+  const draft = buildWeeklyCoachDraft({
+    plan,
+    programmeSessions: [programme(dates[0])],
+    scheduledPlans: [],
+    preferences,
+    candidates: [candidate("goal:handstand", "skill"), candidate("mobility:shoulder", "mobility")],
+    today: dates[0],
+    rollover: {
+      previousWeekStart: "2026-09-28",
+      previousWeekEnd: "2026-10-04",
+      status: "lighter",
+      title: "Keep this rollover lighter",
+      detail: "Previous capacity was exceeded.",
+      evidence: [],
+      plannedSessions: 5,
+      completedSessions: 5,
+      adherencePercent: 100,
+      additionLimit: 1,
+    },
+  });
+
+  assert.equal(draft.additions.length, 1);
+  assert.equal(draft.additions[0].focusId, "goal:handstand");
+});

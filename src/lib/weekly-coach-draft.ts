@@ -3,6 +3,7 @@ import type { ProgrammeScheduleSession } from "./supabase-programmes.browser.ts"
 import type { SavedWorkoutPlan } from "./supabase-plans.browser.ts";
 import type { WorkoutPlanDraft, WorkoutPlanKind } from "./workout-plan.ts";
 import type { WeeklyPlan } from "./weekly-plan.ts";
+import type { WeeklyCoachRollover } from "./weekly-coach-rollover.ts";
 
 export type WeeklyCoachDraftPriority = "primary" | "supporting" | "maintenance";
 
@@ -37,6 +38,7 @@ export type WeeklyCoachDraft = {
   availableDates: string[];
   additions: WeeklyCoachDraftAddition[];
   summary: string;
+  rollover: WeeklyCoachRollover | null;
 };
 
 function dayDistance(left: string, right: string) {
@@ -123,6 +125,7 @@ export function buildWeeklyCoachDraft({
   preferences,
   candidates,
   today,
+  rollover = null,
 }: {
   plan: WeeklyPlan;
   programmeSessions: ProgrammeScheduleSession[];
@@ -130,6 +133,7 @@ export function buildWeeklyCoachDraft({
   preferences: CoachingPreferences;
   candidates: WeeklyCoachDraftCandidate[];
   today: string;
+  rollover?: WeeklyCoachRollover | null;
 }): WeeklyCoachDraft {
   const weekDates = plan.days
     .map((day) => day.date)
@@ -178,7 +182,9 @@ export function buildWeeklyCoachDraft({
   if (preferences.saved) {
     const candidateByFocus = new Map(candidates.map((candidate) => [candidate.focusId, candidate]));
     for (const item of priorityOrder(preferences)) {
-      if (additions.length >= 2 || represented.has(item.focusId)) continue;
+      if (additions.length >= (rollover?.additionLimit ?? 2) || represented.has(item.focusId)) {
+        continue;
+      }
       const candidate = candidateByFocus.get(item.focusId);
       if (!candidate) continue;
       const date = chooseDate({
@@ -229,6 +235,7 @@ export function buildWeeklyCoachDraft({
     availableDates,
     additions,
     summary,
+    rollover,
   };
 }
 

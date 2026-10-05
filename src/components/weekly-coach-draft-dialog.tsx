@@ -144,6 +144,34 @@ export function WeeklyCoachDraftDialog({
             </div>
           </div>
 
+          {draft.rollover ? (
+            <div className="rounded-xl border border-border p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Rollover from {dayLabel(draft.rollover.previousWeekStart)}–
+                    {dayLabel(draft.rollover.previousWeekEnd)}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold">{draft.rollover.title}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{draft.rollover.detail}</p>
+                </div>
+                <Badge variant="outline" className="capitalize">
+                  {draft.rollover.status}
+                </Badge>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {draft.rollover.evidence.map((item) => (
+                  <p
+                    key={item}
+                    className="rounded-lg bg-secondary/30 p-2 text-xs text-muted-foreground"
+                  >
+                    {item}
+                  </p>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {additions.length ? (
             <div className="space-y-3">
               <p className="text-sm font-semibold">Proposed additions</p>

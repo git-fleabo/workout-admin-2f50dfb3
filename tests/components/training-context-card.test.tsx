@@ -410,6 +410,7 @@ describe("training context card", () => {
           availableDates: plan.days.map((day) => day.date),
           additions: [addition],
           summary: "1 missing priority can be added without moving your saved sessions.",
+          rollover: null,
         }}
         onApplyWeekDraft={onApply}
       />,
