@@ -10,7 +10,7 @@
  * The @theme inline block maps CSS custom properties to Tailwind utility
  * classes (e.g. --color-primary -> bg-primary, text-primary).
  *
- * The :root and .dark blocks define the actual color values using oklch.
+ * The :root block defines the Cobalt & Orange palette using oklch.
  * All colors MUST use oklch format.
  *
  * To add a new semantic color:
@@ -19,8 +19,9 @@
  */
 
 @theme inline {
-  --font-display: "Space Grotesk", system-ui, sans-serif;
-  --font-body: "Inter", system-ui, sans-serif;
+  --font-sans: "DM Sans", system-ui, sans-serif;
+  --font-display: "DM Sans", system-ui, sans-serif;
+  --font-body: "DM Sans", system-ui, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -65,39 +66,39 @@
 
 :root {
   --radius: 0.875rem;
-  --background: oklch(0.16 0.015 250);
-  --foreground: oklch(0.97 0.01 100);
-  --card: oklch(0.21 0.018 250);
-  --card-foreground: oklch(0.97 0.01 100);
-  --popover: oklch(0.21 0.018 250);
-  --popover-foreground: oklch(0.97 0.01 100);
-  --primary: oklch(0.86 0.19 130);
-  --primary-foreground: oklch(0.18 0.02 250);
-  --secondary: oklch(0.27 0.02 250);
-  --secondary-foreground: oklch(0.97 0.01 100);
-  --muted: oklch(0.25 0.018 250);
-  --muted-foreground: oklch(0.7 0.02 250);
-  --accent: oklch(0.78 0.16 75);
-  --accent-foreground: oklch(0.18 0.02 250);
-  --destructive: oklch(0.65 0.22 25);
-  --destructive-foreground: oklch(0.98 0.01 100);
-  --border: oklch(0.3 0.02 250);
-  --input: oklch(0.26 0.02 250);
-  --ring: oklch(0.86 0.19 130);
-  --chart-1: oklch(0.86 0.19 130);
-  --chart-2: oklch(0.78 0.16 75);
-  --chart-3: oklch(0.7 0.18 200);
-  --chart-4: oklch(0.65 0.22 25);
-  --chart-5: oklch(0.55 0.15 290);
-  --sidebar: oklch(0.18 0.018 250);
-  --sidebar-foreground: oklch(0.97 0.01 100);
-  --sidebar-primary: oklch(0.86 0.19 130);
-  --sidebar-primary-foreground: oklch(0.18 0.02 250);
-  --sidebar-accent: oklch(0.27 0.02 250);
-  --sidebar-accent-foreground: oklch(0.97 0.01 100);
-  --sidebar-border: oklch(0.3 0.02 250);
-  --sidebar-ring: oklch(0.86 0.19 130);
-  --gradient-primary: linear-gradient(135deg, oklch(0.86 0.19 130), oklch(0.78 0.16 75));
+  --background: oklch(0.26912 0.1003 261.255);
+  --foreground: oklch(0.97736 0.01076 256.694);
+  --card: oklch(0.36057 0.11857 259.173);
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.81624 0.13283 63.331);
+  --primary-foreground: oklch(0.27161 0.0512 59.161);
+  --secondary: oklch(0.40789 0.12721 258.474);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.33654 0.10896 259.756);
+  --muted-foreground: oklch(0.83856 0.05444 257.081);
+  --accent: oklch(0.39931 0.05903 45.284);
+  --accent-foreground: oklch(0.85269 0.10285 62.895);
+  --destructive: oklch(0.79589 0.1174 20.002);
+  --destructive-foreground: oklch(0.23909 0.07462 16.7);
+  --border: oklch(0.49254 0.11658 257.012);
+  --input: var(--border);
+  --ring: var(--primary);
+  --chart-1: var(--primary);
+  --chart-2: oklch(0.80232 0.10556 246.87);
+  --chart-3: oklch(0.82434 0.11523 193.061);
+  --chart-4: oklch(0.75286 0.14858 21.216);
+  --chart-5: oklch(0.76172 0.13501 293.581);
+  --sidebar: var(--background);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--secondary);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--primary);
+  --gradient-primary: linear-gradient(135deg, var(--primary), var(--accent-foreground));
 }
 
 @layer base {
