@@ -242,6 +242,66 @@ export type Database = {
           },
         ];
       };
+      coaching_recommendation_decisions: {
+        Row: {
+          chosen_date: string | null;
+          decided_at: string;
+          decision: string;
+          id: string;
+          original_date: string;
+          person_id: string;
+          proposed_date: string;
+          rationale: string;
+          recommendation_key: string;
+          recommendation_type: string;
+          suggested_workout_id: string;
+          week_start: string;
+        };
+        Insert: {
+          chosen_date?: string | null;
+          decided_at?: string;
+          decision: string;
+          id?: string;
+          original_date: string;
+          person_id: string;
+          proposed_date: string;
+          rationale: string;
+          recommendation_key: string;
+          recommendation_type: string;
+          suggested_workout_id: string;
+          week_start: string;
+        };
+        Update: {
+          chosen_date?: string | null;
+          decided_at?: string;
+          decision?: string;
+          id?: string;
+          original_date?: string;
+          person_id?: string;
+          proposed_date?: string;
+          rationale?: string;
+          recommendation_key?: string;
+          recommendation_type?: string;
+          suggested_workout_id?: string;
+          week_start?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "coaching_recommendation_decisions_person_id_fkey";
+            columns: ["person_id"];
+            isOneToOne: false;
+            referencedRelation: "people";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "coaching_recommendation_decisions_suggested_workout_id_fkey";
+            columns: ["suggested_workout_id"];
+            isOneToOne: false;
+            referencedRelation: "suggested_workouts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       data_quality_audit_events: {
         Row: {
           action: string;
@@ -2532,6 +2592,19 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      decide_coaching_recommendation: {
+        Args: {
+          p_chosen_date: string | null;
+          p_decision: string;
+          p_original_date: string;
+          p_proposed_date: string;
+          p_rationale: string;
+          p_recommendation_key: string;
+          p_suggested_workout_id: string;
+          p_week_start: string;
+        };
+        Returns: string;
+      };
       create_personal_programme: {
         Args: {
           p_person_id: string;

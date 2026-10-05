@@ -39,3 +39,24 @@ test("coaching preferences migration is person-scoped and constrains contradicto
   assert.match(sql, /secondary_focus_ids && maintenance_focus_ids/i);
   assert.doesNotMatch(sql, /grant .* to anon/i);
 });
+
+test("coaching decisions apply one reviewed move atomically and preserve programme sessions", async () => {
+  const sql = await readFile(
+    new URL(
+      "../supabase/migrations/20261005123000_add_coaching_recommendation_decisions.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(sql, /create function public\.decide_coaching_recommendation/i);
+  assert.match(sql, /security invoker/i);
+  assert.match(sql, /workout\.program_workout_id is null/i);
+  assert.match(sql, /v_current_date is distinct from p_original_date/i);
+  assert.match(sql, /update public\.suggested_workouts[\s\S]*set suggested_for = p_chosen_date/i);
+  assert.match(sql, /insert into public\.coaching_recommendation_decisions/i);
+  assert.match(sql, /app_private\.person_is_accessible\(person_id\)/i);
+  assert.match(
+    sql,
+    /revoke all on function public\.decide_coaching_recommendation[\s\S]*from anon/i,
+  );
+});

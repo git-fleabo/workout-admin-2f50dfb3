@@ -107,7 +107,12 @@ import {
   getCoachingPreferencesClient,
   saveCoachingPreferencesClient,
 } from "@/lib/supabase-coaching-preferences.browser";
+import {
+  decideCoachingRecommendationClient,
+  listCoachingRecommendationDecisionsClient,
+} from "@/lib/supabase-coaching-recommendations.browser";
 import { listGoalsClient } from "@/lib/supabase-goals.browser";
+import type { WeeklyCoachRecommendation } from "@/lib/weekly-coach-recommendation";
 import {
   buildClimbingCircuit,
   CLIMBING_GOAL_OPTIONS,
@@ -425,6 +430,11 @@ function PlanPage() {
   const coachingPreferences = useQuery({
     queryKey: ["coaching-preferences"],
     queryFn: getCoachingPreferencesClient,
+    staleTime: 30_000,
+  });
+  const coachingDecisions = useQuery({
+    queryKey: ["coaching-recommendation-decisions", weeklyPlan.startDate],
+    queryFn: () => listCoachingRecommendationDecisionsClient(weeklyPlan.startDate),
     staleTime: 30_000,
   });
   const coachingFocusOptions = useMemo(
@@ -1020,6 +1030,40 @@ function PlanPage() {
       queryClient.invalidateQueries({ queryKey: ["next-suggested-workouts"] }),
     ]);
 
+  const decideCoachingRecommendation = useMutation({
+    mutationFn: ({
+      recommendation,
+      decision,
+      chosenDate,
+    }: {
+      recommendation: WeeklyCoachRecommendation;
+      decision: "accepted" | "rejected";
+      chosenDate?: string;
+    }) =>
+      decideCoachingRecommendationClient({
+        recommendation,
+        weekStart: weeklyPlan.startDate,
+        decision,
+        chosenDate,
+      }),
+    onSuccess: async (_result, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: ["coaching-recommendation-decisions", weeklyPlan.startDate],
+      });
+      if (variables.decision === "accepted") {
+        await refreshScheduledPlans();
+        toast.success("Coach suggestion applied", {
+          description: `${variables.recommendation.sessionLabel} moved to ${formatUKDate(variables.chosenDate ?? variables.recommendation.proposedDate)}.`,
+        });
+      } else {
+        toast.success("Suggestion dismissed", {
+          description: "Your decision is recorded for the coaching history.",
+        });
+      }
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const scheduleSession = useMutation({
     mutationFn: async (
       request:
@@ -1190,6 +1234,21 @@ function PlanPage() {
             coachingPreferences.isSuccess && coachingGoals.isSuccess && mobilityData.isSuccess
               ? async (preferences) => {
                   await saveCoachingPreferences.mutateAsync(preferences);
+                }
+              : undefined
+          }
+          decidedRecommendationKeys={(coachingDecisions.data ?? []).map(
+            (decision) => decision.recommendationKey,
+          )}
+          recommendationPending={decideCoachingRecommendation.isPending}
+          onRecommendationDecision={
+            coachingDecisions.isSuccess
+              ? async (recommendation, decision, chosenDate) => {
+                  await decideCoachingRecommendation.mutateAsync({
+                    recommendation,
+                    decision,
+                    chosenDate,
+                  });
                 }
               : undefined
           }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildTrainingContext } from "../src/lib/training-context.ts";
+import { buildWeeklyCoachRecommendation } from "../src/lib/weekly-coach-recommendation.ts";
 import type { SavedWorkoutPlan } from "../src/lib/supabase-plans.browser.ts";
 import type { ProgrammeScheduleSession } from "../src/lib/supabase-programmes.browser.ts";
 import type { WeeklyPlan } from "../src/lib/weekly-plan.ts";
@@ -180,4 +181,47 @@ test("saved coaching limits and priorities are checked against the week", () => 
     context.signals.some((signal) => signal.title.includes("Handstand has no saved session")),
   );
   assert.ok(context.signals.some((signal) => signal.title.includes("supporting priority")));
+});
+
+test("the coach proposes one editable move and never moves a programme session", () => {
+  const plan = weeklyPlan();
+  const preferences = {
+    primaryFocusId: "programme",
+    secondaryFocusIds: [],
+    maintenanceFocusIds: [],
+    weeklyTrainingDays: 4,
+    weeklyMinutes: 300,
+    maxDemandingDays: 3,
+    saved: true,
+  };
+  const context = buildTrainingContext({
+    plan,
+    programmeSessions: [programme("2026-10-05")],
+    scheduledPlans: [scheduled("climb", "2026-10-05", "climbing")],
+    adjustments: {},
+  });
+  const recommendation = buildWeeklyCoachRecommendation({ context, plan, preferences });
+
+  assert.ok(recommendation);
+  assert.equal(recommendation.suggestedWorkoutId, "climb");
+  assert.equal(recommendation.fromDate, "2026-10-05");
+  assert.equal(recommendation.proposedDate, "2026-10-06");
+  assert.match(recommendation.rationale, /without moving a programme session/i);
+  assert.equal(
+    buildWeeklyCoachRecommendation({
+      context,
+      plan,
+      preferences,
+      decidedKeys: [recommendation.key],
+    }),
+    null,
+  );
+  assert.equal(
+    buildWeeklyCoachRecommendation({
+      context,
+      plan,
+      preferences: { ...preferences, weeklyTrainingDays: 1, maxDemandingDays: 1 },
+    }),
+    null,
+  );
 });

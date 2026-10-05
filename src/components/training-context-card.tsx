@@ -13,6 +13,7 @@ import { useMemo } from "react";
 import { CoachSetupDialog } from "@/components/coach-setup-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { WeeklyCoachRecommendationCard } from "@/components/weekly-coach-recommendation-card";
 import {
   DEFAULT_COACHING_PREFERENCES,
   type CoachingFocusOption,
@@ -26,6 +27,10 @@ import {
   type TrainingContextKind,
   type TrainingContextSignal,
 } from "@/lib/training-context";
+import {
+  buildWeeklyCoachRecommendation,
+  type WeeklyCoachRecommendation,
+} from "@/lib/weekly-coach-recommendation";
 import type { WeeklyPlan, WeeklyPlanAdjustments } from "@/lib/weekly-plan";
 
 const KIND_VIEW: Record<
@@ -85,6 +90,9 @@ export function TrainingContextCard({
   ],
   savingPreferences = false,
   onSavePreferences,
+  decidedRecommendationKeys = [],
+  recommendationPending = false,
+  onRecommendationDecision,
 }: {
   plan: WeeklyPlan;
   programmeSessions: ProgrammeScheduleSession[];
@@ -94,6 +102,13 @@ export function TrainingContextCard({
   focusOptions?: CoachingFocusOption[];
   savingPreferences?: boolean;
   onSavePreferences?: (preferences: CoachingPreferences) => Promise<void>;
+  decidedRecommendationKeys?: string[];
+  recommendationPending?: boolean;
+  onRecommendationDecision?: (
+    recommendation: WeeklyCoachRecommendation,
+    decision: "accepted" | "rejected",
+    chosenDate?: string,
+  ) => Promise<void>;
 }) {
   const focusLabels = useMemo(
     () => Object.fromEntries(focusOptions.map((option) => [option.id, option.label])),
@@ -113,6 +128,16 @@ export function TrainingContextCard({
   const visibleKinds = (Object.keys(KIND_VIEW) as TrainingContextKind[]).filter(
     (kind) => context.counts[kind] > 0,
   );
+  const recommendation = useMemo(
+    () =>
+      buildWeeklyCoachRecommendation({
+        context,
+        plan,
+        preferences: coachingPreferences,
+        decidedKeys: decidedRecommendationKeys,
+      }),
+    [coachingPreferences, context, decidedRecommendationKeys, plan],
+  );
 
   return (
     <Card className="space-y-4 border-blue-400/25 bg-blue-400/[0.04] p-4">
@@ -121,7 +146,9 @@ export function TrainingContextCard({
           <div className="flex items-center gap-2">
             <BrainCircuit className="h-4 w-4 text-blue-300" />
             <h2 className="font-semibold">Training context</h2>
-            <Badge variant="outline">Read only</Badge>
+            <Badge variant="outline">
+              {coachingPreferences.saved ? "Coach active" : "Read only"}
+            </Badge>
           </div>
           <p className="mt-1 text-sm font-medium">{context.headline}</p>
           <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
@@ -198,9 +225,27 @@ export function TrainingContextCard({
         </p>
       )}
 
+      {coachingPreferences.saved && onRecommendationDecision ? (
+        recommendation ? (
+          <WeeklyCoachRecommendationCard
+            recommendation={recommendation}
+            pending={recommendationPending}
+            onDecision={(decision, chosenDate) =>
+              onRecommendationDecision(recommendation, decision, chosenDate)
+            }
+          />
+        ) : (
+          <div className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+            {decidedRecommendationKeys.length
+              ? "Your coaching decision for this week is recorded."
+              : "No safe session move is suggested from the current saved schedule."}
+          </div>
+        )
+      ) : null}
+
       <p className="text-xs text-muted-foreground">
-        The coach now checks this week against your saved priorities and capacity. Readiness remains
-        deferred, and the coach will not change your programme or weekly plan automatically.
+        The coach checks this week against your saved priorities and capacity. It can propose one
+        editable move, but applies it only after you accept. Readiness remains deferred.
       </p>
     </Card>
   );
