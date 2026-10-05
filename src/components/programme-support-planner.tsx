@@ -26,29 +26,37 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatUKDate, todayISO } from "@/lib/date";
+import { buildCoachOutcomeState } from "@/lib/coach-outcome";
+import { buildCoachReadinessSnapshot } from "@/lib/coach-readiness";
+import { DEFAULT_COACHING_PREFERENCES } from "@/lib/coaching-preferences";
 import { MOBILITY_SKILLS, buildMobilityWorkoutDraft } from "@/lib/mobility-practice";
 import {
   buildProgrammeSupportSchedule,
   buildProgrammeSupportBlockReview,
   buildProgrammeSupportBlockProgress,
+  buildProgrammeSupportCoachDraft,
   buildSkillGoalDraft,
   defaultSkillGoalLocation,
   isSupportedSkillGoal,
   programmeSupportHorizon,
   recommendSkillPracticeDose,
   type ProgrammeSupportPlacement,
+  type ProgrammeSupportCoachCandidate,
   type ProgrammeSupportTrack,
   type SkillGoalExercise,
   type SkillPracticeDoseRecommendation,
 } from "@/lib/programme-support";
 import { getTrackingModeValue } from "@/lib/movement-metrics";
 import { addGoalClient, listGoalsClient } from "@/lib/supabase-goals.browser";
-import { getLibraryClient } from "@/lib/supabase-log.browser";
+import { getLibraryClient, getRecentLogsClient } from "@/lib/supabase-log.browser";
 import { listMobilityDataClient } from "@/lib/supabase-mobility.browser";
 import {
   getProgrammeSkillSupportHistoryClient,
   getProgrammeSupportBlockHistoryClient,
 } from "@/lib/supabase-programme-support.browser";
+import { getCoachingPreferencesClient } from "@/lib/supabase-coaching-preferences.browser";
+import { listCoachingRecommendationDecisionsClient } from "@/lib/supabase-coaching-recommendations.browser";
+import { getWeeklyLoadHistoryClient } from "@/lib/supabase-weekly-load.browser";
 import {
   archiveProgrammeSupportPlansClient,
   getScheduledWorkoutPlansClient,
@@ -57,6 +65,7 @@ import {
 } from "@/lib/supabase-plans.browser";
 import type { PersonalProgrammeSession } from "@/lib/personal-programme";
 import type { PlannerLocation } from "@/lib/workout-plan";
+import { buildWeeklyPlan, type WeeklyPlanAdjustments } from "@/lib/weekly-plan";
 
 type AvailableTrack = {
   id: string;
@@ -127,6 +136,7 @@ export function ProgrammeSupportPlanner({
 }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [draftMode, setDraftMode] = useState<"manual" | "coach">("manual");
   const [selected, setSelected] = useState<Record<string, TrackConfig>>({});
   const [creatingGoal, setCreatingGoal] = useState(false);
   const [newGoal, setNewGoal] = useState<NewSkillGoalForm>(BLANK_SKILL_GOAL);
@@ -152,6 +162,45 @@ export function ProgrammeSupportPlanner({
     queryKey: ["programme-support-block-history", assignmentId],
     queryFn: () => getProgrammeSupportBlockHistoryClient(assignmentId),
   });
+  const coachLogs = useQuery({
+    queryKey: ["workout-planner-history"],
+    queryFn: () => getRecentLogsClient(300),
+    staleTime: 60_000,
+  });
+  const weeklyLoad = useQuery({
+    queryKey: ["weekly-load-history"],
+    queryFn: getWeeklyLoadHistoryClient,
+    staleTime: 60_000,
+  });
+  const coachingPreferences = useQuery({
+    queryKey: ["coaching-preferences"],
+    queryFn: getCoachingPreferencesClient,
+    staleTime: 30_000,
+  });
+  const coachWeeklyPlan = useMemo(
+    () =>
+      buildWeeklyPlan(
+        { home: coachLogs.data?.recent ?? [], gym: [] },
+        todayISO(),
+        weeklyLoad.data ?? [],
+      ),
+    [coachLogs.data?.recent, weeklyLoad.data],
+  );
+  const coachingDecisions = useQuery({
+    queryKey: ["coaching-recommendation-decisions", coachWeeklyPlan.startDate],
+    queryFn: () => listCoachingRecommendationDecisionsClient(coachWeeklyPlan.startDate),
+    staleTime: 30_000,
+  });
+  const coachPlanAdjustments = useMemo<WeeklyPlanAdjustments>(() => {
+    const programmeDates = new Set(sessions.map((session) => session.scheduledDate));
+    return Object.fromEntries(
+      coachWeeklyPlan.days.flatMap((day) =>
+        programmeDates.has(day.date)
+          ? [[day.date, Array.from(new Set([...day.inferredItems, "strength" as const]))]]
+          : [],
+      ),
+    );
+  }, [coachWeeklyPlan.days, sessions]);
 
   const exerciseById = useMemo(
     () => new Map((library.data?.exercises ?? []).map((exercise) => [exercise.id, exercise])),
@@ -246,6 +295,72 @@ export function ProgrammeSupportPlanner({
       }),
     [blockHistory.data],
   );
+  const coachReadiness = useMemo(
+    () =>
+      buildCoachReadinessSnapshot({
+        logs: coachLogs.data?.recent ?? [],
+        loadHistory: weeklyLoad.data ?? [],
+        plan: coachWeeklyPlan,
+        adjustments: coachPlanAdjustments,
+        supportPlans: blockHistory.data ?? [],
+        today: todayISO(),
+      }),
+    [
+      blockHistory.data,
+      coachLogs.data?.recent,
+      coachPlanAdjustments,
+      coachWeeklyPlan,
+      weeklyLoad.data,
+    ],
+  );
+  const coachOutcomeState = useMemo(
+    () =>
+      buildCoachOutcomeState({
+        decisions: coachingDecisions.data ?? [],
+        logs: coachLogs.data?.recent ?? [],
+        today: todayISO(),
+      }),
+    [coachLogs.data?.recent, coachingDecisions.data],
+  );
+  const coachCandidates = useMemo<ProgrammeSupportCoachCandidate[]>(
+    () =>
+      available.map((track) => {
+        const goal =
+          track.kind === "goal"
+            ? goals.data?.items.find((item) => item.id === track.sourceId)
+            : undefined;
+        const exercise = goal
+          ? (exerciseById.get(goal.exerciseId) as SkillGoalExercise | undefined)
+          : undefined;
+        const doseRecommendation =
+          goal && exercise
+            ? recommendSkillPracticeDose({
+                goal,
+                exercise,
+                history: skillHistory.data?.[goal.id] ?? [],
+              })
+            : null;
+        return {
+          ...track,
+          doseRecommendation,
+          outcomes: coachOutcomeState.history
+            .filter((item) => item.subjectFocusId === track.id && item.outcomeRating)
+            .sort((left, right) => left.weekStart.localeCompare(right.weekStart))
+            .map((item) => item.outcomeRating!),
+        };
+      }),
+    [available, coachOutcomeState.history, exerciseById, goals.data?.items, skillHistory.data],
+  );
+  const coachDraft = useMemo(
+    () =>
+      buildProgrammeSupportCoachDraft({
+        candidates: coachCandidates,
+        previousBlock: review,
+        readiness: coachReadiness,
+        preferences: coachingPreferences.data ?? DEFAULT_COACHING_PREFERENCES,
+      }),
+    [coachCandidates, coachReadiness, coachingPreferences.data, review],
+  );
 
   const chosenTracks = Object.values(selected);
   const preview = useMemo(
@@ -266,6 +381,12 @@ export function ProgrammeSupportPlanner({
     scheduled.isLoading ||
     skillHistory.isLoading ||
     blockHistory.isLoading;
+  const coachLoading =
+    loading ||
+    coachLogs.isLoading ||
+    weeklyLoad.isLoading ||
+    coachingPreferences.isLoading ||
+    coachingDecisions.isLoading;
 
   const selectedNewGoalExercise = skillExercises.find(
     (exercise) => exercise.id === newGoal.exerciseId,
@@ -503,6 +624,30 @@ export function ProgrammeSupportPlanner({
       ];
     });
     setSelected(Object.fromEntries(restored.slice(0, 2)));
+    setDraftMode("manual");
+    setOpen(true);
+  };
+
+  const openCoachDraft = () => {
+    if (!coachDraft) return;
+    setSelected(
+      Object.fromEntries(
+        coachDraft.tracks.map((track) => [
+          track.id,
+          {
+            id: track.id,
+            kind: track.kind,
+            title: track.title,
+            sessionsPerWeek: track.sessionsPerWeek,
+            placement: track.placement,
+            locationKind: track.locationKind,
+            skillSets: track.skillSets,
+            skillDose: track.skillDose,
+          },
+        ]),
+      ),
+    );
+    setDraftMode("coach");
     setOpen(true);
   };
 
@@ -519,23 +664,42 @@ export function ProgrammeSupportPlanner({
             strength sessions and their progression stay unchanged.
           </p>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={review ? openBlockReview : () => setOpen(true)}
-          disabled={loading}
-        >
-          {loading ? (
-            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-          ) : (
-            <Sparkles className="mr-1.5 h-4 w-4" />
-          )}
-          {review
-            ? "Review next block"
-            : existing.length
-              ? "Rebuild support schedule"
-              : "Build supporting goals"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {!blockProgress && coachDraft ? (
+            <Button size="sm" onClick={openCoachDraft} disabled={coachLoading}>
+              {coachLoading ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-1.5 h-4 w-4" />
+              )}
+              Coach draft four weeks
+            </Button>
+          ) : null}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={
+              review
+                ? openBlockReview
+                : () => {
+                    setDraftMode("manual");
+                    setOpen(true);
+                  }
+            }
+            disabled={loading}
+          >
+            {loading ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <CalendarPlus className="mr-1.5 h-4 w-4" />
+            )}
+            {review
+              ? "Edit next block manually"
+              : existing.length
+                ? "Rebuild support schedule"
+                : "Build supporting goals"}
+          </Button>
+        </div>
       </div>
 
       {review ? (
@@ -553,7 +717,7 @@ export function ProgrammeSupportPlanner({
                 weeks before anything new is scheduled.
               </p>
             </div>
-            <Button size="sm" onClick={openBlockReview}>
+            <Button size="sm" onClick={coachDraft ? openCoachDraft : openBlockReview}>
               Review next four weeks
             </Button>
           </div>
@@ -670,12 +834,43 @@ export function ProgrammeSupportPlanner({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Build supporting goals around {programmeName}</DialogTitle>
+            <DialogTitle>
+              {draftMode === "coach" ? "Review coach draft" : "Build supporting goals"} around{" "}
+              {programmeName}
+            </DialogTitle>
             <DialogDescription>
-              Choose no more than two priorities. The app proposes the next four weeks before it
-              saves anything.
+              {draftMode === "coach"
+                ? "Every choice remains editable. Review the full four weeks before applying it."
+                : "Choose no more than two priorities. The app proposes the next four weeks before it saves anything."}
             </DialogDescription>
           </DialogHeader>
+
+          {draftMode === "coach" && coachDraft ? (
+            <div className="space-y-3 rounded-xl border border-fuchsia-400/30 bg-fuchsia-400/[0.06] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-fuchsia-300" />
+                    <p className="text-sm font-semibold">{coachDraft.title}</p>
+                  </div>
+                  <p className="mt-1 max-w-xl text-xs text-muted-foreground">{coachDraft.detail}</p>
+                </div>
+                <Badge variant="outline" className="capitalize">
+                  {coachDraft.confidence} confidence
+                </Badge>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {coachDraft.evidence.map((item) => (
+                  <p
+                    key={item}
+                    className="rounded-lg border border-border/70 bg-background/25 p-2.5 text-xs text-muted-foreground"
+                  >
+                    {item}
+                  </p>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <div className="rounded-lg border border-dashed border-cyan-400/30 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -839,6 +1034,11 @@ export function ProgrammeSupportPlanner({
                     </div>
                     {config ? (
                       <div className="mt-3 grid gap-3 border-t border-border pt-3 sm:grid-cols-3">
+                        {draftMode === "coach" ? (
+                          <p className="text-xs text-fuchsia-200 sm:col-span-3">
+                            {coachDraft?.tracks.find((item) => item.id === track.id)?.reason}
+                          </p>
+                        ) : null}
                         <div className="space-y-1.5">
                           <Label>Frequency</Label>
                           <Select
@@ -973,18 +1173,33 @@ export function ProgrammeSupportPlanner({
                 <h3 className="text-sm font-semibold">Proposed next four weeks</h3>
               </div>
               <div className="grid max-h-64 gap-2 overflow-y-auto sm:grid-cols-2">
-                {preview.map((item) => (
-                  <div
-                    key={`${item.trackId}:${item.date}`}
-                    className="rounded-lg border border-border p-2.5"
-                  >
-                    <p className="text-sm font-medium">{item.title}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {formatUKDate(item.date)} ·{" "}
-                      {item.pairedWithStrength ? "after strength" : "separate session"}
-                    </p>
-                  </div>
-                ))}
+                {preview.map((item) =>
+                  (() => {
+                    const config = selected[item.trackId];
+                    const source = available.find((track) => track.id === item.trackId);
+                    const recommendation = source ? recommendationFor(source) : null;
+                    const prescription =
+                      source?.kind === "goal" && recommendation && config
+                        ? `${config.skillSets ?? recommendation.sets} × ${config.skillDose ?? recommendation.value} ${recommendation.unit}`
+                        : source?.detail;
+                    return (
+                      <div
+                        key={`${item.trackId}:${item.date}`}
+                        className="rounded-lg border border-border p-2.5"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-medium">{item.title}</p>
+                          {prescription ? <Badge variant="outline">{prescription}</Badge> : null}
+                        </div>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {formatUKDate(item.date)} ·{" "}
+                          {item.pairedWithStrength ? "after strength" : "separate session"} ·{" "}
+                          {item.locationKind === "home" ? "Home" : "Gym"}
+                        </p>
+                      </div>
+                    );
+                  })(),
+                )}
               </div>
               <p className="text-xs text-muted-foreground">
                 Saving replaces this programme’s unopened supporting sessions. Strength sessions and
@@ -999,7 +1214,8 @@ export function ProgrammeSupportPlanner({
             </Button>
             <Button disabled={!preview.length || save.isPending} onClick={() => save.mutate()}>
               {save.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
-              Save {preview.length || ""} supporting session{preview.length === 1 ? "" : "s"}
+              {draftMode === "coach" ? "Apply reviewed block" : "Save"} {preview.length || ""}{" "}
+              supporting session{preview.length === 1 ? "" : "s"}
             </Button>
           </DialogFooter>
         </DialogContent>

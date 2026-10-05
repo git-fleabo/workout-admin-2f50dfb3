@@ -1,5 +1,8 @@
 import { getTrackingModeValue, type TrackingMode } from "./movement-metrics.ts";
+import type { CoachReadinessSnapshot } from "./coach-readiness.ts";
+import type { CoachingPreferences } from "./coaching-preferences.ts";
 import type { GoalRow } from "./training-types.ts";
+import type { CoachOutcomeRating } from "./weekly-coach-recommendation.ts";
 import type { PlannerLocation, WorkoutPlanDraft } from "./workout-plan.ts";
 
 export type ProgrammeSupportKind = "goal" | "mobility";
@@ -102,6 +105,32 @@ export type ProgrammeSupportBlockProgress = {
   currentWeekCompletedSessions: number;
   nextSessionDate: string | null;
   tracks: ProgrammeSupportProgressTrack[];
+};
+
+export type ProgrammeSupportCoachCandidate = {
+  id: string;
+  sourceId: string;
+  kind: ProgrammeSupportKind;
+  title: string;
+  defaultPlacement: ProgrammeSupportPlacement;
+  defaultLocation: PlannerLocation;
+  availableLocations: PlannerLocation[];
+  doseRecommendation: SkillPracticeDoseRecommendation | null;
+  outcomes: CoachOutcomeRating[];
+};
+
+export type ProgrammeSupportCoachTrack = ProgrammeSupportTrack & {
+  skillSets?: number;
+  skillDose?: number;
+  reason: string;
+};
+
+export type ProgrammeSupportCoachDraft = {
+  confidence: "high" | "medium" | "low";
+  title: string;
+  detail: string;
+  evidence: string[];
+  tracks: ProgrammeSupportCoachTrack[];
 };
 
 const DAY_MS = 86_400_000;
@@ -363,6 +392,141 @@ export function buildProgrammeSupportBlockProgress({
     currentWeekCompletedSessions: currentWeekPlans.filter((plan) => plan.status === "completed")
       .length,
     nextSessionDate: nextSession?.date ?? null,
+    tracks,
+  };
+}
+
+function focusPriority(
+  candidate: ProgrammeSupportCoachCandidate,
+  preferences: CoachingPreferences,
+) {
+  if (candidate.id === preferences.primaryFocusId) return 0;
+  if (preferences.secondaryFocusIds.includes(candidate.id)) return 1;
+  if (preferences.maintenanceFocusIds.includes(candidate.id)) return 2;
+  return 3;
+}
+
+function outcomeLabel(rating: CoachOutcomeRating) {
+  return rating === "too_easy" ? "too easy" : rating === "too_hard" ? "too hard" : "about right";
+}
+
+export function buildProgrammeSupportCoachDraft({
+  candidates,
+  previousBlock,
+  readiness,
+  preferences,
+}: {
+  candidates: ProgrammeSupportCoachCandidate[];
+  previousBlock: ProgrammeSupportBlockReview | null;
+  readiness: CoachReadinessSnapshot;
+  preferences: CoachingPreferences;
+}): ProgrammeSupportCoachDraft | null {
+  if (!candidates.length) return null;
+  const previousById = new Map((previousBlock?.tracks ?? []).map((track) => [track.id, track]));
+  const selected = [...candidates]
+    .sort(
+      (left, right) =>
+        focusPriority(left, preferences) - focusPriority(right, preferences) ||
+        Number(!previousById.has(left.id)) - Number(!previousById.has(right.id)) ||
+        Number(left.kind === "mobility") - Number(right.kind === "mobility") ||
+        left.title.localeCompare(right.title),
+    )
+    .slice(0, 2);
+  const adherence = previousBlock?.plannedSessions
+    ? Math.round((previousBlock.completedSessions / previousBlock.plannedSessions) * 100)
+    : null;
+  const tracks = selected.map<ProgrammeSupportCoachTrack>((candidate) => {
+    const previous = previousById.get(candidate.id);
+    const latestOutcome = candidate.outcomes.at(-1) ?? null;
+    const dose = candidate.doseRecommendation;
+    let sessionsPerWeek = previous?.sessionsPerWeek ?? 2;
+    if (readiness.status === "reduce" || latestOutcome === "too_hard") {
+      sessionsPerWeek = Math.max(1, sessionsPerWeek - 1);
+    } else if (
+      readiness.status === "ready" &&
+      latestOutcome === "too_easy" &&
+      (adherence == null || adherence >= 80)
+    ) {
+      sessionsPerWeek = Math.min(3, sessionsPerWeek + 1);
+    } else if (adherence != null && adherence < 75) {
+      sessionsPerWeek = Math.max(1, sessionsPerWeek - 1);
+    }
+
+    const placement =
+      candidate.kind === "goal" && (readiness.status === "reduce" || readiness.status === "hold")
+        ? "with_strength"
+        : (previous?.placement ?? candidate.defaultPlacement);
+    const locationKind =
+      previous && candidate.availableLocations.includes(previous.locationKind)
+        ? previous.locationKind
+        : candidate.defaultLocation;
+    let skillSets = dose?.sets;
+    let skillDose = dose?.value;
+    if (dose) {
+      const increment = dose.unit === "seconds" ? 2 : 1;
+      const currentValue =
+        dose.decision === "progress" ? Math.max(1, dose.value - increment) : dose.value;
+      if (
+        dose.decision === "progress" &&
+        (readiness.status !== "ready" || (adherence != null && adherence < 80))
+      ) {
+        skillDose = currentValue;
+      }
+      if (readiness.status === "reduce" || latestOutcome === "too_hard") {
+        skillDose = currentValue;
+        if ((skillSets ?? 1) > 1) skillSets = (skillSets ?? 1) - 1;
+        else skillDose = Math.max(1, currentValue - increment);
+      }
+    }
+    const reason = latestOutcome
+      ? `The latest reviewed outcome was ${outcomeLabel(latestOutcome)}.`
+      : previous
+        ? `This continues the previous block at ${sessionsPerWeek} session${sessionsPerWeek === 1 ? "" : "s"} weekly.`
+        : "This active goal fits the saved coaching priorities.";
+    return {
+      id: candidate.id,
+      kind: candidate.kind,
+      title: candidate.title,
+      sessionsPerWeek,
+      placement,
+      locationKind,
+      ...(skillSets == null ? {} : { skillSets }),
+      ...(skillDose == null ? {} : { skillDose }),
+      reason,
+    };
+  });
+  const outcomeCount = selected.reduce((count, candidate) => count + candidate.outcomes.length, 0);
+  const evidence = [
+    `Readiness: ${readiness.title}`,
+    previousBlock
+      ? `Previous block: ${previousBlock.completedSessions} of ${previousBlock.plannedSessions} sessions completed${adherence == null ? "" : ` (${adherence}%)`}.`
+      : "Previous block: no completed programme-linked support block yet.",
+    outcomeCount
+      ? `Reviewed outcomes: ${outcomeCount} result${outcomeCount === 1 ? "" : "s"} for the selected goals.`
+      : "Reviewed outcomes: none yet; the draft stays conservative.",
+    preferences.saved
+      ? "Goal choice follows your saved primary, secondary and maintenance priorities."
+      : "Goal choice uses active supported goals until coaching priorities are saved.",
+  ];
+  const confidence =
+    previousBlock && readiness.status !== "insufficient" && outcomeCount
+      ? "high"
+      : previousBlock || readiness.status !== "insufficient"
+        ? "medium"
+        : "low";
+  return {
+    confidence,
+    title:
+      readiness.status === "reduce"
+        ? "A lighter four-week support block"
+        : readiness.status === "hold"
+          ? "A steady four-week support block"
+          : "Your next four-week support block",
+    detail:
+      readiness.status === "ready"
+        ? "The draft allows only progression already supported by completed practice and keeps every change reviewable."
+        : "The draft protects the strength programme and keeps support work within the evidence currently available.",
+    evidence,
     tracks,
   };
 }

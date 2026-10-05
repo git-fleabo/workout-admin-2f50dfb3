@@ -79,6 +79,7 @@ vi.mock("@/lib/supabase-mobility.browser", () => ({
 }));
 
 vi.mock("@/lib/supabase-log.browser", () => ({
+  getRecentLogsClient: vi.fn(async () => ({ recent: [] })),
   getLibraryClient: vi.fn(async () => ({
     exercises: [
       {
@@ -92,6 +93,26 @@ vi.mock("@/lib/supabase-log.browser", () => ({
       },
     ],
   })),
+}));
+
+vi.mock("@/lib/supabase-weekly-load.browser", () => ({
+  getWeeklyLoadHistoryClient: vi.fn(async () => []),
+}));
+
+vi.mock("@/lib/supabase-coaching-preferences.browser", () => ({
+  getCoachingPreferencesClient: vi.fn(async () => ({
+    primaryFocusId: "programme",
+    secondaryFocusIds: ["goal:goal-1"],
+    maintenanceFocusIds: [],
+    weeklyTrainingDays: 4,
+    weeklyMinutes: 300,
+    maxDemandingDays: 3,
+    saved: true,
+  })),
+}));
+
+vi.mock("@/lib/supabase-coaching-recommendations.browser", () => ({
+  listCoachingRecommendationDecisionsClient: vi.fn(async () => []),
 }));
 
 vi.mock("@/lib/supabase-plans.browser", () => ({
@@ -244,9 +265,49 @@ describe("programme supporting goals planner", () => {
     expect(screen.getByText(/7 of 8 planned sessions/)).toBeInTheDocument();
     expect(screen.getByText(/Small increase/)).toBeInTheDocument();
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "Review next four weeks" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Edit next block manually" }));
     expect(screen.getByRole("checkbox", { name: /Hold a freestanding handstand/ })).toBeChecked();
     expect(screen.getByLabelText("Seconds per set")).toHaveValue(12);
+  });
+
+  it("turns a completed block into a fully previewed conservative coach draft", async () => {
+    mocks.skillHistory = {
+      "goal-1": ["2026-08-03", "2026-08-10", "2026-08-17", "2026-08-24"].map((date) => ({
+        date,
+        plannedSets: 3,
+        plannedDose: 10,
+        successful: true,
+      })),
+    };
+    mocks.blockHistory = [
+      "2026-08-03",
+      "2026-08-06",
+      "2026-08-10",
+      "2026-08-13",
+      "2026-08-17",
+      "2026-08-20",
+      "2026-08-24",
+      "2026-08-27",
+    ].map((date) => ({
+      date,
+      status: "completed",
+      goalId: "goal-1",
+      mobilityRunId: null,
+      locationKind: "home",
+    }));
+    renderPlanner();
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Coach draft four weeks" }));
+    expect(screen.getByRole("heading", { name: /Review coach draft/ })).toBeInTheDocument();
+    expect(screen.getByText(/Previous block: 8 of 8 sessions completed/)).toBeInTheDocument();
+    expect(screen.getByText(/draft stays conservative/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Seconds per set")).toHaveValue(10);
+    expect(screen.getAllByText("3 × 10 seconds")).toHaveLength(8);
+    expect(
+      screen.getByRole("button", { name: "Apply reviewed block 8 supporting sessions" }),
+    ).toBeInTheDocument();
   });
 
   it("shows live week, adherence and dose for the active support block", async () => {
@@ -269,5 +330,8 @@ describe("programme supporting goals planner", () => {
     expect(
       screen.getByText(/Skill progression waits for four successful weeks/),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Coach draft four weeks" }),
+    ).not.toBeInTheDocument();
   });
 });

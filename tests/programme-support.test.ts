@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildProgrammeSupportBlockProgress,
   buildProgrammeSupportBlockReview,
+  buildProgrammeSupportCoachDraft,
   buildProgrammeSupportSchedule,
   buildSkillGoalDraft,
   isSupportedSkillGoal,
@@ -185,6 +186,75 @@ test("an active support block reports its current week, adherence and dose", () 
     plannedDose: 10,
     doseUnit: "seconds",
   });
+});
+
+test("the coach reduces a support block after a too-hard outcome and low readiness", () => {
+  const draft = buildProgrammeSupportCoachDraft({
+    candidates: [
+      {
+        id: `goal:${goal.id}`,
+        sourceId: goal.id,
+        kind: "goal",
+        title: goal.goal,
+        defaultPlacement: "with_strength",
+        defaultLocation: "home",
+        availableLocations: ["home", "gym"],
+        doseRecommendation: {
+          sets: 3,
+          value: 12,
+          unit: "seconds",
+          decision: "progress",
+          completedWeeks: 4,
+          successfulWeeks: 4,
+          explanation: "Four successful weeks support a small increase.",
+        },
+        outcomes: ["too_hard"],
+      },
+    ],
+    previousBlock: {
+      startDate: "2026-09-01",
+      endDate: "2026-09-28",
+      plannedSessions: 8,
+      completedSessions: 8,
+      tracks: [
+        {
+          id: `goal:${goal.id}`,
+          kind: "goal",
+          sourceId: goal.id,
+          sessionsPerWeek: 2,
+          placement: "with_strength",
+          locationKind: "home",
+        },
+      ],
+    },
+    readiness: {
+      status: "reduce",
+      title: "Reduce optional support",
+      detail: "Pain or recovery evidence supports a lighter week.",
+      evidence: [],
+      maxPain: 4,
+      hardDays: 2,
+      effortCoverage: 50,
+      supportAdherence: 100,
+      supportDue: 8,
+      recoveryLevel: "deload",
+    },
+    preferences: {
+      primaryFocusId: "programme",
+      secondaryFocusIds: [`goal:${goal.id}`],
+      maintenanceFocusIds: [],
+      weeklyTrainingDays: 4,
+      weeklyMinutes: 300,
+      maxDemandingDays: 3,
+      saved: true,
+    },
+  });
+
+  assert.ok(draft);
+  assert.equal(draft.tracks[0]?.sessionsPerWeek, 1);
+  assert.equal(draft.tracks[0]?.skillSets, 2);
+  assert.equal(draft.tracks[0]?.skillDose, 10);
+  assert.match(draft.tracks[0]?.reason ?? "", /too hard/i);
 });
 
 test("a calisthenics hold goal becomes an editable Library-based practice", () => {
