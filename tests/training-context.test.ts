@@ -358,3 +358,47 @@ test("the coach can reduce one maintenance support session when the week exceeds
     null,
   );
 });
+
+test("the coach offers a reviewed support dose after schedule pressure is resolved", () => {
+  const plan = weeklyPlan();
+  const preferences = {
+    primaryFocusId: "programme",
+    secondaryFocusIds: ["goal:skill"],
+    maintenanceFocusIds: [],
+    weeklyTrainingDays: 4,
+    weeklyMinutes: 300,
+    maxDemandingDays: 3,
+    saved: true,
+  };
+  const context = buildTrainingContext({
+    plan,
+    programmeSessions: [],
+    scheduledPlans: [],
+    adjustments: {},
+  });
+  const recommendation = buildWeeklyCoachRecommendation({
+    context,
+    plan,
+    preferences,
+    doseOpportunities: [
+      {
+        suggestedWorkoutId: "support-1",
+        subjectFocusId: "goal:skill",
+        sessionLabel: "Handstand practice",
+        date: "2026-10-06",
+        adjustment: "progress",
+        currentSets: 3,
+        currentValue: 5,
+        targetSets: 3,
+        targetValue: 6,
+        doseUnit: "reps",
+        rationale: "Four successful weeks support a small increase.",
+      },
+    ],
+  });
+
+  assert.ok(recommendation);
+  assert.equal(recommendation.type, "adjust_support_dose");
+  assert.equal(recommendation.targetValue, 6);
+  assert.match(recommendation.title, /Progress Handstand practice/);
+});

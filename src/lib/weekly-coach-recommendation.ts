@@ -1,4 +1,5 @@
 import type { CoachingPreferences } from "./coaching-preferences.ts";
+import type { SupportDoseOpportunity } from "./coach-readiness.ts";
 import type { SavedWorkoutPlan } from "./supabase-plans.browser.ts";
 import type {
   TrainingContext,
@@ -7,7 +8,10 @@ import type {
 } from "./training-context.ts";
 import type { WeeklyPlan } from "./weekly-plan.ts";
 
-export type WeeklyCoachRecommendationType = "move_session" | "skip_support_session";
+export type WeeklyCoachRecommendationType =
+  | "move_session"
+  | "skip_support_session"
+  | "adjust_support_dose";
 
 export type WeeklyCoachDecisionHistory = {
   weekStart: string;
@@ -40,9 +44,20 @@ export type WeeklyCoachSkipSupportRecommendation = WeeklyCoachRecommendationBase
   type: "skip_support_session";
 };
 
+export type WeeklyCoachDoseRecommendation = WeeklyCoachRecommendationBase & {
+  type: "adjust_support_dose";
+  adjustment: "progress" | "reduce";
+  currentSets: number;
+  currentValue: number;
+  targetSets: number;
+  targetValue: number;
+  doseUnit: "reps" | "seconds";
+};
+
 export type WeeklyCoachRecommendation =
   | WeeklyCoachMoveRecommendation
-  | WeeklyCoachSkipSupportRecommendation;
+  | WeeklyCoachSkipSupportRecommendation
+  | WeeklyCoachDoseRecommendation;
 
 const DAY_MS = 86_400_000;
 const DEMANDING = new Set<TrainingContextKind>(["strength", "climbing", "conditioning"]);
@@ -328,11 +343,90 @@ function buildSkipSupportRecommendation({
   };
 }
 
+function buildDoseRecommendation({
+  opportunities,
+  plan,
+  preferences,
+  history,
+}: {
+  opportunities: SupportDoseOpportunity[];
+  plan: WeeklyPlan;
+  preferences: CoachingPreferences;
+  history: WeeklyCoachDecisionHistory[];
+}): WeeklyCoachDoseRecommendation | null {
+  const ranked = [...opportunities].sort((left, right) => {
+    const leftHistory = relevantHistory(
+      history,
+      "adjust_support_dose",
+      left.subjectFocusId,
+      plan.startDate,
+    );
+    const rightHistory = relevantHistory(
+      history,
+      "adjust_support_dose",
+      right.subjectFocusId,
+      plan.startDate,
+    );
+    const focusPriority = (item: SupportDoseOpportunity) => {
+      if (item.adjustment === "reduce") {
+        if (preferences.maintenanceFocusIds.includes(item.subjectFocusId)) return 0;
+        if (preferences.secondaryFocusIds.includes(item.subjectFocusId)) return 1;
+        return 2;
+      }
+      if (item.subjectFocusId === preferences.primaryFocusId) return 0;
+      if (preferences.secondaryFocusIds.includes(item.subjectFocusId)) return 1;
+      if (preferences.maintenanceFocusIds.includes(item.subjectFocusId)) return 2;
+      return 3;
+    };
+    return (
+      decisionPenalty(leftHistory) - decisionPenalty(rightHistory) ||
+      focusPriority(left) - focusPriority(right) ||
+      left.date.localeCompare(right.date)
+    );
+  });
+  const opportunity = ranked[0];
+  if (!opportunity) return null;
+  const opportunityHistory = relevantHistory(
+    history,
+    "adjust_support_dose",
+    opportunity.subjectFocusId,
+    plan.startDate,
+  );
+  const accepted = opportunityHistory.filter((item) => item.decision === "accepted").length;
+  const rejected = opportunityHistory.filter((item) => item.decision === "rejected").length;
+  const learningNote =
+    accepted || rejected
+      ? `${accepted} similar dose review${accepted === 1 ? "" : "s"} accepted · ${rejected} declined.`
+      : null;
+  return {
+    key: `dose:${opportunity.adjustment}:${opportunity.suggestedWorkoutId}:${opportunity.date}`,
+    type: "adjust_support_dose",
+    suggestedWorkoutId: opportunity.suggestedWorkoutId,
+    subjectFocusId: opportunity.subjectFocusId,
+    sessionLabel: opportunity.sessionLabel,
+    fromDate: opportunity.date,
+    proposedDate: opportunity.date,
+    title:
+      opportunity.adjustment === "progress"
+        ? `Progress ${opportunity.sessionLabel}`
+        : `Reduce ${opportunity.sessionLabel}`,
+    rationale: opportunity.rationale,
+    learningNote,
+    adjustment: opportunity.adjustment,
+    currentSets: opportunity.currentSets,
+    currentValue: opportunity.currentValue,
+    targetSets: opportunity.targetSets,
+    targetValue: opportunity.targetValue,
+    doseUnit: opportunity.doseUnit,
+  };
+}
+
 export function buildWeeklyCoachRecommendation({
   context,
   plan,
   preferences,
   scheduledPlans = [],
+  doseOpportunities = [],
   decidedKeys = [],
   history = [],
 }: {
@@ -340,12 +434,14 @@ export function buildWeeklyCoachRecommendation({
   plan: WeeklyPlan;
   preferences: CoachingPreferences;
   scheduledPlans?: SavedWorkoutPlan[];
+  doseOpportunities?: SupportDoseOpportunity[];
   decidedKeys?: string[];
   history?: WeeklyCoachDecisionHistory[];
 }): WeeklyCoachRecommendation | null {
   if (!preferences.saved || decidedKeys.length > 0) return null;
   return (
     buildMoveRecommendation({ context, plan, preferences, history }) ??
-    buildSkipSupportRecommendation({ context, plan, preferences, scheduledPlans, history })
+    buildSkipSupportRecommendation({ context, plan, preferences, scheduledPlans, history }) ??
+    buildDoseRecommendation({ opportunities: doseOpportunities, plan, preferences, history })
   );
 }

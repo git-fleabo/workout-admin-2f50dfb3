@@ -244,6 +244,7 @@ export type Database = {
       };
       coaching_recommendation_decisions: {
         Row: {
+          action_details: Json;
           chosen_date: string | null;
           decided_at: string;
           decision: string;
@@ -259,6 +260,7 @@ export type Database = {
           week_start: string;
         };
         Insert: {
+          action_details?: Json;
           chosen_date?: string | null;
           decided_at?: string;
           decision: string;
@@ -274,6 +276,7 @@ export type Database = {
           week_start: string;
         };
         Update: {
+          action_details?: Json;
           chosen_date?: string | null;
           decided_at?: string;
           decision?: string;
@@ -2610,6 +2613,21 @@ export type Database = {
       };
       decide_coaching_recommendation_v2: {
         Args: {
+          p_chosen_date: string | null;
+          p_decision: string;
+          p_original_date: string;
+          p_proposed_date: string;
+          p_rationale: string;
+          p_recommendation_key: string;
+          p_recommendation_type: string;
+          p_suggested_workout_id: string;
+          p_week_start: string;
+        };
+        Returns: string;
+      };
+      decide_coaching_recommendation_v3: {
+        Args: {
+          p_action_details?: Json;
           p_chosen_date: string | null;
           p_decision: string;
           p_original_date: string;

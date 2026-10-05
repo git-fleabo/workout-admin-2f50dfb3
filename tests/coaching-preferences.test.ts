@@ -82,3 +82,22 @@ test("adaptive coaching history learns by focus and only skips maintenance suppo
     /revoke all on function public\.decide_coaching_recommendation_v2[\s\S]*from anon/i,
   );
 });
+
+test("readiness coaching changes only one simple bounded support dose", async () => {
+  const sql = await readFile(
+    new URL("../supabase/migrations/20261005133000_add_readiness_coaching.sql", import.meta.url),
+    "utf8",
+  );
+  assert.match(sql, /add column action_details jsonb not null/i);
+  assert.match(sql, /'adjust_support_dose'/i);
+  assert.match(sql, /create function public\.decide_coaching_recommendation_v3/i);
+  assert.match(sql, /security invoker/i);
+  assert.match(sql, /v_program_assignment_id is null/i);
+  assert.match(sql, /v_program_workout_id is not null/i);
+  assert.match(sql, /v_plan_kind is distinct from 'skill'/i);
+  assert.match(sql, /v_entry_count <> 1/i);
+  assert.match(sql, /Progression is limited to one small dose step/i);
+  assert.match(sql, /Reduction is limited to one small dose step/i);
+  assert.doesNotMatch(sql, /update public\.program_assignments/i);
+  assert.doesNotMatch(sql, /security definer/i);
+});

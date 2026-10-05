@@ -85,6 +85,15 @@ export function WeeklyCoachRecommendationCard({
             </Select>
           </div>
         ) : null}
+        {recommendation.type === "adjust_support_dose" ? (
+          <div className="rounded-lg border border-border/70 bg-background/30 px-3 py-2 text-sm">
+            <span className="text-muted-foreground">Current </span>
+            {recommendation.currentSets} × {recommendation.currentValue} {recommendation.doseUnit}
+            <ArrowRight className="mx-2 inline h-3.5 w-3.5" />
+            <span className="text-muted-foreground">Proposed </span>
+            {recommendation.targetSets} × {recommendation.targetValue} {recommendation.doseUnit}
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={() => void decide("accepted")} disabled={pending}>
             {pending ? (
@@ -92,7 +101,11 @@ export function WeeklyCoachRecommendationCard({
             ) : (
               <ArrowRight className="mr-1 h-3.5 w-3.5" />
             )}
-            {recommendation.type === "move_session" ? "Apply move" : "Skip this session"}
+            {recommendation.type === "move_session"
+              ? "Apply move"
+              : recommendation.type === "skip_support_session"
+                ? "Skip this session"
+                : "Apply dose"}
           </Button>
           <Button
             size="sm"
@@ -107,7 +120,9 @@ export function WeeklyCoachRecommendationCard({
       <p className="text-xs text-muted-foreground">
         {recommendation.type === "move_session"
           ? "Accepting moves this planned extra session only. Your strength programme remains unchanged."
-          : "Accepting skips this maintenance support session only. Your strength programme and higher priorities remain unchanged."}
+          : recommendation.type === "skip_support_session"
+            ? "Accepting skips this maintenance support session only. Your strength programme and higher priorities remain unchanged."
+            : "Accepting changes this upcoming support dose only. Your strength programme prescription remains unchanged."}
       </p>
     </div>
   );

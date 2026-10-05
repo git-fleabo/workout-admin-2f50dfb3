@@ -216,4 +216,65 @@ describe("training context card", () => {
     fireEvent.click(screen.getByRole("button", { name: "Skip this session" }));
     await waitFor(() => expect(onDecision).toHaveBeenCalledWith("accepted", undefined));
   });
+
+  it("shows the exact reviewed support dose before applying it", async () => {
+    const onDecision = vi.fn(async () => undefined);
+    render(
+      <WeeklyCoachRecommendationCard
+        recommendation={{
+          key: "dose:progress:support-1:2026-10-06",
+          type: "adjust_support_dose",
+          suggestedWorkoutId: "support-1",
+          subjectFocusId: "goal:skill",
+          sessionLabel: "Handstand practice",
+          fromDate: "2026-10-06",
+          proposedDate: "2026-10-06",
+          title: "Progress Handstand practice",
+          rationale: "Four successful weeks support a small increase.",
+          learningNote: null,
+          adjustment: "progress",
+          currentSets: 3,
+          currentValue: 5,
+          targetSets: 3,
+          targetValue: 6,
+          doseUnit: "reps",
+        }}
+        pending={false}
+        onDecision={onDecision}
+      />,
+    );
+
+    expect(screen.getByText("Current").parentElement).toHaveTextContent(
+      "Current 3 × 5 repsProposed 3 × 6 reps",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Apply dose" }));
+    await waitFor(() => expect(onDecision).toHaveBeenCalledWith("accepted", undefined));
+  });
+
+  it("shows readiness evidence inside the unified training context", () => {
+    render(
+      <TrainingContextCard
+        plan={plan}
+        adjustments={{}}
+        programmeSessions={[]}
+        scheduledPlans={[]}
+        readiness={{
+          status: "hold",
+          title: "Hold the current dose",
+          detail: "Recovery evidence supports keeping support work steady.",
+          evidence: ["Pain evidence: no pain score recorded", "Effort evidence: 2 hard days"],
+          maxPain: null,
+          hardDays: 2,
+          effortCoverage: 50,
+          supportAdherence: 75,
+          supportDue: 4,
+          recoveryLevel: "lighter",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Readiness evidence")).toBeInTheDocument();
+    expect(screen.getByText("Hold the current dose")).toBeInTheDocument();
+    expect(screen.getByText("Hold")).toBeInTheDocument();
+  });
 });

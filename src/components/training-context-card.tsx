@@ -14,6 +14,7 @@ import { CoachSetupDialog } from "@/components/coach-setup-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { WeeklyCoachRecommendationCard } from "@/components/weekly-coach-recommendation-card";
+import type { CoachReadinessSnapshot, SupportDoseOpportunity } from "@/lib/coach-readiness";
 import {
   DEFAULT_COACHING_PREFERENCES,
   type CoachingFocusOption,
@@ -91,6 +92,8 @@ export function TrainingContextCard({
   ],
   savingPreferences = false,
   onSavePreferences,
+  readiness,
+  doseOpportunities = [],
   decidedRecommendationKeys = [],
   recommendationHistory = [],
   recommendationPending = false,
@@ -104,6 +107,8 @@ export function TrainingContextCard({
   focusOptions?: CoachingFocusOption[];
   savingPreferences?: boolean;
   onSavePreferences?: (preferences: CoachingPreferences) => Promise<void>;
+  readiness?: CoachReadinessSnapshot;
+  doseOpportunities?: SupportDoseOpportunity[];
   decidedRecommendationKeys?: string[];
   recommendationHistory?: WeeklyCoachDecisionHistory[];
   recommendationPending?: boolean;
@@ -138,6 +143,7 @@ export function TrainingContextCard({
         plan,
         preferences: coachingPreferences,
         scheduledPlans,
+        doseOpportunities,
         decidedKeys: decidedRecommendationKeys,
         history: recommendationHistory,
       }),
@@ -145,6 +151,7 @@ export function TrainingContextCard({
       coachingPreferences,
       context,
       decidedRecommendationKeys,
+      doseOpportunities,
       plan,
       recommendationHistory,
       scheduledPlans,
@@ -243,6 +250,40 @@ export function TrainingContextCard({
         </p>
       )}
 
+      {readiness ? (
+        <div className="space-y-3 rounded-xl border border-cyan-400/25 bg-cyan-400/[0.04] p-4">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <HeartPulse className="h-4 w-4 text-cyan-300" />
+                <p className="text-sm font-semibold">Readiness evidence</p>
+              </div>
+              <p className="mt-2 text-sm font-medium">{readiness.title}</p>
+              <p className="mt-1 max-w-2xl text-xs text-muted-foreground">{readiness.detail}</p>
+            </div>
+            <Badge variant="outline" className="border-cyan-400/30 text-cyan-200">
+              {readiness.status === "ready"
+                ? "Ready to review"
+                : readiness.status === "reduce"
+                  ? "Reduce"
+                  : readiness.status === "hold"
+                    ? "Hold"
+                    : "Building evidence"}
+            </Badge>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {readiness.evidence.map((item) => (
+              <p
+                key={item}
+                className="rounded-lg border border-border/70 bg-background/25 p-2.5 text-xs text-muted-foreground"
+              >
+                {item}
+              </p>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {coachingPreferences.saved && onRecommendationDecision ? (
         recommendation ? (
           <WeeklyCoachRecommendationCard
@@ -264,7 +305,8 @@ export function TrainingContextCard({
       <p className="text-xs text-muted-foreground">
         The coach checks this week against your saved priorities and capacity. It can propose one
         reviewed schedule change or maintenance reduction, but applies it only after you accept.
-        Readiness remains deferred.
+        Readiness can also hold, progress, or reduce an upcoming support dose while leaving the
+        strength programme unchanged.
       </p>
     </Card>
   );

@@ -70,7 +70,7 @@ export async function decideCoachingRecommendationClient({
   decision: "accepted" | "rejected";
   chosenDate?: string;
 }) {
-  return supabasePublicRpc<string>("decide_coaching_recommendation_v2", {
+  return supabasePublicRpc<string>("decide_coaching_recommendation_v3", {
     p_recommendation_type: recommendation.type,
     p_recommendation_key: recommendation.key,
     p_suggested_workout_id: recommendation.suggestedWorkoutId,
@@ -83,5 +83,16 @@ export async function decideCoachingRecommendationClient({
         : null,
     p_decision: decision,
     p_rationale: recommendation.rationale,
+    p_action_details:
+      recommendation.type === "adjust_support_dose"
+        ? {
+            adjustment: recommendation.adjustment,
+            from_sets: recommendation.currentSets,
+            from_value: recommendation.currentValue,
+            target_sets: recommendation.targetSets,
+            target_value: recommendation.targetValue,
+            dose_unit: recommendation.doseUnit,
+          }
+        : {},
   });
 }

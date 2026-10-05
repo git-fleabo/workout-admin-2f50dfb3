@@ -40,6 +40,7 @@ import { ProgrammeRefreshCard } from "@/components/programme-refresh-card";
 import { MyProgrammeOverview } from "@/components/my-programme-overview";
 import { MobilityPracticeOverview } from "@/components/mobility-practice-overview";
 import { TrainingContextCard } from "@/components/training-context-card";
+import { buildCoachReadinessSnapshot, buildSupportDoseOpportunities } from "@/lib/coach-readiness";
 import { formatUKDate, todayISO } from "@/lib/date";
 import {
   buildCircuit,
@@ -67,13 +68,18 @@ import {
 import { getSupabaseSession } from "@/lib/supabase-public";
 import { listMobilityDataClient } from "@/lib/supabase-mobility.browser";
 import { buildMobilityWorkoutDraft } from "@/lib/mobility-practice";
-import { getMovementMetricProfile } from "@/lib/movement-metrics";
+import { getMovementMetricProfile, getTrackingModeValue } from "@/lib/movement-metrics";
+import type { SkillGoalExercise } from "@/lib/programme-support";
 import { readWorkoutDraftSummary, workoutSessionDraftKey } from "@/lib/workout-local-state";
 import {
   getActiveProgrammeRefreshClient,
   getUpcomingProgrammeScheduleClient,
   updateProgrammeExerciseSettingsClient,
 } from "@/lib/supabase-programmes.browser";
+import {
+  getProgrammeSkillSupportHistoryClient,
+  getProgrammeSupportBlockHistoryClient,
+} from "@/lib/supabase-programme-support.browser";
 import { listTrainingMethodsClient } from "@/lib/supabase-training-methods.browser";
 import { getWeeklyLoadHistoryClient } from "@/lib/supabase-weekly-load.browser";
 import {
@@ -417,6 +423,42 @@ function PlanPage() {
     queryFn: () => getScheduledWorkoutPlansClient(weeklyPlan.startDate, weeklyPlan.endDate),
     staleTime: 30_000,
   });
+  const coachingSupportAssignmentIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (scheduledPlans.data ?? [])
+            .filter((plan) => plan.programAssignmentId && !plan.programWorkoutId)
+            .map((plan) => plan.programAssignmentId as string),
+        ),
+      ).sort(),
+    [scheduledPlans.data],
+  );
+  const coachingSupportEvidence = useQuery({
+    queryKey: ["coaching-support-evidence", coachingSupportAssignmentIds],
+    queryFn: async () => {
+      const results = await Promise.all(
+        coachingSupportAssignmentIds.map(async (assignmentId) => ({
+          skillHistory: await getProgrammeSkillSupportHistoryClient(assignmentId),
+          blockHistory: await getProgrammeSupportBlockHistoryClient(assignmentId),
+        })),
+      );
+      const skillHistory = results.reduce<
+        Record<string, (typeof results)[number]["skillHistory"][string]>
+      >((combined, result) => {
+        for (const [goalId, entries] of Object.entries(result.skillHistory)) {
+          combined[goalId] = [...(combined[goalId] ?? []), ...entries];
+        }
+        return combined;
+      }, {});
+      return {
+        skillHistory,
+        blockHistory: results.flatMap((result) => result.blockHistory),
+      };
+    },
+    enabled: coachingSupportAssignmentIds.length > 0,
+    staleTime: 30_000,
+  });
   const mobilityData = useQuery({
     queryKey: ["mobility-practice"],
     queryFn: listMobilityDataClient,
@@ -454,6 +496,56 @@ function PlanPage() {
   const coachingFocusOptions = useMemo(
     () => buildCoachingFocusOptions(coachingGoals.data?.items ?? [], mobilityData.data?.runs ?? []),
     [coachingGoals.data?.items, mobilityData.data?.runs],
+  );
+  const coachingSkillExercises = useMemo(
+    () =>
+      (library.data?.exercises ?? []).filter((exercise) => {
+        const trackingMode = getTrackingModeValue({
+          workoutType: exercise.workoutType,
+          movement: exercise.name,
+          defaultMetric: exercise.metric,
+        });
+        return (
+          exercise.workoutType.trim().toLowerCase() === "skills/calisthenics" &&
+          ["reps_only", "hold", "grip_hold"].includes(trackingMode)
+        );
+      }) as SkillGoalExercise[],
+    [library.data?.exercises],
+  );
+  const coachReadiness = useMemo(
+    () =>
+      buildCoachReadinessSnapshot({
+        logs: history.data?.recent ?? [],
+        loadHistory: weeklyLoad.data ?? [],
+        plan: weeklyPlan,
+        adjustments: weeklyAdjustments,
+        supportPlans: coachingSupportEvidence.data?.blockHistory ?? [],
+        today: todayISO(),
+      }),
+    [
+      coachingSupportEvidence.data?.blockHistory,
+      history.data?.recent,
+      weeklyAdjustments,
+      weeklyLoad.data,
+      weeklyPlan,
+    ],
+  );
+  const supportDoseOpportunities = useMemo(
+    () =>
+      buildSupportDoseOpportunities({
+        readiness: coachReadiness,
+        scheduledPlans: scheduledPlans.data ?? [],
+        goals: coachingGoals.data?.items ?? [],
+        exercises: coachingSkillExercises,
+        skillHistory: coachingSupportEvidence.data?.skillHistory ?? {},
+      }),
+    [
+      coachReadiness,
+      coachingGoals.data?.items,
+      coachingSkillExercises,
+      coachingSupportEvidence.data?.skillHistory,
+      scheduledPlans.data,
+    ],
   );
   const saveCoachingPreferences = useMutation({
     mutationFn: (preferences: CoachingPreferences) => saveCoachingPreferencesClient(preferences),
@@ -1070,7 +1162,9 @@ function PlanPage() {
           description:
             variables.recommendation.type === "move_session"
               ? `${variables.recommendation.sessionLabel} moved to ${formatUKDate(variables.chosenDate ?? variables.recommendation.proposedDate)}.`
-              : `${variables.recommendation.sessionLabel} was skipped for this week.`,
+              : variables.recommendation.type === "skip_support_session"
+                ? `${variables.recommendation.sessionLabel} was skipped for this week.`
+                : `${variables.recommendation.sessionLabel} now uses ${variables.recommendation.targetSets} × ${variables.recommendation.targetValue} ${variables.recommendation.doseUnit}.`,
         });
       } else {
         toast.success("Suggestion dismissed", {
@@ -1246,6 +1340,8 @@ function PlanPage() {
           adjustments={weeklyAdjustments}
           coachingPreferences={coachingPreferences.data}
           focusOptions={coachingFocusOptions}
+          readiness={coachReadiness}
+          doseOpportunities={supportDoseOpportunities}
           savingPreferences={saveCoachingPreferences.isPending}
           onSavePreferences={
             coachingPreferences.isSuccess && coachingGoals.isSuccess && mobilityData.isSuccess
