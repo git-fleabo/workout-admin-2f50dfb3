@@ -51,6 +51,31 @@ export type SkillPracticeDoseRecommendation = {
   explanation: string;
 };
 
+export type ProgrammeSupportPlanHistoryEntry = {
+  date: string;
+  status: string;
+  goalId: string | null;
+  mobilityRunId: string | null;
+  locationKind: PlannerLocation;
+};
+
+export type ProgrammeSupportReviewTrack = {
+  id: string;
+  kind: ProgrammeSupportKind;
+  sourceId: string;
+  sessionsPerWeek: number;
+  placement: ProgrammeSupportPlacement;
+  locationKind: PlannerLocation;
+};
+
+export type ProgrammeSupportBlockReview = {
+  startDate: string;
+  endDate: string;
+  plannedSessions: number;
+  completedSessions: number;
+  tracks: ProgrammeSupportReviewTrack[];
+};
+
 const DAY_MS = 86_400_000;
 
 function parseISO(value: string) {
@@ -172,6 +197,74 @@ export function buildProgrammeSupportSchedule({
   return occurrences.sort(
     (left, right) => left.date.localeCompare(right.date) || left.title.localeCompare(right.title),
   );
+}
+
+export function buildProgrammeSupportBlockReview({
+  plans,
+  today,
+  programmeDates,
+}: {
+  plans: ProgrammeSupportPlanHistoryEntry[];
+  today: string;
+  programmeDates: string[];
+}): ProgrammeSupportBlockReview | null {
+  const dated = plans
+    .filter((plan) => parseISO(plan.date))
+    .sort((left, right) => left.date.localeCompare(right.date));
+  const endDate = dated.at(-1)?.date;
+  if (!endDate || endDate >= today) return null;
+
+  const startDate = addDays(endDate, -27);
+  const block = dated.filter((plan) => plan.date >= startDate && plan.date <= endDate);
+  const strengthDates = new Set(programmeDates);
+  const byTrack = new Map<string, ProgrammeSupportPlanHistoryEntry[]>();
+  for (const plan of block) {
+    const id = plan.goalId
+      ? `goal:${plan.goalId}`
+      : plan.mobilityRunId
+        ? `mobility:${plan.mobilityRunId}`
+        : null;
+    if (!id) continue;
+    byTrack.set(id, [...(byTrack.get(id) ?? []), plan]);
+  }
+
+  const tracks = Array.from(byTrack.entries()).map(([id, entries]) => {
+    const weeks = new Map<string, number>();
+    const locations = new Map<PlannerLocation, number>();
+    let pairedSessions = 0;
+    for (const entry of entries) {
+      const week = mondayOf(entry.date);
+      weeks.set(week, (weeks.get(week) ?? 0) + 1);
+      locations.set(entry.locationKind, (locations.get(entry.locationKind) ?? 0) + 1);
+      if (strengthDates.has(entry.date)) pairedSessions += 1;
+    }
+    const sessionsPerWeek = Math.min(3, Math.max(1, ...weeks.values()));
+    const locationKind =
+      [...locations.entries()].sort(
+        (left, right) => right[1] - left[1] || left[0].localeCompare(right[0]),
+      )[0]?.[0] ?? "gym";
+    return {
+      id,
+      kind: id.startsWith("goal:") ? ("goal" as const) : ("mobility" as const),
+      sourceId: id.slice(id.indexOf(":") + 1),
+      sessionsPerWeek,
+      placement:
+        pairedSessions === entries.length
+          ? ("with_strength" as const)
+          : pairedSessions === 0
+            ? ("separate" as const)
+            : ("either" as const),
+      locationKind,
+    };
+  });
+
+  return {
+    startDate,
+    endDate,
+    plannedSessions: block.length,
+    completedSessions: block.filter((plan) => plan.status === "completed").length,
+    tracks,
+  };
 }
 
 function firstPositiveNumber(value: string, fallback: number) {

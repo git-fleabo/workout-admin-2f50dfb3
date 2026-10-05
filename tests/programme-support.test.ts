@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildProgrammeSupportBlockReview,
   buildProgrammeSupportSchedule,
   buildSkillGoalDraft,
   isSupportedSkillGoal,
@@ -84,6 +85,62 @@ test("support scheduling pairs skills with strength and keeps mobility on separa
 test("the first planning pass is limited to four weeks", () => {
   assert.equal(programmeSupportHorizon("2026-10-05", "2027-01-01"), "2026-11-01");
   assert.equal(programmeSupportHorizon("2026-10-05", "2026-10-20"), "2026-10-20");
+});
+
+test("a finished support block becomes a review with its previous settings", () => {
+  const dates = [
+    "2026-08-03",
+    "2026-08-06",
+    "2026-08-10",
+    "2026-08-13",
+    "2026-08-17",
+    "2026-08-20",
+    "2026-08-24",
+    "2026-08-27",
+  ];
+  const review = buildProgrammeSupportBlockReview({
+    today: "2026-09-01",
+    programmeDates: dates,
+    plans: dates.map((date, index) => ({
+      date,
+      status: index === 7 ? "skipped" : "completed",
+      goalId: goal.id,
+      mobilityRunId: null,
+      locationKind: "home",
+    })),
+  });
+  assert.ok(review);
+  assert.equal(review.plannedSessions, 8);
+  assert.equal(review.completedSessions, 7);
+  assert.deepEqual(review.tracks, [
+    {
+      id: `goal:${goal.id}`,
+      kind: "goal",
+      sourceId: goal.id,
+      sessionsPerWeek: 2,
+      placement: "with_strength",
+      locationKind: "home",
+    },
+  ]);
+});
+
+test("a support block is not ready for review while its final session is still ahead", () => {
+  assert.equal(
+    buildProgrammeSupportBlockReview({
+      today: "2026-08-20",
+      programmeDates: [],
+      plans: [
+        {
+          date: "2026-08-27",
+          status: "pending",
+          goalId: goal.id,
+          mobilityRunId: null,
+          locationKind: "home",
+        },
+      ],
+    }),
+    null,
+  );
 });
 
 test("a calisthenics hold goal becomes an editable Library-based practice", () => {

@@ -50,6 +50,11 @@ editable before the next block is saved. Migration
 `20261004193959_allow_programme_support_completion.sql` also makes support-session completion
 explicitly return without advancing the strength programme.
 
+When the final date in a supporting block has passed, My Programme now shows a review-due card with
+the completed-versus-planned session count. Opening it restores the previous active priorities,
+frequency, placement and location, and loads the next calisthenics dose recommendation. The next
+four weeks are still only created after the user reviews and saves them.
+
 ## Product Direction
 
 train n track should be organised around the training loop rather than around database categories:

@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   updateStatus: vi.fn(),
   addGoal: vi.fn(),
   createdGoal: false,
+  skillHistory: {} as Record<string, unknown[]>,
+  blockHistory: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@/lib/supabase-goals.browser", () => ({
@@ -63,7 +65,8 @@ vi.mock("@/lib/supabase-goals.browser", () => ({
 }));
 
 vi.mock("@/lib/supabase-programme-support.browser", () => ({
-  getProgrammeSkillSupportHistoryClient: vi.fn(async () => ({})),
+  getProgrammeSkillSupportHistoryClient: vi.fn(async () => mocks.skillHistory),
+  getProgrammeSupportBlockHistoryClient: vi.fn(async () => mocks.blockHistory),
 }));
 
 vi.mock("@/lib/supabase-mobility.browser", () => ({
@@ -138,6 +141,8 @@ function renderPlanner() {
 describe("programme supporting goals planner", () => {
   beforeEach(() => {
     mocks.createdGoal = false;
+    mocks.skillHistory = {};
+    mocks.blockHistory = [];
     mocks.addGoal.mockReset();
     mocks.save.mockReset();
     mocks.archive.mockClear();
@@ -200,5 +205,41 @@ describe("programme supporting goals planner", () => {
       await screen.findByRole("checkbox", { name: /Hold Handstand for 20 seconds/ }),
     ).toBeChecked();
     expect(screen.getByText("Starting dose")).toBeInTheDocument();
+  });
+
+  it("prompts for review after a support block and prefills the next dose", async () => {
+    mocks.skillHistory = {
+      "goal-1": ["2026-08-03", "2026-08-10", "2026-08-17", "2026-08-24"].map((date) => ({
+        date,
+        plannedSets: 3,
+        plannedDose: 10,
+        successful: true,
+      })),
+    };
+    mocks.blockHistory = [
+      "2026-08-03",
+      "2026-08-06",
+      "2026-08-10",
+      "2026-08-13",
+      "2026-08-17",
+      "2026-08-20",
+      "2026-08-24",
+      "2026-08-27",
+    ].map((date, index) => ({
+      date,
+      status: index === 7 ? "skipped" : "completed",
+      goalId: "goal-1",
+      mobilityRunId: null,
+      locationKind: "home",
+    }));
+    renderPlanner();
+
+    expect(await screen.findByText("Your supporting block is ready to review")).toBeInTheDocument();
+    expect(screen.getByText(/7 of 8 planned sessions/)).toBeInTheDocument();
+    expect(screen.getByText(/Small increase/)).toBeInTheDocument();
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Review next four weeks" }));
+    expect(screen.getByRole("checkbox", { name: /Hold a freestanding handstand/ })).toBeChecked();
+    expect(screen.getByLabelText("Seconds per set")).toHaveValue(12);
   });
 });

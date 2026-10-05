@@ -1,4 +1,7 @@
-import type { SkillPracticeHistoryEntry } from "./programme-support";
+import type {
+  ProgrammeSupportPlanHistoryEntry,
+  SkillPracticeHistoryEntry,
+} from "./programme-support";
 import { getCurrentPerson } from "./supabase-people.browser";
 import { supabasePublicSelect } from "./supabase-public";
 
@@ -29,6 +32,14 @@ type CompletedEntryRow = {
     duration_seconds: number | string | null;
     completed: boolean;
   }> | null;
+};
+
+type SupportPlanHistoryRow = {
+  suggested_for: string | null;
+  status: string;
+  goal_id: string | null;
+  mobility_practice_run_id: string | null;
+  training_locations: { kind: string | null } | null;
 };
 
 function positiveNumber(value: number | string | null) {
@@ -113,4 +124,32 @@ export async function getProgrammeSkillSupportHistoryClient(assignmentId: string
     history[plan.goal_id] = [...(history[plan.goal_id] ?? []), item];
   }
   return history;
+}
+
+export async function getProgrammeSupportBlockHistoryClient(
+  assignmentId: string,
+): Promise<ProgrammeSupportPlanHistoryEntry[]> {
+  const person = await getCurrentPerson();
+  if (!person) throw new Error("This account is not linked to a person.");
+  const plans = await supabasePublicSelect<SupportPlanHistoryRow>("suggested_workouts", {
+    select: "suggested_for,status,goal_id,mobility_practice_run_id,training_locations(kind)",
+    person_id: `eq.${person.id}`,
+    program_assignment_id: `eq.${assignmentId}`,
+    program_workout_id: "is.null",
+    status: "in.(pending,accepted,completed,skipped)",
+    order: "suggested_for.desc,created_at.desc",
+    limit: 200,
+  });
+  return plans.flatMap((plan) => {
+    if (!plan.suggested_for || (!plan.goal_id && !plan.mobility_practice_run_id)) return [];
+    return [
+      {
+        date: plan.suggested_for,
+        status: plan.status,
+        goalId: plan.goal_id,
+        mobilityRunId: plan.mobility_practice_run_id,
+        locationKind: plan.training_locations?.kind === "home" ? "home" : "gym",
+      },
+    ];
+  });
 }

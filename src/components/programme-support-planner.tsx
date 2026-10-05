@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarPlus, Loader2, Plus, Sparkles, Target, X } from "lucide-react";
+import { CalendarPlus, ClipboardCheck, Loader2, Plus, Sparkles, Target, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -28,6 +28,7 @@ import { formatUKDate, todayISO } from "@/lib/date";
 import { MOBILITY_SKILLS, buildMobilityWorkoutDraft } from "@/lib/mobility-practice";
 import {
   buildProgrammeSupportSchedule,
+  buildProgrammeSupportBlockReview,
   buildSkillGoalDraft,
   defaultSkillGoalLocation,
   isSupportedSkillGoal,
@@ -42,7 +43,10 @@ import { getTrackingModeValue } from "@/lib/movement-metrics";
 import { addGoalClient, listGoalsClient } from "@/lib/supabase-goals.browser";
 import { getLibraryClient } from "@/lib/supabase-log.browser";
 import { listMobilityDataClient } from "@/lib/supabase-mobility.browser";
-import { getProgrammeSkillSupportHistoryClient } from "@/lib/supabase-programme-support.browser";
+import {
+  getProgrammeSkillSupportHistoryClient,
+  getProgrammeSupportBlockHistoryClient,
+} from "@/lib/supabase-programme-support.browser";
 import {
   archiveProgrammeSupportPlansClient,
   getScheduledWorkoutPlansClient,
@@ -81,6 +85,16 @@ const BLANK_SKILL_GOAL: NewSkillGoalForm = {
   startingValue: "",
   deadline: "",
 };
+
+function recommendationLabel(recommendation: SkillPracticeDoseRecommendation) {
+  return recommendation.decision === "progress"
+    ? "Small increase"
+    : recommendation.decision === "goal_reached"
+      ? "Goal dose reached"
+      : recommendation.decision === "repeat"
+        ? "Repeat dose"
+        : "Starting dose";
+}
 
 function futureWindow(sessions: PersonalProgrammeSession[]) {
   const dates = sessions
@@ -131,6 +145,10 @@ export function ProgrammeSupportPlanner({
   const skillHistory = useQuery({
     queryKey: ["programme-skill-support-history", assignmentId],
     queryFn: () => getProgrammeSkillSupportHistoryClient(assignmentId),
+  });
+  const blockHistory = useQuery({
+    queryKey: ["programme-support-block-history", assignmentId],
+    queryFn: () => getProgrammeSupportBlockHistoryClient(assignmentId),
   });
 
   const exerciseById = useMemo(
@@ -209,6 +227,16 @@ export function ProgrammeSupportPlanner({
     });
   };
 
+  const review = useMemo(
+    () =>
+      buildProgrammeSupportBlockReview({
+        plans: blockHistory.data ?? [],
+        today: todayISO(),
+        programmeDates: window.programmeDates,
+      }),
+    [blockHistory.data, window.programmeDates],
+  );
+
   const chosenTracks = Object.values(selected);
   const preview = useMemo(
     () =>
@@ -226,7 +254,8 @@ export function ProgrammeSupportPlanner({
     mobility.isLoading ||
     library.isLoading ||
     scheduled.isLoading ||
-    skillHistory.isLoading;
+    skillHistory.isLoading ||
+    blockHistory.isLoading;
 
   const selectedNewGoalExercise = skillExercises.find(
     (exercise) => exercise.id === newGoal.exerciseId,
@@ -398,9 +427,12 @@ export function ProgrammeSupportPlanner({
     onSuccess: async (count) => {
       setOpen(false);
       await Promise.all(
-        ["programme-support-schedule", "scheduled-workout-plans", "next-suggested-workouts"].map(
-          (key) => queryClient.invalidateQueries({ queryKey: [key] }),
-        ),
+        [
+          "programme-support-schedule",
+          "programme-support-block-history",
+          "scheduled-workout-plans",
+          "next-suggested-workouts",
+        ].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
       );
       toast.success(`${count} supporting session${count === 1 ? "" : "s"} scheduled`, {
         description: "They can be moved or removed from Your week at a glance.",
@@ -437,6 +469,33 @@ export function ProgrammeSupportPlanner({
   const updateTrack = (id: string, patch: Partial<TrackConfig>) =>
     setSelected((current) => ({ ...current, [id]: { ...current[id], ...patch } }));
 
+  const openBlockReview = () => {
+    const restored = (review?.tracks ?? []).flatMap((previous) => {
+      const track = available.find((item) => item.id === previous.id);
+      if (!track) return [];
+      const recommendation = recommendationFor(track);
+      return [
+        [
+          track.id,
+          {
+            id: track.id,
+            kind: track.kind,
+            title: track.title,
+            sessionsPerWeek: previous.sessionsPerWeek,
+            placement: previous.placement,
+            locationKind: track.availableLocations.includes(previous.locationKind)
+              ? previous.locationKind
+              : track.defaultLocation,
+            skillSets: recommendation?.sets,
+            skillDose: recommendation?.value,
+          },
+        ] as const,
+      ];
+    });
+    setSelected(Object.fromEntries(restored.slice(0, 2)));
+    setOpen(true);
+  };
+
   return (
     <Card className="space-y-4 border-cyan-400/25 bg-cyan-400/[0.04] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -450,15 +509,60 @@ export function ProgrammeSupportPlanner({
             strength sessions and their progression stay unchanged.
           </p>
         </div>
-        <Button size="sm" variant="outline" onClick={() => setOpen(true)} disabled={loading}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={review ? openBlockReview : () => setOpen(true)}
+          disabled={loading}
+        >
           {loading ? (
             <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
           ) : (
             <Sparkles className="mr-1.5 h-4 w-4" />
           )}
-          {existing.length ? "Rebuild support schedule" : "Build supporting goals"}
+          {review
+            ? "Review next block"
+            : existing.length
+              ? "Rebuild support schedule"
+              : "Build supporting goals"}
         </Button>
       </div>
+
+      {review ? (
+        <div className="rounded-lg border border-amber-400/30 bg-amber-400/[0.07] p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="max-w-xl">
+              <div className="flex items-center gap-2">
+                <ClipboardCheck className="h-4 w-4 text-amber-300" />
+                <p className="font-medium">Your supporting block is ready to review</p>
+                <Badge variant="outline">Review due</Badge>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {review.completedSessions} of {review.plannedSessions} planned sessions were
+                completed in the block ending {formatUKDate(review.endDate)}. Review the next four
+                weeks before anything new is scheduled.
+              </p>
+            </div>
+            <Button size="sm" onClick={openBlockReview}>
+              Review next four weeks
+            </Button>
+          </div>
+          {review.tracks.length ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {review.tracks.map((previous) => {
+                const track = available.find((item) => item.id === previous.id);
+                const recommendation = track ? recommendationFor(track) : null;
+                return (
+                  <Badge key={previous.id} variant="secondary">
+                    {track?.title ?? "Previous supporting goal"}
+                    {recommendation ? ` · ${recommendationLabel(recommendation)}` : ""}
+                  </Badge>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {existing.length ? (
         <div className="space-y-2">
@@ -480,7 +584,7 @@ export function ProgrammeSupportPlanner({
             ))}
           </div>
         </div>
-      ) : (
+      ) : review ? null : (
         <p className="text-xs text-muted-foreground">
           No supporting sessions are attached to this programme yet.
         </p>
@@ -722,15 +826,7 @@ export function ProgrammeSupportPlanner({
                           <div className="space-y-3 rounded-lg border border-cyan-400/20 bg-cyan-400/[0.04] p-3 sm:col-span-3">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <p className="text-sm font-medium">Four-week dose review</p>
-                              <Badge variant="outline">
-                                {recommendation.decision === "progress"
-                                  ? "Small increase"
-                                  : recommendation.decision === "goal_reached"
-                                    ? "Goal dose reached"
-                                    : recommendation.decision === "repeat"
-                                      ? "Repeat dose"
-                                      : "Starting dose"}
-                              </Badge>
+                              <Badge variant="outline">{recommendationLabel(recommendation)}</Badge>
                             </div>
                             <p className="text-xs text-muted-foreground">
                               {recommendation.explanation}
