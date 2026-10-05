@@ -145,3 +145,39 @@ test("two demanding domains on one day are surfaced without changing the plan", 
   assert.equal(context.sessions.length, 2);
   assert.ok(context.signals.some((signal) => signal.title.includes("overlaps on Monday")));
 });
+
+test("saved coaching limits and priorities are checked against the week", () => {
+  const context = buildTrainingContext({
+    plan: weeklyPlan(),
+    programmeSessions: [programme("2026-10-05"), programme("2026-10-07")],
+    scheduledPlans: [
+      scheduled("climb", "2026-10-06", "climbing"),
+      scheduled("condition", "2026-10-08", "conditioning"),
+    ],
+    adjustments: {},
+    coaching: {
+      preferences: {
+        primaryFocusId: "goal-primary",
+        secondaryFocusIds: ["goal-support"],
+        maintenanceFocusIds: [],
+        weeklyTrainingDays: 3,
+        weeklyMinutes: 240,
+        maxDemandingDays: 3,
+        saved: true,
+      },
+      focusLabels: {
+        "goal-primary": "Handstand",
+        "goal-support": "Pike mobility",
+      },
+    },
+  });
+
+  assert.equal(context.occupiedDays, 4);
+  assert.equal(context.demandingDays, 4);
+  assert.ok(context.signals.some((signal) => signal.title.includes("exceed your 3-day limit")));
+  assert.ok(context.signals.some((signal) => signal.title.includes("exceed your limit of 3")));
+  assert.ok(
+    context.signals.some((signal) => signal.title.includes("Handstand has no saved session")),
+  );
+  assert.ok(context.signals.some((signal) => signal.title.includes("supporting priority")));
+});

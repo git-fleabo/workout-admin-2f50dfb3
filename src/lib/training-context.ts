@@ -1,6 +1,7 @@
 import type { SavedWorkoutPlan } from "./supabase-plans.browser.ts";
 import type { ProgrammeScheduleSession } from "./supabase-programmes.browser.ts";
 import type { WeeklyPlan, WeeklyPlanAdjustments, WeeklyPlanItemKind } from "./weekly-plan.ts";
+import type { CoachingPreferences } from "./coaching-preferences.ts";
 
 export type TrainingContextKind =
   | "strength"
@@ -17,6 +18,7 @@ export type TrainingContextSession = {
   label: string;
   completed: boolean;
   source: "programme" | "scheduled" | "completed";
+  focusId: string;
 };
 
 export type TrainingContextExpectation = {
@@ -40,7 +42,14 @@ export type TrainingContext = {
   expectations: TrainingContextExpectation[];
   counts: Record<TrainingContextKind, number>;
   openDays: number;
+  occupiedDays: number;
+  demandingDays: number;
   signals: TrainingContextSignal[];
+};
+
+export type TrainingContextCoaching = {
+  preferences: CoachingPreferences;
+  focusLabels: Record<string, string>;
 };
 
 const KINDS: TrainingContextKind[] = [
@@ -116,11 +125,13 @@ export function buildTrainingContext({
   programmeSessions,
   scheduledPlans,
   adjustments,
+  coaching,
 }: {
   plan: WeeklyPlan;
   programmeSessions: ProgrammeScheduleSession[];
   scheduledPlans: SavedWorkoutPlan[];
   adjustments: WeeklyPlanAdjustments;
+  coaching?: TrainingContextCoaching;
 }): TrainingContext {
   const sessions: TrainingContextSession[] = [
     ...programmeSessions.map((session) => ({
@@ -130,6 +141,7 @@ export function buildTrainingContext({
       label: `${session.programmeName} · ${session.workoutName}`,
       completed: session.status === "completed",
       source: "programme" as const,
+      focusId: "programme",
     })),
     ...scheduledPlans.map((saved) => ({
       id: `scheduled:${saved.suggestedWorkoutId}`,
@@ -138,6 +150,11 @@ export function buildTrainingContext({
       label: saved.title,
       completed: saved.status === "completed",
       source: "scheduled" as const,
+      focusId: saved.goalId
+        ? `goal:${saved.goalId}`
+        : saved.mobilityRunId
+          ? `mobility:${saved.mobilityRunId}`
+          : `kind:${planKind(saved.planKind)}`,
     })),
   ].filter((session) => session.date >= plan.startDate && session.date <= plan.endDate);
 
@@ -152,6 +169,7 @@ export function buildTrainingContext({
         label: inferredLabel(item).replace(" pattern", ""),
         completed: true,
         source: "completed",
+        focusId: `kind:${kind}`,
       });
     }
   }
@@ -179,6 +197,44 @@ export function buildTrainingContext({
     demandingByDate.set(session.date, [...(demandingByDate.get(session.date) ?? []), session]);
   }
   const signals: TrainingContextSignal[] = [];
+  const occupiedDates = new Set(sessions.map((session) => session.date));
+  if (coaching?.preferences.saved) {
+    const { preferences, focusLabels } = coaching;
+    if (occupiedDates.size > preferences.weeklyTrainingDays) {
+      signals.push({
+        tone: "caution",
+        title: `${occupiedDates.size} training days exceed your ${preferences.weeklyTrainingDays}-day limit`,
+        detail:
+          "Combine a supporting session with another day or remove the lowest-priority item before adding more.",
+      });
+    }
+    if (demandingByDate.size > preferences.maxDemandingDays) {
+      signals.push({
+        tone: "caution",
+        title: `${demandingByDate.size} demanding days exceed your limit of ${preferences.maxDemandingDays}`,
+        detail:
+          "Strength, climbing and conditioning currently ask for more hard days than you chose.",
+      });
+    }
+    const represented = new Set(sessions.map((session) => session.focusId));
+    const primaryLabel = focusLabels[preferences.primaryFocusId] ?? "Your primary focus";
+    if (!represented.has(preferences.primaryFocusId)) {
+      signals.push({
+        tone: "caution",
+        title: `${primaryLabel} has no saved session this week`,
+        detail:
+          "Your primary focus should usually receive space before supporting or maintenance work.",
+      });
+    }
+    const missingSupporting = preferences.secondaryFocusIds.filter((id) => !represented.has(id));
+    if (missingSupporting.length) {
+      signals.push({
+        tone: "information",
+        title: `${missingSupporting.length} supporting priorit${missingSupporting.length === 1 ? "y is" : "ies are"} not yet scheduled`,
+        detail: missingSupporting.map((id) => focusLabels[id] ?? "Saved focus").join(" · "),
+      });
+    }
+  }
   const overlaps = [...demandingByDate.entries()].filter(
     ([, items]) => new Set(items.map((item) => item.kind)).size >= 2,
   );
@@ -243,7 +299,6 @@ export function buildTrainingContext({
   }
 
   const cautionCount = signals.filter((signal) => signal.tone === "caution").length;
-  const occupiedDates = new Set(sessions.map((session) => session.date));
   const openDays = plan.days.filter((day) => !occupiedDates.has(day.date)).length;
   const confidence = sessions.length >= 4 ? "high" : sessions.length >= 2 ? "medium" : "low";
   const headline = cautionCount
@@ -263,6 +318,8 @@ export function buildTrainingContext({
     expectations,
     counts,
     openDays,
+    occupiedDays: occupiedDates.size,
+    demandingDays: demandingByDate.size,
     signals: signals.slice(0, 4),
   };
 }

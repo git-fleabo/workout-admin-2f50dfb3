@@ -102,6 +102,12 @@ import {
   type WorkoutPlanTargets,
 } from "@/lib/workout-plan";
 import { cn } from "@/lib/utils";
+import { buildCoachingFocusOptions, type CoachingPreferences } from "@/lib/coaching-preferences";
+import {
+  getCoachingPreferencesClient,
+  saveCoachingPreferencesClient,
+} from "@/lib/supabase-coaching-preferences.browser";
+import { listGoalsClient } from "@/lib/supabase-goals.browser";
 import {
   buildClimbingCircuit,
   CLIMBING_GOAL_OPTIONS,
@@ -410,6 +416,30 @@ function PlanPage() {
     queryKey: ["mobility-practice"],
     queryFn: listMobilityDataClient,
     staleTime: 30_000,
+  });
+  const coachingGoals = useQuery({
+    queryKey: ["coach-focus-goals"],
+    queryFn: listGoalsClient,
+    staleTime: 30_000,
+  });
+  const coachingPreferences = useQuery({
+    queryKey: ["coaching-preferences"],
+    queryFn: getCoachingPreferencesClient,
+    staleTime: 30_000,
+  });
+  const coachingFocusOptions = useMemo(
+    () => buildCoachingFocusOptions(coachingGoals.data?.items ?? [], mobilityData.data?.runs ?? []),
+    [coachingGoals.data?.items, mobilityData.data?.runs],
+  );
+  const saveCoachingPreferences = useMutation({
+    mutationFn: (preferences: CoachingPreferences) => saveCoachingPreferencesClient(preferences),
+    onSuccess: (preferences) => {
+      queryClient.setQueryData(["coaching-preferences"], preferences);
+      toast.success("Coach setup saved", {
+        description: "This week can now be checked against your priorities and limits.",
+      });
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
   const activeMobilityRuns = useMemo(
     () =>
@@ -1153,6 +1183,16 @@ function PlanPage() {
           programmeSessions={programmeSchedule.data ?? []}
           scheduledPlans={scheduledPlans.data ?? []}
           adjustments={weeklyAdjustments}
+          coachingPreferences={coachingPreferences.data}
+          focusOptions={coachingFocusOptions}
+          savingPreferences={saveCoachingPreferences.isPending}
+          onSavePreferences={
+            coachingPreferences.isSuccess && coachingGoals.isSuccess && mobilityData.isSuccess
+              ? async (preferences) => {
+                  await saveCoachingPreferences.mutateAsync(preferences);
+                }
+              : undefined
+          }
         />
       ) : null}
       <MobilityPracticeOverview />

@@ -198,6 +198,50 @@ export type Database = {
           },
         ];
       };
+      coaching_preferences: {
+        Row: {
+          created_at: string;
+          maintenance_focus_ids: string[];
+          max_demanding_days: number;
+          person_id: string;
+          primary_focus_id: string;
+          secondary_focus_ids: string[];
+          updated_at: string;
+          weekly_minutes: number;
+          weekly_training_days: number;
+        };
+        Insert: {
+          created_at?: string;
+          maintenance_focus_ids?: string[];
+          max_demanding_days?: number;
+          person_id: string;
+          primary_focus_id?: string;
+          secondary_focus_ids?: string[];
+          updated_at?: string;
+          weekly_minutes?: number;
+          weekly_training_days?: number;
+        };
+        Update: {
+          created_at?: string;
+          maintenance_focus_ids?: string[];
+          max_demanding_days?: number;
+          person_id?: string;
+          primary_focus_id?: string;
+          secondary_focus_ids?: string[];
+          updated_at?: string;
+          weekly_minutes?: number;
+          weekly_training_days?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "coaching_preferences_person_id_fkey";
+            columns: ["person_id"];
+            isOneToOne: true;
+            referencedRelation: "people";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       data_quality_audit_events: {
         Row: {
           action: string;

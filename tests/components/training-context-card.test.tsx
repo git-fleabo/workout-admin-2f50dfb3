@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { TrainingContextCard } from "@/components/training-context-card";
@@ -98,5 +98,31 @@ describe("training context card", () => {
     expect(screen.getByText(/Strength 1/)).toBeInTheDocument();
     expect(screen.getByText(/Skill 1/)).toBeInTheDocument();
     expect(screen.getByText(/Skill practice is attached to strength days/)).toBeInTheDocument();
+  });
+
+  it("opens an editable coach setup without changing the weekly plan", () => {
+    render(
+      <TrainingContextCard
+        plan={plan}
+        adjustments={{}}
+        programmeSessions={[]}
+        scheduledPlans={[]}
+        focusOptions={[
+          {
+            id: "programme",
+            label: "Current strength programme",
+            description: "Current plan",
+          },
+          { id: "goal:1", label: "Handstand", description: "Active goal" },
+        ]}
+        onSavePreferences={async () => undefined}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Set priorities" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Coach setup" })).toBeInTheDocument();
+    expect(screen.getByText("Build alongside it")).toBeInTheDocument();
+    expect(screen.getByLabelText("Minutes available")).toHaveValue(300);
   });
 });

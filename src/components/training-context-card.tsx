@@ -10,8 +10,14 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 
+import { CoachSetupDialog } from "@/components/coach-setup-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import {
+  DEFAULT_COACHING_PREFERENCES,
+  type CoachingFocusOption,
+  type CoachingPreferences,
+} from "@/lib/coaching-preferences";
 import { formatUKDateShort } from "@/lib/date";
 import type { SavedWorkoutPlan } from "@/lib/supabase-plans.browser";
 import type { ProgrammeScheduleSession } from "@/lib/supabase-programmes.browser";
@@ -69,15 +75,40 @@ export function TrainingContextCard({
   programmeSessions,
   scheduledPlans,
   adjustments,
+  coachingPreferences = DEFAULT_COACHING_PREFERENCES,
+  focusOptions = [
+    {
+      id: "programme",
+      label: "Current strength programme",
+      description: "Progress the programme you are currently running.",
+    },
+  ],
+  savingPreferences = false,
+  onSavePreferences,
 }: {
   plan: WeeklyPlan;
   programmeSessions: ProgrammeScheduleSession[];
   scheduledPlans: SavedWorkoutPlan[];
   adjustments: WeeklyPlanAdjustments;
+  coachingPreferences?: CoachingPreferences;
+  focusOptions?: CoachingFocusOption[];
+  savingPreferences?: boolean;
+  onSavePreferences?: (preferences: CoachingPreferences) => Promise<void>;
 }) {
+  const focusLabels = useMemo(
+    () => Object.fromEntries(focusOptions.map((option) => [option.id, option.label])),
+    [focusOptions],
+  );
   const context = useMemo(
-    () => buildTrainingContext({ plan, programmeSessions, scheduledPlans, adjustments }),
-    [adjustments, plan, programmeSessions, scheduledPlans],
+    () =>
+      buildTrainingContext({
+        plan,
+        programmeSessions,
+        scheduledPlans,
+        adjustments,
+        coaching: { preferences: coachingPreferences, focusLabels },
+      }),
+    [adjustments, coachingPreferences, focusLabels, plan, programmeSessions, scheduledPlans],
   );
   const visibleKinds = (Object.keys(KIND_VIEW) as TrainingContextKind[]).filter(
     (kind) => context.counts[kind] > 0,
@@ -98,15 +129,39 @@ export function TrainingContextCard({
             the current week without changing your programme.
           </p>
         </div>
-        <div className="text-right text-xs text-muted-foreground">
-          <p>
-            {formatUKDateShort(context.startDate)}–{formatUKDateShort(context.endDate)}
-          </p>
-          <p className="mt-1 capitalize">{context.confidence} planning confidence</p>
+        <div className="flex flex-col items-end gap-2 text-right text-xs text-muted-foreground">
+          <div>
+            <p>
+              {formatUKDateShort(context.startDate)}–{formatUKDateShort(context.endDate)}
+            </p>
+            <p className="mt-1 capitalize">{context.confidence} planning confidence</p>
+          </div>
+          {onSavePreferences ? (
+            <CoachSetupDialog
+              preferences={coachingPreferences}
+              focusOptions={focusOptions}
+              saving={savingPreferences}
+              onSave={onSavePreferences}
+            />
+          ) : null}
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
+        {coachingPreferences.saved ? (
+          <>
+            <Badge variant="outline" className="border-blue-400/30 bg-blue-400/10 text-blue-200">
+              Primary: {focusLabels[coachingPreferences.primaryFocusId] ?? "Saved focus"}
+            </Badge>
+            <Badge variant="outline">
+              {coachingPreferences.weeklyTrainingDays} days · {coachingPreferences.weeklyMinutes}{" "}
+              min
+            </Badge>
+            <Badge variant="outline">
+              Max {coachingPreferences.maxDemandingDays} demanding days
+            </Badge>
+          </>
+        ) : null}
         {visibleKinds.map((kind) => {
           const view = KIND_VIEW[kind];
           const Icon = view.icon;
@@ -144,8 +199,8 @@ export function TrainingContextCard({
       )}
 
       <p className="text-xs text-muted-foreground">
-        This view identifies clear scheduling patterns only. Readiness and cross-goal dose changes
-        will remain separate until their evidence and controls are added.
+        The coach now checks this week against your saved priorities and capacity. Readiness remains
+        deferred, and the coach will not change your programme or weekly plan automatically.
       </p>
     </Card>
   );
