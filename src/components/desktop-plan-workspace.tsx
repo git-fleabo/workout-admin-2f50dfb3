@@ -110,15 +110,19 @@ export function DesktopPlanWorkspace({
           </Button>
           <h1 className="text-xl font-semibold tracking-tight">Build: {label}</h1>
         </header>
-        <div className="grid grid-cols-[280px_minmax(0,1fr)_260px] items-start gap-4 xl:grid-cols-[320px_minmax(0,1fr)_300px] xl:gap-5">
-          <aside className="sticky top-24 max-h-[calc(100vh-7rem)] space-y-4 overflow-y-auto rounded-xl border border-border bg-card/30 p-4">
+        <div className="grid grid-cols-[400px_minmax(0,1fr)] items-start gap-4 xl:grid-cols-[320px_minmax(0,1fr)_300px] xl:gap-5">
+          <aside className="sticky top-24 col-start-1 row-span-2 max-h-[calc(100vh-7rem)] space-y-4 overflow-y-auto rounded-xl border border-border bg-card/30 p-4 xl:row-span-1">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Session brief
             </p>
             {builderBrief}
           </aside>
-          <main className="min-w-0">{builderPrescription}</main>
-          <aside className="sticky top-24">{builderSummary}</aside>
+          <main className="col-start-2 row-start-2 min-w-0 xl:row-start-1">
+            {builderPrescription}
+          </main>
+          <aside className="sticky top-24 col-start-2 row-start-1 xl:col-start-3">
+            {builderSummary}
+          </aside>
         </div>
       </div>
     );
@@ -347,7 +351,7 @@ function WeekWorkspace({
                   dropDate === date && "border-cyan-300 bg-cyan-400/10",
                 )}
               >
-                <div className="flex items-baseline justify-between">
+                <div className="flex flex-col gap-0.5 xl:flex-row xl:items-baseline xl:justify-between">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     {isToday ? "Today" : dayLabel(date)}
                   </span>
@@ -767,7 +771,7 @@ function DayInspector({
       {!isPast ? (
         <div className="space-y-2 border-t border-border pt-3">
           <p className="text-sm font-semibold">Add to this day</p>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid gap-2 xl:grid-cols-3">
             <Button variant="outline" size="sm" onClick={() => onOpenBuilder("strength", date)}>
               <Dumbbell className="mr-1 h-3.5 w-3.5" /> Strength
             </Button>

@@ -1206,7 +1206,7 @@ function DesktopLibraryWorkspace({
             ) : selected ? (
               <div className="flex min-h-[44rem] flex-col">
                 <div className="flex flex-wrap items-center gap-3 border-b border-border bg-secondary/10 px-4 py-3">
-                  <div className="min-w-0 flex-1">
+                  <div className="w-full min-w-0 xl:w-auto xl:flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="truncate text-lg font-semibold">{selected.name}</h2>
                       <span
@@ -1512,30 +1512,41 @@ function ExerciseEditorForm({
     }));
   };
 
+  const title = state.mode === "edit" ? "Edit movement" : "New movement";
+  const description =
+    state.mode === "edit"
+      ? `Update ${state.row.name} in Supabase.`
+      : "Add a new exercise or skill to Supabase.";
+
+  const panelStatus = (
+    <span
+      className={cn(
+        "rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider",
+        dirty
+          ? "border-amber-400/30 bg-amber-400/10 text-amber-200"
+          : "border-border text-muted-foreground",
+      )}
+    >
+      {dirty ? "Unsaved changes" : "Saved"}
+    </span>
+  );
+
   const content = (
     <>
-      <DialogHeader>
-        <DialogTitle className="flex flex-wrap items-center gap-2">
-          {state.mode === "edit" ? "Edit movement" : "New movement"}
-          {presentation === "panel" ? (
-            <span
-              className={cn(
-                "rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider",
-                dirty
-                  ? "border-amber-400/30 bg-amber-400/10 text-amber-200"
-                  : "border-border text-muted-foreground",
-              )}
-            >
-              {dirty ? "Unsaved changes" : "Saved"}
-            </span>
-          ) : null}
-        </DialogTitle>
-        <DialogDescription>
-          {state.mode === "edit"
-            ? `Update ${state.row.name} in Supabase.`
-            : "Add a new exercise or skill to Supabase."}
-        </DialogDescription>
-      </DialogHeader>
+      {presentation === "dialog" ? (
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+      ) : (
+        <header className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-semibold leading-none tracking-tight">{title}</h2>
+            {panelStatus}
+          </div>
+          <p className="text-sm text-muted-foreground">{description}</p>
+        </header>
+      )}
 
       <form
         onSubmit={(e) => {
@@ -1898,7 +1909,7 @@ function ExerciseEditorDialog(props: ExerciseEditorFormProps) {
   return <ExerciseEditorForm {...props} presentation="dialog" />;
 }
 
-function ExerciseEditorPanel(props: ExerciseEditorFormProps) {
+export function ExerciseEditorPanel(props: ExerciseEditorFormProps) {
   return <ExerciseEditorForm {...props} presentation="panel" />;
 }
 
