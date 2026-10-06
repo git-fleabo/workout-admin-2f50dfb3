@@ -44,6 +44,7 @@ import { MobilityPracticeOverview } from "@/components/mobility-practice-overvie
 import { TrainingContextCard } from "@/components/training-context-card";
 import { buildCoachReadinessSnapshot, buildSupportDoseOpportunities } from "@/lib/coach-readiness";
 import { buildCoachOutcomeState } from "@/lib/coach-outcome";
+import { addCalendarDays, startOfMondayWeek } from "@/lib/calendar-week";
 import { formatUKDate, todayISO } from "@/lib/date";
 import {
   buildCircuit,
@@ -270,8 +271,12 @@ function PlanPage() {
     queryFn: () => getWeeklyLoadHistoryClient(90),
     staleTime: 60_000,
   });
+  const today = todayISO();
   const [location, setLocation] = useState<PlannerLocation>("gym");
   const [weeklyAdjustments, setWeeklyAdjustments] = useState<WeeklyPlanAdjustments>({});
+  const [desktopWeeklyAdjustments, setDesktopWeeklyAdjustments] = useState<WeeklyPlanAdjustments>(
+    {},
+  );
   const [plannerMode, setPlannerMode] = useState<PlannerMode>("strength");
   const [strengthInputs, setStrengthInputs] =
     useState<StrengthBuilderInputs>(DEFAULT_STRENGTH_INPUTS);
@@ -285,9 +290,10 @@ function PlanPage() {
   const [climbingInputs, setClimbingInputs] =
     useState<ClimbingBuilderInputs>(DEFAULT_CLIMBING_INPUTS);
   const [climbingBuild, setClimbingBuild] = useState<ClimbingCircuitBuild | null>(null);
-  const [plannedFor, setPlannedFor] = useState(todayISO());
+  const [plannedFor, setPlannedFor] = useState(today);
   const isDesktop = useIsDesktop();
   const [desktopBuilder, setDesktopBuilder] = useState(false);
+  const [desktopWeekStart, setDesktopWeekStart] = useState(() => startOfMondayWeek(today));
 
   useEffect(() => {
     const storedLocation = window.localStorage.getItem(WORKOUT_PLAN_LOCATION_KEY);
@@ -441,8 +447,13 @@ function PlanPage() {
     };
   }, [history.data?.recent, library.data?.exercises]);
   const weeklyPlan = useMemo(
-    () => buildWeeklyPlan(weeklyLogs, todayISO(), weeklyLoad.data ?? []),
-    [weeklyLoad.data, weeklyLogs],
+    () => buildWeeklyPlan(weeklyLogs, today, weeklyLoad.data ?? []),
+    [today, weeklyLoad.data, weeklyLogs],
+  );
+  const desktopWeekEnd = addCalendarDays(desktopWeekStart, 6);
+  const desktopWeeklyPlan = useMemo(
+    () => buildWeeklyPlan(weeklyLogs, desktopWeekStart, weeklyLoad.data ?? []),
+    [desktopWeekStart, weeklyLoad.data, weeklyLogs],
   );
   const previousWeekStart = moveWeeklyReviewWeek(weeklyPlan.startDate, -1);
   const weeklyRolloverReview = useQuery({
@@ -461,6 +472,21 @@ function PlanPage() {
   const scheduledPlans = useQuery({
     queryKey: ["scheduled-workout-plans", weeklyPlan.startDate, weeklyPlan.endDate],
     queryFn: () => getScheduledWorkoutPlansClient(weeklyPlan.startDate, weeklyPlan.endDate),
+    staleTime: 30_000,
+  });
+  const desktopProgrammeSchedule = useQuery({
+    queryKey: ["programme-schedule", desktopWeekStart, desktopWeekEnd],
+    queryFn: () =>
+      getUpcomingProgrammeScheduleClient(desktopWeekStart, desktopWeekEnd, ["active"], {
+        includeOverdueCurrent: desktopWeekStart === startOfMondayWeek(today),
+      }),
+    enabled: isDesktop,
+    staleTime: 30_000,
+  });
+  const desktopScheduledPlans = useQuery({
+    queryKey: ["scheduled-workout-plans", desktopWeekStart, desktopWeekEnd],
+    queryFn: () => getScheduledWorkoutPlansClient(desktopWeekStart, desktopWeekEnd),
+    enabled: isDesktop,
     staleTime: 30_000,
   });
   const coachingSupportAssignmentIds = useMemo(
@@ -919,6 +945,14 @@ function PlanPage() {
   }, [weeklyPlan.startDate]);
 
   useEffect(() => {
+    setDesktopWeeklyAdjustments(
+      readWeeklyPlanAdjustments(
+        window.localStorage.getItem(weeklyAdjustmentsStorageKey(desktopWeekStart)),
+      ),
+    );
+  }, [desktopWeekStart]);
+
+  useEffect(() => {
     if (plannerMode !== "circuit" || !circuitBuild?.ok) return;
     setMethodBlocks(generatedCircuitMethodBlocks);
   }, [circuitBuild, generatedCircuitMethodBlocks, plannerMode]);
@@ -930,6 +964,19 @@ function PlanPage() {
       else next[date] = items;
       window.localStorage.setItem(
         weeklyAdjustmentsStorageKey(weeklyPlan.startDate),
+        JSON.stringify(next),
+      );
+      return next;
+    });
+  };
+
+  const adjustDesktopWeeklyDay = (date: string, items: WeeklyPlanItemKind[] | null) => {
+    setDesktopWeeklyAdjustments((current) => {
+      const next = { ...current };
+      if (items == null) delete next[date];
+      else next[date] = items;
+      window.localStorage.setItem(
+        weeklyAdjustmentsStorageKey(desktopWeekStart),
         JSON.stringify(next),
       );
       return next;
@@ -1701,6 +1748,7 @@ function PlanPage() {
       toast.success("Workout added to your week", {
         description: `${draft.title} · ${formatUKDate(draft.suggestedFor)}`,
       });
+      if (isDesktop) setDesktopBuilder(false);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -1722,6 +1770,14 @@ function PlanPage() {
     onStartScheduledPlan: (plan) => void startScheduledPlan(plan),
     onMoveScheduledPlan: (id, date) => moveScheduledPlan.mutate({ id, date }),
     onRemoveScheduledPlan: (id) => removeScheduledPlan.mutate(id),
+  };
+  const desktopWeekProps: ComponentProps<typeof WeeklyPlanOverview> = {
+    ...weekProps,
+    plan: desktopWeeklyPlan,
+    programmeSessions: desktopProgrammeSchedule.data ?? [],
+    adjustments: desktopWeeklyAdjustments,
+    onAdjustDay: adjustDesktopWeeklyDay,
+    scheduledPlans: desktopScheduledPlans.data ?? [],
   };
 
   const coachingPanel = (
@@ -1821,31 +1877,31 @@ function PlanPage() {
   );
 
   const builderActions = (
-              <div className="sticky bottom-3 z-10 grid gap-2 rounded-xl border border-border bg-background/90 p-3 shadow-xl backdrop-blur sm:grid-cols-[auto_1fr]">
-                <Button
-                  variant="outline"
-                  size="lg"
-                  disabled={movements.length === 0 || savePlan.isPending}
-                  onClick={() => savePlan.mutate("pending")}
-                >
-                  {savePlan.isPending && savePlan.variables === "pending" ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : null}
-                  Save for later
-                </Button>
-                <Button
-                  className="w-full"
-                  size="lg"
-                  disabled={movements.length === 0 || savePlan.isPending}
-                  onClick={() => savePlan.mutate("accepted")}
-                >
-                  {savePlan.isPending && savePlan.variables === "accepted" ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : null}
-                  {plannerMode === "climbing" ? "Start this climb" : "Start this workout"}{" "}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
+    <div className="sticky bottom-3 z-10 grid gap-2 rounded-xl border border-border bg-background/90 p-3 shadow-xl backdrop-blur sm:grid-cols-[auto_1fr]">
+      <Button
+        variant="outline"
+        size="lg"
+        disabled={movements.length === 0 || savePlan.isPending}
+        onClick={() => savePlan.mutate("pending")}
+      >
+        {savePlan.isPending && savePlan.variables === "pending" ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : null}
+        Save for later
+      </Button>
+      <Button
+        className="w-full"
+        size="lg"
+        disabled={movements.length === 0 || savePlan.isPending}
+        onClick={() => savePlan.mutate("accepted")}
+      >
+        {savePlan.isPending && savePlan.variables === "accepted" ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : null}
+        {plannerMode === "climbing" ? "Start this climb" : "Start this workout"}{" "}
+        <ArrowRight className="ml-2 h-4 w-4" />
+      </Button>
+    </div>
   );
 
   if (isDesktop) {
@@ -1859,8 +1915,28 @@ function PlanPage() {
         }
         coaching={coachingPanel}
         mobility={<MobilityPracticeOverview />}
-        weekReady={!history.isLoading && !library.isLoading && !history.error && !library.error}
-        weekProps={weekProps}
+        weekReady={
+          !history.isLoading &&
+          !library.isLoading &&
+          !desktopProgrammeSchedule.isLoading &&
+          !desktopScheduledPlans.isLoading &&
+          !history.error &&
+          !library.error &&
+          !desktopProgrammeSchedule.error &&
+          !desktopScheduledPlans.error
+        }
+        weekError={
+          history.error ||
+          library.error ||
+          desktopProgrammeSchedule.error ||
+          desktopScheduledPlans.error
+            ? "Your selected week could not be loaded. Refresh Plan and try again."
+            : null
+        }
+        weekProps={desktopWeekProps}
+        weekStart={desktopWeekStart}
+        onWeekStartChange={setDesktopWeekStart}
+        today={today}
         builderOpen={desktopBuilder}
         onOpenBuilder={(mode, date) => {
           setPlannerMode(mode);
@@ -1869,368 +1945,371 @@ function PlanPage() {
         }}
         onCloseBuilder={() => setDesktopBuilder(false)}
         builderMode={plannerMode}
-        builderBrief={<div className="space-y-4">
-          <label className="block max-w-xs text-sm font-medium">
-            Planned date
-            <Input
-              className="mt-1"
-              type="date"
-              value={plannedFor}
-              onChange={(event) => setPlannedFor(event.target.value)}
-            />
-          </label>
+        builderBrief={
+          <div className="space-y-4">
+            <label className="block max-w-xs text-sm font-medium">
+              Planned date
+              <Input
+                className="mt-1"
+                type="date"
+                value={plannedFor}
+                onChange={(event) => setPlannedFor(event.target.value)}
+              />
+            </label>
 
-          <div className="space-y-2">
-            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              What do you want to train?
-            </p>
-            <div className="grid gap-2 rounded-xl border border-border bg-secondary/15 p-1.5 sm:grid-cols-3">
-              <button
-                type="button"
-                aria-pressed={plannerMode === "strength"}
-                onClick={() => setPlannerMode("strength")}
-                className={cn(
-                  "rounded-lg px-3 py-3 text-left transition",
-                  plannerMode === "strength"
-                    ? "border border-primary/35 bg-primary/10 text-primary shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <span className="block text-sm font-medium">Strength</span>
-                <span className="mt-0.5 block text-[11px]">Build from recent strength work</span>
-              </button>
-              <button
-                type="button"
-                aria-pressed={plannerMode === "circuit"}
-                onClick={() => setPlannerMode("circuit")}
-                className={cn(
-                  "rounded-lg px-3 py-3 text-left transition",
-                  plannerMode === "circuit"
-                    ? "border border-amber-400/35 bg-amber-400/10 text-amber-200 shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <span className="block text-sm font-medium">Conditioning</span>
-                <span className="mt-0.5 block text-[11px]">Build an editable circuit brief</span>
-              </button>
-              <button
-                type="button"
-                aria-pressed={plannerMode === "climbing"}
-                onClick={() => setPlannerMode("climbing")}
-                className={cn(
-                  "rounded-lg px-3 py-3 text-left transition",
-                  plannerMode === "climbing"
-                    ? "border border-orange-400/35 bg-orange-400/10 text-orange-200 shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <span className="block text-sm font-medium">Climbing</span>
-                <span className="mt-0.5 block text-[11px]">Build an automatic wall circuit</span>
-              </button>
+            <div className="space-y-2">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                What do you want to train?
+              </p>
+              <div className="grid gap-2 rounded-xl border border-border bg-secondary/15 p-1.5 sm:grid-cols-3">
+                <button
+                  type="button"
+                  aria-pressed={plannerMode === "strength"}
+                  onClick={() => setPlannerMode("strength")}
+                  className={cn(
+                    "rounded-lg px-3 py-3 text-left transition",
+                    plannerMode === "strength"
+                      ? "border border-primary/35 bg-primary/10 text-primary shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <span className="block text-sm font-medium">Strength</span>
+                  <span className="mt-0.5 block text-[11px]">Build from recent strength work</span>
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={plannerMode === "circuit"}
+                  onClick={() => setPlannerMode("circuit")}
+                  className={cn(
+                    "rounded-lg px-3 py-3 text-left transition",
+                    plannerMode === "circuit"
+                      ? "border border-amber-400/35 bg-amber-400/10 text-amber-200 shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <span className="block text-sm font-medium">Conditioning</span>
+                  <span className="mt-0.5 block text-[11px]">Build an editable circuit brief</span>
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={plannerMode === "climbing"}
+                  onClick={() => setPlannerMode("climbing")}
+                  className={cn(
+                    "rounded-lg px-3 py-3 text-left transition",
+                    plannerMode === "climbing"
+                      ? "border border-orange-400/35 bg-orange-400/10 text-orange-200 shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <span className="block text-sm font-medium">Climbing</span>
+                  <span className="mt-0.5 block text-[11px]">Build an automatic wall circuit</span>
+                </button>
+              </div>
             </div>
-          </div>
 
-          {plannerMode !== "climbing" ? (
-            <section className="grid gap-4">
-              <Card>
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-sm">Where are you training?</CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-2 p-4 pt-2">
-                  <LocationButton
-                    active={location === "home"}
-                    label="Home"
-                    icon={<Home className="h-4 w-4" />}
-                    onClick={() => setLocation("home")}
-                  />
-                  <LocationButton
-                    active={location === "gym"}
-                    label="Gym"
-                    icon={<Building2 className="h-4 w-4" />}
-                    onClick={() => setLocation("gym")}
-                  />
+            {plannerMode !== "climbing" ? (
+              <section className="grid gap-4">
+                <Card>
+                  <CardHeader className="p-4 pb-2">
+                    <CardTitle className="text-sm">Where are you training?</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-2 gap-2 p-4 pt-2">
+                    <LocationButton
+                      active={location === "home"}
+                      label="Home"
+                      icon={<Home className="h-4 w-4" />}
+                      onClick={() => setLocation("home")}
+                    />
+                    <LocationButton
+                      active={location === "gym"}
+                      label="Gym"
+                      icon={<Building2 className="h-4 w-4" />}
+                      onClick={() => setLocation("gym")}
+                    />
+                  </CardContent>
+                </Card>
+              </section>
+            ) : null}
+
+            {plannerMode === "strength" ? (
+              <StrengthBuilderCard
+                inputs={strengthInputs}
+                onChange={updateStrengthInputs}
+                candidateCount={guidedStrengthCandidates.length}
+                result={strengthBuild}
+                methodAvailable={Boolean(circuitMethod)}
+                loading={library.isLoading || history.isLoading || trainingMethods.isLoading}
+                onBuild={generateStrength}
+              />
+            ) : plannerMode === "circuit" ? (
+              <CircuitBuilderCard
+                inputs={circuitInputs}
+                onChange={updateCircuitInputs}
+                candidateCount={locationCircuitCandidateCount}
+                result={circuitBuild}
+                methodAvailable={Boolean(circuitMethod)}
+                loading={library.isLoading || trainingMethods.isLoading}
+                onBuild={generateCircuit}
+              />
+            ) : (
+              <ClimbingBuilderCard
+                inputs={climbingInputs}
+                onChange={updateClimbingInputs}
+                result={climbingBuild}
+                onBuild={generateClimbing}
+              />
+            )}
+          </div>
+        }
+        builderPrescription={
+          <div className="space-y-6">
+            {plannerMode !== "climbing" &&
+            (library.isLoading ||
+              (plannerMode === "strength" ? history.isLoading : trainingMethods.isLoading)) ? (
+              <div className="flex items-center justify-center py-24 text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {plannerMode === "strength"
+                  ? "Loading strength history…"
+                  : "Loading circuit library…"}
+              </div>
+            ) : plannerMode !== "climbing" &&
+              (library.error ||
+                (plannerMode === "strength" ? history.error : trainingMethods.error)) ? (
+              <Card className="border-destructive/40">
+                <CardContent className="p-6 text-sm text-destructive">
+                  {plannerMode === "strength"
+                    ? "Training history could not be loaded. Please refresh and try again."
+                    : "The movement library or Circuit method could not be loaded. Please refresh and try again."}
                 </CardContent>
               </Card>
-            </section>
-          ) : null}
-
-          {plannerMode === "strength" ? (
-            <StrengthBuilderCard
-              inputs={strengthInputs}
-              onChange={updateStrengthInputs}
-              candidateCount={guidedStrengthCandidates.length}
-              result={strengthBuild}
-              methodAvailable={Boolean(circuitMethod)}
-              loading={library.isLoading || history.isLoading || trainingMethods.isLoading}
-              onBuild={generateStrength}
-            />
-          ) : plannerMode === "circuit" ? (
-            <CircuitBuilderCard
-              inputs={circuitInputs}
-              onChange={updateCircuitInputs}
-              candidateCount={locationCircuitCandidateCount}
-              result={circuitBuild}
-              methodAvailable={Boolean(circuitMethod)}
-              loading={library.isLoading || trainingMethods.isLoading}
-              onBuild={generateCircuit}
-            />
-          ) : (
-            <ClimbingBuilderCard
-              inputs={climbingInputs}
-              onChange={updateClimbingInputs}
-              result={climbingBuild}
-              onBuild={generateClimbing}
-            />
-          )}
-        </div>}
-        builderPrescription={<div className="space-y-6">
-          {plannerMode !== "climbing" &&
-          (library.isLoading ||
-            (plannerMode === "strength" ? history.isLoading : trainingMethods.isLoading)) ? (
-            <div className="flex items-center justify-center py-24 text-sm text-muted-foreground">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {plannerMode === "strength"
-                ? "Loading strength history…"
-                : "Loading circuit library…"}
-            </div>
-          ) : plannerMode !== "climbing" &&
-            (library.error ||
-              (plannerMode === "strength" ? history.error : trainingMethods.error)) ? (
-            <Card className="border-destructive/40">
-              <CardContent className="p-6 text-sm text-destructive">
-                {plannerMode === "strength"
-                  ? "Training history could not be loaded. Please refresh and try again."
-                  : "The movement library or Circuit method could not be loaded. Please refresh and try again."}
-              </CardContent>
-            </Card>
-          ) : (plannerMode === "circuit" || plannerMode === "climbing") &&
-            !activePlan ? null : !activePlan ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <Dumbbell className="mx-auto mb-3 h-6 w-6 text-muted-foreground" />
-                <p className="font-medium">Not enough history yet</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Log a completed workout, then return here for a suggestion.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <div
-                className={cn(
-                  "rounded-xl border p-4",
-                  activePlan.fallbackUsed
-                    ? "border-amber-400/25 bg-amber-400/[0.06]"
-                    : "border-cyan-400/25 bg-cyan-400/[0.06]",
-                )}
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold">{activePlan.title}</p>
-                  <Badge variant="outline" className="text-[10px] capitalize">
-                    {activePlan.pattern === "climbing"
-                      ? "Generated climbing circuit"
-                      : activePlan.pattern === "circuit"
-                        ? "Generated circuit"
-                        : activePlan.pattern === "manual"
-                          ? "Generated strength session"
-                          : activePlan.pattern === "rotation"
-                            ? "Pattern rotation"
-                            : "Repeat pattern"}
-                  </Badge>
-                  {activePlan.fallbackUsed && (
-                    <Badge
-                      variant="outline"
-                      className="border-amber-400/30 text-[10px] text-amber-300"
-                    >
-                      Location fallback
+            ) : (plannerMode === "circuit" || plannerMode === "climbing") &&
+              !activePlan ? null : !activePlan ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <Dumbbell className="mx-auto mb-3 h-6 w-6 text-muted-foreground" />
+                  <p className="font-medium">Not enough history yet</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Log a completed workout, then return here for a suggestion.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <div
+                  className={cn(
+                    "rounded-xl border p-4",
+                    activePlan.fallbackUsed
+                      ? "border-amber-400/25 bg-amber-400/[0.06]"
+                      : "border-cyan-400/25 bg-cyan-400/[0.06]",
+                  )}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold">{activePlan.title}</p>
+                    <Badge variant="outline" className="text-[10px] capitalize">
+                      {activePlan.pattern === "climbing"
+                        ? "Generated climbing circuit"
+                        : activePlan.pattern === "circuit"
+                          ? "Generated circuit"
+                          : activePlan.pattern === "manual"
+                            ? "Generated strength session"
+                            : activePlan.pattern === "rotation"
+                              ? "Pattern rotation"
+                              : "Repeat pattern"}
                     </Badge>
-                  )}
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">{activePlan.basis}</p>
-              </div>
-
-              {plannerMode === "climbing" && climbingBuild ? (
-                <ClimbingPlanDetails build={climbingBuild} />
-              ) : null}
-
-              {plannerMode !== "climbing" ? (
-                <section className="space-y-3">
-                  <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                      <h2 className="text-base font-semibold">Suggested movements</h2>
-                      <p className="text-xs text-muted-foreground">
-                        {plannerMode === "circuit"
-                          ? "Lock favourites, swap exercises, change the order, or edit the dose."
-                          : "Edit every strength and conditioning target before saving or starting."}
-                      </p>
-                    </div>
-                    <div className="flex w-full flex-wrap gap-1.5 sm:w-auto sm:justify-end">
-                      {plannerMode === "circuit" ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={movements.length < 3}
-                          onClick={regenerateUnlockedCircuit}
-                        >
-                          <RefreshCw className="mr-1 h-3.5 w-3.5" /> Regenerate unlocked
-                        </Button>
-                      ) : null}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setMovements(activePlan.movements);
-                          setMethodBlocks(activePlan.methodBlocks ?? []);
-                          if (plannerMode === "circuit" && circuitBuild?.ok) {
-                            setCircuitMovementIds(
-                              circuitBuild.selections.map((selection) => selection.candidate.id),
-                            );
-                            setLockedCircuitIds([]);
-                          }
-                        }}
+                    {activePlan.fallbackUsed && (
+                      <Badge
+                        variant="outline"
+                        className="border-amber-400/30 text-[10px] text-amber-300"
                       >
-                        <RotateCcw className="mr-1 h-3.5 w-3.5" /> Reset
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 xl:grid-cols-2">
-                    {movements.map((movement, movementIndex) => (
-                      <MovementPlanCard
-                        key={`${movement.exercise}-${movementIndex}`}
-                        movement={movement}
-                        index={movementIndex}
-                        onUpdateSet={updateSet}
-                        onUpdateTarget={updateTarget}
-                        onUpdateRest={updateMovementRest}
-                        onRemoveSet={removeSet}
-                        onAddSet={addSet}
-                        onRemoveMovement={() => removeMovement(movementIndex)}
-                        circuitControls={
-                          plannerMode === "circuit"
-                            ? {
-                                locked: lockedCircuitIds.includes(
-                                  circuitMovementIds[movementIndex] ?? "",
-                                ),
-                                swapOptions: circuitSwapOptions[movementIndex] ?? [],
-                                canMoveUp: movementIndex > 0,
-                                canMoveDown: movementIndex < movements.length - 1,
-                                onToggleLock: () => toggleCircuitLock(movementIndex),
-                                onSwap: (replacementId) =>
-                                  swapCircuitMovement(movementIndex, replacementId),
-                                onMoveUp: () => moveCircuitMovement(movementIndex, -1),
-                                onMoveDown: () => moveCircuitMovement(movementIndex, 1),
-                              }
-                            : undefined
-                        }
-                      />
-                    ))}
-                  </div>
-                </section>
-              ) : null}
-
-              {plannerMode !== "climbing" ? (
-                <section className="space-y-2">
-                  <div>
-                    <h2 className="text-base font-semibold">Training methods</h2>
-                    <p className="text-xs text-muted-foreground">
-                      {plannerMode === "circuit"
-                        ? "The generated order, rounds, and recovery are stored as a Circuit training block."
-                        : "The conditioning finisher is stored as a Circuit block after the strength work."}
-                    </p>
-                  </div>
-                  {methodBlocks.length ? (
-                    <div className="grid gap-2 lg:grid-cols-2">
-                      {methodBlocks.map((block, blockIndex) => (
-                        <div
-                          key={`${block.trainingMethodId}-${blockIndex}`}
-                          className="flex items-start gap-3 rounded-xl border border-indigo-400/25 bg-indigo-400/[0.05] p-3"
-                        >
-                          <Layers3 className="mt-0.5 h-4 w-4 shrink-0 text-indigo-300" />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium">{block.methodName}</p>
-                            <p className="mt-0.5 text-xs text-muted-foreground">
-                              {block.memberMovementIndexes
-                                .map((index) => movements[index]?.exercise)
-                                .filter(Boolean)
-                                .join(" → ")}
-                            </p>
-                            <p className="mt-1 text-[11px] text-muted-foreground">
-                              {methodBlockSummary(block)}
-                            </p>
-                          </div>
-                          {plannerMode === "strength" &&
-                          block.config.generated_by === "strength_finisher" ? (
-                            <Badge variant="outline" className="shrink-0 text-[9px]">
-                              Required finisher
-                            </Badge>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                setMethodBlocks((current) =>
-                                  current.filter((_, index) => index !== blockIndex),
-                                )
-                              }
-                            >
-                              Remove
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-                      {plannerMode === "circuit"
-                        ? "No Circuit block is attached. Rebuild the circuit or enable the Circuit method in Manage."
-                        : "No conditioning finisher is attached. Rebuild the session or enable the Circuit method in Manage."}
-                    </p>
-                  )}
-                </section>
-              ) : null}
-
-              <Card className="border-violet-400/20 bg-violet-400/[0.04]">
-                <CardContent className="flex gap-3 p-4">
-                  <Info className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
-                  <div className="text-xs text-muted-foreground">
-                    <p className="font-medium text-foreground">
-                      {plannerMode === "climbing"
-                        ? "Automatic format selection"
-                        : plannerMode === "circuit"
-                          ? "How this was chosen"
-                          : "Current progression rules"}
-                    </p>
-                    {plannerMode === "climbing" ? (
-                      <p className="mt-1">
-                        The goal chooses the training format automatically. Duration sets the
-                        available work time, wall type shapes the practical instructions, and
-                        difficulty changes work density and recovery. You choose the actual problems
-                        at the wall.
-                      </p>
-                    ) : plannerMode === "circuit" ? (
-                      <p className="mt-1">
-                        Eligibility comes from your enabled {location} library, equipment,
-                        exclusions, format, impact, and difficulty. Scoring then favours preferred
-                        movements, the requested focus, and pattern variety. Every card explains its
-                        own dose and selection reason.
-                      </p>
-                    ) : (
-                      <p className="mt-1">
-                        Standard uses normal evidence-led progression. Hard adds one work set;{" "}
-                        <span>Very hard</span> adds up to two, with every movement capped at five
-                        sets. Reaching 5s allows a 2.5 kg progression, and every generated strength
-                        session ends with conditioning. You can still edit every target before
-                        saving.
-                      </p>
+                        Location fallback
+                      </Badge>
                     )}
                   </div>
-                </CardContent>
-              </Card>
+                  <p className="mt-2 text-xs text-muted-foreground">{activePlan.basis}</p>
+                </div>
 
-            </>
-          )}
-        </div>}
+                {plannerMode === "climbing" && climbingBuild ? (
+                  <ClimbingPlanDetails build={climbingBuild} />
+                ) : null}
+
+                {plannerMode !== "climbing" ? (
+                  <section className="space-y-3">
+                    <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between">
+                      <div>
+                        <h2 className="text-base font-semibold">Suggested movements</h2>
+                        <p className="text-xs text-muted-foreground">
+                          {plannerMode === "circuit"
+                            ? "Lock favourites, swap exercises, change the order, or edit the dose."
+                            : "Edit every strength and conditioning target before saving or starting."}
+                        </p>
+                      </div>
+                      <div className="flex w-full flex-wrap gap-1.5 sm:w-auto sm:justify-end">
+                        {plannerMode === "circuit" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={movements.length < 3}
+                            onClick={regenerateUnlockedCircuit}
+                          >
+                            <RefreshCw className="mr-1 h-3.5 w-3.5" /> Regenerate unlocked
+                          </Button>
+                        ) : null}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setMovements(activePlan.movements);
+                            setMethodBlocks(activePlan.methodBlocks ?? []);
+                            if (plannerMode === "circuit" && circuitBuild?.ok) {
+                              setCircuitMovementIds(
+                                circuitBuild.selections.map((selection) => selection.candidate.id),
+                              );
+                              setLockedCircuitIds([]);
+                            }
+                          }}
+                        >
+                          <RotateCcw className="mr-1 h-3.5 w-3.5" /> Reset
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 xl:grid-cols-2">
+                      {movements.map((movement, movementIndex) => (
+                        <MovementPlanCard
+                          key={`${movement.exercise}-${movementIndex}`}
+                          movement={movement}
+                          index={movementIndex}
+                          onUpdateSet={updateSet}
+                          onUpdateTarget={updateTarget}
+                          onUpdateRest={updateMovementRest}
+                          onRemoveSet={removeSet}
+                          onAddSet={addSet}
+                          onRemoveMovement={() => removeMovement(movementIndex)}
+                          circuitControls={
+                            plannerMode === "circuit"
+                              ? {
+                                  locked: lockedCircuitIds.includes(
+                                    circuitMovementIds[movementIndex] ?? "",
+                                  ),
+                                  swapOptions: circuitSwapOptions[movementIndex] ?? [],
+                                  canMoveUp: movementIndex > 0,
+                                  canMoveDown: movementIndex < movements.length - 1,
+                                  onToggleLock: () => toggleCircuitLock(movementIndex),
+                                  onSwap: (replacementId) =>
+                                    swapCircuitMovement(movementIndex, replacementId),
+                                  onMoveUp: () => moveCircuitMovement(movementIndex, -1),
+                                  onMoveDown: () => moveCircuitMovement(movementIndex, 1),
+                                }
+                              : undefined
+                          }
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+
+                {plannerMode !== "climbing" ? (
+                  <section className="space-y-2">
+                    <div>
+                      <h2 className="text-base font-semibold">Training methods</h2>
+                      <p className="text-xs text-muted-foreground">
+                        {plannerMode === "circuit"
+                          ? "The generated order, rounds, and recovery are stored as a Circuit training block."
+                          : "The conditioning finisher is stored as a Circuit block after the strength work."}
+                      </p>
+                    </div>
+                    {methodBlocks.length ? (
+                      <div className="grid gap-2 lg:grid-cols-2">
+                        {methodBlocks.map((block, blockIndex) => (
+                          <div
+                            key={`${block.trainingMethodId}-${blockIndex}`}
+                            className="flex items-start gap-3 rounded-xl border border-indigo-400/25 bg-indigo-400/[0.05] p-3"
+                          >
+                            <Layers3 className="mt-0.5 h-4 w-4 shrink-0 text-indigo-300" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium">{block.methodName}</p>
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                {block.memberMovementIndexes
+                                  .map((index) => movements[index]?.exercise)
+                                  .filter(Boolean)
+                                  .join(" → ")}
+                              </p>
+                              <p className="mt-1 text-[11px] text-muted-foreground">
+                                {methodBlockSummary(block)}
+                              </p>
+                            </div>
+                            {plannerMode === "strength" &&
+                            block.config.generated_by === "strength_finisher" ? (
+                              <Badge variant="outline" className="shrink-0 text-[9px]">
+                                Required finisher
+                              </Badge>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  setMethodBlocks((current) =>
+                                    current.filter((_, index) => index !== blockIndex),
+                                  )
+                                }
+                              >
+                                Remove
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+                        {plannerMode === "circuit"
+                          ? "No Circuit block is attached. Rebuild the circuit or enable the Circuit method in Manage."
+                          : "No conditioning finisher is attached. Rebuild the session or enable the Circuit method in Manage."}
+                      </p>
+                    )}
+                  </section>
+                ) : null}
+
+                <Card className="border-violet-400/20 bg-violet-400/[0.04]">
+                  <CardContent className="flex gap-3 p-4">
+                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+                    <div className="text-xs text-muted-foreground">
+                      <p className="font-medium text-foreground">
+                        {plannerMode === "climbing"
+                          ? "Automatic format selection"
+                          : plannerMode === "circuit"
+                            ? "How this was chosen"
+                            : "Current progression rules"}
+                      </p>
+                      {plannerMode === "climbing" ? (
+                        <p className="mt-1">
+                          The goal chooses the training format automatically. Duration sets the
+                          available work time, wall type shapes the practical instructions, and
+                          difficulty changes work density and recovery. You choose the actual
+                          problems at the wall.
+                        </p>
+                      ) : plannerMode === "circuit" ? (
+                        <p className="mt-1">
+                          Eligibility comes from your enabled {location} library, equipment,
+                          exclusions, format, impact, and difficulty. Scoring then favours preferred
+                          movements, the requested focus, and pattern variety. Every card explains
+                          its own dose and selection reason.
+                        </p>
+                      ) : (
+                        <p className="mt-1">
+                          Standard uses normal evidence-led progression. Hard adds one work set;{" "}
+                          <span>Very hard</span> adds up to two, with every movement capped at five
+                          sets. Reaching 5s allows a 2.5 kg progression, and every generated
+                          strength session ends with conditioning. You can still edit every target
+                          before saving.
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </div>
+        }
         builderSummary={
           <DesktopBuilderSummary
             plannedFor={plannedFor}

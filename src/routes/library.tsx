@@ -108,6 +108,8 @@ import {
   POSITION_MEASUREMENT_GUIDES,
   type PositionMeasurementDirection,
 } from "@/lib/position-measurements";
+import { useIsDesktop } from "@/hooks/use-desktop";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/library")({
   head: () => ({
@@ -377,6 +379,7 @@ function circuitChipClass(suitability: CircuitSuitability) {
 
 function LibraryPage() {
   const qc = useQueryClient();
+  const isDesktop = useIsDesktop();
 
   const [showInactive, setShowInactive] = useState(false);
   const list = useQuery({
@@ -417,6 +420,12 @@ function LibraryPage() {
   );
   const visibleMovements = hasActiveFilter || showAllMovements ? filtered : filtered.slice(0, 12);
 
+  useEffect(() => {
+    if (!selected || !list.data?.items) return;
+    const refreshed = list.data.items.find((item) => item.id === selected.id);
+    if (refreshed && refreshed !== selected) setSelected(refreshed);
+  }, [list.data?.items, selected]);
+
   const addMutation = useMutation({
     mutationFn: (fields: typeof BLANK) => addExerciseClient(fields, effectivePersonId || undefined),
     onSuccess: () => {
@@ -440,9 +449,10 @@ function LibraryPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => hideExerciseClient(id),
-    onSuccess: () => {
+    onSuccess: (_result, deletedId) => {
       toast.success("Movement deleted");
       setPendingDelete(null);
+      if (selected?.id === deletedId) setSelected(null);
       qc.invalidateQueries({ queryKey: ["library"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -477,6 +487,54 @@ function LibraryPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  if (isDesktop) {
+    return (
+      <DesktopLibraryWorkspace
+        loading={list.isLoading}
+        needsProfileClaim={Boolean(list.data?.needsProfileClaim)}
+        claiming={claimMutation.isPending}
+        onClaim={() => claimMutation.mutate()}
+        filtered={filtered}
+        workoutTypes={list.data?.workoutTypes ?? []}
+        equipmentItems={list.data?.equipmentItems ?? []}
+        search={search}
+        onSearch={setSearch}
+        typeFilter={typeFilter}
+        onTypeFilter={setTypeFilter}
+        locationFilter={locationFilter}
+        onLocationFilter={setLocationFilter}
+        circuitFilter={circuitFilter}
+        onCircuitFilter={setCircuitFilter}
+        toolkitOnly={toolkitOnly}
+        onToolkitOnly={setToolkitOnly}
+        showInactive={showInactive}
+        onShowInactive={setShowInactive}
+        selected={selected}
+        onSelected={setSelected}
+        editor={editor}
+        onEditor={setEditor}
+        editorPending={addMutation.isPending || updateMutation.isPending}
+        onSubmit={(fields) => {
+          if (editor.mode === "create") {
+            addMutation.mutate(fields);
+          } else if (editor.mode === "edit") {
+            updateMutation.mutate({ id: editor.row.id, fields });
+          }
+        }}
+        onSetLocation={(id, scope) => locationMutation.mutate({ id, scope })}
+        onSetQuickLog={(id, quickLog) => quickLogMutation.mutate({ id, quickLog })}
+        onSetEnabled={(id, enabled) => enableMutation.mutate({ id, enabled })}
+        controlsPending={
+          locationMutation.isPending || quickLogMutation.isPending || enableMutation.isPending
+        }
+        pendingDelete={pendingDelete}
+        onPendingDelete={setPendingDelete}
+        deleting={deleteMutation.isPending}
+        onDelete={(id) => deleteMutation.mutate(id)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -890,19 +948,397 @@ function LibraryPage() {
   );
 }
 
+function DesktopLibraryWorkspace({
+  loading,
+  needsProfileClaim,
+  claiming,
+  onClaim,
+  filtered,
+  workoutTypes,
+  equipmentItems,
+  search,
+  onSearch,
+  typeFilter,
+  onTypeFilter,
+  locationFilter,
+  onLocationFilter,
+  circuitFilter,
+  onCircuitFilter,
+  toolkitOnly,
+  onToolkitOnly,
+  showInactive,
+  onShowInactive,
+  selected,
+  onSelected,
+  editor,
+  onEditor,
+  editorPending,
+  onSubmit,
+  onSetLocation,
+  onSetQuickLog,
+  onSetEnabled,
+  controlsPending,
+  pendingDelete,
+  onPendingDelete,
+  deleting,
+  onDelete,
+}: {
+  loading: boolean;
+  needsProfileClaim: boolean;
+  claiming: boolean;
+  onClaim: () => void;
+  filtered: LibraryClientRow[];
+  workoutTypes: string[];
+  equipmentItems: LibraryEquipmentItem[];
+  search: string;
+  onSearch: (value: string) => void;
+  typeFilter: string;
+  onTypeFilter: (value: string) => void;
+  locationFilter: "" | "home" | "gym";
+  onLocationFilter: (value: "" | "home" | "gym") => void;
+  circuitFilter: "" | CircuitSuitability;
+  onCircuitFilter: (value: "" | CircuitSuitability) => void;
+  toolkitOnly: boolean;
+  onToolkitOnly: (value: boolean) => void;
+  showInactive: boolean;
+  onShowInactive: (value: boolean) => void;
+  selected: LibraryClientRow | null;
+  onSelected: (value: LibraryClientRow | null) => void;
+  editor: EditorState;
+  onEditor: (value: EditorState) => void;
+  editorPending: boolean;
+  onSubmit: (fields: typeof BLANK) => void;
+  onSetLocation: (id: string, scope: ExerciseLocationScope) => void;
+  onSetQuickLog: (id: string, quickLog: boolean) => void;
+  onSetEnabled: (id: string, enabled: boolean) => void;
+  controlsPending: boolean;
+  pendingDelete: LibraryClientRow | null;
+  onPendingDelete: (value: LibraryClientRow | null) => void;
+  deleting: boolean;
+  onDelete: (id: string) => void;
+}) {
+  const selectedVisible = selected
+    ? filtered.some((exercise) => exercise.id === selected.id)
+    : false;
+
+  return (
+    <div className="space-y-4">
+      <SettingsBackLink />
+      <header className="flex items-end justify-between border-b border-border pb-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Exercise Library</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Select a movement to inspect its history or edit its complete setup alongside the list.
+          </p>
+        </div>
+        <span className="text-sm text-muted-foreground">{filtered.length} movements</span>
+      </header>
+
+      {needsProfileClaim ? (
+        <Card className="space-y-4 border-border bg-card p-5">
+          <div>
+            <h2 className="font-semibold">Connect your profile</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Link this Supabase login to Noam&apos;s imported training data.
+            </p>
+          </div>
+          <Button onClick={onClaim} disabled={claiming}>
+            {claiming ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <UserCheck className="mr-1 h-4 w-4" />
+            )}
+            Connect profile
+          </Button>
+        </Card>
+      ) : (
+        <div className="grid min-h-[44rem] grid-cols-[300px_minmax(0,1fr)] items-start gap-4 xl:grid-cols-[360px_minmax(0,1fr)] xl:gap-5">
+          <aside className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-hidden rounded-xl border border-border bg-card/25">
+            <div className="space-y-3 border-b border-border p-3">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(event) => onSearch(event.target.value)}
+                  placeholder="Search movements"
+                  className="pl-9"
+                  aria-label="Search movements"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <FilterSelect
+                  value={typeFilter}
+                  onChange={onTypeFilter}
+                  options={workoutTypes}
+                  className="w-full"
+                  ariaLabel="Exercise type"
+                />
+                <Select
+                  value={locationFilter || "all"}
+                  onValueChange={(value) =>
+                    onLocationFilter(value === "all" ? "" : (value as "home" | "gym"))
+                  }
+                >
+                  <SelectTrigger className="w-full" aria-label="Training location">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All locations</SelectItem>
+                    <SelectItem value="home">Home</SelectItem>
+                    <SelectItem value="gym">Gym</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={circuitFilter || "all"}
+                  onValueChange={(value) =>
+                    onCircuitFilter(value === "all" ? "" : (value as CircuitSuitability))
+                  }
+                >
+                  <SelectTrigger className="w-full" aria-label="Circuit availability">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All circuit uses</SelectItem>
+                    {CIRCUIT_SUITABILITY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  onClick={() => onEditor({ mode: "create" })}
+                  className="justify-start"
+                >
+                  <Plus className="mr-1 h-4 w-4" /> Add movement
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <label className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5 text-xs">
+                  <Switch
+                    checked={toolkitOnly}
+                    onCheckedChange={onToolkitOnly}
+                    aria-label="Toolkit only"
+                  />
+                  Toolkit only
+                </label>
+                <label className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5 text-xs">
+                  <Switch
+                    checked={showInactive}
+                    onCheckedChange={onShowInactive}
+                    aria-label="Show inactive movements"
+                  />
+                  Show inactive
+                </label>
+              </div>
+            </div>
+
+            <div className="max-h-[calc(100vh-22rem)] overflow-y-auto p-2" aria-live="polite">
+              {loading ? (
+                <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading library…
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="p-5 text-sm text-muted-foreground">
+                  No movements match these filters. Your current editor and unsaved values remain
+                  available on the right.
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {filtered.map((exercise) => {
+                    const active = selected?.id === exercise.id && editor.mode === "closed";
+                    return (
+                      <button
+                        key={exercise.id}
+                        type="button"
+                        disabled={editor.mode !== "closed"}
+                        onClick={() => onSelected(exercise)}
+                        className={cn(
+                          "w-full rounded-lg border px-3 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                          active
+                            ? "border-primary/50 bg-primary/[0.08]"
+                            : "border-transparent hover:border-border hover:bg-secondary/20",
+                          editor.mode !== "closed" && "cursor-not-allowed opacity-55",
+                        )}
+                      >
+                        <span className="flex items-start justify-between gap-2">
+                          <span className="min-w-0 truncate text-sm font-medium">
+                            {exercise.name}
+                          </span>
+                          {!exercise.enabled || !exercise.active ? (
+                            <span className="shrink-0 text-[10px] uppercase text-muted-foreground">
+                              {!exercise.active ? "Inactive" : "Disabled"}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="mt-1 block truncate text-[11px] text-muted-foreground">
+                          {[
+                            exercise.workoutType,
+                            exercise.equipment,
+                            getTrackingModeLabel({
+                              workoutType: exercise.workoutType,
+                              movement: exercise.name,
+                              defaultMetric: exercise.metric,
+                            }),
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </aside>
+
+          <main className="min-w-0 overflow-hidden rounded-xl border border-border bg-card/20">
+            {editor.mode !== "closed" ? (
+              <ExerciseEditorPanel
+                state={editor}
+                onClose={() => onEditor({ mode: "closed" })}
+                onSubmit={onSubmit}
+                isPending={editorPending}
+                workoutTypes={workoutTypes}
+                equipmentItems={equipmentItems}
+              />
+            ) : selected ? (
+              <div className="flex min-h-[44rem] flex-col">
+                <div className="flex flex-wrap items-center gap-3 border-b border-border bg-secondary/10 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="truncate text-lg font-semibold">{selected.name}</h2>
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${workoutTypeChipClass(selected.workoutType)}`}
+                      >
+                        {selected.workoutType || "Uncategorised"}
+                      </span>
+                    </div>
+                    {!selectedVisible ? (
+                      <p className="mt-1 text-xs text-amber-200">
+                        This movement is outside the current filters. Its detail remains open.
+                      </p>
+                    ) : null}
+                  </div>
+                  {selected.active ? (
+                    <>
+                      <Select
+                        value={selected.locationScope}
+                        onValueChange={(scope) =>
+                          onSetLocation(selected.id, scope as ExerciseLocationScope)
+                        }
+                        disabled={controlsPending}
+                      >
+                        <SelectTrigger className="w-[130px]" aria-label="Training location scope">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="both">Home + Gym</SelectItem>
+                          <SelectItem value="home">Home</SelectItem>
+                          <SelectItem value="gym">Gym</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <label className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5 text-xs">
+                        <Switch
+                          checked={selected.quickLog}
+                          onCheckedChange={(quickLog) => onSetQuickLog(selected.id, quickLog)}
+                          disabled={controlsPending}
+                          aria-label="Quick log"
+                        />
+                        Quick log
+                      </label>
+                      <label className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5 text-xs">
+                        <Switch
+                          checked={selected.enabled}
+                          onCheckedChange={(enabled) => onSetEnabled(selected.id, enabled)}
+                          disabled={controlsPending}
+                          aria-label="Enabled"
+                        />
+                        Enabled
+                      </label>
+                    </>
+                  ) : null}
+                  <Button
+                    variant="outline"
+                    onClick={() => onEditor({ mode: "edit", row: selected })}
+                  >
+                    <Pencil className="mr-1 h-4 w-4" /> Edit
+                  </Button>
+                  {selected.active ? (
+                    <Button
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => onPendingDelete(selected)}
+                    >
+                      <Trash2 className="mr-1 h-4 w-4" /> Delete
+                    </Button>
+                  ) : null}
+                </div>
+                <div className="min-h-0 flex-1">
+                  <ExerciseDetail exercise={selected} onClose={() => onSelected(null)} />
+                </div>
+              </div>
+            ) : (
+              <div className="flex min-h-[44rem] items-center justify-center p-8 text-center">
+                <div className="max-w-sm">
+                  <Activity className="mx-auto h-8 w-8 text-muted-foreground" />
+                  <h2 className="mt-3 font-semibold">Choose a movement</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Its setup and training history will stay open here while you move through the
+                    Library.
+                  </p>
+                </div>
+              </div>
+            )}
+          </main>
+        </div>
+      )}
+
+      <AlertDialog
+        open={Boolean(pendingDelete)}
+        onOpenChange={(open) => !open && onPendingDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this movement?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete?.name} will be removed from the active library. Training history stays
+              preserved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => pendingDelete && onDelete(pendingDelete.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 function FilterSelect({
   value,
   onChange,
   options,
+  className = "w-[150px]",
+  ariaLabel,
 }: {
   value: string;
   onChange: (v: string) => void;
   options: string[];
+  className?: string;
+  ariaLabel?: string;
 }) {
   const ALL = "__all";
   return (
     <Select value={value || ALL} onValueChange={(v) => onChange(v === ALL ? "" : v)}>
-      <SelectTrigger className="h-10 w-[150px]">
+      <SelectTrigger className={cn("h-10", className)} aria-label={ariaLabel}>
         <SelectValue placeholder="All" />
       </SelectTrigger>
       <SelectContent>
@@ -984,21 +1420,24 @@ function EquipmentMultiSelect({
   );
 }
 
-function ExerciseEditorDialog({
-  state,
-  onClose,
-  onSubmit,
-  isPending,
-  workoutTypes,
-  equipmentItems,
-}: {
+type ExerciseEditorFormProps = {
   state: EditorState;
   onClose: () => void;
   onSubmit: (fields: typeof BLANK) => void;
   isPending: boolean;
   workoutTypes: string[];
   equipmentItems: LibraryEquipmentItem[];
-}) {
+};
+
+function ExerciseEditorForm({
+  state,
+  onClose,
+  onSubmit,
+  isPending,
+  workoutTypes,
+  equipmentItems,
+  presentation,
+}: ExerciseEditorFormProps & { presentation: "dialog" | "panel" }) {
   const initial =
     state.mode === "edit"
       ? {
@@ -1030,6 +1469,7 @@ function ExerciseEditorDialog({
       : BLANK;
 
   const [form, setForm] = useState<typeof BLANK>(initial);
+  const dirty = JSON.stringify(form) !== JSON.stringify(initial);
 
   // reset when state changes
   useResetOnChange(state, () => setForm(initial));
@@ -1072,370 +1512,394 @@ function ExerciseEditorDialog({
     }));
   };
 
-  const open = state.mode !== "closed";
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{state.mode === "edit" ? "Edit movement" : "New movement"}</DialogTitle>
-          <DialogDescription>
-            {state.mode === "edit"
-              ? `Update ${state.row.name} in Supabase.`
-              : "Add a new exercise or skill to Supabase."}
-          </DialogDescription>
-        </DialogHeader>
-
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!form.name.trim()) {
-              toast.error("Name is required");
-              return;
-            }
-            if (!form.metric) {
-              toast.error("Choose a tracking mode");
-              return;
-            }
-            if (form.positionMeasurementGuide && !form.positionMeasurementLabel.trim()) {
-              toast.error("Add a label for the position measurement");
-              return;
-            }
-            const doseMin = Number(form.circuitDoseMin);
-            const doseMax = Number(form.circuitDoseMax);
-            if (!Number.isFinite(doseMin) || doseMin <= 0) {
-              toast.error("Circuit dose minimum must be greater than zero");
-              return;
-            }
-            if (!Number.isFinite(doseMax) || doseMax < doseMin) {
-              toast.error("Circuit dose maximum must be at least the minimum");
-              return;
-            }
-            onSubmit(form);
-          }}
-          className="space-y-3"
-        >
-          <Field label="Type">
-            <DatalistInput
-              value={form.workoutType}
-              onChange={updateType}
-              options={workoutTypes}
-              placeholder="Choose type first"
-              listId="lib-types"
-              autoFocus
-            />
-          </Field>
-          <Field label="Name">
-            <Input
-              value={form.name}
-              onChange={(e) => update("name", e.target.value)}
-              placeholder="e.g. Bench Press"
-              autoCapitalize="words"
-            />
-          </Field>
-          <Field label="Tracking">
-            <Select
-              value={form.metric}
-              onValueChange={(value) => updateTracking(value as TrackingMode)}
+  const content = (
+    <>
+      <DialogHeader>
+        <DialogTitle className="flex flex-wrap items-center gap-2">
+          {state.mode === "edit" ? "Edit movement" : "New movement"}
+          {presentation === "panel" ? (
+            <span
+              className={cn(
+                "rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider",
+                dirty
+                  ? "border-amber-400/30 bg-amber-400/10 text-amber-200"
+                  : "border-border text-muted-foreground",
+              )}
             >
-              <SelectTrigger>
-                <SelectValue placeholder="Choose what you want to track" />
-              </SelectTrigger>
-              <SelectContent>
-                {TRACKING_MODE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <div className="space-y-3 rounded-lg border border-amber-400/20 bg-amber-400/[0.04] p-3">
-            <label className="flex items-center justify-between gap-3">
-              <span>
-                <span className="block text-sm font-medium">Short-height measurement</span>
-                <span className="block text-xs text-muted-foreground">
-                  Add an optional block-stack picker without changing the main tracking mode.
-                </span>
+              {dirty ? "Unsaved changes" : "Saved"}
+            </span>
+          ) : null}
+        </DialogTitle>
+        <DialogDescription>
+          {state.mode === "edit"
+            ? `Update ${state.row.name} in Supabase.`
+            : "Add a new exercise or skill to Supabase."}
+        </DialogDescription>
+      </DialogHeader>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!form.name.trim()) {
+            toast.error("Name is required");
+            return;
+          }
+          if (!form.metric) {
+            toast.error("Choose a tracking mode");
+            return;
+          }
+          if (form.positionMeasurementGuide && !form.positionMeasurementLabel.trim()) {
+            toast.error("Add a label for the position measurement");
+            return;
+          }
+          const doseMin = Number(form.circuitDoseMin);
+          const doseMax = Number(form.circuitDoseMax);
+          if (!Number.isFinite(doseMin) || doseMin <= 0) {
+            toast.error("Circuit dose minimum must be greater than zero");
+            return;
+          }
+          if (!Number.isFinite(doseMax) || doseMax < doseMin) {
+            toast.error("Circuit dose maximum must be at least the minimum");
+            return;
+          }
+          onSubmit(form);
+        }}
+        className="space-y-3"
+      >
+        <Field label="Type">
+          <DatalistInput
+            value={form.workoutType}
+            onChange={updateType}
+            options={workoutTypes}
+            placeholder="Choose type first"
+            listId="lib-types"
+            autoFocus
+          />
+        </Field>
+        <Field label="Name">
+          <Input
+            value={form.name}
+            onChange={(e) => update("name", e.target.value)}
+            placeholder="e.g. Bench Press"
+            autoCapitalize="words"
+          />
+        </Field>
+        <Field label="Tracking">
+          <Select
+            value={form.metric}
+            onValueChange={(value) => updateTracking(value as TrackingMode)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Choose what you want to track" />
+            </SelectTrigger>
+            <SelectContent>
+              {TRACKING_MODE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <div className="space-y-3 rounded-lg border border-amber-400/20 bg-amber-400/[0.04] p-3">
+          <label className="flex items-center justify-between gap-3">
+            <span>
+              <span className="block text-sm font-medium">Short-height measurement</span>
+              <span className="block text-xs text-muted-foreground">
+                Add an optional block-stack picker without changing the main tracking mode.
               </span>
-              <Switch
-                checked={Boolean(form.positionMeasurementGuide)}
-                onCheckedChange={(checked) =>
-                  setForm((current) => ({
-                    ...current,
-                    positionMeasurementGuide: checked ? "foam_cork_blocks" : "",
-                    positionMeasurementLabel: checked
-                      ? current.positionMeasurementLabel || "Head-to-floor"
-                      : "",
-                    positionMeasurementDirection: checked
-                      ? current.positionMeasurementDirection || "lower"
-                      : "",
-                  }))
-                }
-                aria-label="Enable short-height measurement"
-              />
-            </label>
-            {form.positionMeasurementGuide ? (
-              <>
-                <Field label="Measurement aid">
+            </span>
+            <Switch
+              checked={Boolean(form.positionMeasurementGuide)}
+              onCheckedChange={(checked) =>
+                setForm((current) => ({
+                  ...current,
+                  positionMeasurementGuide: checked ? "foam_cork_blocks" : "",
+                  positionMeasurementLabel: checked
+                    ? current.positionMeasurementLabel || "Head-to-floor"
+                    : "",
+                  positionMeasurementDirection: checked
+                    ? current.positionMeasurementDirection || "lower"
+                    : "",
+                }))
+              }
+              aria-label="Enable short-height measurement"
+            />
+          </label>
+          {form.positionMeasurementGuide ? (
+            <>
+              <Field label="Measurement aid">
+                <Select
+                  value={form.positionMeasurementGuide}
+                  onValueChange={(value) => update("positionMeasurementGuide", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {POSITION_MEASUREMENT_GUIDES.filter((option) => option.value).map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Measurement label">
+                  <Input
+                    value={form.positionMeasurementLabel}
+                    onChange={(event) => update("positionMeasurementLabel", event.target.value)}
+                    placeholder="Head-to-floor"
+                  />
+                </Field>
+                <Field label="Progress direction">
                   <Select
-                    value={form.positionMeasurementGuide}
-                    onValueChange={(value) => update("positionMeasurementGuide", value)}
+                    value={form.positionMeasurementDirection || "neutral"}
+                    onValueChange={(value) =>
+                      update("positionMeasurementDirection", value as PositionMeasurementDirection)
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {POSITION_MEASUREMENT_GUIDES.filter((option) => option.value).map(
-                        (option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ),
-                      )}
+                      {POSITION_MEASUREMENT_DIRECTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </Field>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Measurement label">
-                    <Input
-                      value={form.positionMeasurementLabel}
-                      onChange={(event) => update("positionMeasurementLabel", event.target.value)}
-                      placeholder="Head-to-floor"
-                    />
-                  </Field>
-                  <Field label="Progress direction">
-                    <Select
-                      value={form.positionMeasurementDirection || "neutral"}
-                      onValueChange={(value) =>
-                        update(
-                          "positionMeasurementDirection",
-                          value as PositionMeasurementDirection,
-                        )
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {POSITION_MEASUREMENT_DIRECTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                </div>
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  The logger records this separately from jump height, so Box Jump progress keeps
-                  its existing higher-is-better meaning.
-                </p>
-              </>
-            ) : null}
-          </div>
-          <Field label={fieldConfig.focusLabel}>
-            <Input
-              value={form.focusArea}
-              onChange={(e) => update("focusArea", e.target.value)}
-              placeholder={fieldConfig.focusPlaceholder}
-            />
-          </Field>
-          <Field label="Required equipment">
-            <EquipmentMultiSelect
-              items={equipmentItems}
-              selectedIds={form.equipmentItemIds}
-              onChange={(equipmentItemIds) => update("equipmentItemIds", equipmentItemIds)}
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Every selected item must be available at a training location. Leave empty for
-              bodyweight or no-equipment movements.
-            </p>
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={fieldConfig.setsLabel}>
-              <Input
-                value={form.suggestedSets}
-                onChange={(e) => update("suggestedSets", e.target.value)}
-                placeholder={fieldConfig.setsPlaceholder}
-              />
-            </Field>
-            <Field label={fieldConfig.repsLabel}>
-              <Input
-                value={form.suggestedReps}
-                onChange={(e) => update("suggestedReps", e.target.value)}
-                placeholder={fieldConfig.repsPlaceholder}
-              />
-            </Field>
-          </div>
-          <div className="space-y-3 rounded-lg border border-cyan-400/20 bg-cyan-400/[0.04] p-3">
-            <div>
-              <p className="text-sm font-medium">Circuit builder profile</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Structured fields used to filter, balance and dose generated circuits.
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                The logger records this separately from jump height, so Box Jump progress keeps its
+                existing higher-is-better meaning.
               </p>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Availability">
-                <Select
-                  value={form.circuitSuitability}
-                  onValueChange={(value) =>
-                    update("circuitSuitability", value as CircuitSuitability)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CIRCUIT_SUITABILITY_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Pattern">
-                <Select
-                  value={form.circuitPattern}
-                  onValueChange={(value) =>
-                    update("circuitPattern", value as CircuitMovementPattern)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CIRCUIT_MOVEMENT_PATTERN_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Difficulty">
-                <Select
-                  value={form.circuitDifficulty}
-                  onValueChange={(value) => update("circuitDifficulty", value as CircuitDifficulty)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CIRCUIT_DIFFICULTY_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Impact">
-                <Select
-                  value={form.circuitImpact}
-                  onValueChange={(value) => update("circuitImpact", value as CircuitImpact)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CIRCUIT_IMPACT_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-            <div className="grid grid-cols-[1fr_0.75fr_0.75fr] gap-3">
-              <Field label="Dose unit">
-                <Select
-                  value={form.circuitDoseMode}
-                  onValueChange={(value) => update("circuitDoseMode", value as CircuitDoseMode)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CIRCUIT_DOSE_MODE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Minimum">
-                <Input
-                  type="number"
-                  min="0.1"
-                  step="any"
-                  inputMode="decimal"
-                  value={form.circuitDoseMin}
-                  onChange={(event) => update("circuitDoseMin", event.target.value)}
-                />
-              </Field>
-              <Field label="Maximum">
-                <Input
-                  type="number"
-                  min="0.1"
-                  step="any"
-                  inputMode="decimal"
-                  value={form.circuitDoseMax}
-                  onChange={(event) => update("circuitDoseMax", event.target.value)}
-                />
-              </Field>
-            </div>
-            <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-background/40 px-3 py-2">
-              <span>
-                <span className="block text-sm font-medium">Dose each side</span>
-                <span className="block text-xs text-muted-foreground">
-                  Use for unilateral reps, carries or holds.
-                </span>
-              </span>
-              <Switch
-                checked={form.circuitDosePerSide}
-                onCheckedChange={(checked) => update("circuitDosePerSide", checked)}
-                aria-label="Dose each side"
-              />
-            </label>
-          </div>
-          <Field label="Notes">
-            <Textarea
-              rows={2}
-              value={form.notes}
-              onChange={(e) => update("notes", e.target.value)}
-              placeholder="Form cues, programming notes…"
+            </>
+          ) : null}
+        </div>
+        <Field label={fieldConfig.focusLabel}>
+          <Input
+            value={form.focusArea}
+            onChange={(e) => update("focusArea", e.target.value)}
+            placeholder={fieldConfig.focusPlaceholder}
+          />
+        </Field>
+        <Field label="Required equipment">
+          <EquipmentMultiSelect
+            items={equipmentItems}
+            selectedIds={form.equipmentItemIds}
+            onChange={(equipmentItemIds) => update("equipmentItemIds", equipmentItemIds)}
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Every selected item must be available at a training location. Leave empty for bodyweight
+            or no-equipment movements.
+          </p>
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={fieldConfig.setsLabel}>
+            <Input
+              value={form.suggestedSets}
+              onChange={(e) => update("suggestedSets", e.target.value)}
+              placeholder={fieldConfig.setsPlaceholder}
             />
           </Field>
+          <Field label={fieldConfig.repsLabel}>
+            <Input
+              value={form.suggestedReps}
+              onChange={(e) => update("suggestedReps", e.target.value)}
+              placeholder={fieldConfig.repsPlaceholder}
+            />
+          </Field>
+        </div>
+        <div className="space-y-3 rounded-lg border border-cyan-400/20 bg-cyan-400/[0.04] p-3">
+          <div>
+            <p className="text-sm font-medium">Circuit builder profile</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Structured fields used to filter, balance and dose generated circuits.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Availability">
+              <Select
+                value={form.circuitSuitability}
+                onValueChange={(value) => update("circuitSuitability", value as CircuitSuitability)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CIRCUIT_SUITABILITY_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Pattern">
+              <Select
+                value={form.circuitPattern}
+                onValueChange={(value) => update("circuitPattern", value as CircuitMovementPattern)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CIRCUIT_MOVEMENT_PATTERN_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Difficulty">
+              <Select
+                value={form.circuitDifficulty}
+                onValueChange={(value) => update("circuitDifficulty", value as CircuitDifficulty)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CIRCUIT_DIFFICULTY_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Impact">
+              <Select
+                value={form.circuitImpact}
+                onValueChange={(value) => update("circuitImpact", value as CircuitImpact)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CIRCUIT_IMPACT_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+          <div className="grid grid-cols-[1fr_0.75fr_0.75fr] gap-3">
+            <Field label="Dose unit">
+              <Select
+                value={form.circuitDoseMode}
+                onValueChange={(value) => update("circuitDoseMode", value as CircuitDoseMode)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CIRCUIT_DOSE_MODE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Minimum">
+              <Input
+                type="number"
+                min="0.1"
+                step="any"
+                inputMode="decimal"
+                value={form.circuitDoseMin}
+                onChange={(event) => update("circuitDoseMin", event.target.value)}
+              />
+            </Field>
+            <Field label="Maximum">
+              <Input
+                type="number"
+                min="0.1"
+                step="any"
+                inputMode="decimal"
+                value={form.circuitDoseMax}
+                onChange={(event) => update("circuitDoseMax", event.target.value)}
+              />
+            </Field>
+          </div>
+          <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-background/40 px-3 py-2">
+            <span>
+              <span className="block text-sm font-medium">Dose each side</span>
+              <span className="block text-xs text-muted-foreground">
+                Use for unilateral reps, carries or holds.
+              </span>
+            </span>
+            <Switch
+              checked={form.circuitDosePerSide}
+              onCheckedChange={(checked) => update("circuitDosePerSide", checked)}
+              aria-label="Dose each side"
+            />
+          </label>
+        </div>
+        <Field label="Notes">
+          <Textarea
+            rows={2}
+            value={form.notes}
+            onChange={(e) => update("notes", e.target.value)}
+            placeholder="Form cues, programming notes…"
+          />
+        </Field>
 
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={onClose}>
-              <X className="mr-1 h-4 w-4" /> Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={isPending || !form.name.trim() || !form.metric}
-              style={{
-                backgroundImage: "var(--gradient-primary)",
-                color: "var(--primary-foreground)",
-              }}
-            >
-              {isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : state.mode === "edit" ? (
-                "Save"
-              ) : (
-                "Create"
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
+        <DialogFooter
+          className={cn(
+            presentation === "panel" &&
+              "sticky bottom-0 -mx-5 border-t border-border bg-background/95 px-5 py-3 backdrop-blur",
+          )}
+        >
+          <Button type="button" variant="ghost" onClick={onClose}>
+            <X className="mr-1 h-4 w-4" /> Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={isPending || !form.name.trim() || !form.metric}
+            style={{
+              backgroundImage: "var(--gradient-primary)",
+              color: "var(--primary-foreground)",
+            }}
+          >
+            {isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : state.mode === "edit" ? (
+              "Save"
+            ) : (
+              "Create"
+            )}
+          </Button>
+        </DialogFooter>
+      </form>
+    </>
+  );
+
+  if (presentation === "panel") {
+    return <section className="min-h-[44rem] p-5">{content}</section>;
+  }
+
+  return (
+    <Dialog open={state.mode !== "closed"} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">{content}</DialogContent>
     </Dialog>
   );
+}
+
+function ExerciseEditorDialog(props: ExerciseEditorFormProps) {
+  return <ExerciseEditorForm {...props} presentation="dialog" />;
+}
+
+function ExerciseEditorPanel(props: ExerciseEditorFormProps) {
+  return <ExerciseEditorForm {...props} presentation="panel" />;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

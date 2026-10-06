@@ -86,11 +86,14 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const settingsActive = SETTINGS_PATHS.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   );
+  const workspaceRoute = pathname === "/plan" || pathname === "/library";
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:px-6">
+        <div
+          className={`mx-auto flex max-w-6xl ${workspaceRoute ? "lg:max-w-[1560px]" : ""} items-center gap-3 px-4 py-3 sm:px-6`}
+        >
           <div
             className="flex h-10 w-10 items-center justify-center rounded-xl text-primary-foreground"
             style={{ backgroundImage: "var(--gradient-primary)" }}
@@ -137,7 +140,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </div>
         <nav
           aria-label="Primary navigation"
-          className="mx-auto hidden max-w-6xl gap-1 px-5 pb-3 sm:flex"
+          className={`mx-auto hidden max-w-6xl ${workspaceRoute ? "lg:max-w-[1560px]" : ""} gap-1 px-5 pb-3 sm:flex`}
         >
           {NAV.map((item) => {
             const active = pathMatches(pathname, item);
@@ -186,7 +189,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
         ) : null}
       </header>
 
-      <main className={`mx-auto max-w-6xl ${pathname === "/plan" ? "xl:max-w-[1560px]" : ""} px-4 pb-28 pt-6 sm:px-6 sm:pb-24`}>{children}</main>
+      <main
+        className={`mx-auto max-w-6xl ${workspaceRoute ? "lg:max-w-[1560px]" : ""} px-4 pb-28 pt-6 sm:px-6 sm:pb-24`}
+      >
+        {children}
+      </main>
       <nav
         aria-label="Primary navigation"
         className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-border bg-background/95 px-2 pt-2 shadow-[0_-10px_30px_rgba(0,0,0,0.24)] backdrop-blur sm:hidden [padding-bottom:calc(env(safe-area-inset-bottom)+0.5rem)]"

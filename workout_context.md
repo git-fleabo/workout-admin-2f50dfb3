@@ -1,8 +1,33 @@
 # Workout App Context
 
-Last updated: 2026-10-04
+Last updated: 2026-10-06
 
 This file is the handoff document for the train n track workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
+
+## 2026-10-06 Desktop Planning Workspaces
+
+Plan, the personal programme editor and the Exercise Library now use denser desktop
+workspaces at viewports of at least 1024px with a fine pointer. Phone and touch-first
+layouts keep their existing card and dialog flows.
+
+- Desktop Plan shows a Monday-to-Sunday calendar, previous/current/next week controls,
+  a persistent day inspector and the existing workout builders. Week navigation changes
+  the data range as well as the visible dates; programme sessions, saved plans and local
+  adjustments are loaded for the selected week.
+- The desktop personal programme editor has a week/session navigator, an inline session
+  prescription editor and a context panel. Save and Revert are explicit. Switching away
+  from unsaved edits requires an explicit discard, and started/completed/skipped sessions
+  remain read-only. The desktop and mobile editors share the same validation, propagation
+  preview and Supabase mutation.
+- The desktop Exercise Library is a master-detail workspace with persistent filters and
+  search, a compact result list, movement history/detail and an inline create/edit panel.
+  The desktop panel and mobile dialog share the same form, validation and mutations.
+- `src/hooks/use-desktop.ts` owns the desktop-workspace media query. Shared business logic
+  and data mutations remain in their existing modules; the desktop layouts do not add a
+  second write path.
+- No database schema, migration or live training data changed in this iteration.
+- Verification: production build, focused ESLint, 164 passing node tests with the private
+  database lifecycle test skipped, and 45 passing component tests.
 
 ## 2026-10-04 Personal Programme Direction
 

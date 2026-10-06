@@ -35,6 +35,7 @@ import {
   programmeMovementGuidance,
 } from "@/components/weekly-plan-overview";
 import { formatUKDateShort } from "@/lib/date";
+import { addCalendarDays, calendarWeekDates, startOfMondayWeek } from "@/lib/calendar-week";
 import { MOBILITY_SKILLS } from "@/lib/mobility-practice";
 import type { SavedWorkoutPlan } from "@/lib/supabase-plans.browser";
 import type { ProgrammeScheduleSession } from "@/lib/supabase-programmes.browser";
@@ -49,11 +50,7 @@ type Selection =
   | { type: "scheduled"; id: string };
 type Panel = "programme" | "coaching" | "mobility" | null;
 
-const DAY_MS = 86_400_000;
 const parse = (iso: string) => new Date(`${iso}T00:00:00Z`);
-const toISO = (date: Date) => date.toISOString().slice(0, 10);
-const addDays = (iso: string, n: number) => toISO(new Date(parse(iso).getTime() + n * DAY_MS));
-const mondayOf = (iso: string) => addDays(iso, -((parse(iso).getUTCDay() + 6) % 7));
 const dayLabel = (iso: string, long = false) =>
   new Intl.DateTimeFormat("en-GB", { weekday: long ? "long" : "short", timeZone: "UTC" }).format(
     parse(iso),
@@ -66,6 +63,7 @@ export function DesktopPlanWorkspace({
   coaching,
   mobility,
   weekReady,
+  weekError,
   weekProps,
   builderOpen,
   onOpenBuilder,
@@ -74,11 +72,15 @@ export function DesktopPlanWorkspace({
   builderBrief,
   builderPrescription,
   builderSummary,
+  weekStart,
+  onWeekStartChange,
+  today,
 }: {
   programmeHeader: ReactNode;
   coaching: ReactNode;
   mobility: ReactNode;
   weekReady: boolean;
+  weekError?: string | null;
   weekProps: WeekProps;
   builderOpen: boolean;
   onOpenBuilder: (mode: BuilderMode, date: string) => void;
@@ -87,6 +89,9 @@ export function DesktopPlanWorkspace({
   builderBrief: ReactNode;
   builderPrescription: ReactNode;
   builderSummary: ReactNode;
+  weekStart: string;
+  onWeekStartChange: (weekStart: string) => void;
+  today: string;
 }) {
   const [panel, setPanel] = useState<Panel>(null);
 
@@ -105,7 +110,7 @@ export function DesktopPlanWorkspace({
           </Button>
           <h1 className="text-xl font-semibold tracking-tight">Build: {label}</h1>
         </header>
-        <div className="grid grid-cols-[320px_minmax(0,1fr)_300px] items-start gap-5">
+        <div className="grid grid-cols-[280px_minmax(0,1fr)_260px] items-start gap-4 xl:grid-cols-[320px_minmax(0,1fr)_300px] xl:gap-5">
           <aside className="sticky top-24 max-h-[calc(100vh-7rem)] space-y-4 overflow-y-auto rounded-xl border border-border bg-card/30 p-4">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Session brief
@@ -170,14 +175,41 @@ export function DesktopPlanWorkspace({
         </div>
       </header>
 
-      {panel ? (
-        <section className="rounded-xl border border-border bg-card/20 p-4">
-          {panel === "programme" ? programmeHeader : panel === "coaching" ? coaching : mobility}
-        </section>
-      ) : null}
+      <section
+        hidden={panel !== "programme"}
+        className="rounded-xl border border-border bg-card/20 p-4"
+      >
+        {programmeHeader}
+      </section>
+      <section
+        hidden={panel !== "coaching"}
+        className="rounded-xl border border-border bg-card/20 p-4"
+      >
+        {coaching}
+      </section>
+      <section
+        hidden={panel !== "mobility"}
+        className="rounded-xl border border-border bg-card/20 p-4"
+      >
+        {mobility}
+      </section>
 
-      {weekReady ? (
-        <WeekWorkspace weekProps={weekProps} onOpenBuilder={onOpenBuilder} onEditProgramme={() => setPanel("programme")} />
+      {weekError ? (
+        <div
+          role="alert"
+          className="rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-6 text-sm text-destructive"
+        >
+          {weekError}
+        </div>
+      ) : weekReady ? (
+        <WeekWorkspace
+          weekProps={weekProps}
+          weekStart={weekStart}
+          onWeekStartChange={onWeekStartChange}
+          today={today}
+          onOpenBuilder={onOpenBuilder}
+          onEditProgramme={() => setPanel("programme")}
+        />
       ) : (
         <div className="py-24 text-center text-sm text-muted-foreground">Loading your week…</div>
       )}
@@ -187,10 +219,16 @@ export function DesktopPlanWorkspace({
 
 function WeekWorkspace({
   weekProps,
+  weekStart,
+  onWeekStartChange,
+  today,
   onOpenBuilder,
   onEditProgramme,
 }: {
   weekProps: WeekProps;
+  weekStart: string;
+  onWeekStartChange: (weekStart: string) => void;
+  today: string;
   onOpenBuilder: (mode: BuilderMode, date: string) => void;
   onEditProgramme: () => void;
 }) {
@@ -202,16 +240,15 @@ function WeekWorkspace({
     scheduling = false,
     onMoveScheduledPlan,
   } = weekProps;
-  const today = plan.startDate;
-  const [weekStart, setWeekStart] = useState(() => mondayOf(today));
   const [selection, setSelection] = useState<Selection>({ type: "day", date: today });
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropDate, setDropDate] = useState<string | null>(null);
 
-  const dates = useMemo(
-    () => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
-    [weekStart],
-  );
+  const dates = useMemo(() => calendarWeekDates(weekStart), [weekStart]);
+
+  useEffect(() => {
+    setSelection({ type: "day", date: dates.includes(today) ? today : dates[0] });
+  }, [dates, today, weekStart]);
 
   const selectedProgramme =
     selection.type === "programme"
@@ -223,7 +260,7 @@ function WeekWorkspace({
       : undefined;
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_380px] items-start gap-5">
+    <div className="grid grid-cols-[minmax(0,1fr)_300px] items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:gap-5 2xl:grid-cols-[minmax(0,1fr)_380px]">
       <section aria-labelledby="desktop-week-heading" className="min-w-0 space-y-3">
         <div className="flex items-center justify-between gap-3">
           <h2 id="desktop-week-heading" className="flex items-center gap-2 text-base font-semibold">
@@ -235,16 +272,16 @@ function WeekWorkspace({
               variant="outline"
               size="icon"
               aria-label="Previous week"
-              onClick={() => setWeekStart(addDays(weekStart, -7))}
+              onClick={() => onWeekStartChange(addCalendarDays(weekStart, -7))}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button
               variant="outline"
               size="sm"
-              disabled={weekStart === mondayOf(today)}
+              disabled={weekStart === startOfMondayWeek(today)}
               onClick={() => {
-                setWeekStart(mondayOf(today));
+                onWeekStartChange(startOfMondayWeek(today));
                 setSelection({ type: "day", date: today });
               }}
             >
@@ -254,7 +291,7 @@ function WeekWorkspace({
               variant="outline"
               size="icon"
               aria-label="Next week"
-              onClick={() => setWeekStart(addDays(weekStart, 7))}
+              onClick={() => onWeekStartChange(addCalendarDays(weekStart, 7))}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -423,7 +460,9 @@ function WeekWorkspace({
             saved={selectedScheduled}
             scheduling={scheduling}
             onStart={() => weekProps.onStartScheduledPlan?.(selectedScheduled)}
-            onMove={(date) => weekProps.onMoveScheduledPlan?.(selectedScheduled.suggestedWorkoutId, date)}
+            onMove={(date) =>
+              weekProps.onMoveScheduledPlan?.(selectedScheduled.suggestedWorkoutId, date)
+            }
             onRemove={() => {
               weekProps.onRemoveScheduledPlan?.(selectedScheduled.suggestedWorkoutId);
               setSelection({ type: "day", date: selectedScheduled.suggestedFor ?? today });
@@ -432,6 +471,7 @@ function WeekWorkspace({
         ) : (
           <DayInspector
             date={selection.type === "day" ? selection.date : today}
+            today={today}
             weekProps={weekProps}
             onOpenBuilder={onOpenBuilder}
             onSelect={setSelection}
@@ -506,7 +546,9 @@ function ProgrammeInspector({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1.5">
-        <Badge className="border-fuchsia-400/25 bg-fuchsia-400/10 text-fuchsia-200">Programme</Badge>
+        <Badge className="border-fuchsia-400/25 bg-fuchsia-400/10 text-fuchsia-200">
+          Programme
+        </Badge>
         <Badge variant="outline" className="capitalize">
           {session.status}
         </Badge>
@@ -542,7 +584,7 @@ function ProgrammeInspector({
         </ul>
       ) : null}
       <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-        {session.isCatchUp ? (
+        {session.status === "current" ? (
           <Button asChild size="sm">
             <Link to="/">
               <Play className="mr-1.5 h-4 w-4" /> Start from Today
@@ -646,11 +688,13 @@ function ScheduledInspector({
 
 function DayInspector({
   date,
+  today,
   weekProps,
   onOpenBuilder,
   onSelect,
 }: {
   date: string;
+  today: string;
   weekProps: WeekProps;
   onOpenBuilder: (mode: BuilderMode, date: string) => void;
   onSelect: (selection: Selection) => void;
@@ -677,13 +721,13 @@ function DayInspector({
   const planned = planDay ? (adjustments[date] ?? planDay.inferredItems) : [];
   const sessions = programmeSessions.filter((session) => session.date === date);
   const saved = scheduledPlans.filter((item) => item.suggestedFor === date);
-  const isPast = date < plan.startDate;
+  const isPast = date < today;
 
   return (
     <div className="space-y-4">
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {date === plan.startDate ? "Today" : "Selected day"}
+          {date === today ? "Today" : "Selected day"}
         </p>
         <h3 className="text-base font-semibold">
           {dayLabel(date, true)}, {formatUKDateShort(date)}
@@ -699,7 +743,9 @@ function DayInspector({
             className="block w-full rounded-lg border border-fuchsia-400/25 bg-fuchsia-400/[0.06] px-3 py-2 text-left text-sm hover:border-fuchsia-300/50"
           >
             {session.workoutName}
-            <span className="ml-1 text-xs capitalize text-muted-foreground">· {session.status}</span>
+            <span className="ml-1 text-xs capitalize text-muted-foreground">
+              · {session.status}
+            </span>
           </button>
         ))}
         {saved.map((item) => (
@@ -830,7 +876,9 @@ function DayInspector({
                   }
                   className={cn(
                     "flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition disabled:opacity-60",
-                    active ? "border-primary/50 bg-primary/10" : "border-border hover:bg-secondary/40",
+                    active
+                      ? "border-primary/50 bg-primary/10"
+                      : "border-border hover:bg-secondary/40",
                   )}
                 >
                   <Icon className="h-3 w-3" /> {style.shortLabel}
@@ -864,9 +912,14 @@ export function DesktopBuilderSummary({
 }) {
   const workingSets = movements.reduce((total, movement) => total + movement.setRows.length, 0);
   const rows: Array<[string, string]> = [
-    ["Planned for", plannedFor ? `${dayLabel(plannedFor, true)}, ${formatUKDateShort(plannedFor)}` : "—"],
+    [
+      "Planned for",
+      plannedFor ? `${dayLabel(plannedFor, true)}, ${formatUKDateShort(plannedFor)}` : "—",
+    ],
     ["Type", mode === "strength" ? "Strength" : mode === "circuit" ? "Conditioning" : "Climbing"],
-    ...(mode !== "climbing" ? [["Location", location === "home" ? "Home" : "Gym"] as [string, string]] : []),
+    ...(mode !== "climbing"
+      ? [["Location", location === "home" ? "Home" : "Gym"] as [string, string]]
+      : []),
     ["Movements", String(movements.length)],
     ...(mode !== "climbing" ? [["Working sets", String(workingSets)] as [string, string]] : []),
   ];
