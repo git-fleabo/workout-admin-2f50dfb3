@@ -90,7 +90,9 @@ const BLANK: DailyRotationItemFields = {
 };
 
 type EditorState =
-  { mode: "closed" } | { mode: "create" } | { mode: "edit"; item: DailyRotationItem };
+  | { mode: "closed" }
+  | { mode: "create" }
+  | { mode: "edit"; item: DailyRotationItem };
 
 function itemFields(item: DailyRotationItem): DailyRotationItemFields {
   return {

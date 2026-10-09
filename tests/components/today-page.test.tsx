@@ -75,7 +75,7 @@ const savedPlan = {
   locationKind: "gym",
   status: "planned",
   planKind: "strength",
-  suggestedFor: new Date().toISOString().slice(0, 10),
+  suggestedFor: "2026-10-06",
   movements: [{ exercise: "Bench Press", setRows: [{ reps: "5", weight: "60" }], restTime: "" }],
 };
 
@@ -95,6 +95,8 @@ const programmeOffer = {
 
 describe("TodayPage branching", () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-06T12:00:00.000Z"));
     mocks.plans = [];
     mocks.programmeOffers = [];
     mocks.programmeOverview.assignments = [];
@@ -104,6 +106,7 @@ describe("TodayPage branching", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 

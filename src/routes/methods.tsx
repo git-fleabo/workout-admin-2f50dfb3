@@ -99,7 +99,9 @@ const FAMILIES: Array<{
 ];
 
 type EditorState =
-  { mode: "closed" } | { mode: "create" } | { mode: "edit"; method: TrainingMethod };
+  | { mode: "closed" }
+  | { mode: "create" }
+  | { mode: "edit"; method: TrainingMethod };
 
 const defaultsFor = (family: TrainingMethodFamily): TrainingMethodConfig => {
   if (family === "exercise_group") {

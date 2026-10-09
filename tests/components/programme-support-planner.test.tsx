@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   save: vi.fn(),
@@ -167,6 +167,8 @@ function dateOffset(days: number) {
 
 describe("programme supporting goals planner", () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-06T12:00:00.000Z"));
     mocks.createdGoal = false;
     mocks.skillHistory = {};
     mocks.blockHistory = [];
@@ -174,6 +176,10 @@ describe("programme supporting goals planner", () => {
     mocks.save.mockReset();
     mocks.archive.mockClear();
     mocks.updateStatus.mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("previews and saves an editable four-week skill schedule without changing strength sessions", async () => {

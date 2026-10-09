@@ -72,10 +72,14 @@ export const Route = createFileRoute("/locations")({
 });
 
 type EditorState =
-  { mode: "closed" } | { mode: "create" } | { mode: "edit"; location: ManagedTrainingLocation };
+  | { mode: "closed" }
+  | { mode: "create" }
+  | { mode: "edit"; location: ManagedTrainingLocation };
 
 type EquipmentEditorState =
-  { mode: "closed" } | { mode: "create" } | { mode: "edit"; item: ManagedEquipmentItem };
+  | { mode: "closed" }
+  | { mode: "create" }
+  | { mode: "edit"; item: ManagedEquipmentItem };
 
 const BLANK: TrainingLocationFields = { name: "", kind: "other" };
 const BLANK_EQUIPMENT: EquipmentItemFields = {

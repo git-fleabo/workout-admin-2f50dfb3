@@ -2765,7 +2765,7 @@ function StrengthBuilderCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-5 p-4 pt-3">
-        <div className="grid gap-4 lg:grid-cols-[180px_1fr]">
+        <div className="grid gap-4">
           <div className="space-y-2">
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
               Total duration
@@ -3220,7 +3220,7 @@ function CircuitChoiceGroup({
       <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
         {label}
       </p>
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-2">
         {options.map((option) => (
           <button
             key={option.value}
