@@ -16,8 +16,9 @@ describe("Base Strength review previews", () => {
     expect(screen.getByLabelText("Squat (kg)")).toHaveValue(null);
     expect(screen.getAllByText(/RPE 7/).length).toBeGreaterThan(0);
     expect(
-      screen.queryByRole("button", { name: /activate|start programme|make my version/i }),
+      screen.queryByRole("button", { name: /activate|start programme/i }),
     ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Make my version" })).toBeInTheDocument();
   });
 
   it("shows unknown subsequent Bullmastiff weights and does not borrow a main-lift max for a variation", async () => {

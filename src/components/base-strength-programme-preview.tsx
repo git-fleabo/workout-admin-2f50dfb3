@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { BaseStrengthSetup } from "./base-strength-setup";
 import {
   BASE_STRENGTH_CATALOGUE,
   BASE_STRENGTH_LIFTS,
@@ -33,6 +34,7 @@ function prescriptionLabel(movement: BaseStrengthMovement) {
 
 export function BaseStrengthProgrammePreview() {
   const [selected, setSelected] = useState<BaseStrengthProgrammeId | null>(null);
+  const [setup, setSetup] = useState(false);
   const [weekIndex, setWeekIndex] = useState(0);
   const [options, setOptions] = useState(DEFAULT_VOLUME_INTENSITY_OPTIONS);
   const [maxes, setMaxes] = useState<Record<string, string>>({});
@@ -99,6 +101,7 @@ export function BaseStrengthProgrammePreview() {
             aria-pressed={selected === item.id}
             aria-label={`Preview ${item.name}`}
             onClick={() => {
+              setSetup(false);
               setSelected(item.id);
               chooseWeek(0);
             }}
@@ -188,6 +191,15 @@ export function BaseStrengthProgrammePreview() {
               </p>
             )}
 
+            <Button onClick={() => setSetup(true)}>Make my version</Button>
+            {setup && selected ? (
+              <BaseStrengthSetup
+                key={selected}
+                programme={selected}
+                options={options}
+                onClose={() => setSetup(false)}
+              />
+            ) : null}
             <div className="grid items-end gap-3 sm:grid-cols-[1fr_180px]">
               <div className="space-y-1.5">
                 <Label htmlFor="bs-week">Explore a week</Label>

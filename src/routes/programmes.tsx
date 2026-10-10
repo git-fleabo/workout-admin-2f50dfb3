@@ -74,6 +74,7 @@ import {
 import { ADAPTIVE_STRENGTH_DEFAULTS, ADAPTIVE_STRENGTH_METHOD } from "@/lib/adaptive-strength";
 import { SettingsBackLink } from "@/components/settings-back-link";
 import { BaseStrengthProgrammePreview } from "@/components/base-strength-programme-preview";
+import { isBaseStrengthMethod } from "@/lib/base-strength-personal";
 
 export const Route = createFileRoute("/programmes")({
   head: () => ({
@@ -177,6 +178,10 @@ function ProgrammeTemplatesPage() {
     queryKey: ["programme-assignments"],
     queryFn: () => listProgrammeAssignmentsClient(),
   });
+  const browseTemplates = useMemo(
+    () => templates.data?.filter((template) => !isBaseStrengthMethod(template.methodType)) ?? [],
+    [templates.data],
+  );
   const [selectedId, setSelectedId] = useState("");
   const [setupTemplate, setSetupTemplate] = useState<ProgrammeTemplate | null>(null);
 
@@ -234,15 +239,19 @@ function ProgrammeTemplatesPage() {
 
   useEffect(() => {
     if (assignments.isLoading) return;
-    if (selectedId && templates.data?.some((template) => template.id === selectedId)) return;
+    if (selectedId && browseTemplates.some((template) => template.id === selectedId)) return;
     const current = assignments.data?.find((assignment) => assignment.status === "active");
-    const adaptive = templates.data?.find(
+    const adaptive = browseTemplates.find(
       (template) => template.methodType === ADAPTIVE_STRENGTH_METHOD,
     );
-    setSelectedId(current?.programId ?? (adaptive ?? templates.data?.[0])?.id ?? "");
-  }, [assignments.data, assignments.isLoading, selectedId, templates.data]);
+    setSelectedId(
+      browseTemplates.find((template) => template.id === current?.programId)?.id ??
+        (adaptive ?? browseTemplates[0])?.id ??
+        "",
+    );
+  }, [assignments.data, assignments.isLoading, selectedId, browseTemplates]);
 
-  const selected = templates.data?.find((template) => template.id === selectedId) ?? null;
+  const selected = browseTemplates.find((template) => template.id === selectedId) ?? null;
   const weeks = useMemo(() => (selected ? weekGroups(selected) : []), [selected]);
 
   return (
@@ -305,7 +314,7 @@ function ProgrammeTemplatesPage() {
               </p>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              {templates.data.map((template) => {
+              {browseTemplates.map((template) => {
                 const active = template.id === selectedId;
                 return (
                   <button

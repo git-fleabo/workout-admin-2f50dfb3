@@ -30,3 +30,7 @@ The isolated review page uses the real component and app styles, with no account
 ## Next milestone
 
 Personal setup should map source movement slots to the exercise library, resolve every open accessory target, confirm max references and schedules, and save a paused personal version for review. Activation should remain explicit. Native source progression needs persisted wave state and a reviewable proposal based on linked completed logs before it can be used in a running programme.
+
+## Personal setup follow-up
+
+Personal setup, paused saving and linked Bullmastiff progression are now implemented in the repository. See [personal programme verification](base-strength-personal-programmes-verification-2026-10-10.md) for final behaviour, safeguards and the pending live database update.
