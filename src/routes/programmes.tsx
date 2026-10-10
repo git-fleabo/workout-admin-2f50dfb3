@@ -73,6 +73,7 @@ import {
 } from "@/lib/supabase-programmes.browser";
 import { ADAPTIVE_STRENGTH_DEFAULTS, ADAPTIVE_STRENGTH_METHOD } from "@/lib/adaptive-strength";
 import { SettingsBackLink } from "@/components/settings-back-link";
+import { BaseStrengthProgrammePreview } from "@/components/base-strength-programme-preview";
 
 export const Route = createFileRoute("/programmes")({
   head: () => ({
@@ -278,6 +279,8 @@ function ProgrammeTemplatesPage() {
         </div>
       </details>
 
+      <BaseStrengthProgrammePreview />
+
       {templates.isLoading ? (
         <div className="flex items-center justify-center py-20 text-sm text-muted-foreground">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading programme templates…
@@ -288,7 +291,7 @@ function ProgrammeTemplatesPage() {
         </Card>
       ) : !templates.data?.length ? (
         <Card className="p-6 text-sm text-muted-foreground">
-          No reusable programme templates are available yet.
+          No saved programme templates are available yet. Explore the Base Strength previews above.
         </Card>
       ) : (
         <>
