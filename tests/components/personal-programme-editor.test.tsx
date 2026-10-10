@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ProgrammeSessionEditor } from "@/components/personal-programme-editor";
 import { FIXED_PROGRESSION } from "@/lib/programme-progression";
 import type { PersonalProgrammeSession } from "@/lib/personal-programme";
+import { personalPlanSchema } from "@/lib/personal-programme";
 
 const exerciseId = "11111111-1111-4111-8111-111111111111";
 const session: PersonalProgrammeSession = {
@@ -53,9 +54,74 @@ const exercises = [
     availableLocationIds: [],
     favourite: false,
   },
-] as never;
+] as unknown as Parameters<typeof ProgrammeSessionEditor>[0]["exercises"];
 
 describe("programme session editing", () => {
+  it("adds a conditioning swing and replaces a movement with calisthenics using valid programme targets", async () => {
+    const user = userEvent.setup();
+    const save = vi.fn(async () => {});
+    const swingId = "33333333-3333-4333-8333-333333333333";
+    const pullupId = "44444444-4444-4444-8444-444444444444";
+    const options = [
+      ...exercises,
+      {
+        ...exercises[0],
+        id: swingId,
+        name: "Kettlebell Swing",
+        workoutType: "Conditioning",
+        metric: "weight_reps",
+      },
+      {
+        ...exercises[0],
+        id: pullupId,
+        name: "Pull-up",
+        workoutType: "Skills/Calisthenics",
+        metric: "reps_only",
+      },
+      {
+        ...exercises[0],
+        id: "55555555-5555-4555-8555-555555555555",
+        name: "Run",
+        workoutType: "Cardio",
+        metric: "distance_time",
+      },
+    ];
+    render(
+      <ProgrammeSessionEditor
+        session={session}
+        laterSessions={[]}
+        exercises={options}
+        saving={false}
+        onSave={save}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("option", { name: "Run" })).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("Add an exercise"), "swing");
+    await user.selectOptions(screen.getByLabelText("New programme exercise"), swingId);
+    await user.click(screen.getByRole("button", { name: "Add", exact: true }));
+    await user.type(screen.getByLabelText("Kettlebell Swing set 1 load"), "16");
+    await user.type(screen.getByLabelText("Kettlebell Swing set 1 reps"), "15");
+    await user.selectOptions(screen.getByLabelText("Exercise 1"), pullupId);
+    await user.click(screen.getByRole("button", { name: "Save future session" }));
+    expect(save).toHaveBeenCalledTimes(1);
+    const [saved] = save.mock.calls[0][0] as PersonalProgrammeSession[];
+    expect(() => personalPlanSchema.parse(saved.plan)).not.toThrow();
+    expect(saved.plan.movements[0]).toMatchObject({
+      exercise: "Pull-up",
+      workoutType: "Strength",
+      trackingMode: "reps_only",
+    });
+    expect(saved.plan.movements[1]).toMatchObject({
+      exerciseId: swingId,
+      exercise: "Kettlebell Swing",
+      workoutType: "Strength",
+      trackingMode: "weight_reps",
+    });
+    expect(saved.plan.movements[1].setRows[0]).toMatchObject({ weight: "16", reps: "15" });
+    expect(options[1].workoutType).toBe("Conditioning");
+    expect(session.plan.movements).toHaveLength(1);
+  });
   it("edits original targets and explains cancellation of a temporary week", () => {
     const reviewedPlan = structuredClone(session.plan);
     reviewedPlan.movements[0].setRows[0].weight = "19";

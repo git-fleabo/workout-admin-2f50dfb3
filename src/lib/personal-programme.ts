@@ -4,6 +4,7 @@ import { buildProgrammeMovementPrescription } from "./programme-prescription.ts"
 import { FIXED_PROGRESSION, type ProgrammeProgression } from "./programme-progression.ts";
 import type { ProgrammeAssignmentInput, ProgrammeTemplate } from "./supabase-programmes.browser.ts";
 import type { WorkoutPlanMovement } from "./workout-plan.ts";
+import { getTrackingModeValue } from "./movement-metrics.ts";
 
 export type PersonalProgrammeMovement = WorkoutPlanMovement & {
   exerciseId: string;
@@ -27,6 +28,21 @@ export type PersonalProgrammeSession = {
   plan: PersonalProgrammePlan;
 };
 export type PersonalProgramme = { name: string; sessions: PersonalProgrammeSession[] };
+
+export function programmeExerciseTrackingMode(exercise: {
+  name: string;
+  workoutType: string;
+  metric: string;
+}): PersonalProgrammeMovement["trackingMode"] | null {
+  const mode = getTrackingModeValue({
+    workoutType: exercise.workoutType,
+    movement: exercise.name,
+    defaultMetric: exercise.metric,
+  });
+  return mode === "weight_reps" || mode === "reps_only" || mode === "hold" || mode === "grip_hold"
+    ? mode
+    : null;
+}
 
 const numericText = (max: number) =>
   z
