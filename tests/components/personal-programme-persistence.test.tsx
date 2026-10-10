@@ -1,3 +1,6 @@
+import { buildBaseStrengthPersonalSessions } from "@/lib/base-strength-personal";
+import { DEFAULT_VOLUME_INTENSITY_OPTIONS } from "@/lib/base-strength-preview";
+import { strengthChoices, strengthTemplate } from "../helpers/base-strength-fixtures";
 import { afterEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),
@@ -66,6 +69,57 @@ describe("personal programme persistence", () => {
     expect(restored.movements[0].restTime).toBe("3 min");
     expect(restored.movements[0].setRows[0]).toMatchObject({ weight: "22", reps: "10", rpe: "8" });
   });
+  it("restores DUP source rules and mixed set targets for the logger after a reload", async () => {
+    const m = buildBaseStrengthPersonalSessions({
+      programme: "dup",
+      options: DEFAULT_VOLUME_INTENSITY_OPTIONS,
+      template: strengthTemplate("dup", 6),
+      choices: strengthChoices("dup"),
+      startedOn: "2026-10-12",
+      increment: 2.5,
+      locationKind: "gym",
+    })[9].plan.movements[0];
+    mocks.select.mockResolvedValue([
+      {
+        id: "dup-plan",
+        training_locations: { kind: "gym", name: "Gym" },
+        title: "DUP peak",
+        status: "accepted",
+        created_at: "2026-10-10",
+        program_assignment_id: "a",
+        program_workout_id: "w",
+        suggested_workout_entries: [
+          {
+            id: "entry",
+            name: m.exercise,
+            workout_type: "Strength",
+            tracking_mode: "weight_reps",
+            order_index: 0,
+            target_metrics: { base_strength: m.baseStrength, progression: m.progression },
+            suggested_workout_sets: m.setRows.map((r, i) => ({
+              set_number: i + 1,
+              reps: Number(r.reps),
+              weight: i === 0 ? 103 : 92.5,
+              rpe: r.rpe ? Number(r.rpe) : null,
+              completed: true,
+            })),
+          },
+        ],
+      },
+    ]);
+    const [restored] = await getNextSuggestedWorkoutsClient();
+    expect(restored.movements[0].baseStrength).toEqual(m.baseStrength);
+    expect(restored.movements[0].progression?.type).toBe("source");
+    expect(restored.movements[0].setRows.map((r) => r.weight)).toEqual([
+      "103",
+      "92.5",
+      "92.5",
+      "92.5",
+      "92.5",
+      "92.5",
+    ]);
+  });
+
   it("keeps existing programmes usable before installation while surfacing other errors", async () => {
     mocks.select.mockRejectedValueOnce(
       new Error("Supabase request failed: missing table Code: PGRST205"),

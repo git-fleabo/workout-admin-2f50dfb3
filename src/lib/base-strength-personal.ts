@@ -14,7 +14,9 @@ import type { ProgrammeTemplate } from "./supabase-programmes.browser.ts";
 
 export const baseStrengthMethod = (id: BaseStrengthProgrammeId) => `base_strength_${id}`;
 export const isBaseStrengthMethod = (method: string | null) =>
-  method === baseStrengthMethod("bullmastiff") || method === baseStrengthMethod("volume_intensity");
+  method === baseStrengthMethod("bullmastiff") ||
+  method === baseStrengthMethod("volume_intensity") ||
+  method === baseStrengthMethod("dup");
 export type BaseStrengthChoice = {
   exerciseId: string;
   exerciseName: string;
@@ -86,9 +88,10 @@ export function buildBaseStrengthPersonalSessions(input: {
   const workouts = [...input.template.workouts].sort((a, b) => a.sequenceIndex - b.sequenceIndex);
   return weeks.flatMap((week) =>
     baseStrengthSessions(input.programme, week).map((session, day) => {
-      const movements = session.movements.map((m, index) => {
+      const movements = session.movements.flatMap((m, index) => {
         const key = baseStrengthSlotKey(m, week.phase, day, index);
         const choice = input.choices[key];
+        if (input.programme === "dup" && m.role === "accessory" && !choice?.exerciseId) return [];
         if (!choice?.exerciseId) throw new Error(`Choose an exercise for ${m.name}.`);
         if (m.role !== "accessory" && choice.trackingMode !== "weight_reps")
           throw new Error(`${m.name} needs an exercise recorded as load and reps.`);
@@ -149,12 +152,17 @@ export function buildBaseStrengthPersonalSessions(input: {
             percent: m.percent,
             plusLastSet: m.plusLastSet,
             incrementKg: input.increment,
+            ...(m.exposure ? { exposure: m.exposure } : {}),
+            ...(m.backOffSets != null ? { backOffPercent: 90 as const } : {}),
           },
-          setRows: Array.from({ length: sets }, () => ({
+          setRows: Array.from({ length: sets + (m.backOffSets ?? 0) }, (_, setIndex) => ({
             reps: reps == null ? "" : String(reps),
             weight: load == null ? "" : String(load),
             durationSeconds: "",
-            rpe: m.rpeTarget == null ? "" : String(m.rpeTarget),
+            rpe:
+              m.rpeTarget == null || (m.backOffSets != null && setIndex > 0)
+                ? ""
+                : String(m.rpeTarget),
             completed: true,
           })),
         };

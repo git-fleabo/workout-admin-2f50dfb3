@@ -54,7 +54,7 @@ export function BaseStrengthSetupForm({
 }) {
   const slots = baseStrengthSlots(programme);
   const [name, setName] = useState(
-    `My ${programme === "bullmastiff" ? "Bullmastiff" : "Volume/Intensity"}`,
+    `My ${programme === "bullmastiff" ? "Bullmastiff" : programme === "dup" ? "DUP" : "Volume/Intensity"}`,
   );
   const [startedOn, setStartedOn] = useState(todayISO);
   const [locationKind, setLocationKind] = useState<"home" | "gym">("gym");
@@ -63,7 +63,10 @@ export function BaseStrengthSetupForm({
   const [choices, setChoices] = useState<Record<string, BaseStrengthChoice>>(() =>
     Object.fromEntries(
       slots.map((slot) => {
-        const match = exercises.find((e) => e.name.toLowerCase() === slot.name.toLowerCase());
+        const match =
+          programme === "dup" && slot.role === "accessory"
+            ? undefined
+            : exercises.find((e) => e.name.toLowerCase() === slot.name.toLowerCase());
         return [
           slot.key,
           {
@@ -133,9 +136,9 @@ export function BaseStrengthSetupForm({
         </label>
       </div>
       <p className="text-sm text-muted-foreground">
-        Use each chosen exercise’s own estimated 1RM, recorded consistently with your workout loads.
-        Later phase maxes can stay blank until reassessment. Review those loads in My Programme
-        before training.
+        {programme === "dup"
+          ? "Enter each main lift’s estimated 1RM for base work. Peak loads are chosen by RPE in My Programme, with back-off loads calculated from the top set."
+          : "Use each chosen exercise’s own estimated 1RM, recorded consistently with your workout loads. Later phase maxes can stay blank until reassessment. Review those loads in My Programme before training."}
       </p>
       {(["main", "variation", "accessory"] as const)
         .filter((role) => slots.some((slot) => slot.role === role))
@@ -159,9 +162,11 @@ export function BaseStrengthSetupForm({
                   const choice = choices[slot.key];
                   const phases: BaseStrengthPhase[] = slot.phase
                     ? [slot.phase]
-                    : programme === "bullmastiff"
-                      ? ["base", "peak"]
-                      : ["base", "build", "peak"];
+                    : programme === "dup"
+                      ? ["base"]
+                      : programme === "bullmastiff"
+                        ? ["base", "peak"]
+                        : ["base", "build", "peak"];
                   return (
                     <div
                       key={slot.key}
@@ -183,7 +188,11 @@ export function BaseStrengthSetupForm({
                             });
                           }}
                         >
-                          <option value="">Choose an exercise</option>
+                          <option value="">
+                            {programme === "dup" && role === "accessory"
+                              ? "None · optional"
+                              : "Choose an exercise"}
+                          </option>
                           {exercises
                             .filter((e) => role === "accessory" || e.trackingMode === "weight_reps")
                             .map((e) => (
@@ -222,7 +231,9 @@ export function BaseStrengthSetupForm({
                           <p className="text-xs text-muted-foreground">
                             {programme === "bullmastiff"
                               ? "The first two base waves keep the source sets and reps. Choose your own targets for the third base wave and peak."
-                              : "Choose your own supporting sets and reps; the source leaves these open."}
+                              : programme === "dup"
+                                ? "Optional on each session. Leave the exercise blank to omit it, or choose your own sets, reps and load. Keep supporting work limited."
+                                : "Choose your own supporting sets and reps; the source leaves these open."}
                           </p>
                           <div className="grid grid-cols-3 gap-2">
                             {(["sets", "reps", "load"] as const).map((field) => (

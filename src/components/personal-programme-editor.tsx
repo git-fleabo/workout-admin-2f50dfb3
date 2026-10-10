@@ -1,3 +1,4 @@
+import { usesDupBackOff, dupBackOffRows } from "@/lib/base-strength-backoff";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useBlocker } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -306,7 +307,9 @@ export function ProgrammeSessionEditor({
                 </select>
               </label>
               <div className="space-y-2">
-                {movement.baseStrength && movement.baseStrength.role !== "accessory" ? (
+                {movement.baseStrength &&
+                movement.baseStrength.role !== "accessory" &&
+                !usesDupBackOff(movement) ? (
                   <label className="block space-y-1 text-xs">
                     {movement.baseStrength.phase} estimated max (kg) · this session
                     <Input
@@ -347,10 +350,17 @@ export function ProgrammeSessionEditor({
                     </span>
                   </label>
                 ) : null}
+                {usesDupBackOff(movement) && (
+                  <p className="text-xs text-muted-foreground">
+                    Set 1 is the top set at RPE {movement.setRows[0]?.rpe}. Enter its chosen load;
+                    the remaining sets recalculate at 90%. Choose personal progression to change
+                    this structure.
+                  </p>
+                )}
                 {movement.setRows.map((set, setIndex) => (
                   <div key={setIndex} className="flex items-end gap-2">
                     <span className="w-7 shrink-0 pb-2 text-xs text-muted-foreground">
-                      {setIndex + 1}
+                      {usesDupBackOff(movement) && setIndex === 0 ? "Top" : setIndex + 1}
                     </span>
                     {["weight_reps", "grip_hold"].includes(movement.trackingMode) && (
                       <label className="min-w-0 flex-1 text-xs">
@@ -358,12 +368,20 @@ export function ProgrammeSessionEditor({
                         <Input
                           aria-label={`${movement.exercise} set ${setIndex + 1} load`}
                           inputMode="decimal"
+                          disabled={usesDupBackOff(movement) && setIndex > 0}
                           value={set.weight}
                           onChange={(event) =>
                             patchMovement(index, {
-                              setRows: movement.setRows.map((row, i) =>
-                                i === setIndex ? { ...row, weight: event.target.value } : row,
-                              ),
+                              setRows:
+                                usesDupBackOff(movement) && setIndex === 0
+                                  ? dupBackOffRows(
+                                      movement.setRows,
+                                      event.target.value,
+                                      movement.baseStrength!.incrementKg,
+                                    )
+                                  : movement.setRows.map((row, i) =>
+                                      i === setIndex ? { ...row, weight: event.target.value } : row,
+                                    ),
                             })
                           }
                         />
@@ -376,6 +394,7 @@ export function ProgrammeSessionEditor({
                       <Input
                         aria-label={`${movement.exercise} set ${setIndex + 1} ${["hold", "grip_hold"].includes(movement.trackingMode) ? "hold" : "reps"}`}
                         inputMode="numeric"
+                        disabled={usesDupBackOff(movement)}
                         value={
                           ["hold", "grip_hold"].includes(movement.trackingMode)
                             ? set.durationSeconds
@@ -401,7 +420,7 @@ export function ProgrammeSessionEditor({
                       size="icon"
                       variant="ghost"
                       aria-label={`Remove ${movement.exercise} set ${setIndex + 1}`}
-                      disabled={movement.setRows.length === 1 || saving}
+                      disabled={movement.setRows.length === 1 || saving || usesDupBackOff(movement)}
                       onClick={() =>
                         patchMovement(index, {
                           setRows: movement.setRows.filter((_, i) => i !== setIndex),
@@ -416,7 +435,7 @@ export function ProgrammeSessionEditor({
               <Button
                 size="sm"
                 variant="outline"
-                disabled={movement.setRows.length >= 20 || saving}
+                disabled={movement.setRows.length >= 20 || saving || usesDupBackOff(movement)}
                 onClick={() =>
                   patchMovement(index, {
                     setRows: [...movement.setRows, { ...movement.setRows.at(-1)! }],

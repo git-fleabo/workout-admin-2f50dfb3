@@ -51,6 +51,7 @@ export type WorkoutPlanTargets = {
 };
 
 export type WorkoutPlanMovement = {
+  baseStrength?: import("./personal-programme.ts").BaseStrengthMovementRule;
   progression?: ProgrammeProgression;
   exerciseId?: string;
   exercise: string;

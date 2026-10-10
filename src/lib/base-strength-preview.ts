@@ -1,6 +1,6 @@
-// Source: Alex Bromley, Base Strength, Kindle ASIN B08R5J58F8, pp. 83–85 and 93–97.
+// Source: Alex Bromley, Base Strength, Kindle ASIN B08R5J58F8, pp. 83–85, 93–97 and 104–106.
 // These review models deliberately do not create assignments or amend logged workouts.
-export type BaseStrengthProgrammeId = "volume_intensity" | "bullmastiff";
+export type BaseStrengthProgrammeId = "volume_intensity" | "bullmastiff" | "dup";
 export type BaseStrengthPhase = "base" | "build" | "peak";
 export type BaseStrengthLift = "squat" | "bench" | "deadlift" | "press";
 export const BASE_STRENGTH_LIFTS: Record<BaseStrengthLift, string> = {
@@ -29,9 +29,19 @@ export const BASE_STRENGTH_CATALOGUE = [
       "Main lifts, variations and bodybuilding work. Your final plus set guides the next load within each wave.",
     emphasis: "Strength + size · substantial volume",
   },
+  {
+    id: "dup",
+    name: "DUP",
+    days: 3,
+    pages: "104–106",
+    description:
+      "Squat, bench and deadlift each session, with staggered rep ranges. Peak top sets guide lighter back-off work.",
+    emphasis: "Strength · frequent main-lift practice",
+  },
 ] as const;
 
 export type VolumeIntensityOptions = {
+  dupBaseWaves?: number;
   initialWaves: number;
   buildWaves: number;
   peakWaves: number;
@@ -51,6 +61,8 @@ export type PreviewPrescription = {
   plusLastSet: boolean;
   rpeTarget: number | null;
   guidance: string;
+  exposure?: "high" | "medium" | "low";
+  backOffSets?: number;
 };
 export type BaseStrengthWeek = {
   number: number;
@@ -61,6 +73,7 @@ export type BaseStrengthWeek = {
   volume: PreviewPrescription | null;
   main: PreviewPrescription;
   variation: PreviewPrescription | null;
+  exposures?: Record<"high" | "medium" | "low", PreviewPrescription>;
 };
 export type BaseStrengthMovement = PreviewPrescription & {
   name: string;
@@ -84,7 +97,7 @@ export function buildBaseStrengthWeeks(
   programme: BaseStrengthProgrammeId,
   options: VolumeIntensityOptions = DEFAULT_VOLUME_INTENSITY_OPTIONS,
 ): BaseStrengthWeek[] {
-  if (programme !== "volume_intensity" && programme !== "bullmastiff")
+  if (programme !== "volume_intensity" && programme !== "bullmastiff" && programme !== "dup")
     throw new Error("Choose a supported Base Strength programme.");
   if (
     programme === "volume_intensity" &&
@@ -101,6 +114,60 @@ export function buildBaseStrengthWeeks(
   )
     throw new Error("Use 2–3 initial waves, 1–3 build waves, 3–4 peak waves and a 2–4% increase.");
 
+  if (programme === "dup") {
+    const waves = options.dupBaseWaves ?? 1;
+    if (
+      !Number.isInteger(waves) ||
+      waves < 1 ||
+      waves > 4 ||
+      !Number.isFinite(options.waveIncreasePercent) ||
+      options.waveIncreasePercent < 2 ||
+      options.waveIncreasePercent > 4
+    )
+      throw new Error("Use 1–4 base waves and a 2–4% increase between repeats.");
+    return Array.from({ length: (waves + 1) * 3 }, (_, index) => {
+      const peak = index >= waves * 3;
+      const w = index % 3;
+      const wave = peak ? 1 : Math.floor(index / 3) + 1;
+      const offset = (wave - 1) * options.waveIncreasePercent;
+      const exposures = Object.fromEntries(
+        (["high", "medium", "low"] as const).map((exposure, e) => [
+          exposure,
+          {
+            ...prescription(
+              peak ? 1 : [2, 3, 4][e] + w,
+              peak
+                ? [6, 3, 1][e]
+                : [
+                    [12, 10, 8],
+                    [8, 6, 4],
+                    [5, 4, 3],
+                  ][e][w],
+              peak ? null : [60, 70, 75][e] + w * 5 + offset,
+              peak
+                ? "Choose the top-set load at the target RPE. Back-off sets use 90% of that selected load, rounded once."
+                : "Follow the printed base table. Repeated waves add the chosen percentage points of estimated 1RM.",
+              false,
+              peak ? 7 + w : null,
+            ),
+            exposure,
+            ...(peak ? { backOffSets: [3, 5, 5][e] - w } : {}),
+          },
+        ]),
+      ) as Record<"high" | "medium" | "low", PreviewPrescription>;
+      return {
+        number: index + 1,
+        phase: peak ? "peak" : "base",
+        phaseLabel: peak ? "Peak" : "Base",
+        wave,
+        waveWeek: w + 1,
+        volume: null,
+        main: exposures.medium,
+        variation: null,
+        exposures,
+      };
+    });
+  }
   const weeks: BaseStrengthWeek[] = [];
   const phases: Array<{ phase: BaseStrengthPhase; label: string; waves: number }> =
     programme === "bullmastiff"
@@ -213,6 +280,24 @@ export function baseStrengthSessions(
   programme: BaseStrengthProgrammeId,
   week: BaseStrengthWeek,
 ): BaseStrengthSession[] {
+  if (programme === "dup") {
+    if (!week.exposures) throw new Error("A DUP week needs its three exposure prescriptions.");
+    const order =
+      week.phase === "base"
+        ? (["high", "medium", "low"] as const)
+        : (["medium", "high", "low"] as const);
+    return ["Monday", "Wednesday", "Friday"].map((day, d) => ({
+      name: `${day} · full body`,
+      movements: [
+        ...(["squat", "bench", "deadlift"] as const).map((key, lift) =>
+          movement(BASE_STRENGTH_LIFTS[key], "main", key, week.exposures![order[(d + lift) % 3]]),
+        ),
+        // Optional personal accessories, without invented source sets or reps.
+        freeAccessory("Pulldown"),
+        freeAccessory("Curl"),
+      ],
+    }));
+  }
   if (programme === "volume_intensity") {
     if (!week.volume) throw new Error("A Volume/Intensity week needs its volume prescription.");
     const lift = (key: BaseStrengthLift, spec: PreviewPrescription) =>

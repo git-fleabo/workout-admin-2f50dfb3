@@ -21,6 +21,32 @@ describe("Base Strength review previews", () => {
     expect(screen.getByRole("button", { name: "Make my version" })).toBeInTheDocument();
   });
 
+  it("previews DUP base repeats and dependent peak loads without borrowing percentage maxes", async () => {
+    const user = userEvent.setup();
+    render(<BaseStrengthProgrammePreview />);
+    await user.click(screen.getByRole("button", { name: "Preview DUP" }));
+    expect(screen.getByText("6 weeks · 18 sessions")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Overhead press (kg)")).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("Squat (kg)"), "100");
+    expect(screen.getByText("60 kg")).toBeInTheDocument();
+    await user.click(screen.getByText("Base wave repeats · personal choice"));
+    await user.selectOptions(screen.getByLabelText("Base waves"), "2");
+    expect(screen.getByText("9 weeks · 27 sessions")).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Explore a week"), "3");
+    expect(screen.getByText("62.5 kg")).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Explore a week"), "6");
+    expect(screen.queryByLabelText("Squat (kg)")).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Top set × 3 reps · 5 back-off sets/)).toHaveLength(3);
+    await user.type(screen.getByLabelText("Monday · full body Squat example top load"), "103");
+    expect(screen.getByText("Back-off load: 92.5 kg")).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Explore a week"), "7");
+    expect(screen.getByLabelText("Monday · full body Squat example top load")).toHaveValue(null);
+    expect(screen.queryByText("Back-off load: 92.5 kg")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Review completed plus set" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows unknown subsequent Bullmastiff weights and does not borrow a main-lift max for a variation", async () => {
     const user = userEvent.setup();
     render(<BaseStrengthProgrammePreview />);

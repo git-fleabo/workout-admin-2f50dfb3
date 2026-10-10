@@ -16,7 +16,7 @@ export type PersonalProgrammePlan = {
   version: 1;
   locationKind: "home" | "gym";
   movements: PersonalProgrammeMovement[];
-  baseStrength?: "volume_intensity" | "bullmastiff";
+  baseStrength?: "volume_intensity" | "bullmastiff" | "dup";
 };
 export type PersonalProgrammeSession = {
   reviewedPlan?: PersonalProgrammePlan;
@@ -52,7 +52,7 @@ const numericText = (max: number) =>
       "Use a positive number or leave blank",
     );
 export const baseStrengthMovementSchema = z.object({
-  programme: z.enum(["volume_intensity", "bullmastiff"]),
+  programme: z.enum(["volume_intensity", "bullmastiff", "dup"]),
   week: z.number().int().min(1).max(30),
   phase: z.enum(["base", "build", "peak"]),
   wave: z.number().int().min(1).max(4),
@@ -62,6 +62,8 @@ export const baseStrengthMovementSchema = z.object({
   percent: z.number().positive().max(100).nullable(),
   plusLastSet: z.boolean(),
   incrementKg: z.number().positive().max(100),
+  exposure: z.enum(["high", "medium", "low"]).optional(),
+  backOffPercent: z.literal(90).optional(),
   approvedFingerprint: z
     .string()
     .regex(/^[a-f0-9]{32}$/)
@@ -84,7 +86,7 @@ export const personalPlanSchema = z
   .object({
     version: z.literal(1),
     locationKind: z.enum(["home", "gym"]),
-    baseStrength: z.enum(["volume_intensity", "bullmastiff"]).optional(),
+    baseStrength: z.enum(["volume_intensity", "bullmastiff", "dup"]).optional(),
     movements: z
       .array(
         z

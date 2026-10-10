@@ -27,6 +27,8 @@ test(
         ...coachDatabaseMigrations,
         "20261010115211_add_personal_strength_week_reviews.sql",
         "20261010134112_add_base_strength_personal_programmes.sql",
+        "20261010224715_add_base_strength_dup.sql",
+        "20261010225150_protect_dup_personal_setup.sql",
       ])
         db.file(new URL(`../supabase/migrations/${migration}`, import.meta.url));
       sql(

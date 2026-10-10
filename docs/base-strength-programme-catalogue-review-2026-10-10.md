@@ -71,3 +71,7 @@ Before calling a template complete, verify the entire base/peak structure, its w
 ## Work completed
 
 All ten named prefabricated programme sections and the bonus progression section were reviewed in the signed-in reader. The app inspection was read-only. This document does not add templates, alter training records, or establish live publishing status.
+
+## DUP implementation follow-up
+
+DUP now has a selectable preview and editable personal setup alongside Volume/Intensity and Bullmastiff. Its base/peak tables were reverified in Kindle; the printed base table takes precedence over the inconsistent following prose. The optional accessories, repeat choices, staggered peak arrangement, dependent back-off calculation, saving safeguards and release boundaries are documented in [DUP verification](base-strength-dup-verification-2026-10-10.md).

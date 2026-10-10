@@ -119,6 +119,76 @@ describe("Base Strength personal setup and progression", () => {
       screen.queryByRole("button", { name: /activate|start programme/i }),
     ).not.toBeInTheDocument();
   });
+  it("saves DUP with optional compatible accessories across categories and leaves peak loads for review", async () => {
+    const choices = strengthChoices("dup");
+    const current = await library();
+    library.mockResolvedValue({
+      ...current,
+      items: [
+        ...current.items,
+        ...Object.values(choices)
+          .filter(
+            (c) =>
+              c.exerciseName === "Squat" ||
+              c.exerciseName === "Bench press" ||
+              c.exerciseName === "Deadlift",
+          )
+          .map((c) => ({
+            id: c.exerciseId,
+            name: c.exerciseName,
+            metric: "weight_reps",
+            workoutType: "Strength",
+            active: true,
+            enabled: true,
+          })),
+      ],
+    });
+    templates.mockResolvedValue([strengthTemplate("dup", 6)]);
+    const user = userEvent.setup();
+    wrap(
+      <BaseStrengthSetup
+        programme="dup"
+        options={DEFAULT_VOLUME_INTENSITY_OPTIONS}
+        onClose={vi.fn()}
+      />,
+    );
+    await screen.findByRole("button", { name: "Save for review" });
+    expect(screen.getByLabelText("Programme name")).toHaveValue("My DUP");
+    for (const lift of ["Squat", "Bench press", "Deadlift"])
+      await user.type(screen.getByLabelText(`${lift} base estimated max (kg)`), "100");
+    expect(
+      screen.queryByLabelText("Overhead press base estimated max (kg)"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Squat peak estimated max (kg)")).not.toBeInTheDocument();
+    await user.click(screen.getByText("Supporting exercises and personal targets"));
+    expect(screen.getByRole("combobox", { name: "Pulldown" })).toHaveValue("");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Pulldown" }), strengthId(70));
+    await user.type(screen.getByLabelText("Pulldown sets"), "2");
+    await user.type(screen.getByLabelText("Pulldown reps"), "15");
+    await user.type(screen.getByLabelText("Pulldown load"), "16");
+    await user.click(screen.getByRole("button", { name: "Save for review" }));
+    await screen.findByText("Saved for review");
+    expect(rpc).toHaveBeenCalledTimes(1);
+    const [name, input] = rpc.mock.calls[0];
+    expect(name).toBe("create_personal_programme");
+    expect(input.p_sessions).toHaveLength(18);
+    expect(
+      input.p_sessions.every(
+        (s: { plan: { movements: unknown[] } }) => s.plan.movements.length === 4,
+      ),
+    ).toBe(true);
+    expect(input.p_sessions[0].plan.movements[3]).toMatchObject({
+      exercise: "Kettlebell Swing",
+      workoutType: "Strength",
+    });
+    expect(input.p_sessions[9].plan.movements[0].setRows).toHaveLength(6);
+    expect(input.p_sessions[9].plan.movements[0].setRows[0]).toMatchObject({
+      reps: "3",
+      weight: "",
+      rpe: "7",
+    });
+  });
+
   it("keeps a setup failure visible and never reports it saved", async () => {
     templates.mockResolvedValue([]);
     const user = userEvent.setup();
