@@ -5,7 +5,10 @@ import { z } from "zod";
 import { KETTLEBELL_CATEGORIES, kettlebellWorkoutSchema } from "../src/lib/kettlebell-workouts.ts";
 
 const pilotSchema = z
-  .object({ personId: z.string().uuid(), workouts: z.array(kettlebellWorkoutSchema).length(15) })
+  .object({
+    personId: z.string().uuid(),
+    workouts: z.array(kettlebellWorkoutSchema).min(5).max(15),
+  })
   .strict();
 const literal = (value: string) => `'${value.replaceAll("'", "''")}'`;
 
@@ -13,17 +16,18 @@ const literal = (value: string) => `'${value.replaceAll("'", "''")}'`;
 export function prepareKettlebellPilotImport(input: unknown) {
   const pilot = pilotSchema.parse(input);
   const expected = new Set(
-    KETTLEBELL_CATEGORIES.flatMap((category) =>
-      [1, 2, 3, 4, 5].map((number) => `${category}:${number}`),
-    ),
+    KETTLEBELL_CATEGORIES.filter((category) =>
+      pilot.workouts.some((workout) => workout.category === category),
+    ).flatMap((category) => [1, 2, 3, 4, 5].map((number) => `${category}:${number}`)),
   );
   const ids = new Set<string>();
   for (const workout of pilot.workouts) {
     const key = `${workout.category}:${workout.sourceNumber}`;
     if (!expected.delete(key) || ids.has(workout.id))
-      throw new Error("Use exactly workouts 1–5 in each category, with unique IDs.");
+      throw new Error("Use exactly workouts 1–5 in each supplied category, with unique IDs.");
     ids.add(workout.id);
   }
+  if (expected.size) throw new Error("Each supplied category must contain all of workouts 1–5.");
   const rows = pilot.workouts.map((w) => ({
     id: w.id,
     person_id: pilot.personId,
@@ -56,7 +60,9 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
     mkdirSync(folder, { recursive: true, mode: 0o700 });
     const output = join(folder, "pilot.sql");
     writeFileSync(output, sql, { mode: 0o600 });
-    console.log(`Prepared 15 workouts for review: ${output}. No database changes made.`);
+    console.log(
+      `Prepared the supplied complete category batches for review: ${output}. No database changes made.`,
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.message : "Import preparation failed.");
     process.exitCode = 1;

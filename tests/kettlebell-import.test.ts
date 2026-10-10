@@ -31,3 +31,18 @@ test("workout text is quoted as data rather than SQL code", () => {
   const sql = prepareKettlebellPilotImport(input);
   assert.match(sql, /It''s a test; ''\); drop table public.people; --/);
 });
+
+test("complete first-five categories can be prepared as the user supplies them", () => {
+  const input = pilot();
+  assert.match(
+    prepareKettlebellPilotImport({
+      ...input,
+      workouts: input.workouts.filter((workout) => workout.category === "strength"),
+    }),
+    /insert into public.kettlebell_workouts/,
+  );
+  assert.throws(
+    () => prepareKettlebellPilotImport({ ...input, workouts: input.workouts.slice(0, 6) }),
+    /must contain all/,
+  );
+});

@@ -4,21 +4,27 @@ The Today picker offers Strength, Muscle, Conditioning and Random. The first thr
 
 ## Content status
 
-No book workouts have been imported or seeded. Original test fixtures live only under `tests/` and are never offered in the application.
+Strength workouts 1–5 have now been supplied directly and structured in the ignored private folder `kettlebell-import.local/strength-1-5.json`. They have not been imported into the live database. Muscle 1–5 and Conditioning 1–5 remain awaiting input. Original test fixtures live only under `tests/` and are never offered in the application.
 
 The intended first batch is source workouts 1–5 from each of Strength, Muscle and Conditioning, for 15 full workouts. The backlog begins at workout 6 in each category. Exact remaining totals have not been audited.
 
-Full workout text must be supplied directly before those records can be prepared. Preserve source numbering, instructions, side changes, rest, timings, ladders and stop conditions; do not replace uncertain instructions with invented targets.
+Full workout text must be supplied directly before remaining records can be prepared. Preserve source numbering, instructions, side changes, rest, timings, ladders and stop conditions; do not replace uncertain instructions with invented targets.
 
 ## Storage and preparation
 
 Migration: `20261010142048_add_kettlebell_workout_catalogue.sql`. It adds a person-owned `kettlebell_workouts` catalogue, snapshot fields on accepted plans and an atomic `start_kettlebell_workout` RPC. It seeds no content. A new table's Data API grants and RLS are explicit.
 
-The JSON input for the initial import is `{ "personId": "<existing person UUID>", "workouts": [...] }`. Each of the 15 records must satisfy `kettlebellWorkoutSchema` in `src/lib/kettlebell-workouts.ts`, including a stable UUID, `collectionKey: "strong_on"`, category, original source number, title, summary, full instructions, source reference, bell count, extra equipment IDs, duration or null, version, verification/availability flags and the full prescription.
+The JSON input for import preparation is `{ "personId": "<existing person UUID>", "workouts": [...] }`. Complete category batches can be prepared as supplied: five, ten or fifteen records, with exactly source workouts 1–5 in every supplied category. Each record must satisfy `kettlebellWorkoutSchema` in `src/lib/kettlebell-workouts.ts`, including a stable UUID, `collectionKey: "strong_on"`, category, original source number, title, summary, full instructions, source reference, bell count, extra equipment IDs, duration or null, version, verification/availability flags and the full prescription.
 
 Every prescription movement maps to an existing exercise UUID and includes explicit set targets, tracking mode, notes and rest. A set needs reps or duration. Ordered method blocks reference accessible active training methods and movement indices. Repetition ladders use successive set rows; complex/chain timing and side-change rules must remain explicit in the instructions and notes. Unsupported formats must be resolved before enabling their records. Do not infer a workout's exact duration from the book's overall 20-minute cap.
 
-Run `node --experimental-strip-types scripts/prepare-kettlebell-import.ts /path/to/pilot.json` to validate that there is exactly one record for each category/number pair 1–5 and create `kettlebell-import.local/pilot.sql`. This file is ignored by Git and contains private workout content. The script does not connect to Supabase, handle credentials or execute the import. Keep the input JSON out of the repository too.
+Run `node --experimental-strip-types scripts/prepare-kettlebell-import.ts /path/to/pilot.json` to validate each supplied complete category batch and create `kettlebell-import.local/pilot.sql`. This file is ignored by Git and contains private workout content. The script does not connect to Supabase, handle credentials or execute the import. Keep the input JSON out of the repository too.
+
+The supplied strength batch uses a 20-minute AMRAP block. Each single-bell sequence is represented first on one side and then on the other; treating both sides together as one completed round is an app logging convention. The traveling-repetition sequences retain every step, including repeated occurrences of the same lift. Loading guidance remains between the 2-rep and 5-rep pressing maximum; all numeric weights and fixed rest intervals remain blank. Set rows describe one round, so actual completed rounds and set work must be recorded in the logger rather than treating the template as all work completed in 20 minutes.
+
+The five supplied records passed isolated PostgreSQL acceptance using the real catalogue RPC and both dependency migrations: exact ordered movements and side labels, 1,200-second blocks, source snapshots, null programme links and idempotent starts. This checks prepared source data locally and does not imply a live import or a signed-in logger session.
+
+Migration `20261010180817_add_kettlebell_amrap_method_and_movements.sql` adds generic AMRAP metadata and six exact movement variants missing from the current library. It contains no book workouts, programme changes or person assignments. The four existing mappings were checked read-only against the live library. A private `enable-strength-movements.sql` prepares account-scoped activation of the six new variants; it has not been executed. Apply both catalogue/dependency migrations before importing this batch. No live changes have been made.
 
 Review the generated SQL before executing it in the authorised database. Its transaction and source-key upsert prevent duplicate imports. Re-import increments source versions while retaining accepted plan snapshots. Enable `verified` and `isAvailable` only after reviewing complete instructions and mappings. No production migration or import was performed as part of this repository implementation.
 
