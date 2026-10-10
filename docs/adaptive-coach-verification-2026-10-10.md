@@ -12,7 +12,7 @@ Before any live writes, captured row counts and ordered JSON row hashes for **al
 After cleanup, every count and hash matched exactly; a final read-only comparison also matched.
 The private baseline and temporary screenshots are outside the repository. Test data, coach
 preferences, decisions, outcomes, plans, logs, goals and programme copies were removed. No real
-completed training history was edited or deleted. No live schema migration was applied.
+completed training history was edited or deleted. No live schema migration was applied during the initial journey.
 
 ## Signed-in journey on the published baseline
 
@@ -54,7 +54,8 @@ completed training history was edited or deleted. No live schema migration was a
 
 The SQL repair is `20261010000854_fix_programme_workout_positions.sql`. It preserves invoker security,
 RLS, existing RPC interfaces and grants, approval bounds, source labels and training history. It is
-**unapplied to live Supabase**. Repository code is **not claimed published**.
+**unapplied to live Supabase at the initial verification**. It was subsequently applied as recorded
+below. Frontend publication remains user-reported, not independently verified in this follow-up.
 
 ## Isolated automated journey
 
@@ -106,3 +107,31 @@ unavailable; this is an explicit product gap, not a passed lifecycle check.
 - Fresh remote check: `origin/main` was still `b6e1fbd` before the local commit.
 
 No publishing, pushing or deployment is performed in this task.
+
+## Live migration follow-up — 10 October 2026
+
+After reporting that the frontend changes were published, Noam explicitly authorized applying the
+pending database migration. Applied exactly `20261010000854_fix_programme_workout_positions.sql` to
+project `dvcdghmcqqfvlbzufpyy`. Remote migration history records version `20261010000854` with name
+`fix_programme_workout_positions`; all 77 previous entries remain intact.
+
+The checkout lacks some older remote migration files. To avoid modifying history or replaying older
+SQL, used a temporary CLI runner with markers for already-applied versions and the single reviewed
+migration. Its dry run listed only the intended file. The migration was then applied with its original
+repository version. The temporary runner was removed afterwards.
+
+Verification:
+
+- Reran both isolated PostgreSQL journeys before application: **20 test results passed, none skipped**.
+- Captured a fresh baseline immediately before migration. All **54 public table counts and ordered
+  row hashes matched exactly afterwards**, including programme and completed training history.
+- Verified the position helper against independent `row_number()` ordering for **124 live workouts**:
+  **zero mismatches**. A nonexistent workout returns null.
+- Confirmed all four replaced functions use the position helper, remain security invokers with an
+  empty search path, and retain their previous grants.
+- The new helper allows authenticated execution and denies anonymous execution. Both public RPCs
+  continue to deny anonymous execution.
+- Security advisor results were identical before and after migration.
+
+No disposable training records were created for this follow-up. Publication was reported by Noam;
+this migration task does not independently verify the frontend build or the signed-in repaired flow.

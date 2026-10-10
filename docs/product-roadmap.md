@@ -95,14 +95,18 @@ in My Programme, and supporting-work coaching remains available. Extending tempo
 reviews to editable personal copies is the next major milestone; preserve custom targets, revisions,
 started snapshots and completed history throughout that work.
 
+Migration `20261010000854_fix_programme_workout_positions.sql` was applied to the linked live
+Supabase project on 10 October after Noam reported publishing the frontend and authorized the
+migration. Its recorded version matches the repository. All 124 template workout positions were
+verified, existing function grants were preserved, and all 54 public tables retained exactly the same
+counts and data hashes. Security advisor results were unchanged.
+
 Release checks still required:
 
-1. Apply `20261010000854_fix_programme_workout_positions.sql` through the normal migration process,
-   synchronize/publish the repository changes through Noam's Lovable workflow, and verify the new
-   visible build. The migration is tested locally and remains unapplied to the live project.
-2. Recheck these repairs on that published build, especially completed-session placement and
-   programme numbering. The live journey exercised the earlier build; local tests verify the repairs.
-3. Repeat the weekly loop during real training to evaluate whether the revised hierarchy is sufficient.
+1. Independently verify the new visible build and recheck the repairs while signed in, especially
+   completed-session placement and programme numbering. The original live journey exercised the
+   earlier build; local tests verify the repairs. Publication is user-reported at this point.
+2. Repeat the weekly loop during real training to evaluate whether the revised hierarchy is sufficient.
    The disposable journey and date-advanced scenario are completed; a real fortnight is not claimed.
 
 Manual daily readiness, shifting a programme's start date as one reviewed action, and deeper
