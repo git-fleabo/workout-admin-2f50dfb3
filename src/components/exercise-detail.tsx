@@ -1,3 +1,4 @@
+import { exerciseCategories } from "@/lib/exercise-categories";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -92,11 +93,14 @@ export function ExerciseDetail({
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-lg font-semibold">{exercise.name}</h2>
           <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
-            {exercise.workoutType && (
-              <span className="rounded-full bg-secondary px-2 py-0.5 uppercase tracking-wider text-secondary-foreground">
-                {exercise.workoutType}
+            {exerciseCategories(exercise).map((category) => (
+              <span
+                key={category}
+                className="rounded-full bg-secondary px-2 py-0.5 uppercase tracking-wider text-secondary-foreground"
+              >
+                {category}
               </span>
-            )}
+            ))}
           </div>
           <p className="mt-1.5 text-xs text-muted-foreground">
             {[exercise.equipment, exercise.metric].filter(Boolean).join(" · ") || "—"}

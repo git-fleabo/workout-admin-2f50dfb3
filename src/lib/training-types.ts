@@ -4,6 +4,7 @@ import type { DataShape, LoadSemantics, VolumeStatus } from "./data-quality";
 export type LibraryRow = CircuitMetadata & {
   row: number;
   workoutType: string;
+  additionalWorkoutTypes?: string[];
   focusArea: string;
   name: string;
   equipment: string;
