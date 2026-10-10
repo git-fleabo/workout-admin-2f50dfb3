@@ -20,11 +20,20 @@ The user sees the previous final-set performance, proposed load and explanation 
 
 ## Database delivery
 
-`supabase/migrations/20261010130242_add_base_strength_personal_programmes.sql` adds shared sequence scaffolds for Bullmastiff and the supported Volume/Intensity durations, source-rule validation, progression review/apply functions, source snapshot/start guards and restart handling. All functions use security invoker with an empty search path; existing assignment/session RLS protects personal data, and public/anonymous execution is revoked. Shared scaffolds contain no personal exercises or loads and are hidden from the ordinary template cards; the two Base Strength previews are the setup entry points.
+`supabase/migrations/20261010134112_add_base_strength_personal_programmes.sql` adds shared sequence scaffolds for Bullmastiff and the supported Volume/Intensity durations, source-rule validation, progression review/apply functions, source snapshot/start guards and restart handling. All functions use security invoker with an empty search path; existing assignment/session RLS protects personal data, and public/anonymous execution is revoked. Shared scaffolds contain no personal exercises or loads and are hidden from the ordinary template cards; the two Base Strength previews are the setup entry points.
 
 Programme sequences are fetched per template, so the extra scaffolds cannot truncate another programme at the API's global row limit.
 
-The migration has been exercised only in disposable local PostgreSQL clusters. It has **not been applied to the live Supabase project**, and the app has **not been published or synchronised through Lovable**. Real saving and progression require this migration and the preceding programme migrations. The setup screen reports the unavailable database update clearly rather than claiming a successful save.
+After user approval, the migration was applied to the live Train & Track Supabase project (`dvcdghmcqqfvlbzufpyy`) on 10 October 2026. Remote migration history records `20261010134112`; the local filename and database test reference match that version. All required preceding migrations were already present, including personal strength-week reviews. The app frontend has **not been published or synchronised through Lovable**. A signed-in save in the released frontend remains unverified.
+
+## Live database verification
+
+- Six source scaffolds contain 432 workouts: Bullmastiff has 72 across 18 weeks; Volume/Intensity has 54, 63, 72, 81 and 90 across 18–30 weeks. All sequence indices are contiguous from zero, all week counts match their durations, and no shared exercise prescriptions were inserted.
+- All eight new or replaced functions use security invoker and an empty search path. Authenticated execution is granted and anonymous execution is denied. All five new guards/snapshot triggers are enabled; assignment and personal programme/session tables retain RLS.
+- The Data API recognises the new read-only progression RPC. An anonymous request receives the expected permission-denied response (`401`, PostgreSQL `42501`), rather than a missing-function/schema-cache error. This verifies registration and anonymous denial, not a signed-in save.
+- Before/after counts and complete-row fingerprints match for assignments, personal programmes, personal sessions, suggested workouts, logged sessions, session entries and sets. No personal programme was created or activated during verification.
+- After matching the local migration filename to remote history, the isolated Base Strength database regression suite was rerun: nine tests passed, none failed or skipped. The migration SQL itself is unchanged.
+- Security and performance advisors introduce no new findings. The existing [disabled leaked-password protection warning](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection) remains. Existing performance notices are two [unindexed foreign keys](https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys) and 53 [unused indexes](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index).
 
 ## Verification
 

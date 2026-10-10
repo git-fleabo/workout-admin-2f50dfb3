@@ -26,7 +26,7 @@ test(
       for (const migration of [
         ...coachDatabaseMigrations,
         "20261010115211_add_personal_strength_week_reviews.sql",
-        "20261010130242_add_base_strength_personal_programmes.sql",
+        "20261010134112_add_base_strength_personal_programmes.sql",
       ])
         db.file(new URL(`../supabase/migrations/${migration}`, import.meta.url));
       sql(
