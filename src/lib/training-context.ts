@@ -1,3 +1,4 @@
+import { completedItemCoveredBySavedPlans } from "./completed-coach-work.ts";
 import type { SavedWorkoutPlan } from "./supabase-plans.browser.ts";
 import type { ProgrammeScheduleSession } from "./supabase-programmes.browser.ts";
 import type { WeeklyPlan, WeeklyPlanAdjustments, WeeklyPlanItemKind } from "./weekly-plan.ts";
@@ -160,6 +161,7 @@ export function buildTrainingContext({
 
   for (const day of plan.days) {
     for (const item of day.completedItems) {
+      if (completedItemCoveredBySavedPlans(day, item, scheduledPlans)) continue;
       const kind = inferredKind(item);
       if (sessions.some((session) => session.date === day.date && session.kind === kind)) continue;
       sessions.push({

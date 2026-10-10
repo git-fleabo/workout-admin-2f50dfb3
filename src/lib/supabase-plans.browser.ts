@@ -70,6 +70,7 @@ type SuggestedWorkoutRow = {
   goal_id?: string | null;
   mobility_practice_run_id?: string | null;
   completed_session_id?: string | null;
+  completed_session?: { session_date: string; duration_minutes: number | null } | null;
   program_assignment_id: string | null;
   program_workout_id: string | null;
   training_location_id?: string | null;
@@ -152,6 +153,9 @@ export type SavedWorkoutPlan = WorkoutPlanDraft & {
   goalId: string | null;
   suggestedFor: string | null;
   planKind: WorkoutPlanKind;
+  completedSessionId?: string | null;
+  completedMinutes?: number | null;
+  scheduledFor?: string | null;
 };
 
 const toNumber = (value: string) => {
@@ -323,7 +327,13 @@ function planFromRow(row: SuggestedWorkoutRow): SavedWorkoutPlan | null {
     programAssignmentId: row.program_assignment_id,
     programWorkoutId: row.program_workout_id,
     goalId: row.goal_id ?? null,
-    suggestedFor: row.suggested_for ?? null,
+    scheduledFor: row.suggested_for ?? null,
+    suggestedFor:
+      row.status === "completed"
+        ? (row.completed_session?.session_date ?? row.suggested_for ?? null)
+        : (row.suggested_for ?? null),
+    completedSessionId: row.completed_session_id ?? null,
+    completedMinutes: row.completed_session?.duration_minutes ?? null,
     planKind:
       row.plan_kind ??
       inferWorkoutPlanKind({
@@ -551,17 +561,34 @@ export async function getNextSuggestedWorkoutsClient() {
 
 export async function getScheduledWorkoutPlansClient(startDate: string, endDate: string) {
   const person = await requirePerson();
-  const rows = await supabasePublicSelect<SuggestedWorkoutRow>("suggested_workouts", {
-    select: SAVED_WORKOUT_SELECT,
+  const common = {
     person_id: `eq.${person.id}`,
     program_workout_id: "is.null",
-    status: "in.(pending,accepted,completed)",
-    suggested_for: `gte.${startDate}`,
-    and: `(suggested_for.lte.${endDate})`,
-    order: "suggested_for.asc,created_at.desc",
     limit: 100,
-  });
-  return rows.map(planFromRow).filter((plan): plan is SavedWorkoutPlan => plan != null);
+  };
+  // A completed plan belongs to the week it was actually performed, including
+  // when Start early crosses a week boundary. Its original date stays intact.
+  const [planned, completed] = await Promise.all([
+    supabasePublicSelect<SuggestedWorkoutRow>("suggested_workouts", {
+      ...common,
+      select: SAVED_WORKOUT_SELECT,
+      status: "in.(pending,accepted)",
+      suggested_for: `gte.${startDate}`,
+      and: `(suggested_for.lte.${endDate})`,
+      order: "suggested_for.asc,created_at.desc",
+    }),
+    supabasePublicSelect<SuggestedWorkoutRow>("suggested_workouts", {
+      ...common,
+      select: `${SAVED_WORKOUT_SELECT},completed_session_id,completed_session:sessions!suggested_workouts_completed_session_id_fkey!inner(session_date,duration_minutes)`,
+      status: "eq.completed",
+      "completed_session.and": `(session_date.gte.${startDate},session_date.lte.${endDate})`,
+      order: "created_at.desc",
+    }),
+  ]);
+  return [...planned, ...completed]
+    .map(planFromRow)
+    .filter((plan): plan is SavedWorkoutPlan => plan != null)
+    .sort((left, right) => (left.suggestedFor ?? "").localeCompare(right.suggestedFor ?? ""));
 }
 
 export async function rescheduleSuggestedWorkoutClient(id: string, suggestedFor: string) {

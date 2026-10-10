@@ -120,6 +120,7 @@ export function TrainingContextCard({
   outcomePending = false,
   onOutcomeReview,
   strengthReview,
+  strengthReviewUnavailable = false,
   weekDraft,
   weekDraftPending = false,
   onApplyWeekDraft,
@@ -146,6 +147,7 @@ export function TrainingContextCard({
   outcomePending?: boolean;
   onOutcomeReview?: (decisionId: string, rating: CoachOutcomeRating) => Promise<void>;
   strengthReview?: ReactNode;
+  strengthReviewUnavailable?: boolean;
   weekDraft?: WeeklyCoachDraft;
   weekDraftPending?: boolean;
   onApplyWeekDraft?: (additions: WeeklyCoachDraftAddition[]) => Promise<void>;
@@ -228,8 +230,8 @@ export function TrainingContextCard({
           </div>
           <p className="mt-1 text-sm font-medium">{context.headline}</p>
           <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
-            Review the complete saved week and every proposed coaching change before applying
-            anything.
+            Today shows your next strength prescription. Supporting sessions are optional; review
+            each proposed change here before applying it.
           </p>
         </div>
         <div className="flex flex-col items-end gap-2 text-right text-xs text-muted-foreground">
@@ -258,6 +260,47 @@ export function TrainingContextCard({
             ) : null}
           </div>
         </div>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-semibold">Changes to review</p>
+          <Badge variant="outline">
+            {reviewItemCount ? `${reviewItemCount} available` : "No proposed change"}
+          </Badge>
+        </div>
+
+        {strengthReviewUnavailable ? (
+          <p className="rounded-lg border border-border p-3 text-xs text-muted-foreground">
+            Strength-week review is not yet available for this personal programme. Review and edit
+            future prescriptions in My Programme; supporting-work coaching remains available here.
+          </p>
+        ) : null}
+        {strengthReview}
+
+        {outcomeReview && onOutcomeReview ? (
+          <CoachOutcomeReviewCard
+            review={outcomeReview}
+            pending={outcomePending}
+            onReview={onOutcomeReview}
+          />
+        ) : coachingPreferences.saved && onRecommendationDecision ? (
+          recommendation ? (
+            <WeeklyCoachRecommendationCard
+              recommendation={recommendation}
+              pending={recommendationPending}
+              onDecision={(decision, chosenDate) =>
+                onRecommendationDecision(recommendation, decision, chosenDate)
+              }
+            />
+          ) : (
+            <div className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+              {decidedRecommendationKeys.length
+                ? "Your schedule or support decision for this week is recorded."
+                : "No safe schedule or support change is suggested from the current saved week."}
+            </div>
+          )
+        ) : null}
       </div>
 
       <div className="space-y-2 rounded-xl border border-border bg-background/20 p-3">
@@ -290,7 +333,11 @@ export function TrainingContextCard({
                             <Icon className="mr-1 h-3 w-3" /> {view.label}
                           </Badge>
                           {priority ? <Badge variant="secondary">{priority}</Badge> : null}
-                          {session.completed ? <Badge variant="secondary">Done</Badge> : null}
+                          {session.completed ? (
+                            <Badge variant="secondary">Done</Badge>
+                          ) : session.source !== "programme" ? (
+                            <Badge variant="outline">Optional</Badge>
+                          ) : null}
                         </div>
                       </div>
                     );
@@ -313,10 +360,6 @@ export function TrainingContextCard({
 
       {savedCapacity ? (
         <WeeklyCoachCapacitySummary capacity={savedCapacity} title="Saved weekly capacity" />
-      ) : null}
-
-      {weekDraft?.adaptation && coachingPreferences.saved ? (
-        <WeeklyCoachAdaptationSummary adaptation={weekDraft.adaptation} />
       ) : null}
 
       <div className="flex flex-wrap gap-2">
@@ -360,44 +403,13 @@ export function TrainingContextCard({
         ) : null}
       </div>
 
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-semibold">Changes to review</p>
-          <Badge variant="outline">
-            {reviewItemCount ? `${reviewItemCount} available` : "No change currently needed"}
-          </Badge>
-        </div>
-
-        {strengthReview}
-
-        {outcomeReview && onOutcomeReview ? (
-          <CoachOutcomeReviewCard
-            review={outcomeReview}
-            pending={outcomePending}
-            onReview={onOutcomeReview}
-          />
-        ) : coachingPreferences.saved && onRecommendationDecision ? (
-          recommendation ? (
-            <WeeklyCoachRecommendationCard
-              recommendation={recommendation}
-              pending={recommendationPending}
-              onDecision={(decision, chosenDate) =>
-                onRecommendationDecision(recommendation, decision, chosenDate)
-              }
-            />
-          ) : (
-            <div className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-              {decidedRecommendationKeys.length
-                ? "Your schedule or support decision for this week is recorded."
-                : "No safe schedule or support change is suggested from the current saved week."}
-            </div>
-          )
-        ) : null}
-      </div>
-
       <details className="rounded-xl border border-border bg-background/15 p-3">
         <summary className="cursor-pointer text-sm font-medium">Why the coach thinks this</summary>
         <div className="mt-3 space-y-3">
+          {weekDraft?.adaptation && coachingPreferences.saved ? (
+            <WeeklyCoachAdaptationSummary adaptation={weekDraft.adaptation} />
+          ) : null}
+
           {context.signals.length ? (
             <div className="grid gap-2 sm:grid-cols-2">
               {context.signals.map((signal) => (
@@ -456,10 +468,9 @@ export function TrainingContextCard({
       </details>
 
       <p className="text-xs text-muted-foreground">
-        Draft my week follows the current adaptive stance when filling missing priorities. The coach
-        can propose one reviewed frequency, dose or placement change at a time; your strength
-        programme stays separate. Completed changes are checked against logged evidence, and one
-        short check-in fills any important gap.
+        Review an accepted change after completing its session. Check the next week after{" "}
+        {formatUKDateShort(context.endDate)}. Draft my week can fill missing optional priorities;
+        every addition and strength change needs its own approval.
       </p>
     </Card>
   );

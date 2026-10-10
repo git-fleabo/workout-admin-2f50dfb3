@@ -3,7 +3,7 @@ import {
   type PlannerLocation,
   type RecentWorkoutLog,
   type WorkoutPlanSuggestion,
-} from "./workout-plan";
+} from "./workout-plan.ts";
 import type { WeeklyLoadHistoryItem, WeeklyLoadKind } from "./supabase-weekly-load.browser";
 
 export type WeeklyPlanConfidence = "none" | "low" | "medium" | "high";
@@ -25,6 +25,7 @@ export type WeeklyPlanDay = {
   completed: PlannerLocation[];
   inferredItems: WeeklyPlanItemKind[];
   completedItems: WeeklyPlanItemKind[];
+  completedEvidence?: Array<{ sessionId: string; item: WeeklyPlanItemKind }>;
 };
 
 export type WeeklyPlanItemKind = PlannerLocation | WeeklyLoadKind;
@@ -260,7 +261,19 @@ export function buildWeeklyPlan(
     const inferredItems: WeeklyPlanItemKind[] = [...expected, ...expectedLoads].filter(
       (item) => !completedItems.includes(item),
     );
-    return { date, expected, completed, inferredItems, completedItems };
+    const completedEvidence = [
+      ...(["home", "gym"] as const).flatMap((location) =>
+        logs[location]
+          .filter(
+            (log) => log.completed && log.date === date && log.trainingLocation?.kind === location,
+          )
+          .map((log) => ({ sessionId: log.id, item: location })),
+      ),
+      ...loadHistory
+        .filter((item) => item.date === date)
+        .map((item) => ({ sessionId: item.id, item: item.kind })),
+    ];
+    return { date, expected, completed, inferredItems, completedItems, completedEvidence };
   });
   return {
     startDate: today,

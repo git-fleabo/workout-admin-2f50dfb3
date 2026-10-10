@@ -367,9 +367,14 @@ export async function listProgrammeTemplatesClient(): Promise<ProgrammeTemplate[
     defaultSetChoice: programme.default_set_choice,
     percentBase: programme.percent_base,
     roundingIncrement: numberOrNull(programme.rounding_increment),
-    workouts: (workoutsByProgramme.get(programme.id) ?? []).sort(
-      (left, right) => left.sequenceIndex - right.sequenceIndex,
-    ),
+    // Progress is an offset into the ordered workouts. Source templates may
+    // number their sequence from one (or leave gaps), so expose positions.
+    workouts: (workoutsByProgramme.get(programme.id) ?? [])
+      .sort(
+        (left, right) =>
+          left.sequenceIndex - right.sequenceIndex || left.id.localeCompare(right.id),
+      )
+      .map((workout, sequenceIndex) => ({ ...workout, sequenceIndex })),
   }));
 }
 

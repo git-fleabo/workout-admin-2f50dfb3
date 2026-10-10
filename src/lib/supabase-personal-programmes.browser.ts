@@ -99,16 +99,14 @@ export async function getProgrammeExerciseContextClient(exerciseId: string) {
     {
       select: "id,sequence_index",
       program_id: `eq.${assignment.program_id}`,
-      order: "sequence_index.asc",
+      order: "sequence_index.asc,id.asc",
     },
   );
-  const next = workouts
-    .filter((workout) => workout.sequence_index >= assignment.current_workout_index)
-    .flatMap((workout) => {
-      const session = personal.sessions.find((item) => item.workoutId === workout.id);
-      const movement = session?.plan.movements.find((item) => item.exerciseId === exerciseId);
-      return session && movement ? [{ session, movement }] : [];
-    })[0];
+  const next = workouts.slice(assignment.current_workout_index).flatMap((workout) => {
+    const session = personal.sessions.find((item) => item.workoutId === workout.id);
+    const movement = session?.plan.movements.find((item) => item.exerciseId === exerciseId);
+    return session && movement ? [{ session, movement }] : [];
+  })[0];
   if (!next) return null;
   const completed = await supabasePublicSelect<{
     completed_session_id: string;

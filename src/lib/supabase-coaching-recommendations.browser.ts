@@ -69,7 +69,7 @@ export async function listCoachingRecommendationDecisionsClient(throughWeek: str
     }),
   ]);
   const outcomeByDecision = new Map(outcomes.map((outcome) => [outcome.decision_id, outcome]));
-  return rows.map((row) => ({
+  return rows.map<CoachingRecommendationDecision>((row) => ({
     id: row.id,
     weekStart: row.week_start,
     recommendationKey: row.recommendation_key,

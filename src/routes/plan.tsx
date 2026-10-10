@@ -1,3 +1,7 @@
+import {
+  saveReviewedWeeklyCoachDraft,
+  StaleWeeklyCoachDraftError,
+} from "@/lib/save-weekly-coach-draft";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1489,56 +1493,37 @@ function PlanPage() {
         readiness: freshReadiness,
         history: freshDecisionHistory,
       });
-      if (freshDraft.sourceFingerprint !== weeklyCoachDraft.sourceFingerprint) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ["workout-planner-history"] }),
-          queryClient.invalidateQueries({ queryKey: ["weekly-load-history"] }),
-          queryClient.invalidateQueries({ queryKey: ["programme-schedule"] }),
-          queryClient.invalidateQueries({ queryKey: ["scheduled-workout-plans"] }),
-          queryClient.invalidateQueries({ queryKey: ["coaching-preferences"] }),
-          queryClient.invalidateQueries({ queryKey: ["coaching-support-evidence"] }),
-          queryClient.invalidateQueries({ queryKey: ["coaching-recommendation-decisions"] }),
-          queryClient.invalidateQueries({ queryKey: ["weekly-coach-rollover"] }),
-        ]);
-        throw new Error(
-          "Your saved week or coaching evidence changed while this draft was open. Review the refreshed draft before applying it.",
-        );
-      }
-      const refreshedAdditions = additions.map((selected) => {
-        const current = freshDraft.additions.find((item) => item.focusId === selected.focusId);
-        if (!current) {
-          throw new Error(`${selected.title} is no longer available in the refreshed draft.`);
-        }
-        return { ...current, date: selected.date };
-      });
-      const freshValidationError = validateWeeklyCoachDraftSelection(
-        freshDraft,
-        refreshedAdditions,
-      );
-      if (freshValidationError) throw new Error(freshValidationError);
-
-      const insertedIds: string[] = [];
       try {
-        for (const addition of refreshedAdditions) {
-          const saved = await saveWorkoutPlanClient({
-            draft: addition.draft,
-            readiness: "normal",
-            status: "pending",
-            suggestedFor: addition.date,
-            planKind: addition.planKind,
-            programAssignmentId: addition.programAssignmentId ?? undefined,
-            goalId: addition.goalId ?? undefined,
-            replaceExisting: false,
-          });
-          insertedIds.push(saved.suggestedWorkoutId);
-        }
-        return { count: insertedIds.length };
+        return await saveReviewedWeeklyCoachDraft({
+          reviewed: weeklyCoachDraft,
+          fresh: freshDraft,
+          selected: additions,
+          save: (addition) =>
+            saveWorkoutPlanClient({
+              draft: addition.draft,
+              readiness: "normal",
+              status: "pending",
+              suggestedFor: addition.date,
+              planKind: addition.planKind,
+              programAssignmentId: addition.programAssignmentId ?? undefined,
+              goalId: addition.goalId ?? undefined,
+              replaceExisting: false,
+            }),
+          archive: (id) => updateSuggestedWorkoutStatusClient(id, "archived"),
+        });
       } catch (error) {
-        await Promise.all(
-          insertedIds.map((id) =>
-            updateSuggestedWorkoutStatusClient(id, "archived").catch(() => undefined),
-          ),
-        );
+        if (error instanceof StaleWeeklyCoachDraftError) {
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["workout-planner-history"] }),
+            queryClient.invalidateQueries({ queryKey: ["weekly-load-history"] }),
+            queryClient.invalidateQueries({ queryKey: ["programme-schedule"] }),
+            queryClient.invalidateQueries({ queryKey: ["scheduled-workout-plans"] }),
+            queryClient.invalidateQueries({ queryKey: ["coaching-preferences"] }),
+            queryClient.invalidateQueries({ queryKey: ["coaching-support-evidence"] }),
+            queryClient.invalidateQueries({ queryKey: ["coaching-recommendation-decisions"] }),
+            queryClient.invalidateQueries({ queryKey: ["weekly-coach-rollover"] }),
+          ]);
+        }
         throw error;
       }
     },
@@ -1548,7 +1533,10 @@ function PlanPage() {
         description: "The approved additions are now in Your week at a glance.",
       });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: async (error: Error) => {
+      await refreshScheduledPlans();
+      toast.error(error.message);
+    },
   });
 
   const decideCoachingRecommendation = useMutation({
@@ -1845,6 +1833,7 @@ function PlanPage() {
                 }
               : undefined
           }
+          strengthReviewUnavailable={programmeSchedule.data?.some((session) => session.isPersonal)}
           strengthReview={
             programmeRefresh.error || programmeStrengthReview.error ? (
               <div className="rounded-lg border border-destructive/35 p-3 text-sm text-destructive">

@@ -109,6 +109,26 @@ describe("training context card", () => {
     expect(screen.getByText(/Skill practice is attached to strength days/)).toBeInTheDocument();
   });
 
+  it("puts review actions first and explains the personal strength-review boundary", () => {
+    render(
+      <TrainingContextCard
+        plan={plan}
+        adjustments={{}}
+        programmeSessions={[]}
+        scheduledPlans={[]}
+        strengthReviewUnavailable
+      />,
+    );
+    expect(screen.getByText(/Strength-week review is not yet available/)).toBeInTheDocument();
+    expect(screen.getByText(/Today shows your next strength prescription/)).toBeInTheDocument();
+    expect(screen.getByText(/Check the next week after/)).toHaveTextContent("11 Oct");
+    const changes = screen.getByText("Changes to review");
+    const calendar = screen.getByText("Exact upcoming week");
+    expect(
+      changes.compareDocumentPosition(calendar) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("opens an editable coach setup without changing the weekly plan", () => {
     render(
       <TrainingContextCard

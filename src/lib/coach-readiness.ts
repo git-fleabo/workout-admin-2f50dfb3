@@ -7,8 +7,12 @@ import { recommendSkillPracticeDose } from "./programme-support.ts";
 import type { SavedWorkoutPlan } from "./supabase-plans.browser.ts";
 import type { WeeklyLoadHistoryItem } from "./supabase-weekly-load.browser.ts";
 import type { GoalRow } from "./training-types.ts";
-import type { WeeklyPlan, WeeklyPlanAdjustments } from "./weekly-plan.ts";
-import { buildWeeklyRecoveryRecommendation, type WeeklyRecoveryLevel } from "./weekly-recovery.ts";
+import type { WeeklyPlan } from "./weekly-plan.ts";
+import {
+  buildWeeklyRecoveryRecommendation,
+  type WeeklyRecoveryLevel,
+  type WeeklyRecoveryAdjustments,
+} from "./weekly-recovery.ts";
 import type { RecentWorkoutLog } from "./workout-plan.ts";
 
 export type CoachReadinessStatus = "ready" | "hold" | "reduce" | "insufficient";
@@ -67,7 +71,7 @@ export function buildCoachReadinessSnapshot({
   logs: RecentWorkoutLog[];
   loadHistory: WeeklyLoadHistoryItem[];
   plan: WeeklyPlan;
-  adjustments: WeeklyPlanAdjustments;
+  adjustments: WeeklyRecoveryAdjustments;
   supportPlans: ProgrammeSupportPlanHistoryEntry[];
   today: string;
 }): CoachReadinessSnapshot {

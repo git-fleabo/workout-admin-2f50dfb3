@@ -1,7 +1,9 @@
+import { getWeeklyLoadHistoryClient } from "@/lib/supabase-weekly-load.browser";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { listGoalsClient } from "@/lib/supabase-goals.browser";
 
 const mocks = vi.hoisted(() => ({
   save: vi.fn(),
@@ -145,11 +147,11 @@ const sessions = [
   plan: { version: 1, locationKind: "gym", movements: [] },
 }));
 
-function renderPlanner() {
+function renderPlanner(
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
   return render(
-    <QueryClientProvider
-      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
-    >
+    <QueryClientProvider client={client}>
       <ProgrammeSupportPlanner
         assignmentId="assignment-1"
         programmeName="My strength block"
@@ -217,7 +219,10 @@ describe("programme supporting goals planner", () => {
       mocks.createdGoal = true;
       return { ok: true, goalId: "goal-2", row: "Supabase" };
     });
-    renderPlanner();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(["coach-focus-goals"], { items: [] });
+    renderPlanner(client);
+    await waitFor(() => expect(getWeeklyLoadHistoryClient).toHaveBeenCalledWith());
 
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "Build supporting goals" }));
@@ -238,6 +243,12 @@ describe("programme supporting goals planner", () => {
       await screen.findByRole("checkbox", { name: /Hold Handstand for 20 seconds/ }),
     ).toBeChecked();
     expect(screen.getByText("Starting dose")).toBeInTheDocument();
+    const coachGoals = await client.fetchQuery({
+      queryKey: ["coach-focus-goals"],
+      queryFn: listGoalsClient,
+      staleTime: Infinity,
+    });
+    expect(coachGoals.items.some((goal) => goal.id === "goal-2")).toBe(true);
   });
 
   it("prompts for review after a support block and prefills the next dose", async () => {

@@ -1,14 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { pgSkip, temporaryPostgres, json } from "./helpers/temporary-postgres.ts";
 
-const pgBin = process.env.PERSONAL_PROGRAMME_PG_BIN;
 const id = (last: number) => `00000000-0000-4000-8000-${String(last).padStart(12, "0")}`;
-const literal = (value: unknown) => `'${String(value).replaceAll("'", "''")}'`;
-const json = (value: unknown) => `${literal(JSON.stringify(value))}::jsonb`;
 const plan = {
   version: 1,
   locationKind: "gym",
@@ -51,49 +46,11 @@ const sessions = [0, 1, 2].map((index) => ({
 
 test(
   "personal programme database lifecycle, concurrency guards and person isolation",
-  { skip: !pgBin },
+  { skip: pgSkip },
   async (t) => {
-    const root = mkdtempSync(join(tmpdir(), "train-track-pg-"));
-    const data = join(root, "data");
-    const run = (binary: string, args: string[], input?: string) =>
-      execFileSync(join(pgBin!, binary), args, {
-        input,
-        encoding: "utf8",
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-    let started = false;
-    const sql = (query: string, person?: string, role = "authenticated") =>
-      run(
-        "psql",
-        [
-          "-h",
-          root,
-          "-p",
-          "54439",
-          "-d",
-          "postgres",
-          "-X",
-          "-q",
-          "-A",
-          "-t",
-          "-v",
-          "ON_ERROR_STOP=1",
-        ],
-        `${person ? `set role ${role}; set request.jwt.claim.sub=${literal(person)};` : ""}\n${query}`,
-      ).trim();
+    const database = temporaryPostgres();
+    const { sql } = database;
     try {
-      run("initdb", ["-D", data, "-A", "trust", "--no-locale"]);
-      run("pg_ctl", [
-        "-D",
-        data,
-        "-l",
-        join(root, "log"),
-        "-o",
-        `-h '' -k ${root} -p 54439`,
-        "-w",
-        "start",
-      ]);
-      started = true;
       sql(
         readFileSync(
           new URL("./fixtures/personal-programme-database.sql", import.meta.url),
@@ -475,8 +432,7 @@ test(
         },
       );
     } finally {
-      if (started) run("pg_ctl", ["-D", data, "-m", "immediate", "-w", "stop"]);
-      rmSync(root, { recursive: true, force: true });
+      database.close();
     }
   },
 );

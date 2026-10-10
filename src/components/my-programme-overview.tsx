@@ -352,7 +352,7 @@ export function MyProgrammeOverview({
                 <ProgrammeSupportPlanner
                   assignmentId={active.id}
                   programmeName={template.name}
-                  sessions={personal.sessions}
+                  sessions={active.personalProgramme.sessions}
                 />
                 <PersonalProgrammeEditor
                   assignment={active}

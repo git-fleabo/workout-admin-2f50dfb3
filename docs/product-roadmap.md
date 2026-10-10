@@ -1,6 +1,6 @@
 # train n track Product Roadmap
 
-Last updated: 2026-10-05
+Last updated: 2026-10-10
 
 ## Current Personal Priority
 
@@ -22,7 +22,8 @@ the saved limit. Suggestions do not silently change future targets.
 
 Migration `20261004132906_editable_personal_programmes.sql` was applied narrowly to the existing
 Supabase project on 2026-10-04 and verified without changing existing training records. Its frontend
-was subsequently pushed through GitHub and Lovable by Noam. No live personal programme was created.
+was subsequently pushed through GitHub and Lovable by Noam. A disposable live personal programme
+journey was completed and fully cleaned up on 2026-10-10.
 See the dated database verification note for evidence.
 
 The Plan screen now turns the current week into an executable schedule. Yoga, a configured mobility
@@ -67,23 +68,46 @@ skill pairing and recovery sessions placed away from demanding work. It does not
 
 ## Adaptive Coaching Path
 
-The app is around the middle of the path to a sophisticated adaptive coach. The structured
-programme, exact prescriptions, unified logging, history, weekly planning and explainable progress
-signals provide most of the required foundation. Strength and calisthenics now have cautious
-evidence-to-recommendation loops, while mobility remains deliberately user-directed.
+The major weekly coach engines are implemented. The current release combines exact saved work,
+priorities and capacity, conservative readiness inference, one reviewed schedule/support change,
+accepted-work outcomes, weekly rollover, cross-domain adaptation and editable weekly drafting.
+Native strength assignments also have separately approved, temporary week-specific load and set
+adjustments with prescribed-versus-completed review. No change silently rewrites the programme.
 
-The remaining stages are:
+Validation on 10 October covered a freshly authorized disposable signed-in journey on live build
+`B6E1FBD`, followed by exact restoration of all 54 public tables. The repository now includes an
+isolated PostgreSQL journey exercising the actual programme and coach migrations, person-scoped
+access, stale drafts, atomic decision failure, partial-draft compensation and exact fixture cleanup.
+A simulated two-week scenario connects strength, climbing, yoga, mobility, calisthenics, completed
+work, outcome learning and rollover. Protective pain evidence wins over otherwise positive feedback.
+This simulation does not replace two weeks of personal training experience.
 
-1. Combine strength, climbing, mobility, skills and other weekly load into one current training
-   context rather than reviewing each area separately. — initial read-only weekly context
-   implemented
-2. Add a short optional readiness signal and use it with completed work, missed targets, effort and
-   recent load to adjust timing or dose conservatively.
-3. Resolve competing goals explicitly, including which goal is primary, which are maintained and
-   what weekly time or recovery budget is available.
-4. Generate one editable weekly recommendation with clear evidence, confidence and change history.
-5. Learn from accepted, changed and rejected recommendations without silently rewriting a saved
-   programme.
+Repairs from that review normalize source sequence labels to zero-based programme positions, refresh
+new goal choices in coach setup, put early completions on their actual dates without double-counting
+Home/Gym logs, and report failed draft compensation. The weekly review now puts changes before the
+calendar, keeps the detailed stance with its evidence, labels pending extras optional and explains
+when to return. See [the dated verification report](./adaptive-coach-verification-2026-10-10.md).
+
+The combined **personal programme + adaptive strength review** is still incomplete: personal copies
+are explicitly excluded from the current native strength-review flow. The UI now states this boundary
+instead of implying there is no strength change to consider. Personal prescriptions remain editable
+in My Programme, and supporting-work coaching remains available. Extending temporary strength-week
+reviews to editable personal copies is the next major milestone; preserve custom targets, revisions,
+started snapshots and completed history throughout that work.
+
+Release checks still required:
+
+1. Apply `20261010000854_fix_programme_workout_positions.sql` through the normal migration process,
+   synchronize/publish the repository changes through Noam's Lovable workflow, and verify the new
+   visible build. The migration is tested locally and remains unapplied to the live project.
+2. Recheck these repairs on that published build, especially completed-session placement and
+   programme numbering. The live journey exercised the earlier build; local tests verify the repairs.
+3. Repeat the weekly loop during real training to evaluate whether the revised hierarchy is sufficient.
+   The disposable journey and date-advanced scenario are completed; a real fortnight is not claimed.
+
+Manual daily readiness, shifting a programme's start date as one reviewed action, and deeper
+climbing/mobility/yoga prescription progression remain optional later enhancements. Existing inferred
+readiness is already implemented and does not depend on a daily questionnaire.
 
 ## Product Direction
 

@@ -1,6 +1,10 @@
 import type { WeeklyLoadHistoryItem, WeeklyLoadKind } from "./supabase-weekly-load.browser";
-import type { WeeklyPlan, WeeklyPlanAdjustments, WeeklyPlanItemKind } from "./weekly-plan";
+import type { WeeklyPlan, WeeklyPlanItemKind } from "./weekly-plan";
 import type { RecentWorkoutLog } from "./workout-plan";
+
+export type WeeklyRecoveryAdjustments = Partial<
+  Record<string, Array<WeeklyPlanItemKind | "strength">>
+>;
 
 export type WeeklyRecoveryLevel = "normal" | "lighter" | "deload";
 export type WeeklyRecoveryMode = "normal" | "deload";
@@ -160,7 +164,7 @@ function decliningExercises(logs: RecentWorkoutLog[]) {
   });
 }
 
-function plannedWeek(plan: WeeklyPlan, adjustments: WeeklyPlanAdjustments) {
+function plannedWeek(plan: WeeklyPlan, adjustments: WeeklyRecoveryAdjustments) {
   let score = 0;
   let days = 0;
   for (const day of plan.days) {
@@ -191,7 +195,7 @@ export function buildWeeklyRecoveryRecommendation({
   logs: RecentWorkoutLog[];
   loadHistory: WeeklyLoadHistoryItem[];
   plan: WeeklyPlan;
-  adjustments: WeeklyPlanAdjustments;
+  adjustments: WeeklyRecoveryAdjustments;
   today: string;
 }): WeeklyRecoveryRecommendation {
   const categories = dateCategoryMap(logs, loadHistory);

@@ -1,3 +1,4 @@
+import { completedItemCoveredBySavedPlans } from "./completed-coach-work.ts";
 import type { CoachingPreferences } from "./coaching-preferences.ts";
 import type { SavedWorkoutPlan } from "./supabase-plans.browser.ts";
 import type { ProgrammeScheduleSession } from "./supabase-programmes.browser.ts";
@@ -218,7 +219,10 @@ export function buildWeeklyCoachCapacity({
       date: saved.suggestedFor,
       title: saved.title,
       kind,
-      minutes: estimateWorkoutDraftMinutes(saved, saved.planKind),
+      minutes:
+        saved.status === "completed" && saved.completedMinutes && saved.completedMinutes > 0
+          ? saved.completedMinutes
+          : estimateWorkoutDraftMinutes(saved, saved.planKind),
       demanding: DEMANDING.has(kind),
       source: "saved",
     });
@@ -226,6 +230,7 @@ export function buildWeeklyCoachCapacity({
 
   for (const day of plan.days) {
     for (const item of day.completedItems) {
+      if (completedItemCoveredBySavedPlans(day, item, scheduledPlans)) continue;
       const kind = completedKind(item);
       if (sessions.some((session) => session.date === day.date && session.kind === kind)) continue;
       sessions.push({

@@ -567,7 +567,7 @@ export function recommendSkillPracticeDose({
 }): SkillPracticeDoseRecommendation {
   const trackingMode = skillTrackingMode(goal, exercise);
   const hold = trackingMode === "hold" || trackingMode === "grip_hold";
-  const unit = hold ? "seconds" : "reps";
+  const unit: SkillPracticeDoseRecommendation["unit"] = hold ? "seconds" : "reps";
   const startingSets = Math.min(
     6,
     Math.max(1, Math.round(firstPositiveNumber(exercise.suggestedSets, 3))),

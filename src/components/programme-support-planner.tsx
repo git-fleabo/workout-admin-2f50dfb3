@@ -65,7 +65,8 @@ import {
 } from "@/lib/supabase-plans.browser";
 import type { PersonalProgrammeSession } from "@/lib/personal-programme";
 import type { PlannerLocation } from "@/lib/workout-plan";
-import { buildWeeklyPlan, type WeeklyPlanAdjustments } from "@/lib/weekly-plan";
+import { buildWeeklyPlan } from "@/lib/weekly-plan";
+import type { WeeklyRecoveryAdjustments } from "@/lib/weekly-recovery";
 
 type AvailableTrack = {
   id: string;
@@ -169,7 +170,7 @@ export function ProgrammeSupportPlanner({
   });
   const weeklyLoad = useQuery({
     queryKey: ["weekly-load-history"],
-    queryFn: getWeeklyLoadHistoryClient,
+    queryFn: () => getWeeklyLoadHistoryClient(),
     staleTime: 60_000,
   });
   const coachingPreferences = useQuery({
@@ -191,7 +192,7 @@ export function ProgrammeSupportPlanner({
     queryFn: () => listCoachingRecommendationDecisionsClient(coachWeeklyPlan.startDate),
     staleTime: 30_000,
   });
-  const coachPlanAdjustments = useMemo<WeeklyPlanAdjustments>(() => {
+  const coachPlanAdjustments = useMemo<WeeklyRecoveryAdjustments>(() => {
     const programmeDates = new Set(sessions.map((session) => session.scheduledDate));
     return Object.fromEntries(
       coachWeeklyPlan.days.flatMap((day) =>
@@ -444,6 +445,7 @@ export function ProgrammeSupportPlanner({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["goals"] }),
         queryClient.invalidateQueries({ queryKey: ["programme-support-goals"] }),
+        queryClient.invalidateQueries({ queryKey: ["coach-focus-goals"] }),
       ]);
       const refreshed = await goals.refetch();
       const created = refreshed.data?.items.find((item) => item.id === result.goalId);

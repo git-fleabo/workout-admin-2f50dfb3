@@ -111,7 +111,14 @@ function sourceFingerprint({
   return JSON.stringify({
     version: 1,
     week: [plan.startDate, plan.endDate],
-    completed: plan.days.map((day) => [day.date, [...day.completedItems].sort()]),
+    completed: plan.days.map((day) => [
+      day.date,
+      [...day.completedItems].sort(),
+      [...(day.completedEvidence ?? [])].sort(
+        (left, right) =>
+          left.sessionId.localeCompare(right.sessionId) || left.item.localeCompare(right.item),
+      ),
+    ]),
     programme: programmeSessions
       .map((session) => [
         session.assignmentId,
@@ -128,6 +135,10 @@ function sourceFingerprint({
         saved.planKind,
         saved.goalId,
         saved.mobilityRunId,
+        saved.completedSessionId,
+        saved.completedMinutes,
+        saved.movements,
+        saved.methodBlocks,
       ])
       .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))),
     preferences,
