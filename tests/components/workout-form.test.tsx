@@ -163,6 +163,66 @@ describe("FullWorkoutForm draft lifecycle", () => {
     await waitFor(() => expect(window.localStorage.getItem(draftKey)).toBeNull());
   });
 
+  it("calculates DUP back-offs from the actual top-set load and records the selected loads", async () => {
+    window.localStorage.setItem(
+      "workout-plan-draft",
+      JSON.stringify({
+        version: 1,
+        title: "DUP peak",
+        locationKind: "gym",
+        trainingLocationId: "gym",
+        basis: "Source targets",
+        personalProgramme: true,
+        movements: [
+          {
+            exercise: "Bench Press",
+            workoutType: "Strength",
+            trackingMode: "weight_reps",
+            sourceDate: "",
+            reason: "Choose top load at RPE 7",
+            progression: { type: "source", minReps: 8, maxReps: 12, incrementKg: 2.5, maxRpe: 8 },
+            baseStrength: { programme: "dup", phase: "peak", backOffPercent: 90, incrementKg: 2.5 },
+            targets: {
+              durationMinutes: "",
+              distance: "",
+              distanceUnit: "",
+              rounds: "",
+              height: "",
+              detail: "",
+            },
+            setRows: [103, 90, 90].map((weight, i) => ({
+              reps: "6",
+              weight: String(weight),
+              durationSeconds: "",
+              rpe: i === 0 ? "7" : "",
+              completed: true,
+            })),
+          },
+        ],
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithQueries(<FullWorkoutForm />);
+    await user.click(await screen.findByRole("button", { name: "Calculate back-off loads" }));
+    await waitFor(() => {
+      const draft = JSON.parse(
+        window.localStorage.getItem("workout-session-draft:signed-out") ?? "null",
+      );
+      expect(draft?.form?.entries?.[0]?.setRows.map((r: { weight: string }) => r.weight)).toEqual([
+        "103",
+        "92.5",
+        "92.5",
+      ]);
+    });
+    await user.click(screen.getByRole("button", { name: "Review and finish" }));
+    await user.click(await screen.findByRole("button", { name: "Finish workout", exact: true }));
+    await waitFor(() => expect(mocks.addWorkoutSessionClient).toHaveBeenCalledTimes(1));
+    const payload = mocks.addWorkoutSessionClient.mock.calls[0][0] as {
+      entries: { setRows: { weight: string }[] }[];
+    };
+    expect(payload.entries[0].setRows.map((r) => r.weight)).toEqual(["103", "92.5", "92.5"]);
+  });
+
   it("clears the draft after the finish mutation succeeds", async () => {
     renderWithQueries(<FullWorkoutForm />);
     await screen.findByText("Your workout");

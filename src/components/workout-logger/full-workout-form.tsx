@@ -1,3 +1,4 @@
+import { dupBackOffRows } from "@/lib/base-strength-backoff";
 import { progressionSummary } from "@/lib/programme-progression";
 import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
@@ -197,6 +198,7 @@ const FALLBACK_MOVEMENTS: Array<{
 ];
 
 export type FormState = {
+  dupBackOffIncrement?: number;
   clientId: string;
   date: string;
   entryKind: string;
@@ -1689,6 +1691,12 @@ export function FullWorkoutForm() {
         const firstSet = movement.setRows[0];
         return {
           ...blankSessionEntry(),
+          dupBackOffIncrement:
+            movement.baseStrength?.programme === "dup" &&
+            movement.baseStrength.backOffPercent === 90 &&
+            movement.progression?.type === "source"
+              ? movement.baseStrength.incrementKg
+              : undefined,
           exercise: movement.exercise,
           workoutType: movement.workoutType,
           sets: movement.targets.rounds || String(movement.setRows.length),
@@ -1875,6 +1883,7 @@ export function FullWorkoutForm() {
     const nextEntry: FormState = {
       ...currentEntry,
       exercise: name,
+      dupBackOffIncrement: undefined,
       workoutType: selected?.workoutType ?? "Other",
       entryKind:
         selected?.workoutType === SKILL_WORKOUT_TYPE
@@ -2784,6 +2793,33 @@ export function FullWorkoutForm() {
                 profile === "grip" ||
                 hasPlannedTimedSets) ? (
                 <div className="space-y-3">
+                  {entry.dupBackOffIncrement && (
+                    <div className="space-y-2 rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">
+                        DUP: set 1 is the top set. After choosing its actual load, calculate 10%
+                        lighter targets for the remaining sets. Record what you actually perform.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={!entry.setRows[0]?.weight || Number(entry.setRows[0].weight) <= 0}
+                        onClick={() =>
+                          updateEntry(
+                            index,
+                            "setRows",
+                            dupBackOffRows(
+                              entry.setRows,
+                              entry.setRows[0].weight,
+                              entry.dupBackOffIncrement!,
+                            ),
+                          )
+                        }
+                      >
+                        Calculate back-off loads
+                      </Button>
+                    </div>
+                  )}
                   <SetRowsEditor
                     control={control}
                     entryIndex={index}

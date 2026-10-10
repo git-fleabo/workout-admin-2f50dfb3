@@ -28,6 +28,8 @@ const phaseKey = (phase: BaseStrengthPhase, name: string) => `${phase}:${name}`;
 
 function prescriptionLabel(movement: BaseStrengthMovement) {
   if (movement.sets == null) return "Choose sets and reps";
+  if (movement.backOffSets != null)
+    return `Top set × ${movement.reps} reps · ${movement.backOffSets} back-off sets × ${movement.reps} reps at 90% of top-set load`;
   const reps = movement.reps == null ? "AMRAP" : `${movement.reps} reps`;
   return `${movement.sets} ${movement.sets === 1 ? "set" : "sets"} × ${reps}${movement.plusLastSet && movement.reps != null ? ` · final set ${movement.reps}+` : ""}`;
 }
@@ -58,6 +60,9 @@ export function BaseStrengthProgrammePreview() {
     setWorkingLoad("");
     setPlusReps("");
     setAllCompleted(false);
+    setMaxes((previous) =>
+      Object.fromEntries(Object.entries(previous).filter(([key]) => !key.startsWith("top:"))),
+    );
   };
   const chooseWeek = (index: number) => {
     setWeekIndex(index);
@@ -90,10 +95,10 @@ export function BaseStrengthProgrammePreview() {
         <Badge variant="outline">Programme previews</Badge>
       </div>
       <p className="text-sm text-muted-foreground">
-        Two approaches from Alex Bromley. Compare their workouts and try the progression before
-        personal setup.
+        Programmes from Alex Bromley. Compare their workouts and try the progression before personal
+        setup.
       </p>
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-3">
         {BASE_STRENGTH_CATALOGUE.map((item) => (
           <button
             key={item.id}
@@ -103,6 +108,7 @@ export function BaseStrengthProgrammePreview() {
             onClick={() => {
               setSetup(false);
               setSelected(item.id);
+              setOptions(DEFAULT_VOLUME_INTENSITY_OPTIONS);
               chooseWeek(0);
             }}
             className={`rounded-2xl border p-5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected === item.id ? "border-primary bg-primary/10" : "border-border bg-card hover:border-primary/50"}`}
@@ -135,12 +141,67 @@ export function BaseStrengthProgrammePreview() {
               </span>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-              Base work builds capacity; the peak shifts towards heavier, more specific work. Deload
-              weeks can be added during personal setup.
+              Base work builds capacity; the peak shifts towards heavier, more specific work. Review
+              recovery breaks in your personal schedule.
             </p>
           </div>
           <CardContent className="space-y-6 p-5">
-            {selected === "volume_intensity" ? (
+            {selected === "dup" ? (
+              <details className="rounded-xl border border-border p-3">
+                <summary className="cursor-pointer text-sm font-medium">
+                  Base wave repeats · personal choice
+                </summary>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Start with one three-week base wave and one three-week peak wave. Repeat counts
+                  are app choices; the book permits base repeats with a 2–4% increase. No fixed
+                  deload is prescribed here.
+                </p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <label className="space-y-1.5 text-sm">
+                    Base waves
+                    <select
+                      className={selectClass}
+                      value={options.dupBaseWaves ?? 1}
+                      onChange={(e) => {
+                        setSetup(false);
+                        setOptions((previous) => ({
+                          ...previous,
+                          dupBaseWaves: Number(e.target.value),
+                        }));
+                        chooseWeek(0);
+                      }}
+                    >
+                      {[1, 2, 3, 4].map((n) => (
+                        <option key={n} value={n}>
+                          {n} {n === 1 ? "wave" : "waves"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1.5 text-sm">
+                    Increase between base repeats
+                    <select
+                      className={selectClass}
+                      value={options.waveIncreasePercent}
+                      onChange={(e) => {
+                        setSetup(false);
+                        setOptions((previous) => ({
+                          ...previous,
+                          waveIncreasePercent: Number(e.target.value),
+                        }));
+                        chooseWeek(0);
+                      }}
+                    >
+                      {[2, 3, 4].map((n) => (
+                        <option key={n} value={n}>
+                          {n}% of estimated 1RM
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </details>
+            ) : selected === "volume_intensity" ? (
               <details className="rounded-xl border border-border p-3">
                 <summary className="cursor-pointer text-sm font-medium">
                   Wave choices · adjustable preview defaults
@@ -234,33 +295,36 @@ export function BaseStrengthProgrammePreview() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-border bg-muted/20 p-4">
-              <h4 className="text-sm font-semibold">
-                Estimated one-rep maxes · {week.phaseLabel.toLowerCase()}
-              </h4>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Optional for previewing weights. Use a tested or estimated 1RM, rather than a
-                discounted training max. Estimates are separate for each phase; reassess at the
-                transition. Loads round to the nearest chosen increment.
-              </p>
-              <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                {Object.entries(BASE_STRENGTH_LIFTS).map(([key, name]) => (
-                  <div key={key} className="space-y-1.5">
-                    <Label htmlFor={`bs-max-${key}`}>{name} (kg)</Label>
-                    <Input
-                      id={`bs-max-${key}`}
-                      type="number"
-                      min="0.5"
-                      step="0.5"
-                      placeholder="Estimated 1RM"
-                      value={maxes[phaseKey(week.phase, key)] ?? ""}
-                      onChange={(event) => updateMax(key, event.target.value)}
-                    />
-                  </div>
-                ))}
+            {!(selected === "dup" && week.phase === "peak") && (
+              <div className="rounded-xl border border-border bg-muted/20 p-4">
+                <h4 className="text-sm font-semibold">
+                  Estimated one-rep maxes · {week.phaseLabel.toLowerCase()}
+                </h4>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {selected === "dup"
+                    ? "Optional for previewing base weights. Use each lift’s tested or estimated 1RM. Peak loads will be chosen by RPE. Loads round to the nearest chosen increment."
+                    : "Optional for previewing weights. Use a tested or estimated 1RM, rather than a discounted training max. Estimates are separate for each phase; reassess at the transition. Loads round to the nearest chosen increment."}
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  {Object.entries(BASE_STRENGTH_LIFTS)
+                    .filter(([key]) => selected !== "dup" || key !== "press")
+                    .map(([key, name]) => (
+                      <div key={key} className="space-y-1.5">
+                        <Label htmlFor={`bs-max-${key}`}>{name} (kg)</Label>
+                        <Input
+                          id={`bs-max-${key}`}
+                          type="number"
+                          min="0.5"
+                          step="0.5"
+                          placeholder="Estimated 1RM"
+                          value={maxes[phaseKey(week.phase, key)] ?? ""}
+                          onChange={(event) => updateMax(key, event.target.value)}
+                        />
+                      </div>
+                    ))}
+                </div>
               </div>
-            </div>
-
+            )}
             <div className="space-y-3" aria-label={`Week ${week.number} sessions`}>
               {sessions.map((session, index) => (
                 <details
@@ -271,7 +335,9 @@ export function BaseStrengthProgrammePreview() {
                   <summary className="cursor-pointer text-sm font-semibold">
                     {session.name}
                     <span className="ml-2 font-normal text-muted-foreground">
-                      {session.movements.length} movements
+                      {selected === "dup"
+                        ? "3 main lifts · 2 optional"
+                        : `${session.movements.length} movements`}
                     </span>
                   </summary>
                   <div className="mt-3 divide-y divide-border">
@@ -284,9 +350,11 @@ export function BaseStrengthProgrammePreview() {
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <span className="text-sm font-medium">{item.name}</span>
                             <Badge variant="outline">
-                              {item.role === "variation"
-                                ? "Source variation · editable"
-                                : item.role}
+                              {item.exposure
+                                ? `${item.exposure} reps`
+                                : item.role === "variation"
+                                  ? "Source variation · editable"
+                                  : item.role}
                             </Badge>
                           </div>
                           <p className="text-sm">
@@ -300,6 +368,34 @@ export function BaseStrengthProgrammePreview() {
                           <p className="text-xs leading-relaxed text-muted-foreground">
                             {item.guidance}
                           </p>
+                          {item.backOffSets != null ? (
+                            <label className="block space-y-1 text-xs">
+                              Example top-set load · {item.name}
+                              <Input
+                                aria-label={`${session.name} ${item.name} example top load`}
+                                className="h-8 w-28"
+                                type="number"
+                                min="0.1"
+                                step="any"
+                                value={maxes[`top:${index}:${item.name}`] ?? ""}
+                                onChange={(e) =>
+                                  setMaxes((previous) => ({
+                                    ...previous,
+                                    [`top:${index}:${item.name}`]: e.target.value,
+                                  }))
+                                }
+                              />
+                              <span className="block text-muted-foreground">
+                                {roundedPreviewLoad(
+                                  numberValue(maxes[`top:${index}:${item.name}`] ?? ""),
+                                  90,
+                                  Number(increment),
+                                ) == null
+                                  ? "Choose a top-set load to preview the back-offs."
+                                  : `Back-off load: ${roundedPreviewLoad(numberValue(maxes[`top:${index}:${item.name}`] ?? ""), 90, Number(increment))} kg`}
+                              </span>
+                            </label>
+                          ) : null}
                           {item.reference === "variation" ? (
                             <div className="flex flex-wrap items-center gap-2">
                               <Label htmlFor={`bs-variation-${index}`}>
@@ -327,7 +423,25 @@ export function BaseStrengthProgrammePreview() {
 
             <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
               <h4 className="font-semibold">How progression works</h4>
-              {selected === "volume_intensity" ? (
+              {selected === "dup" ? (
+                <div className="mt-2 space-y-2 text-sm leading-relaxed text-muted-foreground">
+                  <p>
+                    Base work rotates high, medium and low reps across the three lifts, adding sets
+                    while reps fall. Repeats add {options.waveIncreasePercent}% of the estimated 1RM
+                    to the starting percentages.
+                  </p>
+                  <p>
+                    Peak top sets progress from RPE 7 to 8 to 9; back-off sets drop by one each
+                    week. Choose the top-set load for that day, then calculate 90% of it using your
+                    load increment. No plus-set increase applies.
+                  </p>
+                  <p>
+                    The peak’s day order is applied to squat, with bench and deadlift offset to keep
+                    demands staggered. This arrangement is an app choice. The base table is used
+                    where the book’s following prose differs.
+                  </p>
+                </div>
+              ) : selected === "volume_intensity" ? (
                 <div className="mt-2 space-y-2 text-sm leading-relaxed text-muted-foreground">
                   <p>
                     Within a base wave, volume sets increase while reps fall. The intensity exposure

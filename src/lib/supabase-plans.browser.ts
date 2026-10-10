@@ -18,7 +18,7 @@ import { inferWorkoutPlanKind } from "./workout-plan";
 import { todayISO } from "./date";
 import { getTrackingModeValue, TRACKING_MODE_OPTIONS, type TrackingMode } from "./movement-metrics";
 import type { SuggestedWorkoutStatus } from "./workout-lifecycle";
-import { progressionSchema } from "./personal-programme";
+import { baseStrengthMovementSchema, progressionSchema } from "./personal-programme";
 import { applyProgrammeReviewClient } from "./supabase-programmes.browser";
 
 type SuggestedSetRow = {
@@ -244,6 +244,10 @@ function movementFromRow(entry: SuggestedEntryRow): WorkoutPlanMovement {
     (a, b) => a.set_number - b.set_number,
   );
   return {
+    baseStrength: (() => {
+      const rule = baseStrengthMovementSchema.safeParse(entry.target_metrics?.base_strength);
+      return rule.success ? rule.data : undefined;
+    })(),
     progression: (() => {
       const rule = progressionSchema.safeParse(entry.target_metrics?.progression);
       return rule.success ? rule.data : undefined;

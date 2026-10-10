@@ -1,3 +1,6 @@
+import { buildBaseStrengthPersonalSessions } from "@/lib/base-strength-personal";
+import { DEFAULT_VOLUME_INTENSITY_OPTIONS } from "@/lib/base-strength-preview";
+import { strengthChoices, strengthTemplate } from "../helpers/base-strength-fixtures";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -122,6 +125,42 @@ describe("programme session editing", () => {
     expect(options[1].workoutType).toBe("Conditioning");
     expect(session.plan.movements).toHaveLength(1);
   });
+  it("recalculates DUP dependent sets from the selected top load and leaves other sessions untouched", async () => {
+    const sessions = buildBaseStrengthPersonalSessions({
+      programme: "dup",
+      options: DEFAULT_VOLUME_INTENSITY_OPTIONS,
+      template: strengthTemplate("dup", 6),
+      choices: strengthChoices("dup"),
+      startedOn: "2026-10-12",
+      increment: 2.5,
+      locationKind: "gym",
+    });
+    const user = userEvent.setup();
+    const save = vi.fn(async () => {});
+    render(
+      <ProgrammeSessionEditor
+        session={sessions[9]}
+        laterSessions={sessions.slice(10)}
+        exercises={exercises}
+        saving={false}
+        onSave={save}
+        onClose={vi.fn()}
+      />,
+    );
+    await user.type(screen.getByLabelText("Squat set 1 load"), "103");
+    expect(screen.getByLabelText("Squat set 2 load")).toHaveValue("92.5");
+    expect(screen.getByLabelText("Squat set 2 load")).toBeDisabled();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Squat reference max")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save future session" }));
+    expect(save).toHaveBeenCalledTimes(1);
+    const [saved] = save.mock.calls[0][0] as PersonalProgrammeSession[];
+    expect(saved.plan.movements[0].setRows[0].weight).toBe("103");
+    expect(saved.plan.movements[0].setRows.slice(1).every((r) => r.weight === "92.5")).toBe(true);
+    expect(sessions[9].plan.movements[0].setRows[0].weight).toBe("");
+    expect(sessions[10].plan.movements[0].setRows[0].weight).toBe("");
+  });
+
   it("edits original targets and explains cancellation of a temporary week", () => {
     const reviewedPlan = structuredClone(session.plan);
     reviewedPlan.movements[0].setRows[0].weight = "19";

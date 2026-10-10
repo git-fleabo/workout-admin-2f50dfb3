@@ -41,6 +41,7 @@ const workoutSetSchema = z.object({
 });
 
 const workoutEntrySchema = z.object({
+  dupBackOffIncrement: z.number().positive().max(100).optional(),
   clientId: z.string(),
   date: z.string().min(1, "Date is required"),
   entryKind: z.string(),
