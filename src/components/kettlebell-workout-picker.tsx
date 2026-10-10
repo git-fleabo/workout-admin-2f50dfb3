@@ -322,6 +322,10 @@ export function KettlebellWorkoutPicker({
                             {block.blockDurationMinutes
                               ? ` · ${block.blockDurationMinutes} min`
                               : ""}
+                            {block.config.mode === "emom" &&
+                            typeof block.config.interval_seconds === "number"
+                              ? ` · Start every ${block.config.interval_seconds} sec`
+                              : ""}
                             {block.workIntervalSeconds
                               ? ` · ${block.workIntervalSeconds} sec work`
                               : ""}

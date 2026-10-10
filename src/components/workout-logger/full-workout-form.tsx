@@ -3009,7 +3009,7 @@ export function FullWorkoutForm() {
               <div>
                 <p className="text-sm font-medium">Across movements</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Supersets, circuits, AMRAP, EDT and Tabata.
+                  Supersets, circuits, AMRAP, EMOM, EDT and Tabata.
                 </p>
               </div>
               <Button
@@ -3063,6 +3063,10 @@ export function FullWorkoutForm() {
                               movementNames.join(" → "),
                               block.blockDurationMinutes
                                 ? `${block.blockDurationMinutes} min block`
+                                : "",
+                              block.config.mode === "emom" &&
+                              typeof block.config.interval_seconds === "number"
+                                ? `Start every ${block.config.interval_seconds}s`
                                 : "",
                               block.workIntervalSeconds ? `${block.workIntervalSeconds}s work` : "",
                               block.restIntervalSeconds ? `${block.restIntervalSeconds}s rest` : "",

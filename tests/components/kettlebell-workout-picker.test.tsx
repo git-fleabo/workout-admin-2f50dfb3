@@ -169,4 +169,30 @@ describe("kettlebell workout picker", () => {
     expect(screen.getByRole("button", { name: "Pick workout", exact: true })).toBeDisabled();
     expect(mocks.start).not.toHaveBeenCalled();
   });
+
+  it("shows EMOM cadence without presenting it as continuous work", async () => {
+    const workout = kbFixture("muscle");
+    workout.prescription.methodBlocks = [
+      {
+        trainingMethodId: kbId(80),
+        methodName: "EMOM",
+        family: "timed_density",
+        memberMovementIndexes: [0],
+        rounds: "5",
+        blockDurationMinutes: "20",
+        workIntervalSeconds: "",
+        restIntervalSeconds: "",
+        restBetweenMovementsSeconds: "",
+        restBetweenRoundsSeconds: "",
+        config: { mode: "emom", interval_seconds: 60, cycle_length: 4 },
+      },
+    ];
+    mocks.data = data([workout]);
+    show();
+    await open();
+    await userEvent.click(screen.getByRole("button", { name: "Pick workout", exact: true }));
+    expect(screen.getByText(/Start every 60 sec/)).toBeInTheDocument();
+    expect(screen.queryByText(/60 sec work/)).not.toBeInTheDocument();
+    expect(mocks.start).not.toHaveBeenCalled();
+  });
 });
