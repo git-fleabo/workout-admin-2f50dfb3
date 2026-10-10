@@ -407,6 +407,7 @@ export function MethodBlockDialog({
                 completedRounds,
                 config: {
                   ...selectedMethod.defaultConfig,
+                  ...(existing?.trainingMethodId === selectedMethod.id ? existing.config : {}),
                   movement_count: memberClientIds.length,
                   rounds: Number(rounds),
                   rest_between_movements_seconds: Number(restBetweenMovementsSeconds),

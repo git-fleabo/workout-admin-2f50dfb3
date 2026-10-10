@@ -2358,12 +2358,15 @@ export function FullWorkoutForm() {
     const selected = libraryExercises.find(
       (exercise) => exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
     );
-    return profileSupportsAdvancedMethods(
-      getMovementMetricProfile({
-        workoutType: selected?.workoutType ?? entry.workoutType,
-        movement: entry.exercise,
-        defaultMetric: selected?.metric,
-      }),
+    return (
+      entry.setRows.some((set) => Number(set.durationSeconds) > 0) ||
+      profileSupportsAdvancedMethods(
+        getMovementMetricProfile({
+          workoutType: selected?.workoutType ?? entry.workoutType,
+          movement: entry.exercise,
+          defaultMetric: selected?.metric,
+        }),
+      )
     );
   });
   const selectedLocation = locations.data?.find(

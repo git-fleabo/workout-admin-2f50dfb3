@@ -1,12 +1,25 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
+import type { TrainingMethod } from "@/lib/supabase-training-methods.browser";
 
 const mocks = vi.hoisted(() => ({
-  addWorkoutSessionClient: vi.fn(async () => ({ sessionId: "saved-session" })),
+  addWorkoutSessionClient: vi.fn<(input: unknown) => Promise<{ sessionId: string }>>(async () => ({
+    sessionId: "saved-session",
+  })),
   duplicateResponse: false,
+  trainingMethods: [] as TrainingMethod[],
+  extraExercises: [] as {
+    id: string;
+    name: string;
+    workoutType: string;
+    metric: string;
+    focusArea: string;
+    availableLocationIds: string[];
+    equipment: string;
+  }[],
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -34,6 +47,7 @@ vi.mock("@/lib/supabase-log.browser", () => ({
   findDuplicateLogClient: vi.fn(async () => mocks.duplicateResponse),
   getLibraryClient: vi.fn(async () => ({
     exercises: [
+      ...mocks.extraExercises,
       {
         id: "bench",
         name: "Bench Press",
@@ -93,7 +107,7 @@ vi.mock("@/lib/supabase-plans.browser", () => ({
 }));
 
 vi.mock("@/lib/supabase-training-methods.browser", () => ({
-  listTrainingMethodsClient: vi.fn(async () => ({ items: [] })),
+  listTrainingMethodsClient: vi.fn(async () => ({ items: mocks.trainingMethods })),
 }));
 
 import { ClimbForm, FullWorkoutForm } from "@/components/workout-logger/full-workout-form";
@@ -117,6 +131,8 @@ async function chooseBenchPress() {
 describe("FullWorkoutForm draft lifecycle", () => {
   beforeEach(() => {
     mocks.addWorkoutSessionClient.mockClear();
+    mocks.extraExercises = [];
+    mocks.trainingMethods = [];
   });
 
   afterEach(() => {
@@ -192,6 +208,105 @@ describe("FullWorkoutForm draft lifecycle", () => {
     const restSelect = restField?.querySelector<HTMLElement>("[role='combobox']");
     expect(restSelect).toBeTruthy();
     expect(restSelect).toHaveTextContent("Not recorded");
+  });
+
+  it("keeps timed recovery in sequence and preserves custom method settings when recording rounds", async () => {
+    mocks.extraExercises = [
+      {
+        id: "recovery",
+        name: "Timed Recovery",
+        workoutType: "Conditioning",
+        metric: "duration",
+        focusArea: "",
+        availableLocationIds: ["gym"],
+        equipment: "bodyweight",
+      },
+    ];
+    mocks.trainingMethods = [
+      {
+        id: "amrap",
+        name: "AMRAP",
+        systemKey: "amrap",
+        family: "timed_density",
+        description: "",
+        defaultConfig: { mode: "amrap", block_minutes: 20 },
+        isSystem: true,
+        isEnabled: true,
+        isActive: true,
+      },
+    ];
+    const movement = (exercise: string, workoutType: string, seconds: string) => ({
+      exercise,
+      workoutType,
+      trackingMode: "duration",
+      reason: "Original timed test sequence",
+      sourceDate: "",
+      targets: {
+        durationMinutes: "",
+        distance: "",
+        distanceUnit: "",
+        rounds: "",
+        height: "",
+        detail: "",
+      },
+      setRows: [{ reps: "", weight: "", durationSeconds: seconds, rpe: "", completed: false }],
+    });
+    window.localStorage.setItem(
+      "workout-plan-draft",
+      JSON.stringify({
+        version: 1,
+        title: "Original timed sequence",
+        locationKind: "gym",
+        trainingLocationId: "gym",
+        basis: "Original test",
+        movements: [
+          movement("Bench Press", "Strength", "30"),
+          movement("Timed Recovery", "Conditioning", "90"),
+        ],
+        methodBlocks: [
+          {
+            trainingMethodId: "amrap",
+            methodName: "AMRAP",
+            family: "timed_density",
+            memberMovementIndexes: [0, 1],
+            rounds: "",
+            blockDurationMinutes: "20",
+            workIntervalSeconds: "",
+            restIntervalSeconds: "",
+            restBetweenMovementsSeconds: "",
+            restBetweenRoundsSeconds: "",
+            config: { mode: "amrap", active_recovery_seconds: 90, cycle_length: 2 },
+          },
+        ],
+      }),
+    );
+    renderWithQueries(<FullWorkoutForm />);
+    await screen.findByText("Timed Recovery");
+    await userEvent.click(screen.getByRole("button", { name: "Edit", exact: true }));
+    expect(await screen.findByRole("checkbox", { name: "Include Timed Recovery" })).toBeChecked();
+    const roundsField = screen.getByText("Completed rounds (optional)").parentElement!;
+    await userEvent.type(within(roundsField).getByRole("spinbutton"), "1");
+    await userEvent.click(screen.getByRole("button", { name: "Save method", exact: true }));
+    await userEvent.click(screen.getByRole("button", { name: "Review and finish" }));
+    await screen.findByText("Finish this workout?");
+    await userEvent.click(screen.getByRole("button", { name: "Finish workout", exact: true }));
+    await waitFor(() => expect(mocks.addWorkoutSessionClient).toHaveBeenCalledTimes(1));
+    const payload = mocks.addWorkoutSessionClient.mock.calls[0]![0] as unknown as {
+      entries: { clientId: string }[];
+      methodBlocks: {
+        memberClientIds: string[];
+        completedRounds: string;
+        config: Record<string, unknown>;
+      }[];
+    };
+    expect(payload.methodBlocks[0]!.memberClientIds).toEqual(
+      payload.entries.map((entry) => entry.clientId),
+    );
+    expect(payload.methodBlocks[0]!.completedRounds).toBe("1");
+    expect(payload.methodBlocks[0]!.config).toMatchObject({
+      active_recovery_seconds: 90,
+      cycle_length: 2,
+    });
   });
 });
 
