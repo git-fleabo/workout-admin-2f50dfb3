@@ -88,12 +88,27 @@ Home/Gym logs, and report failed draft compensation. The weekly review now puts 
 calendar, keeps the detailed stance with its evidence, labels pending extras optional and explains
 when to return. See [the dated verification report](./adaptive-coach-verification-2026-10-10.md).
 
-The combined **personal programme + adaptive strength review** is still incomplete: personal copies
-are explicitly excluded from the current native strength-review flow. The UI now states this boundary
-instead of implying there is no strength change to consider. Personal prescriptions remain editable
-in My Programme, and supporting-work coaching remains available. Extending temporary strength-week
-reviews to editable personal copies is the next major milestone; preserve custom targets, revisions,
-started snapshots and completed history throughout that work.
+Personal copies now use the same reviewed strength-week loop. Each loaded movement can retain its
+saved load or use a 2.5% or 5% reduction; a reviewed week can remove one final working set where
+possible, always retaining at least one. The preview shows original and reviewed prescriptions,
+including custom names, dates, repetitions or holds, loads and rest. These percentages are relative
+to the personal copy's exact saved loads, rather than the template assignment's intensity points.
+
+Approval stores a temporary snapshot in the existing strength-week review history. Original personal
+prescriptions and progression rules remain untouched, so later weeks and restarts retain their own
+custom baselines. Today, Plan and the logger share the approved prescription. Starting rechecks both
+the base revision and review ID. Editing a reviewed future session explicitly cancels the temporary
+week for unstarted work; started and completed snapshots stay protected.
+
+After the reviewed week, the coach proposes restore, hold or extend using linked actual sets,
+repetitions/holds, loads, complete effort, technique and pain. Restoration requires every reviewed
+exposure to match its targets with sufficient evidence; missing logs, missing effort or exercise
+swaps cannot become positive evidence. The next week still changes only after another approval.
+See [the personal strength verification note](./personal-strength-week-review-verification-2026-10-10.md).
+
+The backend migration `20261010115211_add_personal_strength_week_reviews.sql` was applied and
+verified on 10 October without changing any records in the 54 public tables. The personal-review
+frontend is implemented and tested locally; Noam still needs to synchronize and publish this update.
 
 Migration `20261010000854_fix_programme_workout_positions.sql` was applied to the linked live
 Supabase project on 10 October after Noam reported publishing the frontend and authorized the

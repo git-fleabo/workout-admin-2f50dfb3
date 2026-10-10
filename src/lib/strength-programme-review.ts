@@ -1,3 +1,8 @@
+import {
+  buildPersonalStrengthProgrammeReview,
+  buildPersonalStrengthFollowUp,
+} from "./personal-strength-review.ts";
+import type { PersonalStrengthReviewSnapshot } from "./personal-strength-review.ts";
 import { ADAPTIVE_STRENGTH_METHOD, programmeWorkoutScheduledDate } from "./adaptive-strength.ts";
 import { buildProgrammeMovementPrescription } from "./programme-prescription.ts";
 import type {
@@ -9,6 +14,10 @@ import type { WeeklyRecoveryRecommendation } from "./weekly-recovery.ts";
 import type { WorkoutPlanMovement } from "./workout-plan.ts";
 
 export type StrengthProgrammeReviewExercise = {
+  personalKey?: string;
+  programmeKey?: string;
+  hasLoadTargets?: boolean;
+  hasReducibleSets?: boolean;
   assignmentExerciseId: string;
   exerciseId: string;
   exerciseName: string;
@@ -22,12 +31,14 @@ export type StrengthProgrammeReviewExercise = {
 };
 
 export type StrengthProgrammeReviewMovement = {
+  originalMovement?: WorkoutPlanMovement;
   exerciseId: string;
   exerciseName: string;
   movement: WorkoutPlanMovement;
 };
 
 export type StrengthProgrammeReviewSession = {
+  personalRevision?: number;
   workoutId: string;
   workoutName: string;
   scheduledDate: string | null;
@@ -36,6 +47,8 @@ export type StrengthProgrammeReviewSession = {
 };
 
 export type StrengthProgrammeReview = {
+  isPersonal?: boolean;
+  expectedCurrentWorkoutIndex?: number;
   programmeWeek: number | null;
   startWorkoutIndex: number;
   endWorkoutIndex: number;
@@ -52,6 +65,9 @@ export type StrengthProgrammeReview = {
 export type StrengthProgrammeRecommendationKind = "keep" | "reduce" | "restore" | "hold" | "extend";
 
 export type ProgrammeStrengthWeekReviewExercise = {
+  personalKey?: string;
+  programmeKey?: string;
+  exerciseId?: string;
   assignmentExerciseId: string;
   exerciseName: string;
   automaticAdjustmentPercent: number;
@@ -70,6 +86,7 @@ export type ProgrammeStrengthWeekOutcome = {
 };
 
 export type ProgrammeStrengthWeekReview = {
+  personalSessions?: PersonalStrengthReviewSnapshot[];
   id: string;
   programmeWeek: number | null;
   startWorkoutIndex: number;
@@ -164,11 +181,17 @@ export function buildStrengthProgrammeFollowUpProposal({
   assignment,
   recovery,
   appliedReview,
+  template,
 }: {
   assignment: ProgrammeAssignment;
   recovery: WeeklyRecoveryRecommendation;
   appliedReview: ProgrammeStrengthWeekReview;
+  template?: ProgrammeTemplate;
 }): StrengthProgrammeReviewProposal | null {
+  if (assignment.personalProgramme)
+    return template
+      ? buildPersonalStrengthFollowUp({ assignment, template, recovery, appliedReview })
+      : null;
   if (assignment.currentWorkoutIndex <= appliedReview.endWorkoutIndex) return null;
 
   const manualAdjustments: Record<string, number> = {};
@@ -321,11 +344,16 @@ export function buildStrengthProgrammeReview({
   setAdjustments?: Record<string, number>;
   proposal?: StrengthProgrammeReviewProposal | null;
 }): StrengthProgrammeReview | null {
-  if (
-    assignment.personalProgramme ||
-    template.methodType !== ADAPTIVE_STRENGTH_METHOD ||
-    template.id !== assignment.programId
-  ) {
+  if (assignment.personalProgramme)
+    return buildPersonalStrengthProgrammeReview({
+      assignment,
+      template,
+      recovery,
+      manualAdjustments,
+      setAdjustments,
+      proposal,
+    });
+  if (template.methodType !== ADAPTIVE_STRENGTH_METHOD || template.id !== assignment.programId) {
     return null;
   }
 

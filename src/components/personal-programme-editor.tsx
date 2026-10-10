@@ -200,6 +200,13 @@ export function ProgrammeSessionEditor({
           </DialogDescription>
         </DialogHeader>
       ) : null}
+      {session.reviewedPlan ? (
+        <p className="rounded-lg border border-cyan-400/25 p-3 text-xs text-muted-foreground">
+          You are editing the original saved targets. Saving an edit cancels this temporary
+          strength-week review for unstarted sessions. Started prescriptions stay fixed; review the
+          week again in Plan.
+        </p>
+      ) : null}
       <fieldset disabled={saving} className="contents">
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="space-y-1 text-sm">
@@ -636,6 +643,8 @@ export function PersonalProgrammeEditor({
           "programme-workout-offers",
           "programme-exercise-rule",
           "weekly-review",
+          "programme-refresh",
+          "programme-strength-week-review",
         ].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
       );
       if (isDesktop) {

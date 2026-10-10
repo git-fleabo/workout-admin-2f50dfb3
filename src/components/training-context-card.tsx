@@ -120,7 +120,6 @@ export function TrainingContextCard({
   outcomePending = false,
   onOutcomeReview,
   strengthReview,
-  strengthReviewUnavailable = false,
   weekDraft,
   weekDraftPending = false,
   onApplyWeekDraft,
@@ -147,7 +146,6 @@ export function TrainingContextCard({
   outcomePending?: boolean;
   onOutcomeReview?: (decisionId: string, rating: CoachOutcomeRating) => Promise<void>;
   strengthReview?: ReactNode;
-  strengthReviewUnavailable?: boolean;
   weekDraft?: WeeklyCoachDraft;
   weekDraftPending?: boolean;
   onApplyWeekDraft?: (additions: WeeklyCoachDraftAddition[]) => Promise<void>;
@@ -270,12 +268,6 @@ export function TrainingContextCard({
           </Badge>
         </div>
 
-        {strengthReviewUnavailable ? (
-          <p className="rounded-lg border border-border p-3 text-xs text-muted-foreground">
-            Strength-week review is not yet available for this personal programme. Review and edit
-            future prescriptions in My Programme; supporting-work coaching remains available here.
-          </p>
-        ) : null}
         {strengthReview}
 
         {outcomeReview && onOutcomeReview ? (

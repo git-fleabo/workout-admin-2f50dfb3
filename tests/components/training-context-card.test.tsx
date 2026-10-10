@@ -109,17 +109,17 @@ describe("training context card", () => {
     expect(screen.getByText(/Skill practice is attached to strength days/)).toBeInTheDocument();
   });
 
-  it("puts review actions first and explains the personal strength-review boundary", () => {
+  it("puts review actions first and explains optional support and review timing", () => {
     render(
       <TrainingContextCard
         plan={plan}
         adjustments={{}}
         programmeSessions={[]}
         scheduledPlans={[]}
-        strengthReviewUnavailable
+        strengthReview={<span>Personal strength week</span>}
       />,
     );
-    expect(screen.getByText(/Strength-week review is not yet available/)).toBeInTheDocument();
+    expect(screen.getByText("Personal strength week")).toBeInTheDocument();
     expect(screen.getByText(/Today shows your next strength prescription/)).toBeInTheDocument();
     expect(screen.getByText(/Check the next week after/)).toHaveTextContent("11 Oct");
     const changes = screen.getByText("Changes to review");

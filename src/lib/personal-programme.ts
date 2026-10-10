@@ -16,6 +16,8 @@ export type PersonalProgrammePlan = {
   movements: PersonalProgrammeMovement[];
 };
 export type PersonalProgrammeSession = {
+  reviewedPlan?: PersonalProgrammePlan;
+  strengthReviewId?: string;
   workoutId: string;
   revision: number;
   name: string;

@@ -1,3 +1,4 @@
+import { reviewedPersonalLoad } from "./personal-strength-review";
 import {
   supabasePublicDelete,
   supabasePublicInsert,
@@ -105,6 +106,7 @@ export type ProgrammeExercisePoolItem = {
 };
 
 export type ProgrammeAssignment = {
+  reviewLockedWorkoutIds?: string[];
   personalProgramme?: PersonalProgramme;
   id: string;
   programId: string;
@@ -550,8 +552,10 @@ export async function getUpcomingProgrammeScheduleClient(
             weekNumber: workout.weekNumber,
             sessionNumber: workout.sessionNumber,
             workoutNumber: workout.sequenceIndex + 1,
-            movementNames: personalSession.plan.movements.map((movement) => movement.exercise),
-            movements: personalSession.plan.movements,
+            movementNames: (personalSession.reviewedPlan ?? personalSession.plan).movements.map(
+              (movement) => movement.exercise,
+            ),
+            movements: (personalSession.reviewedPlan ?? personalSession.plan).movements,
             selectionNotes: [],
             status:
               workout.sequenceIndex < assignment.currentWorkoutIndex
@@ -830,9 +834,10 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
         weekNumber: workout.weekNumber,
         sessionNumber: workout.sessionNumber,
         methodType: "personal_programme",
-        basis:
-          "Targets from your personal programme. Progression follows each exercise's saved rule.",
-        movements: personalSession.plan.movements,
+        basis: personalSession.reviewedPlan
+          ? "Approved personal strength-week targets; your original prescriptions are retained."
+          : "Targets from your personal programme. Progression follows each exercise's saved rule.",
+        movements: (personalSession.reviewedPlan ?? personalSession.plan).movements,
         exerciseIds: personalSession.plan.movements.map((movement) => movement.exerciseId),
         selections: [],
         personalSession,
@@ -989,6 +994,9 @@ export async function startProgrammeWorkoutClient(
       p_revision: offer.personalSession.revision,
       p_location_id: location.id,
       p_easier: easier,
+      ...(offer.personalSession.strengthReviewId
+        ? { p_strength_review_id: offer.personalSession.strengthReviewId }
+        : {}),
     });
     const movements = easier
       ? offer.movements.map((movement) => ({
@@ -997,7 +1005,7 @@ export async function startProgrammeWorkoutClient(
             .slice(0, Math.max(1, movement.setRows.length - 1))
             .map((set) => ({
               ...set,
-              weight: set.weight ? String(Math.round(Number(set.weight) * 90) / 100) : "",
+              weight: reviewedPersonalLoad(set.weight, -10),
             })),
         }))
       : offer.movements;
@@ -1276,14 +1284,26 @@ export async function setProgrammeExerciseEnabledClient(id: string, enabled: boo
 export async function getActiveProgrammeRefreshClient(): Promise<ProgrammeAssignment | null> {
   const currentPerson = await getCurrentPerson();
   if (!currentPerson) throw new Error("Connect your training profile first.");
-  return (
-    (await listProgrammeAssignmentsClient()).find(
-      (assignment) =>
-        assignment.personId === currentPerson.id &&
-        assignment.status === "active" &&
-        !assignment.personalProgramme,
-    ) ?? null
+  const assignment = (await listProgrammeAssignmentsClient()).find(
+    (candidate) => candidate.personId === currentPerson.id && candidate.status === "active",
   );
+  if (!assignment) return null;
+  if (!assignment.personalProgramme) return assignment;
+  const locked = await supabasePublicSelect<{ program_workout_id: string | null }>(
+    "suggested_workouts",
+    {
+      select: "program_workout_id",
+      program_assignment_id: `eq.${assignment.id}`,
+      person_id: `eq.${currentPerson.id}`,
+      status: "in.(accepted,completed,skipped)",
+    },
+  );
+  return {
+    ...assignment,
+    reviewLockedWorkoutIds: locked.flatMap((plan) =>
+      plan.program_workout_id ? [plan.program_workout_id] : [],
+    ),
+  };
 }
 
 export async function getActiveProgrammeRefreshContextClient(): Promise<{

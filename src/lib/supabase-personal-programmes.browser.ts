@@ -1,3 +1,7 @@
+import {
+  readPersonalStrengthReviewSnapshots,
+  personalStrengthSnapshotMatches,
+} from "./personal-strength-review";
 import { getCurrentPerson } from "./supabase-people.browser";
 import { supabasePublicRpc, supabasePublicSelect } from "./supabase-public";
 import {
@@ -29,7 +33,7 @@ export async function listPersonalProgrammesClient(): Promise<Map<string, Person
     if (error instanceof Error && /Code: (PGRST205|42P01)\b/.test(error.message)) return [];
     throw error;
   });
-  return new Map(
+  const programmes = new Map(
     rows.map((row) => [
       row.assignment_id,
       {
@@ -44,6 +48,29 @@ export async function listPersonalProgrammesClient(): Promise<Map<string, Person
       },
     ]),
   );
+  if (programmes.size) {
+    const reviews = await supabasePublicSelect<{
+      id: string;
+      program_assignment_id: string;
+      applied_adjustments: unknown;
+    }>("programme_strength_week_reviews", {
+      select: "id,program_assignment_id,applied_adjustments",
+      status: "eq.active",
+      program_assignment_id: `in.(${[...programmes.keys()].join(",")})`,
+    });
+    for (const review of reviews) {
+      const programme = programmes.get(review.program_assignment_id);
+      if (!programme) continue;
+      const snapshots = readPersonalStrengthReviewSnapshots(review.applied_adjustments);
+      for (const session of programme.sessions) {
+        const snapshot = snapshots.find((item) => item.workoutId === session.workoutId);
+        if (snapshot && personalStrengthSnapshotMatches(session, snapshot)) {
+          Object.assign(session, { reviewedPlan: snapshot.plan, strengthReviewId: review.id });
+        }
+      }
+    }
+  }
+  return programmes;
 }
 
 export async function createPersonalProgrammeClient(

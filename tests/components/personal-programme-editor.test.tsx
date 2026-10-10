@@ -56,6 +56,24 @@ const exercises = [
 ] as never;
 
 describe("programme session editing", () => {
+  it("edits original targets and explains cancellation of a temporary week", () => {
+    const reviewedPlan = structuredClone(session.plan);
+    reviewedPlan.movements[0].setRows[0].weight = "19";
+    render(
+      <ProgrammeSessionEditor
+        session={{ ...session, reviewedPlan, strengthReviewId: "review" }}
+        laterSessions={[]}
+        exercises={exercises}
+        saving={false}
+        onSave={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("Dumbbell Press set 1 load")).toHaveValue("20");
+    expect(
+      screen.getByText(/Saving an edit cancels this temporary strength-week review/),
+    ).toBeInTheDocument();
+  });
   it("saves date, set, rest and progression changes while leaving the original intact", async () => {
     const user = userEvent.setup();
     const save = vi.fn(async () => {});

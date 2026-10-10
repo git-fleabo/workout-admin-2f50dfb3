@@ -1,0 +1,17 @@
+export const coachDatabaseMigrations = [
+  "20260716060735_complete_programme_workouts.sql",
+  "20260927201526_choose_next_programme_session.sql",
+  "20261004132906_editable_personal_programmes.sql",
+  "20261004142817_add_scheduled_training_plans.sql",
+  "20261004191240_add_programme_support_plans.sql",
+  "20261004193959_allow_programme_support_completion.sql",
+  "20261005120000_add_coaching_preferences.sql",
+  "20261005123000_add_coaching_recommendation_decisions.sql",
+  "20261005130000_add_adaptive_coaching_history.sql",
+  "20261005133000_add_readiness_coaching.sql",
+  "20261005140000_add_coaching_outcomes.sql",
+  "20261005174634_add_strength_week_review_loop.sql",
+  "20261005174824_harden_strength_week_review_loop.sql",
+  "20261005182137_add_week_scoped_strength_volume.sql",
+  "20261010000854_fix_programme_workout_positions.sql",
+];

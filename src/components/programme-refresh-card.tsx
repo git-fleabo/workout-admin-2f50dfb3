@@ -1,3 +1,4 @@
+import { personalStrengthReviewIsStale } from "@/lib/personal-strength-review";
 import { CalendarDays, RefreshCw, SlidersHorizontal, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -39,28 +40,47 @@ const ADJUSTMENT_OPTIONS = [
   { value: 5, label: "Much heavier", detail: "5 percentage points higher" },
 ] as const;
 
-const SET_ADJUSTMENT_OPTIONS = [
-  { value: 0, label: "Keep programmed sets" },
-  { value: -1, label: "One fewer working set" },
+const PERSONAL_ADJUSTMENT_OPTIONS = [
+  { value: -5, label: "5% lighter", detail: "than my saved loads" },
+  { value: -2.5, label: "2.5% lighter", detail: "than my saved loads" },
+  { value: 0, label: "Use my saved targets", detail: "No reduction" },
 ] as const;
 
-function points(value: number) {
+const SET_ADJUSTMENT_OPTIONS = [
+  { value: 0, label: "Keep programmed sets" },
+  { value: -1, label: "One fewer working set where possible" },
+] as const;
+
+function points(value: number, personal = false) {
   if (value === 0) return "No change";
-  return `${value > 0 ? "+" : ""}${value} pts`;
+  return `${value > 0 ? "+" : ""}${value}${personal ? "%" : " pts"}`;
 }
 
 function prescriptionSummary(movement: WorkoutPlanMovement) {
   const sets = movement.setRows;
   const first = sets[0];
-  const allMatch = sets.every((set) => set.reps === first?.reps && set.weight === first?.weight);
+  const allMatch = sets.every(
+    (set) =>
+      set.reps === first?.reps &&
+      set.weight === first?.weight &&
+      set.durationSeconds === first?.durationSeconds,
+  );
   if (allMatch && first) {
-    const reps = first.reps ? `${first.reps} reps` : "prescribed reps";
+    const reps = first.durationSeconds
+      ? `${first.durationSeconds} sec`
+      : first.reps
+        ? `${first.reps} reps`
+        : "prescribed reps";
     const load = first.weight ? ` @ ${first.weight} kg` : "";
     return `${sets.length} × ${reps}${load}`;
   }
   return sets
     .map((set, index) => {
-      const reps = set.reps ? `${set.reps} reps` : "prescribed reps";
+      const reps = set.durationSeconds
+        ? `${set.durationSeconds} sec`
+        : set.reps
+          ? `${set.reps} reps`
+          : "prescribed reps";
       const load = set.weight ? ` @ ${set.weight} kg` : "";
       return `Set ${index + 1}: ${reps}${load}`;
     })
@@ -90,6 +110,7 @@ export function ProgrammeRefreshCard({
   ) => Promise<void>;
   onApplyReview: (review: StrengthProgrammeReview) => Promise<void>;
 }) {
+  const personal = Boolean(assignment.personalProgramme);
   const exercises = useMemo(
     () =>
       assignment.exercises.filter((exercise) => exercise.enabled && exercise.trainingMax != null),
@@ -100,13 +121,15 @@ export function ProgrammeRefreshCard({
   const [draftSetAdjustments, setDraftSetAdjustments] = useState<Record<string, number>>({});
   const [draftTrainingMaxes, setDraftTrainingMaxes] = useState<Record<string, string>>({});
   const awaitingAppliedWeek =
-    appliedReview != null && assignment.currentWorkoutIndex <= appliedReview.endWorkoutIndex;
+    appliedReview != null &&
+    assignment.currentWorkoutIndex <= appliedReview.endWorkoutIndex &&
+    (!personal || !personalStrengthReviewIsStale(assignment, appliedReview));
   const followUpProposal = useMemo(
     () =>
       appliedReview
-        ? buildStrengthProgrammeFollowUpProposal({ assignment, recovery, appliedReview })
+        ? buildStrengthProgrammeFollowUpProposal({ assignment, template, recovery, appliedReview })
         : null,
-    [appliedReview, assignment, recovery],
+    [appliedReview, assignment, template, recovery],
   );
   const defaultCoachReview = useMemo(() => {
     if (awaitingAppliedWeek) return null;
@@ -129,7 +152,9 @@ export function ProgrammeRefreshCard({
       }),
     [assignment, draftAdjustments, draftSetAdjustments, followUpProposal, mode, recovery, template],
   );
-  const activeOverrides = exercises.filter((exercise) => exercise.manualAdjustmentPercent !== 0);
+  const activeOverrides = (personal ? (appliedReview?.exercises ?? []) : exercises).filter(
+    (exercise) => exercise.manualAdjustmentPercent !== 0,
+  );
   const changed = exercises.flatMap((exercise) => {
     const nextAdjustment = draftAdjustments[exercise.id] ?? exercise.manualAdjustmentPercent;
     const nextTrainingMax = Number(draftTrainingMaxes[exercise.id] ?? exercise.trainingMax);
@@ -211,7 +236,10 @@ export function ProgrammeRefreshCard({
                 <p className="text-sm font-semibold">
                   {awaitingAppliedWeek
                     ? "Strength review applied"
-                    : (defaultCoachReview?.title ?? "Refresh upcoming sessions")}
+                    : (defaultCoachReview?.title ??
+                      (personal
+                        ? "No unstarted strength sessions to review"
+                        : "Refresh upcoming sessions"))}
                 </p>
                 {awaitingAppliedWeek ? (
                   <Badge variant="secondary" className="text-[10px]">
@@ -229,15 +257,23 @@ export function ProgrammeRefreshCard({
               </div>
               <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">
                 {awaitingAppliedWeek
-                  ? `Complete programme week ${appliedReview?.programmeWeek ?? "review"}. The coach will compare the recorded lift outcomes before drafting the following week.`
+                  ? personal
+                    ? "Complete this reviewed week and log the actual sets and effort. Later sessions use your original targets unless you approve another change."
+                    : `Complete programme week ${appliedReview?.programmeWeek ?? "review"}. The coach will compare the recorded lift outcomes before drafting the following week.`
                   : (defaultCoachReview?.detail ??
-                    "Amend a training max or review a lift after a week that felt too hard or too easy. Every unstarted programme session is recalculated from the saved values.")}
+                    (personal
+                      ? "Resume or finish your current session from Today. Your original personal targets remain saved."
+                      : "Amend a training max or review a lift after a week that felt too hard or too easy. Every unstarted programme session is recalculated from the saved values."))}
               </p>
               {activeOverrides.length ? (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {activeOverrides.map((exercise) => (
-                    <Badge key={exercise.id} variant="secondary" className="text-[10px]">
-                      {exercise.exerciseName} {points(exercise.manualAdjustmentPercent)}
+                    <Badge
+                      key={"id" in exercise ? exercise.id : exercise.assignmentExerciseId}
+                      variant="secondary"
+                      className="text-[10px]"
+                    >
+                      {exercise.exerciseName} {points(exercise.manualAdjustmentPercent, personal)}
                     </Badge>
                   ))}
                 </div>
@@ -246,13 +282,15 @@ export function ProgrammeRefreshCard({
           </div>
           <div className="flex flex-wrap gap-2">
             {defaultCoachReview ? (
-              <Button onClick={openCoachReview} disabled={!exercises.length}>
+              <Button onClick={openCoachReview} disabled={!defaultCoachReview.exercises.length}>
                 <Sparkles className="mr-2 h-4 w-4" /> Review exact week
               </Button>
             ) : null}
-            <Button variant="outline" onClick={openManualReview} disabled={!exercises.length}>
-              <SlidersHorizontal className="mr-2 h-4 w-4" /> Adjust manually
-            </Button>
+            {!personal ? (
+              <Button variant="outline" onClick={openManualReview} disabled={!exercises.length}>
+                <SlidersHorizontal className="mr-2 h-4 w-4" /> Adjust manually
+              </Button>
+            ) : null}
           </div>
         </CardContent>
       </Card>
@@ -296,8 +334,14 @@ export function ProgrammeRefreshCard({
                       <div>
                         <p className="text-sm font-medium">{exercise.exerciseName}</p>
                         <p className="mt-0.5 text-[11px] text-muted-foreground">
-                          {exercise.trainingMax} kg training max · automatic{" "}
-                          {points(exercise.automaticAdjustmentPercent)}
+                          {personal ? (
+                            "Your original loads, rep/hold targets, rest and progression rules are retained."
+                          ) : (
+                            <>
+                              {exercise.trainingMax} kg training max · automatic{" "}
+                              {points(exercise.automaticAdjustmentPercent)}
+                            </>
+                          )}
                         </p>
                       </div>
                       <Badge
@@ -305,7 +349,7 @@ export function ProgrammeRefreshCard({
                           exercise.proposedCombinedAdjustmentPercent < 0 ? "secondary" : "outline"
                         }
                       >
-                        Proposed {points(exercise.proposedCombinedAdjustmentPercent)}
+                        Proposed {points(exercise.proposedCombinedAdjustmentPercent, personal)}
                         {exercise.proposedSetAdjustment < 0 ? " · one fewer set" : ""}
                       </Badge>
                     </div>
@@ -314,6 +358,7 @@ export function ProgrammeRefreshCard({
                     </p>
                     <p className="mt-3 text-xs font-medium">Weekly load choice</p>
                     <Select
+                      disabled={personal && exercise.hasLoadTargets === false}
                       value={String(exercise.proposedManualAdjustmentPercent)}
                       onValueChange={(value) =>
                         setDraftAdjustments((current) => ({
@@ -326,15 +371,18 @@ export function ProgrammeRefreshCard({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {ADJUSTMENT_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={String(option.value)}>
-                            {option.label} · {option.detail}
-                          </SelectItem>
-                        ))}
+                        {(personal ? PERSONAL_ADJUSTMENT_OPTIONS : ADJUSTMENT_OPTIONS).map(
+                          (option) => (
+                            <SelectItem key={option.value} value={String(option.value)}>
+                              {option.label} · {option.detail}
+                            </SelectItem>
+                          ),
+                        )}
                       </SelectContent>
                     </Select>
                     <p className="mt-3 text-xs font-medium">Weekly set choice</p>
                     <Select
+                      disabled={personal && exercise.hasReducibleSets === false}
                       value={String(exercise.proposedSetAdjustment)}
                       onValueChange={(value) =>
                         setDraftSetAdjustments((current) => ({
@@ -373,15 +421,29 @@ export function ProgrammeRefreshCard({
                         ) : null}
                       </div>
                       <div className="mt-2 space-y-2">
-                        {session.movements.map(({ exerciseId, exerciseName, movement }) => (
-                          <div key={`${session.workoutId}-${exerciseId}`} className="text-xs">
-                            <p className="font-medium">{exerciseName}</p>
-                            <p className="mt-0.5 text-muted-foreground">
-                              {prescriptionSummary(movement)}
-                              {movement.restTime ? ` · Rest ${movement.restTime}` : ""}
-                            </p>
-                          </div>
-                        ))}
+                        {session.movements.map(
+                          (
+                            { exerciseId, exerciseName, movement, originalMovement },
+                            movementIndex,
+                          ) => (
+                            <div
+                              key={`${session.workoutId}-${exerciseId}-${movementIndex}`}
+                              className="text-xs"
+                            >
+                              <p className="font-medium">{exerciseName}</p>
+                              {originalMovement ? (
+                                <p className="mt-0.5 text-muted-foreground">
+                                  Saved: {prescriptionSummary(originalMovement)}
+                                </p>
+                              ) : null}
+                              <p className="mt-0.5 text-muted-foreground">
+                                {originalMovement ? "Reviewed: " : ""}
+                                {prescriptionSummary(movement)}
+                                {movement.restTime ? ` · Rest ${movement.restTime}` : ""}
+                              </p>
+                            </div>
+                          ),
+                        )}
                       </div>
                     </div>
                   ))}

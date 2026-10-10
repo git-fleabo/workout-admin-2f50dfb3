@@ -92,6 +92,7 @@ import {
 } from "@/lib/supabase-programmes.browser";
 import {
   applyProgrammeStrengthWeekReviewClient,
+  applyPersonalStrengthWeekReviewClient,
   getLatestProgrammeStrengthWeekReviewClient,
 } from "@/lib/supabase-programme-strength-review.browser";
 import type { StrengthProgrammeReview } from "@/lib/strength-programme-review";
@@ -812,22 +813,28 @@ function PlanPage() {
   });
   const programmeStrengthReviewMutation = useMutation({
     mutationFn: (review: StrengthProgrammeReview) =>
-      applyProgrammeStrengthWeekReviewClient({
-        assignmentId: programmeRefresh.data!.assignment.id,
-        programmeWeek: review.programmeWeek,
-        startWorkoutIndex: review.startWorkoutIndex,
-        endWorkoutIndex: review.endWorkoutIndex,
-        workoutIds: review.sessions.map((session) => session.workoutId),
-        recoveryLevel: strengthRecovery.level,
-        recommendationKind: review.recommendationKind,
-        previousReviewId: review.previousReviewId,
-        adjustments: review.exercises.map((exercise) => ({
-          exerciseId: exercise.assignmentExerciseId,
-          manualAdjustmentPercent: exercise.proposedManualAdjustmentPercent,
-          combinedAdjustmentPercent: exercise.proposedCombinedAdjustmentPercent,
-          setAdjustment: exercise.proposedSetAdjustment,
-        })),
-      }),
+      review.isPersonal
+        ? applyPersonalStrengthWeekReviewClient(
+            programmeRefresh.data!.assignment.id,
+            review,
+            strengthRecovery.level,
+          )
+        : applyProgrammeStrengthWeekReviewClient({
+            assignmentId: programmeRefresh.data!.assignment.id,
+            programmeWeek: review.programmeWeek,
+            startWorkoutIndex: review.startWorkoutIndex,
+            endWorkoutIndex: review.endWorkoutIndex,
+            workoutIds: review.sessions.map((session) => session.workoutId),
+            recoveryLevel: strengthRecovery.level,
+            recommendationKind: review.recommendationKind,
+            previousReviewId: review.previousReviewId,
+            adjustments: review.exercises.map((exercise) => ({
+              exerciseId: exercise.assignmentExerciseId,
+              manualAdjustmentPercent: exercise.proposedManualAdjustmentPercent,
+              combinedAdjustmentPercent: exercise.proposedCombinedAdjustmentPercent,
+              setAdjustment: exercise.proposedSetAdjustment,
+            })),
+          }),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["programme-strength-week-review"] }),
@@ -835,12 +842,20 @@ function PlanPage() {
         queryClient.invalidateQueries({ queryKey: ["programme-schedule"] }),
         queryClient.invalidateQueries({ queryKey: ["programme-workout-offers"] }),
         queryClient.invalidateQueries({ queryKey: ["programme-assignments"] }),
+        queryClient.invalidateQueries({ queryKey: ["my-programme-overview"] }),
+        queryClient.invalidateQueries({ queryKey: ["programme-exercise-rule"] }),
       ]);
       toast.success("Reviewed strength week applied", {
         description: "The coach will reassess it after the selected programme week is complete.",
       });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: async (error: Error) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["programme-refresh"] }),
+        queryClient.invalidateQueries({ queryKey: ["programme-strength-week-review"] }),
+      ]);
+      toast.error(error.message);
+    },
   });
   const defaultMetricsByExercise = useMemo(
     () =>
@@ -1833,7 +1848,6 @@ function PlanPage() {
                 }
               : undefined
           }
-          strengthReviewUnavailable={programmeSchedule.data?.some((session) => session.isPersonal)}
           strengthReview={
             programmeRefresh.error || programmeStrengthReview.error ? (
               <div className="rounded-lg border border-destructive/35 p-3 text-sm text-destructive">
