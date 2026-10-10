@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { progressionSummary } from "@/lib/programme-progression";
 import { MobilityPracticeOverview } from "@/components/mobility-practice-overview";
+import { KettlebellWorkoutPicker } from "@/components/kettlebell-workout-picker";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -1160,6 +1161,11 @@ export function TodayPage() {
             )}
           </section>
 
+          <KettlebellWorkoutPicker
+            hasUnfinishedWorkout={Boolean(
+              draft || startingPlanId || startingProgrammeId || startingRecommendation,
+            )}
+          />
           <div className="flex flex-col gap-2 border-t border-border pt-5 sm:flex-row">
             <Button asChild variant="outline" className="sm:flex-1">
               <Link to="/log">

@@ -1704,7 +1704,7 @@ export function FullWorkoutForm() {
           restTime: movement.restTime ?? "",
           notes: movement.progression
             ? [progressionSummary(movement.progression), movement.reason].filter(Boolean).join(". ")
-            : "",
+            : movement.reason,
           setRows: movement.setRows.map((set) => ({
             ...set,
             completed: true,

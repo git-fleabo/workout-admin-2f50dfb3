@@ -58,6 +58,7 @@ type SuggestedEntryRow = {
 };
 
 type SuggestedWorkoutRow = {
+  kettlebell_workout_id?: string | null;
   id: string;
   title: string;
   basis: string | null;
@@ -144,6 +145,7 @@ type RecentMethodBlockRow = {
 };
 
 export type SavedWorkoutPlan = WorkoutPlanDraft & {
+  kettlebellWorkoutId?: string | null;
   suggestedWorkoutId: string;
   readiness: PlannerReadiness | null;
   status: SuggestedWorkoutStatus;
@@ -313,6 +315,7 @@ function planFromRow(row: SuggestedWorkoutRow): SavedWorkoutPlan | null {
   return {
     version: 1,
     suggestedWorkoutId: row.id,
+    kettlebellWorkoutId: row.kettlebell_workout_id ?? null,
     title: row.title,
     locationKind,
     trainingLocationId: row.training_location_id ?? undefined,
@@ -536,6 +539,19 @@ export async function saveWorkoutPlanClient({
 const SAVED_WORKOUT_SELECT =
   "id,title,basis,readiness,status,created_at,suggested_for,plan_kind,goal_id,mobility_practice_run_id,program_assignment_id,program_workout_id,training_location_id,training_locations(kind,name),suggested_workout_entries(id,exercise_id,name,workout_type,order_index,source_date,reason,tracking_mode,target_metrics,suggested_workout_sets(id,set_number,reps,weight,duration_seconds,rpe,completed,suggested_workout_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion,config))),suggested_workout_method_blocks(id,training_method_id,method_name,family,order_index,rounds,rest_between_movements_seconds,rest_between_rounds_seconds,block_duration_seconds,work_interval_seconds,rest_interval_seconds,config,suggested_workout_method_block_entries(suggested_workout_entry_id,sequence_index))";
 
+export async function getSavedWorkoutPlanClient(id: string) {
+  const person = await requirePerson();
+  const rows = await supabasePublicSelect<SuggestedWorkoutRow>("suggested_workouts", {
+    select: `${SAVED_WORKOUT_SELECT},kettlebell_workout_id`,
+    id: `eq.${id}`,
+    person_id: `eq.${person.id}`,
+    limit: 1,
+  });
+  const plan = rows[0] ? planFromRow(rows[0]) : null;
+  if (!plan) throw new Error("The saved workout could not be loaded. Open Today to resume it.");
+  return plan;
+}
+
 export async function getNextSuggestedWorkoutsClient() {
   const person = await requirePerson();
   const rows = await supabasePublicSelect<SuggestedWorkoutRow>("suggested_workouts", {
@@ -548,11 +564,14 @@ export async function getNextSuggestedWorkoutsClient() {
   const plans = rows.map(planFromRow).filter((plan): plan is SavedWorkoutPlan => plan != null);
   const seen = new Set<string>();
   return plans.filter((plan) => {
-    const key = plan.programWorkoutId
-      ? `programme:${plan.programAssignmentId}`
-      : plan.programAssignmentId
-        ? `support:${plan.goalId ?? plan.mobilityRunId ?? plan.suggestedWorkoutId}`
-        : `${plan.suggestedFor ?? "undated"}:${plan.planKind}`;
+    const key =
+      plan.status === "accepted" && !plan.programAssignmentId
+        ? `accepted:${plan.suggestedWorkoutId}`
+        : plan.programWorkoutId
+          ? `programme:${plan.programAssignmentId}`
+          : plan.programAssignmentId
+            ? `support:${plan.goalId ?? plan.mobilityRunId ?? plan.suggestedWorkoutId}`
+            : `${plan.suggestedFor ?? "undated"}:${plan.planKind}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
