@@ -4581,3 +4581,7 @@ on conflict(source_sheet,source_row) do nothing;
 insert into public.training_methods(id,system_key,name,family,description,default_config,is_active)
 values('26a66cd6-2219-43e6-a1b4-9266ebf7b95d','timed_sequence','Timed sequence','exercise_group','Follow the ordered movement durations, then rest between complete rounds as prescribed.','{"mode":"timed_sequence"}'::jsonb,true)
 on conflict(system_key) do nothing;
+
+-- Cover source lookups and the catalogue foreign key without touching workout data.
+create index suggested_workouts_kettlebell_workout_idx
+on public.suggested_workouts(kettlebell_workout_id);

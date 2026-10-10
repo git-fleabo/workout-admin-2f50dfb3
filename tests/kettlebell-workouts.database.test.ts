@@ -28,6 +28,7 @@ test(
         "20261004191240_add_programme_support_plans",
         "20261004193959_allow_programme_support_completion",
         "20261010142048_add_kettlebell_workout_catalogue",
+        "20261010185512_index_kettlebell_workout_sessions",
       ]) {
         sql(readFileSync(new URL(`../supabase/migrations/${name}.sql`, import.meta.url), "utf8"));
       }
