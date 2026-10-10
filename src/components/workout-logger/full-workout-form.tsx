@@ -3078,7 +3078,17 @@ export function FullWorkoutForm() {
                             ]
                               .filter(Boolean)
                               .join(" · ")
-                          : `${movementNames.join(" → ")} · ${block.rounds || "—"} rounds · ${block.restBetweenRoundsSeconds || "0"}s between rounds`}
+                          : [
+                              movementNames.join(" → "),
+                              `${block.rounds || "—"} rounds`,
+                              block.config.mode === "timed_sequence" &&
+                              typeof block.config.round_seconds === "number"
+                                ? `${block.config.round_seconds / 60} min per round`
+                                : "",
+                              `${block.restBetweenRoundsSeconds || "0"}s between rounds`,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
                       </p>
                     </div>
                     <div className="flex justify-end gap-1">

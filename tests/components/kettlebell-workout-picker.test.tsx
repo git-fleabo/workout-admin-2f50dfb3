@@ -195,4 +195,32 @@ describe("kettlebell workout picker", () => {
     expect(screen.queryByText(/60 sec work/)).not.toBeInTheDocument();
     expect(mocks.start).not.toHaveBeenCalled();
   });
+
+  it("shows timed sequence rounds and recovery separately from the total duration", async () => {
+    const workout = kbFixture("conditioning");
+    workout.prescription.methodBlocks = [
+      {
+        trainingMethodId: kbId(80),
+        methodName: "Timed sequence",
+        family: "exercise_group",
+        memberMovementIndexes: [0, 1],
+        rounds: "2",
+        blockDurationMinutes: "20",
+        workIntervalSeconds: "",
+        restIntervalSeconds: "",
+        restBetweenMovementsSeconds: "0",
+        restBetweenRoundsSeconds: "120",
+        config: { mode: "timed_sequence", round_seconds: 540 },
+      },
+    ];
+    workout.prescription.movements.push(structuredClone(workout.prescription.movements[0]));
+    mocks.data = data([workout]);
+    show();
+    await open();
+    await userEvent.click(screen.getByRole("button", { name: "Pick workout", exact: true }));
+    expect(
+      screen.getByText(/2 rounds · 20 min · 9 min per round · 120 sec between rounds/),
+    ).toBeInTheDocument();
+    expect(mocks.start).not.toHaveBeenCalled();
+  });
 });
