@@ -154,6 +154,7 @@ export function buildPersonalStrengthProgrammeReview({
 }): StrengthProgrammeReview | null {
   if (
     !assignment.personalProgramme ||
+    assignment.personalProgramme.sessions.some((session) => session.plan.baseStrength) ||
     assignment.status !== "active" ||
     template.id !== assignment.programId
   )

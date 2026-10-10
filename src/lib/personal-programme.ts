@@ -9,11 +9,13 @@ export type PersonalProgrammeMovement = WorkoutPlanMovement & {
   exerciseId: string;
   programmeKey: string;
   progression: ProgrammeProgression;
+  baseStrength?: BaseStrengthMovementRule;
 };
 export type PersonalProgrammePlan = {
   version: 1;
   locationKind: "home" | "gym";
   movements: PersonalProgrammeMovement[];
+  baseStrength?: "volume_intensity" | "bullmastiff";
 };
 export type PersonalProgrammeSession = {
   reviewedPlan?: PersonalProgrammePlan;
@@ -33,6 +35,23 @@ const numericText = (max: number) =>
       (value) => value === "" || (/^\d+(\.\d+)?$/.test(value) && Number(value) <= max),
       "Use a positive number or leave blank",
     );
+export const baseStrengthMovementSchema = z.object({
+  programme: z.enum(["volume_intensity", "bullmastiff"]),
+  week: z.number().int().min(1).max(30),
+  phase: z.enum(["base", "build", "peak"]),
+  wave: z.number().int().min(1).max(4),
+  waveWeek: z.number().int().min(1).max(3),
+  role: z.enum(["main", "variation", "accessory"]),
+  referenceMax: z.number().positive().max(1000).nullable(),
+  percent: z.number().positive().max(100).nullable(),
+  plusLastSet: z.boolean(),
+  incrementKg: z.number().positive().max(100),
+  approvedFingerprint: z
+    .string()
+    .regex(/^[a-f0-9]{32}$/)
+    .optional(),
+});
+export type BaseStrengthMovementRule = z.infer<typeof baseStrengthMovementSchema>;
 export const progressionSchema = z
   .object({
     type: z.enum(["fixed", "double", "source"]),
@@ -49,6 +68,7 @@ export const personalPlanSchema = z
   .object({
     version: z.literal(1),
     locationKind: z.enum(["home", "gym"]),
+    baseStrength: z.enum(["volume_intensity", "bullmastiff"]).optional(),
     movements: z
       .array(
         z
@@ -70,6 +90,7 @@ export const personalPlanSchema = z
             reason: z.string().max(4000),
             restTime: z.string().max(100).optional(),
             progression: progressionSchema,
+            baseStrength: baseStrengthMovementSchema.optional(),
             setRows: z
               .array(
                 z.object({

@@ -291,16 +291,12 @@ function numberOrNull(value: number | string | null) {
 }
 
 export async function listProgrammeTemplatesClient(): Promise<ProgrammeTemplate[]> {
-  const [programmes, workouts, entries] = await Promise.all([
+  const [programmes, entries] = await Promise.all([
     supabasePublicSelect<ProgrammeRecord>("programs", {
       select:
         "id,name,description,method_type,duration_weeks,sessions_per_week,default_set_choice,percent_base,rounding_increment",
       is_template: "eq.true",
       order: "name.asc",
-    }),
-    supabasePublicSelect<ProgrammeWorkoutRecord>("program_workouts", {
-      select: "id,program_id,name,sequence_index,week_number,day_number,session_number,description",
-      order: "sequence_index.asc",
     }),
     supabasePublicSelect<ProgrammeEntryRecord>("program_workout_entries", {
       select:
@@ -308,6 +304,21 @@ export async function listProgrammeTemplatesClient(): Promise<ProgrammeTemplate[
       order: "order_index.asc",
     }),
   ]);
+
+  // Scope sequences to one programme so adding source structures cannot push
+  // another programme's workouts beyond the API's default row limit.
+  const workouts = (
+    await Promise.all(
+      programmes.map((programme) =>
+        supabasePublicSelect<ProgrammeWorkoutRecord>("program_workouts", {
+          select:
+            "id,program_id,name,sequence_index,week_number,day_number,session_number,description",
+          program_id: `eq.${programme.id}`,
+          order: "sequence_index.asc,id.asc",
+        }),
+      ),
+    )
+  ).flat();
 
   const entriesByWorkout = new Map<string, ProgrammeTemplateEntry[]>();
   for (const entry of entries) {

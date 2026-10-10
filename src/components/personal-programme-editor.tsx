@@ -40,6 +40,8 @@ import { savePersonalProgrammeSessionsClient } from "@/lib/supabase-personal-pro
 import type { ProgrammeAssignment, ProgrammeTemplate } from "@/lib/supabase-programmes.browser";
 import { useIsDesktop } from "@/hooks/use-desktop";
 import { cn } from "@/lib/utils";
+import { BaseStrengthProgression } from "./base-strength-progression";
+import { roundedPreviewLoad } from "@/lib/base-strength-preview";
 
 type Exercise = Awaited<ReturnType<typeof getLibraryClient>>["exercises"][number];
 const selectClass = "h-10 w-full rounded-md border border-input bg-background px-3 text-sm";
@@ -95,9 +97,15 @@ export function ProgrammeSessionEditor({
       ...current,
       plan: {
         ...current.plan,
-        movements: current.plan.movements.map((movement, i) =>
-          i === index ? { ...movement, ...patch } : movement,
-        ),
+        movements: current.plan.movements.map((movement, i) => {
+          if (i !== index) return movement;
+          const changed = { ...movement, ...patch };
+          if (patch.progression && patch.progression.type !== "source" && changed.baseStrength) {
+            changed.baseStrength = { ...changed.baseStrength };
+            delete changed.baseStrength.approvedFingerprint;
+          }
+          return changed;
+        }),
       },
     }));
   const replaceExercise = (index: number, id: string) => {
@@ -114,6 +122,7 @@ export function ProgrammeSessionEditor({
       workoutType: exercise.workoutType,
       trackingMode,
       reason: "",
+      baseStrength: undefined,
       progression: { ...FIXED_PROGRESSION },
     });
   };
@@ -312,6 +321,47 @@ export function ProgrammeSessionEditor({
                 </select>
               </label>
               <div className="space-y-2">
+                {movement.baseStrength && movement.baseStrength.role !== "accessory" ? (
+                  <label className="block space-y-1 text-xs">
+                    {movement.baseStrength.phase} estimated max (kg) · this session
+                    <Input
+                      aria-label={`${movement.exercise} reference max`}
+                      type="number"
+                      min="0.1"
+                      max="1000"
+                      step="any"
+                      value={movement.baseStrength.referenceMax ?? ""}
+                      onChange={(event) => {
+                        const rule = {
+                          ...movement.baseStrength!,
+                          referenceMax: event.target.value ? Number(event.target.value) : null,
+                        };
+                        delete rule.approvedFingerprint;
+                        const load = roundedPreviewLoad(
+                          rule.referenceMax,
+                          rule.percent,
+                          rule.incrementKg,
+                        );
+                        patchMovement(index, {
+                          baseStrength: rule,
+                          setRows: movement.setRows.map((row) => ({
+                            ...row,
+                            weight:
+                              rule.percent != null
+                                ? load == null
+                                  ? ""
+                                  : String(load)
+                                : row.weight,
+                          })),
+                        });
+                      }}
+                    />
+                    <span className="block text-muted-foreground">
+                      Percentage loads recalculate from this exercise’s own estimate. Review later
+                      sessions separately to preserve their waves.
+                    </span>
+                  </label>
+                ) : null}
                 {movement.setRows.map((set, setIndex) => (
                   <div key={setIndex} className="flex items-end gap-2">
                     <span className="w-7 shrink-0 pb-2 text-xs text-muted-foreground">
@@ -503,7 +553,7 @@ export function ProgrammeSessionEditor({
             </Button>
           </div>
         </div>
-        {laterSessions.length > 0 && (
+        {laterSessions.length > 0 && !draft.plan.baseStrength && (
           <label className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm">
             <input
               type="checkbox"
@@ -814,6 +864,11 @@ export function PersonalProgrammeEditor({
             </nav>
 
             <main className="min-w-0 rounded-xl border border-border bg-card/20 p-4">
+              {selectedSession && !dirty ? (
+                <div className="mb-4">
+                  <BaseStrengthProgression assignmentId={assignment.id} session={selectedSession} />
+                </div>
+              ) : null}
               {selectedSession && library.data ? (
                 <ProgrammeSessionEditor
                   key={`${selectedSession.workoutId}:${selectedSession.revision}:${editorVersion}`}
@@ -1086,6 +1141,11 @@ export function PersonalProgrammeEditor({
                   </p>
                 ))}
               </details>
+              {canEdit ? (
+                <div className="mt-3">
+                  <BaseStrengthProgression assignmentId={assignment.id} session={session} />
+                </div>
+              ) : null}
             </div>
           );
         })}
