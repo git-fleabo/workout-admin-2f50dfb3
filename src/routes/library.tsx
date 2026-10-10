@@ -64,6 +64,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { LibraryRow } from "@/lib/training-types";
+import { exerciseCategories, exerciseMatchesCategory } from "@/lib/exercise-categories";
 import {
   getMovementMetricProfile,
   getTrackingModeLabel,
@@ -131,6 +132,7 @@ type EditorState =
 
 const BLANK: Omit<LibraryRow, "row"> & { equipmentItemIds: string[] } = {
   workoutType: "",
+  additionalWorkoutTypes: [],
   focusArea: "",
   name: "",
   equipment: "",
@@ -403,7 +405,7 @@ function LibraryPage() {
     const items = list.data?.items ?? [];
     const q = search.trim().toLowerCase();
     return items.filter((i) => {
-      if (typeFilter && i.workoutType !== typeFilter) return false;
+      if (!exerciseMatchesCategory(i, typeFilter)) return false;
       if (locationFilter && !i.availableLocationKinds.includes(locationFilter)) return false;
       if (circuitFilter && i.circuitSuitability !== circuitFilter) return false;
       if (toolkitOnly && !i.toolkitSections.length) return false;
@@ -497,6 +499,7 @@ function LibraryPage() {
         onClaim={() => claimMutation.mutate()}
         filtered={filtered}
         workoutTypes={list.data?.workoutTypes ?? []}
+        categoryOptions={list.data?.categoryOptions ?? []}
         equipmentItems={list.data?.equipmentItems ?? []}
         search={search}
         onSearch={setSearch}
@@ -692,13 +695,14 @@ function LibraryPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-baseline gap-2">
                         <p className="font-medium">{ex.name}</p>
-                        {ex.workoutType && (
+                        {exerciseCategories(ex).map((category) => (
                           <span
-                            className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${workoutTypeChipClass(ex.workoutType)}`}
+                            key={category}
+                            className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${workoutTypeChipClass(category)}`}
                           >
-                            {ex.workoutType}
+                            {category}
                           </span>
-                        )}
+                        ))}
                         {ex.focusArea && (
                           <span
                             className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${focusChipClass(ex.focusArea)}`}
@@ -913,6 +917,7 @@ function LibraryPage() {
         state={editor}
         onClose={() => setEditor({ mode: "closed" })}
         workoutTypes={list.data?.workoutTypes ?? []}
+        categoryOptions={list.data?.categoryOptions ?? []}
         equipmentItems={list.data?.equipmentItems ?? []}
         onSubmit={(fields) => {
           if (editor.mode === "create") {
@@ -955,6 +960,7 @@ function DesktopLibraryWorkspace({
   onClaim,
   filtered,
   workoutTypes,
+  categoryOptions,
   equipmentItems,
   search,
   onSearch,
@@ -989,6 +995,7 @@ function DesktopLibraryWorkspace({
   onClaim: () => void;
   filtered: LibraryClientRow[];
   workoutTypes: string[];
+  categoryOptions?: string[];
   equipmentItems: LibraryEquipmentItem[];
   search: string;
   onSearch: (value: string) => void;
@@ -1174,7 +1181,7 @@ function DesktopLibraryWorkspace({
                         </span>
                         <span className="mt-1 block truncate text-[11px] text-muted-foreground">
                           {[
-                            exercise.workoutType,
+                            exerciseCategories(exercise).join(" · "),
                             exercise.equipment,
                             getTrackingModeLabel({
                               workoutType: exercise.workoutType,
@@ -1201,6 +1208,7 @@ function DesktopLibraryWorkspace({
                 onSubmit={onSubmit}
                 isPending={editorPending}
                 workoutTypes={workoutTypes}
+                categoryOptions={categoryOptions}
                 equipmentItems={equipmentItems}
               />
             ) : selected ? (
@@ -1209,11 +1217,17 @@ function DesktopLibraryWorkspace({
                   <div className="w-full min-w-0 xl:w-auto xl:flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="truncate text-lg font-semibold">{selected.name}</h2>
-                      <span
-                        className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${workoutTypeChipClass(selected.workoutType)}`}
-                      >
-                        {selected.workoutType || "Uncategorised"}
-                      </span>
+                      {(exerciseCategories(selected).length
+                        ? exerciseCategories(selected)
+                        : ["Uncategorised"]
+                      ).map((category) => (
+                        <span
+                          key={category}
+                          className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${workoutTypeChipClass(category)}`}
+                        >
+                          {category}
+                        </span>
+                      ))}
                     </div>
                     {!selectedVisible ? (
                       <p className="mt-1 text-xs text-amber-200">
@@ -1426,6 +1440,7 @@ type ExerciseEditorFormProps = {
   onSubmit: (fields: typeof BLANK) => void;
   isPending: boolean;
   workoutTypes: string[];
+  categoryOptions?: string[];
   equipmentItems: LibraryEquipmentItem[];
 };
 
@@ -1435,6 +1450,7 @@ function ExerciseEditorForm({
   onSubmit,
   isPending,
   workoutTypes,
+  categoryOptions,
   equipmentItems,
   presentation,
 }: ExerciseEditorFormProps & { presentation: "dialog" | "panel" }) {
@@ -1442,6 +1458,7 @@ function ExerciseEditorForm({
     state.mode === "edit"
       ? {
           workoutType: state.row.workoutType,
+          additionalWorkoutTypes: state.row.additionalWorkoutTypes ?? [],
           focusArea: state.row.focusArea,
           name: state.row.name,
           equipment: state.row.equipment,
@@ -1494,7 +1511,19 @@ function ExerciseEditorForm({
       movement: form.name,
       defaultMetric: form.metric,
     });
-    setForm((f) => withTypeDefaults({ ...f, metric: nextMode }, workoutType, nextConfig));
+    setForm((f) =>
+      withTypeDefaults(
+        {
+          ...f,
+          metric: nextMode,
+          additionalWorkoutTypes: (f.additionalWorkoutTypes ?? []).filter(
+            (category) => category !== workoutType,
+          ),
+        },
+        workoutType,
+        nextConfig,
+      ),
+    );
   };
   const updateTracking = (trackingMode: TrackingMode) => {
     const nextProfile = TRACKING_MODE_OPTIONS.find(
@@ -1515,7 +1544,7 @@ function ExerciseEditorForm({
   const title = state.mode === "edit" ? "Edit movement" : "New movement";
   const description =
     state.mode === "edit"
-      ? `Update ${state.row.name} in Supabase.`
+      ? `Update ${state.row.name} in your Library.`
       : "Add a new exercise or skill to Supabase.";
 
   const panelStatus = (
@@ -1577,16 +1606,49 @@ function ExerciseEditorForm({
         }}
         className="space-y-3"
       >
-        <Field label="Type">
+        <Field label="Default category">
           <DatalistInput
             value={form.workoutType}
             onChange={updateType}
             options={workoutTypes}
-            placeholder="Choose type first"
+            placeholder="Choose default category"
             listId="lib-types"
             autoFocus
           />
         </Field>
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">Also in these categories</legend>
+          <p className="text-xs text-muted-foreground">
+            Choose any that fit. Your default category and tracking stay the same.
+          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {exerciseCategories({
+              workoutType: "",
+              additionalWorkoutTypes: [
+                ...(categoryOptions ?? workoutTypes),
+                ...(form.additionalWorkoutTypes ?? []),
+              ],
+            })
+              .filter((category) => category !== form.workoutType)
+              .map((category) => (
+                <label key={category} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={(form.additionalWorkoutTypes ?? []).includes(category)}
+                    onChange={(event) =>
+                      update(
+                        "additionalWorkoutTypes",
+                        event.target.checked
+                          ? [...(form.additionalWorkoutTypes ?? []), category]
+                          : (form.additionalWorkoutTypes ?? []).filter((name) => name !== category),
+                      )
+                    }
+                  />
+                  {category}
+                </label>
+              ))}
+          </div>
+        </fieldset>
         <Field label="Name">
           <Input
             value={form.name}

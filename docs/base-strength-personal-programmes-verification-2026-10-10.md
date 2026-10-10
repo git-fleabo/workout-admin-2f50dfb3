@@ -1,6 +1,6 @@
 # Base Strength personal programmes — 10 October 2026
 
-Volume/Intensity and Bullmastiff can now be set up from their Programme Library previews. Choose enabled Strength exercises, each main lift's and variation's own phase-specific estimated 1RM, load rounding, location, start date and personal supporting targets. Saving creates a paused personal version through the existing person-scoped `create_personal_programme` flow. It does not replace or start the current programme.
+Volume/Intensity and Bullmastiff can now be set up from their Programme Library previews. Choose enabled exercises with supported set tracking, each main lift's and variation's own phase-specific estimated 1RM, load rounding, location, start date and personal supporting targets. Saving creates a paused personal version through the existing person-scoped `create_personal_programme` flow. It does not replace or start the current programme.
 
 ## Prescriptions and personal choices
 
@@ -44,3 +44,9 @@ After user approval, the migration was applied to the live Train & Track Supabas
 - The harness is explicitly labelled as a local example; it is not evidence of a signed-in live save or live deployment.
 
 Source basis: Alex Bromley, *Base Strength: Program Design Blueprint*, Kindle ASIN B08R5J58F8, Volume/Intensity pp. 83–85 and Bullmastiff pp. 93–97, reviewed in the signed-in reader. See the programme catalogue and initial preview verification documents for source gaps and interpretation boundaries.
+
+## Exercise picker correction
+
+The live Kettlebell Swing exercise is active, enabled and tracked with weight/reps, but categorised as Conditioning. An unnecessary Strength-category filter excluded it in both Base Strength setup and the shared personal programme editor. Eligibility now follows supported tracking modes across Library categories: setup accepts weight/reps and reps-only exercises; the editor also accepts holds and loaded holds. Disabled/inactive exercises and unsupported tracking formats remain excluded.
+
+Added and replaced movements retain their Library identity and tracking mode, with `Strength` as the programme prescription's workout type to satisfy the existing save/start contract. The Library category and personal training records are untouched; no database migration is required. Component regressions cover selecting and saving the Conditioning swing, adding it in the session editor, replacing a movement with calisthenics, and excluding unavailable or unsupported choices. The full component suite passes 80 tests; 13 focused programme model tests, type checking, scoped lint and the production build also pass.

@@ -3,6 +3,7 @@ import {
   supabasePublicInsert,
   supabasePublicSelect,
   supabasePublicUpdate,
+  supabasePublicRpc,
 } from "./supabase-public";
 import {
   claimNoamProfile,
@@ -11,6 +12,7 @@ import {
   type PersonRecord,
 } from "./supabase-people.browser";
 import type { LibraryRow } from "./training-types";
+import { exerciseCategories } from "./exercise-categories";
 import type { MobilitySkill } from "./mobility-practice";
 import {
   DEFAULT_CIRCUIT_METADATA,
@@ -52,6 +54,7 @@ type ExerciseRecord = {
   circuit_dose_per_side: boolean;
   activity_type_id: string | null;
   activity_types: { name: string | null } | null;
+  exercise_activity_types?: Array<{ activity_types: { name: string } | null }>;
 };
 
 type PersonExerciseRecord = {
@@ -168,6 +171,12 @@ function mapExercise(
     id: row.id,
     row: row.source_row ?? 0,
     workoutType: row.activity_types?.name ?? "",
+    additionalWorkoutTypes: exerciseCategories({
+      workoutType: "",
+      additionalWorkoutTypes: row.exercise_activity_types?.flatMap((link) =>
+        link.activity_types ? [link.activity_types.name] : [],
+      ),
+    }).filter((name) => name !== row.activity_types?.name),
     focusArea: row.focus_area ?? "",
     name: row.name,
     equipment: equipmentItems.map((item) => item.name).join(" / "),
@@ -342,6 +351,7 @@ export async function listLibraryClient(personId?: string, includeInactive = fal
       people: [] as PersonRecord[],
       selectedPersonId: null,
       workoutTypes: [] as string[],
+      categoryOptions: [] as string[],
       items: [] as LibraryClientRow[],
       equipmentItems: [] as LibraryEquipmentItem[],
       locations: [] as Array<Pick<TrainingLocationRecord, "id" | "name" | "kind">>,
@@ -357,7 +367,7 @@ export async function listLibraryClient(personId?: string, includeInactive = fal
       listActivityTypes(),
       supabasePublicSelect<ExerciseRecord>("exercises", {
         select:
-          "id,source_row,focus_area,name,equipment,default_metric,suggested_sets,suggested_reps,position_measurement_guide,position_measurement_label,position_measurement_direction,notes,is_active,circuit_suitability,circuit_pattern,circuit_difficulty,circuit_impact,circuit_dose_mode,circuit_dose_min,circuit_dose_max,circuit_dose_per_side,activity_type_id,activity_types(name)",
+          "id,source_row,focus_area,name,equipment,default_metric,suggested_sets,suggested_reps,position_measurement_guide,position_measurement_label,position_measurement_direction,notes,is_active,circuit_suitability,circuit_pattern,circuit_difficulty,circuit_impact,circuit_dose_mode,circuit_dose_min,circuit_dose_max,circuit_dose_per_side,activity_type_id,activity_types(name),exercise_activity_types(activity_types(name))",
         ...(includeInactive ? {} : { is_active: "eq.true" }),
         order: "name.asc",
       }),
@@ -399,7 +409,14 @@ export async function listLibraryClient(personId?: string, includeInactive = fal
   const activeExerciseTypes = new Set(
     exercises
       .filter((row) => row.is_active)
-      .map((row) => row.activity_types?.name)
+      .flatMap((row) =>
+        exerciseCategories({
+          workoutType: row.activity_types?.name ?? "",
+          additionalWorkoutTypes: row.exercise_activity_types?.flatMap((link) =>
+            link.activity_types ? [link.activity_types.name] : [],
+          ),
+        }),
+      )
       .filter(Boolean),
   );
   const workoutTypes = activityTypes
@@ -415,6 +432,7 @@ export async function listLibraryClient(personId?: string, includeInactive = fal
     people,
     selectedPersonId,
     workoutTypes,
+    categoryOptions: activityTypes.map((type) => type.name),
     items: exercises.map((row, index) => ({
       ...mapExercise(
         row,
@@ -476,6 +494,7 @@ export async function addExerciseClient(fields: LibraryFields, personId?: string
   });
   const exercise = inserted[0];
   if (exercise) {
+    await syncExerciseCategories(exercise.id, fields);
     await Promise.all([
       supabasePublicInsert<PersonExerciseRecord>("person_exercises", {
         person_id: targetPerson.id,
@@ -530,8 +549,20 @@ export async function updateExerciseClient(id: string, fields: LibraryFields, pe
       circuit_dose_per_side: fields.circuitDosePerSide,
     },
   );
+  await syncExerciseCategories(id, fields);
   await syncExerciseEquipmentItems(id, targetPerson.id, selectedEquipment);
   return { ok: true };
+}
+
+async function syncExerciseCategories(id: string, fields: LibraryFields) {
+  if (fields.additionalWorkoutTypes === undefined) return;
+  await supabasePublicRpc("set_exercise_categories", {
+    p_exercise_id: id,
+    p_categories: exerciseCategories({
+      workoutType: "",
+      additionalWorkoutTypes: fields.additionalWorkoutTypes,
+    }),
+  });
 }
 
 export async function hideExerciseClient(id: string) {

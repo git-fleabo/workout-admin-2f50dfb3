@@ -26,14 +26,48 @@ beforeEach(() => {
   const choices = strengthChoices("volume_intensity");
   library.mockResolvedValue({
     selectedPersonId: strengthId(1),
-    items: Object.values(choices).map((c) => ({
-      id: c.exerciseId,
-      name: c.exerciseName,
-      metric: c.trackingMode === "weight_reps" ? "Weight & Reps" : "Reps",
-      workoutType: "Strength",
-      active: true,
-      enabled: true,
-    })),
+    items: [
+      ...Object.values(choices).map((c) => ({
+        id: c.exerciseId,
+        name: c.exerciseName,
+        metric: c.trackingMode === "weight_reps" ? "Weight & Reps" : "Reps",
+        workoutType: "Strength",
+        active: true,
+        enabled: true,
+      })),
+      {
+        id: strengthId(70),
+        name: "Kettlebell Swing",
+        metric: "weight_reps",
+        workoutType: "Conditioning",
+        active: true,
+        enabled: true,
+      },
+      {
+        id: strengthId(71),
+        name: "Disabled swing",
+        metric: "weight_reps",
+        workoutType: "Conditioning",
+        active: true,
+        enabled: false,
+      },
+      {
+        id: strengthId(72),
+        name: "Inactive swing",
+        metric: "weight_reps",
+        workoutType: "Conditioning",
+        active: false,
+        enabled: true,
+      },
+      {
+        id: strengthId(73),
+        name: "Run",
+        metric: "distance_time",
+        workoutType: "Cardio",
+        active: true,
+        enabled: true,
+      },
+    ],
   });
   templates.mockResolvedValue([strengthTemplate("volume_intensity")]);
   rpc.mockResolvedValue(strengthId(9));
@@ -58,6 +92,11 @@ describe("Base Strength personal setup and progression", () => {
       await user.type(screen.getByLabelText(`${name} reps`), "8");
       if (name === "Row") await user.type(screen.getByLabelText(`${name} load`), "20");
     }
+    const accessory = screen.getByRole("combobox", { name: "Row" });
+    expect(screen.queryByRole("option", { name: "Disabled swing" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Inactive swing" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Run" })).not.toBeInTheDocument();
+    await user.selectOptions(accessory, strengthId(70));
     await user.click(screen.getByRole("button", { name: "Save for review" }));
     await screen.findByText("Saved for review");
     expect(rpc).toHaveBeenCalledTimes(1);
@@ -65,6 +104,16 @@ describe("Base Strength personal setup and progression", () => {
     expect(name).toBe("create_personal_programme");
     expect(input.p_sessions).toHaveLength(54);
     expect(input.p_sessions[0].plan.movements[0].setRows[0].weight).toBe("55");
+    expect(input.p_sessions[0].plan.movements[2]).toMatchObject({
+      exerciseId: strengthId(70),
+      exercise: "Kettlebell Swing",
+      workoutType: "Strength",
+      trackingMode: "weight_reps",
+    });
+    expect(input.p_sessions[0].plan.movements[2].setRows[0]).toMatchObject({
+      weight: "20",
+      reps: "8",
+    });
     expect(input.p_sessions[27].plan.movements[0].baseStrength.referenceMax).toBeNull();
     expect(
       screen.queryByRole("button", { name: /activate|start programme/i }),

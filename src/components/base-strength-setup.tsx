@@ -19,7 +19,7 @@ import {
 import { listLibraryClient } from "@/lib/supabase-library.browser";
 import { listProgrammeTemplatesClient } from "@/lib/supabase-programmes.browser";
 import { supabasePublicRpc } from "@/lib/supabase-public";
-import { getTrackingModeValue } from "@/lib/movement-metrics";
+import { programmeExerciseTrackingMode } from "@/lib/personal-programme";
 import { todayISO } from "@/lib/date";
 
 export type BaseStrengthSetupExercise = {
@@ -296,12 +296,8 @@ export function BaseStrengthSetup({
   });
   const [saved, setSaved] = useState(false);
   const exercises = (library.data?.items ?? []).flatMap((item) => {
-    if (!item.active || !item.enabled || item.workoutType.toLowerCase() !== "strength") return [];
-    const mode = getTrackingModeValue({
-      workoutType: item.workoutType,
-      movement: item.name,
-      defaultMetric: item.metric,
-    });
+    if (!item.active || !item.enabled) return [];
+    const mode = programmeExerciseTrackingMode(item);
     return mode === "weight_reps" || mode === "reps_only"
       ? [{ id: item.id, name: item.name, trackingMode: mode }]
       : [];

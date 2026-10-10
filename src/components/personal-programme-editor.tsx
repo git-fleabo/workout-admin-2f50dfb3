@@ -27,11 +27,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { getLibraryClient } from "@/lib/supabase-log.browser";
-import { getTrackingModeValue } from "@/lib/movement-metrics";
 import { formatUKDate } from "@/lib/date";
 import { FIXED_PROGRESSION, progressionSummary } from "@/lib/programme-progression";
 import {
   personalPlanSchema,
+  programmeExerciseTrackingMode,
   propagateProgrammeChanges,
   type PersonalProgrammeMovement,
   type PersonalProgrammeSession,
@@ -81,16 +81,9 @@ export function ProgrammeSessionEditor({
     onDirtyChange?.(dirty);
     return () => onDirtyChange?.(false);
   }, [dirty, onDirtyChange]);
-  const candidates = exercises.filter((exercise) => {
-    const mode = getTrackingModeValue({
-      workoutType: exercise.workoutType,
-      movement: exercise.name,
-      defaultMetric: exercise.metric,
-    });
-    return (
-      exercise.workoutType.toLowerCase() === "strength" &&
-      ["weight_reps", "reps_only", "hold", "grip_hold"].includes(mode)
-    );
+  const candidates = exercises.flatMap((exercise) => {
+    const trackingMode = programmeExerciseTrackingMode(exercise);
+    return trackingMode ? [{ ...exercise, trackingMode }] : [];
   });
   const patchMovement = (index: number, patch: Partial<PersonalProgrammeMovement>) =>
     setDraft((current) => ({
@@ -111,16 +104,12 @@ export function ProgrammeSessionEditor({
   const replaceExercise = (index: number, id: string) => {
     const exercise = candidates.find((item) => item.id === id);
     if (!exercise) return;
-    const trackingMode = getTrackingModeValue({
-      workoutType: exercise.workoutType,
-      movement: exercise.name,
-      defaultMetric: exercise.metric,
-    });
     patchMovement(index, {
       exerciseId: exercise.id,
       exercise: exercise.name,
-      workoutType: exercise.workoutType,
-      trackingMode,
+      // This is a strength programme prescription; the Library category stays unchanged.
+      workoutType: "Strength",
+      trackingMode: exercise.trackingMode,
       reason: "",
       baseStrength: undefined,
       progression: { ...FIXED_PROGRESSION },
@@ -133,12 +122,8 @@ export function ProgrammeSessionEditor({
       exerciseId: exercise.id,
       exercise: exercise.name,
       programmeKey: crypto.randomUUID(),
-      workoutType: exercise.workoutType,
-      trackingMode: getTrackingModeValue({
-        workoutType: exercise.workoutType,
-        movement: exercise.name,
-        defaultMetric: exercise.metric,
-      }),
+      workoutType: "Strength",
+      trackingMode: exercise.trackingMode,
       targets: {
         durationMinutes: "",
         distance: "",
