@@ -3,16 +3,54 @@ import { getCurrentPerson } from "./supabase-people.browser";
 
 type Row = Record<string, unknown>;
 
-async function owned(table: string, personId: string, column = "person_id") {
-  return supabasePublicSelect<Row>(table, {
-    select: "*",
-    [column]: `eq.${personId}`,
-    limit: 10000,
-  });
+const PAGE_SIZE = 500;
+const ID_BATCH_SIZE = 50;
+const compositeOrder: Record<string, string> = {
+  person_training_methods: "person_id.asc,training_method_id.asc",
+  session_method_block_entries: "block_id.asc,session_entry_id.asc",
+  suggested_workout_method_block_entries: "block_id.asc,suggested_workout_entry_id.asc",
+};
+
+async function allRows(table: string, params: Record<string, string>) {
+  const rows: Row[] = [];
+  // Continue until empty, including when the server applies a smaller row cap.
+  for (;;) {
+    const page = await supabasePublicSelect<Row>(table, {
+      select: "*",
+      ...params,
+      order: compositeOrder[table] ?? "id.asc",
+      limit: PAGE_SIZE,
+      offset: rows.length,
+    });
+    if (!page.length) return rows;
+    rows.push(...page);
+  }
 }
 
-async function linked(table: string, params: Record<string, string>) {
-  return supabasePublicSelect<Row>(table, { select: "*", ...params, limit: 10000 });
+function ids(rows: Row[], column = "id") {
+  return [
+    ...new Set(
+      rows.flatMap((row) =>
+        typeof row[column] === "string" && row[column] ? [row[column] as string] : [],
+      ),
+    ),
+  ];
+}
+
+async function owned(table: string, personId: string, column = "person_id") {
+  return allRows(table, { [column]: `eq.${personId}` });
+}
+
+async function children(table: string, column: string, parentIds: string[]) {
+  const rows: Row[] = [];
+  for (let i = 0; i < parentIds.length; i += ID_BATCH_SIZE) {
+    rows.push(
+      ...(await allRows(table, {
+        [column]: `in.(${parentIds.slice(i, i + ID_BATCH_SIZE).join(",")})`,
+      })),
+    );
+  }
+  return rows;
 }
 
 function download(filename: string, content: string, type: string) {
@@ -71,102 +109,51 @@ export async function getPersonalDataExport() {
     owned("data_quality_audit_events", person.id),
     owned("programs", person.id, "created_by_person_id"),
   ]);
-  const sessionIds = sessions.map((row) => String(row.id));
-  const assignmentIds = programmeAssignments.map((row) => String(row.id));
-  const suggestionIds = suggestedWorkouts.map((row) => String(row.id));
-  const programIds = Array.from(
-    new Set(
-      [...programs, ...programmeAssignments].map((row) => String(row.program_id)).filter(Boolean),
-    ),
-  );
+  const sessionIds = ids(sessions);
+  const assignmentIds = ids(programmeAssignments);
+  const suggestionIds = ids(suggestedWorkouts);
+  const programIds = [...new Set([...ids(programs), ...ids(programmeAssignments, "program_id")])];
+  const referencedPrograms = await children("programs", "id", programIds);
+  const exportedPrograms = [
+    ...new Map([...programs, ...referencedPrograms].map((row) => [row.id, row])).values(),
+  ];
   const [
     entries,
-    sessionSets,
-    sessionMetrics,
     sessionBlocks,
-    blockEntries,
     programWorkouts,
     assignmentExercises,
     assignmentPools,
     programReviews,
     suggestedEntries,
-    suggestedSets,
     suggestedBlocks,
   ] = await Promise.all([
-    sessionIds.length
-      ? linked("session_entries", { "sessions!inner.person_id": `eq.${person.id}` })
-      : Promise.resolve([]),
-    sessionIds.length
-      ? linked("entry_sets", {
-          "session_entries!inner.sessions!inner.person_id": `eq.${person.id}`,
-        })
-      : Promise.resolve([]),
-    sessionIds.length
-      ? linked("entry_metrics", {
-          "session_entries!inner.sessions!inner.person_id": `eq.${person.id}`,
-        })
-      : Promise.resolve([]),
-    sessionIds.length
-      ? linked("session_method_blocks", { "sessions!inner.person_id": `eq.${person.id}` })
-      : Promise.resolve([]),
-    sessionIds.length
-      ? linked("session_method_block_entries", {
-          "session_method_blocks!inner.sessions!inner.person_id": `eq.${person.id}`,
-        })
-      : Promise.resolve([]),
-    programIds.length
-      ? linked("program_workouts", { program_id: `in.(${programIds.join(",")})` })
-      : Promise.resolve([]),
-    assignmentIds.length
-      ? linked("program_assignment_exercises", {
-          program_assignment_id: `in.(${assignmentIds.join(",")})`,
-        })
-      : Promise.resolve([]),
-    assignmentIds.length
-      ? linked("program_assignment_exercise_pools", {
-          program_assignment_id: `in.(${assignmentIds.join(",")})`,
-        })
-      : Promise.resolve([]),
-    assignmentIds.length
-      ? linked("program_workout_reviews", {
-          program_assignment_id: `in.(${assignmentIds.join(",")})`,
-        })
-      : Promise.resolve([]),
-    suggestionIds.length
-      ? linked("suggested_workout_entries", {
-          suggested_workout_id: `in.(${suggestionIds.join(",")})`,
-        })
-      : Promise.resolve([]),
-    suggestionIds.length
-      ? linked("suggested_workout_sets", {
-          "suggested_workout_entries!inner.suggested_workout_id": `in.(${suggestionIds.join(",")})`,
-        })
-      : Promise.resolve([]),
-    suggestionIds.length
-      ? linked("suggested_workout_method_blocks", {
-          suggested_workout_id: `in.(${suggestionIds.join(",")})`,
-        })
-      : Promise.resolve([]),
+    children("session_entries", "session_id", sessionIds),
+    children("session_method_blocks", "session_id", sessionIds),
+    children("program_workouts", "program_id", programIds),
+    children("program_assignment_exercises", "program_assignment_id", assignmentIds),
+    children("program_assignment_exercise_pools", "program_assignment_id", assignmentIds),
+    children("program_workout_reviews", "program_assignment_id", assignmentIds),
+    children("suggested_workout_entries", "suggested_workout_id", suggestionIds),
+    children("suggested_workout_method_blocks", "suggested_workout_id", suggestionIds),
   ]);
-  const suggestedEntryIds = suggestedEntries.map((row) => String(row.id));
-  const suggestedMethodBlocks = suggestedBlocks;
-  const suggestedBlockIds = suggestedMethodBlocks.map((row) => String(row.id));
-  const [programEntries, suggestedSetSegments, suggestedBlockEntries] = await Promise.all([
-    programWorkouts.length
-      ? linked("program_workout_entries", {
-          program_workout_id: `in.(${programWorkouts.map((row) => String(row.id)).join(",")})`,
-        })
-      : Promise.resolve([]),
-    suggestedEntryIds.length
-      ? linked("suggested_workout_set_segments", {
-          "suggested_workout_sets!inner.suggested_workout_entries!inner.suggested_workout_id": `in.(${suggestionIds.join(",")})`,
-        })
-      : Promise.resolve([]),
-    suggestedBlockIds.length
-      ? linked("suggested_workout_method_block_entries", {
-          block_id: `in.(${suggestedBlockIds.join(",")})`,
-        })
-      : Promise.resolve([]),
+  const [
+    sessionSets,
+    sessionMetrics,
+    blockEntries,
+    programEntries,
+    suggestedSets,
+    suggestedBlockEntries,
+  ] = await Promise.all([
+    children("entry_sets", "session_entry_id", ids(entries)),
+    children("entry_metrics", "session_entry_id", ids(entries)),
+    children("session_method_block_entries", "block_id", ids(sessionBlocks)),
+    children("program_workout_entries", "program_workout_id", ids(programWorkouts)),
+    children("suggested_workout_sets", "suggested_workout_entry_id", ids(suggestedEntries)),
+    children("suggested_workout_method_block_entries", "block_id", ids(suggestedBlocks)),
+  ]);
+  const [sessionSegments, suggestedSetSegments] = await Promise.all([
+    children("entry_set_segments", "entry_set_id", ids(sessionSets)),
+    children("suggested_workout_set_segments", "suggested_workout_set_id", ids(suggestedSets)),
   ]);
   return {
     exported_at: new Date().toISOString(),
@@ -174,9 +161,7 @@ export async function getPersonalDataExport() {
     sessions,
     session_entries: entries,
     entry_sets: sessionSets,
-    entry_set_segments: await linked("entry_set_segments", {
-      "entry_sets!inner.session_entries!inner.sessions!inner.person_id": `eq.${person.id}`,
-    }),
+    entry_set_segments: sessionSegments,
     entry_metrics: sessionMetrics,
     session_method_blocks: sessionBlocks,
     session_method_block_entries: blockEntries,
@@ -186,7 +171,7 @@ export async function getPersonalDataExport() {
     goal_checkins: goalCheckins,
     daily_rotation_items: rotationItems,
     daily_rotation_assignments: rotationAssignments,
-    programs,
+    programs: exportedPrograms,
     program_workouts: programWorkouts,
     program_workout_entries: programEntries,
     program_assignments: programmeAssignments,
@@ -209,47 +194,84 @@ export async function getPersonalDataExport() {
   };
 }
 
-export async function downloadPersonalData(format: "json" | "csv") {
-  const data = await getPersonalDataExport();
-  if (format === "json") {
-    download(
-      `training-data-${new Date().toISOString().slice(0, 10)}.json`,
-      JSON.stringify(data, null, 2),
-      "application/json",
-    );
-    return;
+const CSV_HEADERS = [
+  "session_date",
+  "session_title",
+  "session_id",
+  "entry_id",
+  "entry_name",
+  "set_number",
+  "reps",
+  "weight",
+  "duration_seconds",
+  "distance",
+  "distance_unit",
+  "rpe",
+  "completed",
+  "duration_minutes",
+  "session_completed",
+  "entry_completed",
+  "notes",
+];
+
+export function serializeSessionCsv(
+  data: Pick<
+    Awaited<ReturnType<typeof getPersonalDataExport>>,
+    "sessions" | "session_entries" | "entry_sets"
+  >,
+) {
+  const sessionById = new Map(data.sessions.map((session) => [session.id, session]));
+  const setsByEntry = new Map<unknown, Row[]>();
+  for (const set of data.entry_sets) {
+    const rows = setsByEntry.get(set.session_entry_id) ?? [];
+    rows.push(set);
+    setsByEntry.set(set.session_entry_id, rows);
   }
-  const entryById = new Map(data.session_entries.map((entry) => [String(entry.id), entry]));
-  const sessionById = new Map(data.sessions.map((session) => [String(session.id), session]));
-  const rows = data.entry_sets.map((set) => {
-    const entry = entryById.get(String(set.session_entry_id));
-    const session = entry ? sessionById.get(String(entry.session_id)) : undefined;
-    return {
-      session_date: session?.session_date,
-      session_title: session?.title,
-      session_id: session?.id,
-      entry_id: entry?.id,
-      entry_name: entry?.name,
-      set_number: set.set_number,
-      reps: set.reps,
-      weight: set.weight,
-      duration_seconds: set.duration_seconds,
-      distance: set.distance,
-      distance_unit: set.distance_unit,
-      rpe: set.rpe,
-      completed: set.completed,
-    };
-  });
-  const headers = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
-  const csv = [
-    headers,
-    ...rows.map((row) => headers.map((header) => row[header as keyof typeof row])),
+  const sessionsWithEntries = new Set(data.session_entries.map((entry) => entry.session_id));
+  const records = data.session_entries.flatMap((entry) =>
+    (setsByEntry.get(entry.id) ?? [{}]).map((set) => ({
+      session: sessionById.get(entry.session_id),
+      entry,
+      set,
+    })),
+  );
+  // Preserve setless activities and sessions without entries in a sessions CSV.
+  for (const session of data.sessions) {
+    if (!sessionsWithEntries.has(session.id)) records.push({ session, entry: {}, set: {} });
+  }
+  const rows = records.map(({ session, entry, set }) => ({
+    session_date: session?.session_date,
+    session_title: session?.title,
+    session_id: session?.id,
+    entry_id: entry.id,
+    entry_name: entry.name,
+    set_number: set.set_number,
+    reps: set.reps,
+    weight: set.weight,
+    duration_seconds: set.duration_seconds,
+    distance: set.distance,
+    distance_unit: set.distance_unit,
+    rpe: set.rpe ?? session?.rpe,
+    completed: set.completed ?? entry.completed ?? session?.completed,
+    duration_minutes: session?.duration_minutes,
+    session_completed: session?.completed,
+    entry_completed: entry.completed,
+    notes: entry.notes ?? session?.notes,
+  }));
+  return [
+    CSV_HEADERS,
+    ...rows.map((row) => CSV_HEADERS.map((header) => row[header as keyof typeof row])),
   ]
     .map((row) => row.map(csvValue).join(","))
     .join("\n");
-  download(
-    `training-sessions-${new Date().toISOString().slice(0, 10)}.csv`,
-    csv,
-    "text/csv;charset=utf-8",
-  );
+}
+
+export async function downloadPersonalData(format: "json" | "csv") {
+  const data = await getPersonalDataExport();
+  const date = new Date().toISOString().slice(0, 10);
+  if (format === "json") {
+    download(`training-data-${date}.json`, JSON.stringify(data, null, 2), "application/json");
+    return;
+  }
+  download(`training-sessions-${date}.csv`, serializeSessionCsv(data), "text/csv;charset=utf-8");
 }

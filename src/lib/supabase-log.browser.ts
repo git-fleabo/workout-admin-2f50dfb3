@@ -666,11 +666,7 @@ export async function findDuplicateLogClient(data: DuplicateLogInput) {
   return rows[0] ?? null;
 }
 
-export async function addWorkoutSessionClient(
-  data: WorkoutSessionInput,
-  options: { queueWhenOffline?: boolean } = {},
-) {
-  const person = await requirePerson();
+async function prepareWorkoutSave(data: WorkoutSessionInput, personId: string) {
   data.entries.forEach((entry) => validatedFeel(entry.feel));
   const entries = data.entries.filter((entry) => entry.exercise.trim());
   if (!entries.length) throw new Error("Add at least one movement.");
@@ -928,7 +924,7 @@ export async function addWorkoutSessionClient(
     }));
 
   const rpcBody = {
-    p_person_id: person.id,
+    p_person_id: personId,
     p_session: {
       activity_type_id: null,
       session_date: data.date,
@@ -943,11 +939,22 @@ export async function addWorkoutSessionClient(
     p_entries: rpcEntries,
     p_method_blocks: methodBlocks,
   };
-  const rpcFunctionName = data.mobilityRunId ? "save_mobility_workout" : "save_workout";
+  const rpcFunctionName: "save_mobility_workout" | "save_workout" = data.mobilityRunId
+    ? "save_mobility_workout"
+    : "save_workout";
   const saveBody = data.mobilityRunId
     ? { ...rpcBody, p_mobility_run_id: data.mobilityRunId }
     : rpcBody;
 
+  return { rpcBody, rpcFunctionName, saveBody };
+}
+
+export async function addWorkoutSessionClient(
+  data: WorkoutSessionInput,
+  options: { queueWhenOffline?: boolean } = {},
+) {
+  const person = await requirePerson();
+  const { rpcFunctionName, saveBody } = await prepareWorkoutSave(data, person.id);
   try {
     const sessionId = await supabasePublicRpc<string>(rpcFunctionName, saveBody);
     if (!sessionId) throw new Error("Workout was not saved.");
@@ -970,60 +977,23 @@ export async function replaceWorkoutSessionClient(
 ) {
   if (!originalSessionId) throw new Error("Missing workout session id.");
   const person = await requirePerson();
-  const originals = await supabasePublicSelect<{
-    id: string;
-    mobility_practice_run_id: string | null;
-  }>("sessions", {
-    select: "id,mobility_practice_run_id",
-    id: `eq.${originalSessionId}`,
-    person_id: `eq.${person.id}`,
-    limit: 1,
+  const { rpcBody } = await prepareWorkoutSave(data, person.id);
+  // Keep the session identity and its plan/review/mobility links. A failed or
+  // lost response never triggers a compensating delete in the browser.
+  const sessionId = await supabasePublicRpc<string>("correct_workout", {
+    ...rpcBody,
+    p_session_id: originalSessionId,
   });
-  if (!originals[0]) throw new Error("The original workout could not be found.");
-
-  const linkedPlans = await supabasePublicSelect<{ id: string }>("suggested_workouts", {
-    select: "id",
-    person_id: `eq.${person.id}`,
-    completed_session_id: `eq.${originalSessionId}`,
-  });
-  const replacement = await addWorkoutSessionClient(
-    {
-      ...data,
-      mobilityRunId: data.mobilityRunId ?? originals[0].mobility_practice_run_id,
-    },
-    { queueWhenOffline: false },
-  );
-
-  try {
-    const deleted = await supabasePublicDelete<{ id: string }>("sessions", {
-      id: `eq.${originalSessionId}`,
-      person_id: `eq.${person.id}`,
-    });
-    if (!deleted.some((session) => session.id === originalSessionId)) {
-      throw new Error("The original workout was not removed, so the correction was cancelled.");
-    }
-  } catch (error) {
-    await supabasePublicDelete("sessions", { id: `eq.${replacement.sessionId}` }).catch(
-      () => undefined,
-    );
-    throw error;
-  }
-
-  let planRelinkFailed = false;
-  for (const plan of linkedPlans) {
-    try {
-      const updated = await supabasePublicUpdate<{ id: string }>(
-        "suggested_workouts",
-        { id: `eq.${plan.id}`, person_id: `eq.${person.id}` },
-        { status: "completed", completed_session_id: replacement.sessionId },
-      );
-      if (!updated.some((workout) => workout.id === plan.id)) planRelinkFailed = true;
-    } catch {
-      planRelinkFailed = true;
-    }
-  }
-
-  return { ...replacement, replacedSessionId: originalSessionId, planRelinkFailed };
+  if (sessionId !== originalSessionId)
+    throw new Error("The workout correction was not confirmed. Retry the correction.");
+  return {
+    ok: true,
+    row: "Supabase",
+    sessionId,
+    queued: false as const,
+    replacedSessionId: originalSessionId,
+    planRelinkFailed: false,
+  };
 }
 
 export async function deleteSessionClient(id: string) {

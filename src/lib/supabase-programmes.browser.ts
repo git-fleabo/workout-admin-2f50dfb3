@@ -822,13 +822,8 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
     if (assignment.personId !== currentPerson.id || assignment.status !== "active") continue;
     const template = templateById.get(assignment.programId);
     const workout = template?.workouts[assignment.currentWorkoutIndex];
-    const method = getProgrammeMethodSetup(template?.methodType ?? null);
-    if (!template || !workout || !method || !template.methodType) continue;
+    if (!template || !workout) continue;
     if (linkedKeys.has(`${assignment.id}:${workout.id}`)) continue;
-    const activeVolumeReview =
-      template.methodType === "adaptive_strength_12_week"
-        ? await getActiveProgrammeStrengthVolumeReviewClient(assignment.id, currentPerson.id)
-        : null;
 
     const personalSession = assignment.personalProgramme?.sessions.find(
       (session) => session.workoutId === workout.id,
@@ -855,6 +850,13 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
       });
       continue;
     }
+
+    const method = getProgrammeMethodSetup(template.methodType);
+    if (!method || !template.methodType) continue;
+    const activeVolumeReview =
+      template.methodType === "adaptive_strength_12_week"
+        ? await getActiveProgrammeStrengthVolumeReviewClient(assignment.id, currentPerson.id)
+        : null;
 
     const mappingBySlot = new Map(
       assignment.exercises.map((exercise) => [exercise.slotKey, exercise]),
