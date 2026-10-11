@@ -3,7 +3,7 @@ import type {
   SkillPracticeHistoryEntry,
 } from "./programme-support";
 import { getCurrentPerson } from "./supabase-people.browser";
-import { supabasePublicSelect } from "./supabase-public";
+import { supabaseSelectAll } from "./supabase-pagination.browser";
 
 type PlannedSetRow = {
   reps: number | string | null;
@@ -64,7 +64,7 @@ function setDose(
 export async function getProgrammeSkillSupportHistoryClient(assignmentId: string) {
   const person = await getCurrentPerson();
   if (!person) throw new Error("This account is not linked to a person.");
-  const plans = await supabasePublicSelect<CompletedSupportPlanRow>("suggested_workouts", {
+  const plans = await supabaseSelectAll<CompletedSupportPlanRow>("suggested_workouts", {
     select:
       "goal_id,suggested_for,completed_session_id,suggested_workout_entries(exercise_id,name,tracking_mode,suggested_workout_sets(reps,duration_seconds))",
     person_id: `eq.${person.id}`,
@@ -73,7 +73,6 @@ export async function getProgrammeSkillSupportHistoryClient(assignmentId: string
     goal_id: "not.is.null",
     status: "eq.completed",
     order: "suggested_for.desc,created_at.desc",
-    limit: 200,
   });
   const sessionIds = Array.from(
     new Set(
@@ -84,10 +83,9 @@ export async function getProgrammeSkillSupportHistoryClient(assignmentId: string
   for (let index = 0; index < sessionIds.length; index += 100) {
     const batch = sessionIds.slice(index, index + 100);
     entryBatches.push(
-      supabasePublicSelect<CompletedEntryRow>("session_entries", {
+      supabaseSelectAll<CompletedEntryRow>("session_entries", {
         select: "session_id,exercise_id,name,completed,entry_sets(reps,duration_seconds,completed)",
         session_id: `in.(${batch.join(",")})`,
-        limit: 1000,
       }),
     );
   }
@@ -135,7 +133,7 @@ export async function getProgrammeSupportBlockHistoryClient(
 ): Promise<ProgrammeSupportPlanHistoryEntry[]> {
   const person = await getCurrentPerson();
   if (!person) throw new Error("This account is not linked to a person.");
-  const plans = await supabasePublicSelect<SupportPlanHistoryRow>("suggested_workouts", {
+  const plans = await supabaseSelectAll<SupportPlanHistoryRow>("suggested_workouts", {
     select:
       "suggested_for,status,goal_id,mobility_practice_run_id,training_locations(kind),suggested_workout_entries(tracking_mode,suggested_workout_sets(reps,duration_seconds))",
     person_id: `eq.${person.id}`,
@@ -143,7 +141,6 @@ export async function getProgrammeSupportBlockHistoryClient(
     program_workout_id: "is.null",
     status: "in.(pending,accepted,completed,skipped)",
     order: "suggested_for.desc,created_at.desc",
-    limit: 200,
   });
   return plans.flatMap((plan) => {
     if (!plan.suggested_for || (!plan.goal_id && !plan.mobility_practice_run_id)) return [];

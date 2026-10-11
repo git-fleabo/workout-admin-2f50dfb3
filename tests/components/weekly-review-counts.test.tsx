@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/supabase-public", () => ({
   supabasePublicSelect: async (table: string, params: Record<string, unknown>) => {
+    if (params.offset) return [];
     expect(params.person_id).toBe("eq.person");
     return table === "sessions" ? mocks.sessions : mocks.plans;
   },

@@ -1,7 +1,7 @@
+import { supabaseSelectAll } from "./supabase-pagination.browser";
 import {
   supabasePublicDelete,
   supabasePublicInsert,
-  supabasePublicSelect,
   supabasePublicUpdate,
 } from "./supabase-public";
 import { getCurrentPerson, claimNoamProfile } from "./supabase-people.browser";
@@ -65,15 +65,17 @@ export async function listGoalsClient() {
   const person = await getCurrentPerson();
   if (!person) return { needsProfileClaim: true as const, items: [] as GoalRow[] };
   const [rows, checkins] = await Promise.all([
-    supabasePublicSelect<GoalRecord>("goals", {
+    supabaseSelectAll<GoalRecord>("goals", {
+      person_id: `eq.${person.id}`,
       select:
         "id,person_id,source_row,created_at,goal,goal_type,status,exercise_id,tracking_mode,goal_metric,target_value,target_unit,starting_value,deadline,metric,target,period,notes",
       order: "created_at.asc",
     }),
-    supabasePublicSelect<GoalCheckinRecord>("goal_checkins", {
-      select: "id,goal_id,checked_date,note,created_at",
+    supabaseSelectAll<GoalCheckinRecord>("goal_checkins", {
+      person_id: `eq.${person.id}`,
+      select: "id,goal_id,checked_date,note,created_at,goals!inner(person_id)",
+      "goals.person_id": `eq.${person.id}`,
       order: "checked_date.desc",
-      limit: 2000,
     }),
   ]);
   const checkinsByGoal = new Map<string, GoalCheckinRecord[]>();
@@ -191,13 +193,13 @@ export async function deleteGoalCheckinClient(id: string) {
 }
 
 export async function getGoalActivityClient(): Promise<GoalActivitySession[]> {
-  await requirePerson();
-  const sessions = await supabasePublicSelect<GoalSessionRecord>("sessions", {
+  const person = await requirePerson();
+  const sessions = await supabaseSelectAll<GoalSessionRecord>("sessions", {
+    person_id: `eq.${person.id}`,
     select:
       "id,session_date,duration_minutes,session_entries(completed,entry_sets(duration_seconds),entry_metrics(metric_key,metric_value,metric_text))",
     completed: "eq.true",
     order: "session_date.asc",
-    limit: 2000,
   });
   return sessions
     .map((session) => {

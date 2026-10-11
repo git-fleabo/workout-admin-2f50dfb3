@@ -1,3 +1,4 @@
+import { repLabel } from "@/lib/workout-preview";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { progressionSummary } from "@/lib/programme-progression";
 import { exerciseIsAvailableAtKind } from "@/lib/exercise-availability";
@@ -119,7 +120,7 @@ function targetSummary(movement: WorkoutPlanMovement) {
     return [
       `${rows.length} ${rows.length === 1 ? "set" : "sets"}`,
       first?.weight ? `${first.weight} kg` : "",
-      first?.reps ? `${first.reps} reps` : "",
+      first?.reps ? repLabel(first.reps) : "",
       first?.durationSeconds ? `${first.durationSeconds} sec` : "",
       movement.restTime ? `Rest ${movement.restTime}` : "",
     ]
@@ -130,7 +131,7 @@ function targetSummary(movement: WorkoutPlanMovement) {
     .map((row) =>
       [
         row.weight ? `${row.weight} kg` : "",
-        row.reps ? `${row.reps} reps` : "",
+        row.reps ? repLabel(row.reps) : "",
         row.durationSeconds ? `${row.durationSeconds} sec` : "",
       ]
         .filter(Boolean)
@@ -545,7 +546,13 @@ export function TodayPage() {
                           </Badge>
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          {offer.weekNumber ? `Week ${offer.weekNumber} · ` : ""}
+                          {offer.weekNumber &&
+                          (offer.sessionNumber ||
+                            !new RegExp(`\\bWeek ${offer.weekNumber}\\b`, "i").test(
+                              offer.workoutName,
+                            ))
+                            ? `Week ${offer.weekNumber} · `
+                            : ""}
                           {offer.sessionNumber
                             ? `Session ${offer.sessionNumber}`
                             : offer.workoutName}
@@ -571,26 +578,11 @@ export function TodayPage() {
                       </div>
                     ) : null}
 
-                    <div className="mt-4 divide-y divide-border rounded-lg border border-border bg-background/30">
-                      {offer.movements.map((movement, movementIndex) => (
-                        <div
-                          key={`${movement.exercise}:${movementIndex}`}
-                          className="flex items-baseline justify-between gap-3 p-3"
-                        >
-                          <div>
-                            <p className="text-sm font-medium">{movement.exercise}</p>
-                            {movement.progression ? (
-                              <p className="mt-1 text-[11px] text-muted-foreground">
-                                {progressionSummary(movement.progression)}
-                              </p>
-                            ) : null}
-                          </div>
-                          <p className="text-right text-[11px] text-foreground/75">
-                            {targetSummary(movement)}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      {Array.from(new Set(offer.movements.map((movement) => movement.exercise)))
+                        .slice(0, 6)
+                        .join(", ")}
+                    </p>
 
                     {availableLocations.length ? (
                       <div className="mt-4 space-y-1.5">
@@ -610,7 +602,7 @@ export function TodayPage() {
                             }));
                           }}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger aria-label={`${offer.programmeName} training location`}>
                             <MapPin className="mr-2 h-4 w-4" />
                             <SelectValue placeholder="Choose a location" />
                           </SelectTrigger>
@@ -735,6 +727,31 @@ export function TodayPage() {
                         </p>
                       </div>
                     )}
+                    <details className="mt-4 rounded-lg border border-border bg-background/30 p-3">
+                      <summary className="cursor-pointer text-sm font-medium">
+                        Workout movements and targets
+                      </summary>
+                      <div className="divide-y divide-border">
+                        {offer.movements.map((movement, movementIndex) => (
+                          <div
+                            key={`${movement.exercise}:${movementIndex}`}
+                            className="flex items-baseline justify-between gap-3 p-3"
+                          >
+                            <div>
+                              <p className="text-sm font-medium">{movement.exercise}</p>
+                              {movement.progression ? (
+                                <p className="mt-1 text-[11px] text-muted-foreground">
+                                  {progressionSummary(movement.progression)}
+                                </p>
+                              ) : null}
+                            </div>
+                            <p className="text-right text-[11px] text-foreground/75">
+                              {targetSummary(movement)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
                   </CardContent>
                 </Card>
               );
@@ -788,7 +805,7 @@ export function TodayPage() {
                   </p>
                 ) : null}
                 <p className="mt-2 text-xs text-muted-foreground">
-                  {plan.movements.length} movements ·{" "}
+                  {plan.movements.length} {plan.movements.length === 1 ? "movement" : "movements"} ·{" "}
                   {plan.movements.map((movement) => movement.exercise).join(", ")}
                 </p>
                 {daysSinceSuggestedSession(suggestedDate, today) >= 7 ? (
@@ -1022,7 +1039,8 @@ export function TodayPage() {
                             />
                           </div>
                           <p className="mt-2 text-xs text-muted-foreground">
-                            {plan.movements.length} movements ·{" "}
+                            {plan.movements.length}{" "}
+                            {plan.movements.length === 1 ? "movement" : "movements"} ·{" "}
                             {plan.movements.map((movement) => movement.exercise).join(", ")}
                           </p>
                         </div>

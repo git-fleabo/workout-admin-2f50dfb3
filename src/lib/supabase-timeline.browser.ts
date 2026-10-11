@@ -1,4 +1,5 @@
-import { supabasePublicSelect } from "./supabase-public";
+import { supabaseSelectAll } from "./supabase-pagination.browser";
+
 import { claimNoamProfile, getCurrentPerson } from "./supabase-people.browser";
 import { getMovementMetricProfile } from "./movement-metrics";
 
@@ -359,22 +360,22 @@ export async function getTimelineDataClient(): Promise<TimelineData> {
   if (!person) throw new Error("Link this login to your profile first.");
 
   const [sessions, oneRmRows, bodyweightRows] = await Promise.all([
-    supabasePublicSelect<SessionRecord>("sessions", {
+    supabaseSelectAll<SessionRecord>("sessions", {
+      person_id: `eq.${person.id}`,
       select:
         "id,session_date,title,completed,duration_minutes,intensity,rpe,notes,activity_types(name),training_locations(name,kind),session_entries(id,entry_kind,name,progression_level,completed,notes,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,completed,entry_set_segments(method_name,reps,weight,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
       order: "session_date.desc",
-      limit: 1000,
     }),
-    supabasePublicSelect<OneRMRecord>("one_rm_tests", {
+    supabaseSelectAll<OneRMRecord>("one_rm_tests", {
+      person_id: `eq.${person.id}`,
       select:
         "id,test_date,source,exercise_name,load_type,external_weight,reps,rpe,estimated_total,estimated_external,is_pr",
       order: "test_date.desc",
-      limit: 1000,
     }),
-    supabasePublicSelect<BodyweightRecord>("bodyweight_logs", {
+    supabaseSelectAll<BodyweightRecord>("bodyweight_logs", {
+      person_id: `eq.${person.id}`,
       select: "id,logged_date,bodyweight,notes",
       order: "logged_date.desc",
-      limit: 1000,
     }),
   ]);
 

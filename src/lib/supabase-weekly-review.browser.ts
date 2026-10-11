@@ -2,7 +2,7 @@ import { getMovementMetricProfile } from "./movement-metrics";
 import { todayISO } from "./date";
 import { getCurrentPerson } from "./supabase-people.browser";
 import { getPRsClient } from "./supabase-log.browser";
-import { supabasePublicSelect } from "./supabase-public";
+import { supabaseSelectAll } from "./supabase-pagination.browser";
 import { comparableVolume, type LoadSemantics, type VolumeStatus } from "./data-quality";
 import {
   summarizeProgrammeAdherence,
@@ -602,21 +602,19 @@ export async function getWeeklyReviewClient(anchor?: string): Promise<WeeklyRevi
 
   const [sessionRows, planRows, prData, scheduledProgrammeSessions, programmeAssignments] =
     await Promise.all([
-      supabasePublicSelect<ReviewSessionRecord>("sessions", {
+      supabaseSelectAll<ReviewSessionRecord>("sessions", {
         select:
           "id,session_date,title,completed,duration_minutes,rpe,activity_types(name),training_locations(name,kind),session_entries(name,entry_kind,completed,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(reps,weight,duration_seconds,rpe,load_semantics,volume_status,implement_count,entry_set_segments(reps,weight)),entry_metrics(metric_key,metric_value,metric_text))",
         person_id: `eq.${person.id}`,
         completed: "eq.true",
         and: `(session_date.gte.${comparisonStart},session_date.lte.${reviewEnd})`,
         order: "session_date.desc",
-        limit: 500,
       }),
-      supabasePublicSelect<ReviewPlanRecord>("suggested_workouts", {
+      supabaseSelectAll<ReviewPlanRecord>("suggested_workouts", {
         select:
           "id,title,status,suggested_for,created_at,completed_session_id,program_assignment_id,program_workout_id",
         person_id: `eq.${person.id}`,
         order: "created_at.desc",
-        limit: 500,
       }),
       getPRsClient(),
       getUpcomingProgrammeScheduleClient(weekStart, reviewEnd, ["active", "complete"]),

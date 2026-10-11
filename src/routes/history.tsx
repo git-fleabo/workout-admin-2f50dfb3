@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -153,10 +153,11 @@ function kindMeta(kind: TimelineKind) {
   };
 }
 
-function HistoryPage() {
+export function HistoryPage() {
   const qc = useQueryClient();
   const [mode, setMode] = useState<PeriodMode>("month");
   const [anchor, setAnchor] = useState(() => startOfPeriod(new Date(), "month"));
+  const [visibleDates, setVisibleDates] = useState(30);
   const [filter, setFilter] = useState<KindFilter>("all");
   const [selected, setSelected] = useState<TimelineEntry | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
@@ -187,6 +188,9 @@ function HistoryPage() {
   const end = periodEnd(start, mode);
   const startISO = toISODate(start);
   const endISO = toISODate(end);
+  useEffect(() => {
+    setVisibleDates(30);
+  }, [startISO, endISO, filter]);
 
   const allPeriodEntries = useMemo(() => {
     const rows = timeline.data?.entries ?? [];
@@ -429,7 +433,7 @@ function HistoryPage() {
         </Card>
       ) : (
         <section className="space-y-4">
-          {grouped.map(([date, entries]) => (
+          {grouped.slice(0, visibleDates).map(([date, entries]) => (
             <div key={date} className="space-y-2">
               <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                 <CalendarDays className="h-4 w-4" />
@@ -488,6 +492,15 @@ function HistoryPage() {
               </div>
             </div>
           ))}
+          {grouped.length > visibleDates ? (
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setVisibleDates((count) => count + 30)}
+            >
+              Show more history ({grouped.length - visibleDates} dates remaining)
+            </Button>
+          ) : null}
         </section>
       )}
 

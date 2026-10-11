@@ -1,3 +1,4 @@
+import { useDialogReturnFocus } from "@/hooks/use-dialog-return-focus";
 import { dupBackOffRows } from "@/lib/base-strength-backoff";
 import { progressionSummary } from "@/lib/programme-progression";
 import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
@@ -891,6 +892,8 @@ export function ClimbForm() {
   const [loadedSuggestionId, setLoadedSuggestionId] = useState<string | null>(null);
   const [loadedPlanTitle, setLoadedPlanTitle] = useState("");
   const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const climbSubmitRef = useRef<HTMLButtonElement | null>(null);
+  const duplicateCloseAutoFocus = useDialogReturnFocus(duplicateOpen, climbSubmitRef);
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
   const [climbDraftLoaded, setClimbDraftLoaded] = useState(false);
   const climbDraftKey = useMemo(climbingSessionDraftKey, []);
@@ -1482,6 +1485,7 @@ export function ClimbForm() {
         ) : null}
 
         <Button
+          ref={climbSubmitRef}
           type="button"
           onClick={() => submit()}
           disabled={!canSubmit || checkingDuplicate}
@@ -1498,7 +1502,7 @@ export function ClimbForm() {
       </Card>
 
       <AlertDialog open={duplicateOpen} onOpenChange={setDuplicateOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent onCloseAutoFocus={duplicateCloseAutoFocus}>
           <AlertDialogHeader>
             <AlertDialogTitle>Already logged today</AlertDialogTitle>
             <AlertDialogDescription>
@@ -2465,6 +2469,10 @@ export function FullWorkoutForm() {
     });
   };
 
+  const finishCloseAutoFocus = useDialogReturnFocus(finishSummaryOpen);
+  const discardCloseAutoFocus = useDialogReturnFocus(discardDraftOpen);
+  const replaceCloseAutoFocus = useDialogReturnFocus(Boolean(pendingRecentSession));
+
   return (
     <div className="space-y-6">
       {editingSessionId ? (
@@ -3268,7 +3276,10 @@ export function FullWorkoutForm() {
           if (!open) setUncategorizedConfirmed(false);
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent
+          onCloseAutoFocus={finishCloseAutoFocus}
+          className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
+        >
           <DialogHeader>
             <DialogTitle>
               {editingSessionId ? "Finish corrected workout?" : "Finish this workout?"}
@@ -3392,7 +3403,7 @@ export function FullWorkoutForm() {
       />
 
       <AlertDialog open={discardDraftOpen} onOpenChange={setDiscardDraftOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent onCloseAutoFocus={discardCloseAutoFocus}>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel this workout?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -3411,7 +3422,7 @@ export function FullWorkoutForm() {
         open={Boolean(pendingRecentSession)}
         onOpenChange={(open) => !open && setPendingRecentSession(null)}
       >
-        <AlertDialogContent>
+        <AlertDialogContent onCloseAutoFocus={replaceCloseAutoFocus}>
           <AlertDialogHeader>
             <AlertDialogTitle>Replace this workout?</AlertDialogTitle>
             <AlertDialogDescription>

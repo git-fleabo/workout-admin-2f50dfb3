@@ -1,4 +1,5 @@
-import { supabasePublicSelect } from "./supabase-public";
+import { supabaseSelectAll } from "./supabase-pagination.browser";
+
 import { claimNoamProfile, getCurrentPerson } from "./supabase-people.browser";
 import type {
   BodyweightPoint,
@@ -459,28 +460,28 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
   if (!person) throw new Error("Link this login to your profile first.");
 
   const [sessions, oneRM, bodyweightRows, goalRows] = await Promise.all([
-    supabasePublicSelect<SessionRecord>("sessions", {
+    supabaseSelectAll<SessionRecord>("sessions", {
+      person_id: `eq.${person.id}`,
       select:
         "id,session_date,title,completed,duration_minutes,intensity,rpe,activity_types(name),session_entries(id,entry_kind,name,progression_level,completed,notes,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,rest_time,assistance_type,assistance_detail,quality,data_shape,load_semantics,volume_status,implement_count),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
       order: "session_date.asc",
-      limit: 1000,
     }),
-    supabasePublicSelect<OneRMRecord>("one_rm_tests", {
+    supabaseSelectAll<OneRMRecord>("one_rm_tests", {
+      person_id: `eq.${person.id}`,
       select:
         "test_date,exercise_name,source,external_weight,reps,estimated_total,estimated_external,is_pr",
       order: "test_date.asc",
-      limit: 1000,
     }),
-    supabasePublicSelect<BodyweightRecord>("bodyweight_logs", {
+    supabaseSelectAll<BodyweightRecord>("bodyweight_logs", {
+      person_id: `eq.${person.id}`,
       select: "logged_date,bodyweight",
       order: "logged_date.asc",
-      limit: 1000,
     }),
-    supabasePublicSelect<GoalRecord>("goals", {
+    supabaseSelectAll<GoalRecord>("goals", {
+      person_id: `eq.${person.id}`,
       select: "goal,metric,target,period",
       status: "eq.active",
       order: "created_at.asc",
-      limit: 200,
     }),
   ]);
 

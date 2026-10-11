@@ -1,3 +1,4 @@
+import { WorkoutPrescriptionPreview } from "./workout-prescription-preview";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -312,64 +313,25 @@ export function KettlebellWorkoutPicker({
                           <h3 className="mt-1 text-lg font-semibold">{preview.title}</h3>
                           <p className="text-sm text-muted-foreground">{preview.summary}</p>
                         </div>
-                        <p className="whitespace-pre-wrap text-sm">{preview.instructions}</p>
-                        <ol className="space-y-3">
-                          {preview.prescription.movements.map((movement, index) => (
-                            <li key={index} className="text-sm">
-                              <p className="font-medium">
-                                {index + 1}. {movement.exercise}
-                              </p>
-                              <p className="whitespace-pre-wrap text-muted-foreground">
-                                {movement.reason}
-                              </p>
-                              <p>
-                                {movement.setRows
-                                  .map(
-                                    (set, setIndex) =>
-                                      `Set ${setIndex + 1}: ${set.reps ? `${set.reps} reps` : `${set.durationSeconds} sec`}${set.weight ? ` · ${set.weight} kg` : ""}`,
-                                  )
-                                  .join("; ")}
-                              </p>
-                              {movement.restTime && (
-                                <p className="text-muted-foreground">Rest: {movement.restTime}</p>
+                        <WorkoutPrescriptionPreview
+                          movements={preview.prescription.movements}
+                          methodBlocks={preview.prescription.methodBlocks}
+                          instructions={preview.instructions}
+                          actions={
+                            <Button
+                              type="button"
+                              disabled={starting || handoffReady || hasUnfinishedWorkout}
+                              onClick={() => void start()}
+                            >
+                              {starting ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Play className="mr-2 h-4 w-4" />
                               )}
-                              {movement.targets.detail && (
-                                <p className="whitespace-pre-wrap text-muted-foreground">
-                                  {movement.targets.detail}
-                                </p>
-                              )}
-                            </li>
-                          ))}
-                        </ol>
-                        {preview.prescription.methodBlocks.map((block, index) => (
-                          <p key={index} className="text-sm">
-                            {block.methodName}:{" "}
-                            {block.memberMovementIndexes
-                              .map((member) => preview.prescription.movements[member].exercise)
-                              .join(" → ")}
-                            {block.rounds ? ` · ${block.rounds} rounds` : ""}
-                            {block.blockDurationMinutes
-                              ? ` · ${block.blockDurationMinutes} min`
-                              : ""}
-                            {block.config.mode === "timed_sequence" &&
-                            typeof block.config.round_seconds === "number"
-                              ? ` · ${block.config.round_seconds / 60} min per round`
-                              : ""}
-                            {block.restBetweenRoundsSeconds
-                              ? ` · ${block.restBetweenRoundsSeconds} sec between rounds`
-                              : ""}
-                            {block.config.mode === "emom" &&
-                            typeof block.config.interval_seconds === "number"
-                              ? ` · Start every ${block.config.interval_seconds} sec`
-                              : ""}
-                            {block.workIntervalSeconds
-                              ? ` · ${block.workIntervalSeconds} sec work`
-                              : ""}
-                            {block.restIntervalSeconds
-                              ? ` / ${block.restIntervalSeconds} sec rest`
-                              : ""}
-                          </p>
-                        ))}
+                              Start this workout
+                            </Button>
+                          }
+                        />
                         {preview.sourceReference && (
                           <p className="text-xs text-muted-foreground">
                             Strong ON! · {preview.sourceReference}
@@ -383,20 +345,6 @@ export function KettlebellWorkoutPicker({
                       </p>
                     )}
                     <div className="flex flex-wrap gap-2">
-                      {preview && (
-                        <Button
-                          type="button"
-                          disabled={starting || handoffReady || hasUnfinishedWorkout}
-                          onClick={() => void start()}
-                        >
-                          {starting ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <Play className="mr-2 h-4 w-4" />
-                          )}
-                          Start this workout
-                        </Button>
-                      )}
                       <Button
                         type="button"
                         variant="outline"

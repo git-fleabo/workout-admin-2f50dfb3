@@ -1,4 +1,7 @@
 import { History, Loader2, Trash2 } from "lucide-react";
+import { useId } from "react";
+import { useDialogReturnFocus } from "@/hooks/use-dialog-return-focus";
+import { FieldLabelContext } from "@/components/ui/field-context";
 import { formatUKDateShort } from "@/lib/date";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,12 +34,16 @@ export type RecentEntry = {
 };
 
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  const labelId = useId();
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+      <Label
+        id={labelId}
+        className="text-xs font-medium uppercase tracking-wider text-muted-foreground"
+      >
         {label}
       </Label>
-      {children}
+      <FieldLabelContext.Provider value={labelId}>{children}</FieldLabelContext.Provider>
     </div>
   );
 }
@@ -188,9 +195,10 @@ export function DeleteConfirmDialog({
   onCancel: () => void;
   onConfirm: (id: string) => void;
 }) {
+  const onCloseAutoFocus = useDialogReturnFocus(Boolean(target));
   return (
     <AlertDialog open={Boolean(target)} onOpenChange={(open) => !open && onCancel()}>
-      <AlertDialogContent className="max-w-sm">
+      <AlertDialogContent className="max-w-sm" onCloseAutoFocus={onCloseAutoFocus}>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete this entry?</AlertDialogTitle>
           <AlertDialogDescription>{target?.description}</AlertDialogDescription>

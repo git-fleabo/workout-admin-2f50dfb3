@@ -1,3 +1,4 @@
+import { supabaseSelectAll } from "./supabase-pagination.browser";
 import {
   classifySessionGroups,
   isSetlessActivity,
@@ -12,7 +13,7 @@ import {
 } from "./data-quality";
 import { getMovementMetricProfile, profileRequiresDuration } from "./movement-metrics";
 import { getCurrentPerson } from "./supabase-people.browser";
-import { supabasePublicRpc, supabasePublicSelect } from "./supabase-public";
+import { supabasePublicRpc } from "./supabase-public";
 
 type SetRecord = {
   id: string;
@@ -238,24 +239,21 @@ export async function getDataQualityAuditClient() {
   if (!person) throw new Error("This account is not linked to a training profile.");
 
   const [sessions, exercises, aliases] = await Promise.all([
-    supabasePublicSelect<SessionRecord>("sessions", {
+    supabaseSelectAll<SessionRecord>("sessions", {
       select:
         "id,person_id,session_date,title,source,source_sheet,source_row,created_at,training_location_id,duration_minutes,rpe,activity_type_id,activity_types(name),session_entries(id,exercise_id,activity_type_id,name,source_sheet,source_row,activity_types(name),exercises(name,equipment,default_metric,activity_types(name)),entry_sets(id,set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,rest_seconds,rest_time,assistance_type,assistance_detail,quality,notes,data_shape,aggregate_set_count,load_semantics,volume_status,implement_count,entry_set_segments(id)),entry_metrics(id,metric_key,metric_value,metric_text))",
       person_id: `eq.${person.id}`,
       completed: "eq.true",
       order: "session_date.desc,created_at.desc",
-      limit: 2000,
     }),
-    supabasePublicSelect<ExerciseRecord>("exercises", {
+    supabaseSelectAll<ExerciseRecord>("exercises", {
       select: "id,name,equipment,activity_type_id,is_active",
       is_active: "eq.true",
       order: "name.asc",
-      limit: 2000,
     }),
-    supabasePublicSelect<AliasRecord>("exercise_aliases", {
+    supabaseSelectAll<AliasRecord>("exercise_aliases", {
       select: "id,alias_name,normalized_alias,exercise_id,status,exercises(name)",
       order: "alias_name.asc",
-      limit: 2000,
     }),
   ]);
 

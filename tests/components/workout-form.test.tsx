@@ -577,5 +577,7 @@ describe("ClimbForm duplicate-session warning", () => {
 
     expect(await screen.findByText("Already logged today")).toBeInTheDocument();
     expect(mocks.addWorkoutSessionClient).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Cancel", exact: true }));
+    expect(screen.getByRole("button", { name: "Log climb", exact: true })).toHaveFocus();
   });
 });

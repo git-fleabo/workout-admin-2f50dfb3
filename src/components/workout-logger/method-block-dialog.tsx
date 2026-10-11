@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useDialogReturnFocus } from "@/hooks/use-dialog-return-focus";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -95,6 +96,7 @@ export function MethodBlockDialog({
   onClose: () => void;
   onSave: (block: WorkoutMethodBlockState) => void;
 }) {
+  const onCloseAutoFocus = useDialogReturnFocus(state.mode !== "closed");
   const namedEntries = entries.filter((entry) => entry.exercise.trim());
   const existing =
     state.mode === "edit" ? blocks.find((block) => block.id === state.blockId) : undefined;
@@ -205,7 +207,10 @@ export function MethodBlockDialog({
 
   return (
     <Dialog open={state.mode !== "closed"} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent
+        onCloseAutoFocus={onCloseAutoFocus}
+        className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
+      >
         <DialogHeader>
           <DialogTitle>
             {state.mode === "edit" ? "Edit training method" : "Add training method"}

@@ -225,7 +225,12 @@ export function SetRowsEditor({
         <span />
       </div>
       {rows.map((set, setIndex) => (
-        <div key={fields[setIndex]?.id ?? setIndex} className="space-y-2">
+        <div
+          key={fields[setIndex]?.id ?? setIndex}
+          className="space-y-2"
+          role="group"
+          aria-label={`Movement ${entryIndex + 1}, set ${setIndex + 1}`}
+        >
           <div
             className={`rounded-md border border-border/70 bg-background p-2 sm:grid sm:items-center sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0 ${
               usesLoad ? "sm:grid-cols-[32px_1fr_1fr_1fr_32px]" : "sm:grid-cols-[32px_1fr_1fr_32px]"
@@ -389,6 +394,8 @@ export function SetRowsEditor({
                 {set.method.segments.map((segment, segmentIndex) => (
                   <div
                     key={segmentIndex}
+                    role="group"
+                    aria-label={`${setMethodCopy(set.method!).noun} ${segmentIndex + 2}`}
                     className="rounded-md border border-border/70 bg-background/60 p-2"
                   >
                     <div className="mb-2 flex items-center justify-between">
@@ -488,7 +495,10 @@ export function SetRowsEditor({
                   if (method) onAddMethod(setIndex, method);
                 }}
               >
-                <SelectTrigger className="border-dashed border-fuchsia-400/25 text-fuchsia-200">
+                <SelectTrigger
+                  aria-label={`Set ${setIndex + 1} method (optional)`}
+                  className="border-dashed border-fuchsia-400/25 text-fuchsia-200"
+                >
                   <Layers3 className="mr-2 h-3.5 w-3.5" />
                   <SelectValue placeholder="Set method (optional)" />
                 </SelectTrigger>

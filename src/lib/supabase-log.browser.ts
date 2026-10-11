@@ -1,3 +1,4 @@
+import { supabaseSelectAll } from "./supabase-pagination.browser";
 import {
   SupabaseAuthRequiredError,
   supabaseCachedSelect,
@@ -1194,21 +1195,21 @@ export async function addBodyweightClient(data: BodyweightInput) {
 }
 
 export async function getPRsClient() {
-  await requirePerson();
+  const person = await requirePerson();
   const [tests, skills] = await Promise.all([
-    supabasePublicSelect<OneRMRecord>("one_rm_tests", {
+    supabaseSelectAll<OneRMRecord>("one_rm_tests", {
       select:
         "id,test_date,source,exercise_name,load_type,external_weight,reps,rpe,estimated_total,estimated_external,is_pr",
       is_pr: "eq.true",
       order: "exercise_name.asc,test_date.desc",
-      limit: 200,
+      person_id: `eq.${person.id}`,
     }),
-    supabasePublicSelect<SessionEntryRecord>("session_entries", {
+    supabaseSelectAll<SessionEntryRecord>("session_entries", {
       select:
-        "id,entry_kind,name,progression_level,completed,notes,entry_sets(set_number,reps,duration_seconds,assistance_type,assistance_detail),sessions!inner(id,session_date,completed,source_sheet,activity_types(name))",
+        "id,entry_kind,name,progression_level,completed,notes,entry_sets(set_number,reps,duration_seconds,assistance_type,assistance_detail),sessions!inner(id,person_id,session_date,completed,source_sheet,activity_types(name))",
       completed: "eq.true",
       "sessions.completed": "eq.true",
-      limit: 1000,
+      "sessions.person_id": `eq.${person.id}`,
     }),
   ]);
 

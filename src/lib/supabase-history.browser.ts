@@ -1,4 +1,5 @@
-import { supabasePublicSelect } from "./supabase-public";
+import { supabaseSelectAll, supabaseSelectByIds } from "./supabase-pagination.browser";
+
 import { getCurrentPerson } from "./supabase-people.browser";
 import {
   comparePlannedActual,
@@ -139,12 +140,11 @@ export async function getLoggedExerciseKeysClient(): Promise<LoggedExerciseKeys>
   const person = await getCurrentPerson();
   if (!person) throw new Error("This account is not linked to a training profile.");
 
-  const rows = await supabasePublicSelect<LoggedExerciseRecord>("session_entries", {
+  const rows = await supabaseSelectAll<LoggedExerciseRecord>("session_entries", {
     select: "exercise_id,name,sessions!inner(person_id,completed,session_date)",
     completed: "eq.true",
     "sessions.person_id": `eq.${person.id}`,
     "sessions.completed": "eq.true",
-    limit: 5000,
   });
 
   const recentByExercise = new Map<string, { id: string | null; name: string; date: string }>();
@@ -197,14 +197,13 @@ export async function getPlannedActualComparisonsClient(
   const person = await getCurrentPerson();
   if (!person) throw new Error("This account is not linked to a training profile.");
 
-  const suggestions = await supabasePublicSelect<CompletedSuggestionRecord>("suggested_workouts", {
+  const suggestions = await supabaseSelectAll<CompletedSuggestionRecord>("suggested_workouts", {
     select:
       "id,title,completed_session_id,suggested_workout_entries(id,exercise_id,name,suggested_workout_sets(set_number,reps,weight,rpe,completed,suggested_workout_set_segments(training_method_id,method_name))),suggested_workout_method_blocks(training_method_id,method_name,suggested_workout_method_block_entries(suggested_workout_entry_id))",
     person_id: `eq.${person.id}`,
     status: "eq.completed",
     completed_session_id: "not.is.null",
     order: "created_at.desc",
-    limit: 100,
   });
   const relevant = suggestions.flatMap((suggestion) =>
     (suggestion.suggested_workout_entries ?? [])
@@ -216,23 +215,25 @@ export async function getPlannedActualComparisonsClient(
   const sessionIds = Array.from(
     new Set(relevant.map(({ suggestion }) => suggestion.completed_session_id)),
   );
-  const actualEntries = await supabasePublicSelect<ActualPlannedEntryRecord>("session_entries", {
-    select:
-      "id,session_id,exercise_id,name,sessions!inner(session_date,training_locations(kind)),entry_sets(set_number,reps,weight,rpe,completed,data_shape,entry_set_segments(training_method_id,method_name))",
-    session_id: `in.(${sessionIds.join(",")})`,
-    completed: "eq.true",
-    limit: 1000,
-  });
+  const actualEntries = await supabaseSelectByIds<ActualPlannedEntryRecord>(
+    "session_entries",
+    "session_id",
+    sessionIds,
+    {
+      select:
+        "id,session_id,exercise_id,name,sessions!inner(session_date,training_locations(kind)),entry_sets(set_number,reps,weight,rpe,completed,data_shape,entry_set_segments(training_method_id,method_name))",
+      completed: "eq.true",
+    },
+  );
   const actualEntryIds = actualEntries.map((entry) => entry.id);
   const membershipBatches: Promise<EntryMethodBlockRecord[]>[] = [];
   for (let index = 0; index < actualEntryIds.length; index += 100) {
     const batch = actualEntryIds.slice(index, index + 100);
     membershipBatches.push(
-      supabasePublicSelect<EntryMethodBlockRecord>("session_method_block_entries", {
+      supabaseSelectAll<EntryMethodBlockRecord>("session_method_block_entries", {
         select:
           "session_entry_id,session_method_blocks!inner(training_method_id,method_name,family)",
         session_entry_id: `in.(${batch.join(",")})`,
-        limit: 1000,
       }),
     );
   }
@@ -359,11 +360,13 @@ function blankPoint(row: SessionEntryRecord): ExerciseSessionPoint {
 export async function getExerciseHistoryClient(
   exercise: ExerciseHistoryTarget,
 ): Promise<ExerciseHistory> {
+  const person = await getCurrentPerson();
+  if (!person) throw new Error("This account is not linked to a training profile.");
   const params: Record<string, string | number | boolean> = {
+    "sessions.person_id": `eq.${person.id}`,
     select:
-      "id,name,completed,sessions!inner(id,session_date,training_locations(name,kind)),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,assistance_type,assistance_detail,rpe,quality,completed,data_shape,aggregate_set_count,load_semantics,volume_status,implement_count,entry_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit)",
+      "id,name,completed,sessions!inner(id,person_id,session_date,training_locations(name,kind)),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,assistance_type,assistance_detail,rpe,quality,completed,data_shape,aggregate_set_count,load_semantics,volume_status,implement_count,entry_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit)",
     completed: "eq.true",
-    limit: 1000,
   };
   if (exercise.id) {
     params.exercise_id = `eq.${exercise.id}`;
@@ -371,17 +374,16 @@ export async function getExerciseHistoryClient(
     params.name = `eq.${exercise.name}`;
   }
 
-  const rows = await supabasePublicSelect<SessionEntryRecord>("session_entries", params);
+  const rows = await supabaseSelectAll<SessionEntryRecord>("session_entries", params);
   const entryIds = rows.map((row) => row.id);
   const membershipBatches: Promise<EntryMethodBlockRecord[]>[] = [];
   for (let index = 0; index < entryIds.length; index += 100) {
     const batch = entryIds.slice(index, index + 100);
     membershipBatches.push(
-      supabasePublicSelect<EntryMethodBlockRecord>("session_method_block_entries", {
+      supabaseSelectAll<EntryMethodBlockRecord>("session_method_block_entries", {
         select:
           "session_entry_id,session_method_blocks!inner(training_method_id,method_name,family)",
         session_entry_id: `in.(${batch.join(",")})`,
-        limit: 1000,
       }),
     );
   }

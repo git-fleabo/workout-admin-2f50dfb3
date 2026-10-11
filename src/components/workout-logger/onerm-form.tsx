@@ -213,6 +213,7 @@ export function OneRMForm() {
         <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/50 px-3 py-2">
           <Label className="text-sm">Bodyweight used</Label>
           <Switch
+            aria-label="Bodyweight used"
             checked={form.bodyweightUsed}
             onCheckedChange={(v) => update("bodyweightUsed", v)}
           />

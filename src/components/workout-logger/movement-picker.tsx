@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useFieldControl } from "@/components/ui/field-context";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command,
@@ -32,6 +33,7 @@ export function MovementPicker({
   onChange: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const fieldControl = useFieldControl({});
   const [query, setQuery] = useState("");
   const favoriteSet = new Set(favoriteNames.map((name) => name.toLowerCase()));
   const recentSet = new Set(recentNames.map((name) => name.toLowerCase()));
@@ -92,6 +94,7 @@ export function MovementPicker({
           type="button"
           variant="outline"
           role="combobox"
+          {...fieldControl}
           aria-expanded={open}
           className="w-full justify-between font-normal"
         >
@@ -104,6 +107,7 @@ export function MovementPicker({
       <PopoverContent align="start" className="w-[min(92vw,420px)] p-0">
         <Command shouldFilter={false}>
           <CommandInput
+            aria-label="Search movement name"
             value={query}
             onValueChange={setQuery}
             placeholder="Search movement name..."

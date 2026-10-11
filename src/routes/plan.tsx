@@ -2532,8 +2532,20 @@ function PlanPage() {
                 <ClimbingPlanDetails build={climbingBuild} />
               ) : null}
 
+              <div className="space-y-3">
+                <p className="text-sm">
+                  {movements.length} {movements.length === 1 ? "movement" : "movements"} ·{" "}
+                  {Array.from(new Set(movements.map((movement) => movement.exercise)))
+                    .slice(0, 6)
+                    .join(", ")}
+                </p>
+                {builderActions}
+              </div>
               {plannerMode !== "climbing" ? (
-                <section className="space-y-3">
+                <details className="space-y-3 rounded-xl border border-border p-4">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    Edit movements and targets
+                  </summary>
                   <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                       <h2 className="text-base font-semibold">Suggested movements</h2>
@@ -2605,7 +2617,7 @@ function PlanPage() {
                       />
                     ))}
                   </div>
-                </section>
+                </details>
               ) : null}
 
               {plannerMode !== "climbing" ? (
@@ -2706,8 +2718,6 @@ function PlanPage() {
                   </div>
                 </CardContent>
               </Card>
-
-              {builderActions}
             </>
           )}
         </div>
