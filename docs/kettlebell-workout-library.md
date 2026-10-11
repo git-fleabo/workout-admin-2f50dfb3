@@ -6,7 +6,7 @@ The Today picker offers Strength, Muscle, Conditioning and Random. The first thr
 
 All three categories’ workouts 1–5 have been supplied directly and structured in the ignored private folder. `strength-1-5.json`, `muscle-1-5.json` and `conditioning-1-5.json` hold separate batches; `pilot-1-5-all-categories.json` and `all-15.sql` hold the complete fifteen-workout preparation. All fifteen passed isolated database acceptance. They were imported into the live database on 10 October 2026 after explicit approval. Original test fixtures live only under `tests/` and are never offered in the application.
 
-Current live coverage is **Strength 1–10, Muscle 1–5 and Conditioning 1–5: 20 workouts**. The next source numbers are Strength 11, Muscle 6 and Conditioning 6. Mobility and appendix routines remain excluded. Exact remaining totals have not been audited.
+Current live coverage is **Strength 1–10, Muscle 1–10 and Conditioning 1–5: 25 workouts**. The next source numbers are Strength 11, Muscle 11 and Conditioning 6. Mobility and appendix routines remain excluded. Exact remaining totals have not been audited.
 
 Full workout text must be supplied directly before later records can be prepared. Preserve source numbering, instructions, side changes, rest, timings, ladders and stop conditions; do not replace uncertain instructions with invented targets.
 
@@ -89,3 +89,19 @@ Migrations `20261011123827_add_kettlebell_chain_weight_requirements.sql` and `20
 Validation: 22 focused repository/database tests and 12 picker/data component tests passed, along with TypeScript, targeted ESLint, formatting and the production build. All twenty prescriptions passed isolated acceptance with exact ordered targets, timing, snapshots and idempotent imports. Each new workout passed authenticated live start, retry, method-member/target preservation and completion in a rolled-back transaction; chains also rejected unconfirmed weight variety. Final hashes of assignments, programme definitions, prescriptions, saved plans and workout history matched the fresh pre-change baseline exactly. No disposable test records remain.
 
 The live database import is complete. The new picker capability requires the user’s Git push and Lovable publication. A signed-in browser check was not repeated for this expansion; the temporary local tab was signed out, so component checks and authenticated database tests provide the expansion’s verification.
+
+## Muscle 6–10 — 11 October 2026
+
+The five user-supplied Muscle prescriptions were appended live by source identity. Full workout JSON and SQL remain in the ignored private folder as `muscle-6-10.*`; the combined private library now contains twenty-five records. Existing twenty catalogue rows, including their versions and prescriptions, were unchanged.
+
+Workouts 6 and 8 preserve their two-movement double-bell pairs. Workout 7 performs the complete single-arm row/clean pair before switching sides; both sides form the displayed round. All use their source’s own pressing or rowing rep-max guidance, with actual loads and fixed rests left blank.
+
+Workout 9 has twelve ordered movements across the 4-, 6- and 8-rep stages. Farmer carries remain 20, 40 and 60 seconds, with both bells and no invented distance. The prescription retains two complete sequence passes OR a 20-minute AMRAP. The method defaults to AMRAP with a separate `alternative_rounds: 2` configuration value and explicit instructions; two passes is not an extra requirement or an automatic round count.
+
+Workout 10 has twenty ascending movement targets (paired reps 1–10) and eighteen clearly labelled optional descending targets (paired reps 9–1). The source’s time-and-energy condition appears in every descending movement note. Its existing Timed Sequence method records a single pyramid with a twenty-minute cap, not repeated AMRAP rounds. The configuration retains the optional descending flag and first optional movement index. The user records only actual work and may stop before completing the ascent or skip the descent.
+
+Migration `20261011124758_add_double_kettlebell_row_push_press_and_carry.sql` adds generic Double Kettlebell Row, Double Kettlebell Push Press and Double Kettlebell Farmer Carry mappings. They were enabled for the owner at home/gym and linked to the owner’s existing kettlebell equipment. The existing Farmer Carry variants and their location restrictions were preserved. There is no personal book content in the migration or canonical schema.
+
+Validation: all twenty-five supplied records passed isolated PostgreSQL acceptance, with exact ordered rep/duration targets, snapshots, method settings, standalone links and idempotent imports. Private assertions checked the new pairs, side change, 20/40/60-second carry stages, two-pass alternative, full ascent, optional descent and timed-pyramid semantics. The focused repository/database run passed 22 tests and the logger/picker component run passed 17. Each new workout passed authenticated live start, retry, ordered targets, method settings and completion in a rolled-back transaction. Final programme, prescription, saved-plan and history hashes matched the fresh pre-change baseline exactly; no test records remain. All twenty-five catalogue records are verified and available, with zero missing/inactive/disabled exercise mappings. Security-advisor findings were unchanged.
+
+This expansion changes database content and generic movement definitions only. It needs no additional frontend publication to appear in the existing picker after refreshing. Publication of the previous three-weight selector is a separate step; this import does not establish its publication status.
