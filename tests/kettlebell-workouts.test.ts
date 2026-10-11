@@ -92,6 +92,7 @@ test("picker state is safely restored and rejects malformed category or request 
     category: "random",
     locationId: kbId(30),
     bellCount: 1,
+    bellWeightCount: 1,
     offeredIds: [kbId(101)],
     previewId: kbId(101),
     previewVersion: 1,
@@ -101,4 +102,21 @@ test("picker state is safely restored and rejects malformed category or request 
   assert.equal(readKettlebellPickerState("{"), null);
   assert.equal(readKettlebellPickerState(JSON.stringify({ ...state, category: "mobility" })), null);
   assert.equal(readKettlebellPickerState(JSON.stringify({ ...state, requestId: "bad" })), null);
+});
+
+test("three-weight chains require weight variety independently of paired bell availability", () => {
+  const chain = { ...kbFixture(), requiredBellWeights: 3 as const };
+  assert.equal(
+    eligibleKettlebellWorkouts([chain], "strength", { ...equipment, bellCount: 2 }).length,
+    0,
+  );
+  assert.equal(
+    eligibleKettlebellWorkouts([chain], "strength", { ...equipment, bellWeightCount: 3 }).length,
+    1,
+  );
+  const paired = { ...kbFixture("strength", 2), bellCount: 2 as const };
+  assert.equal(
+    eligibleKettlebellWorkouts([paired], "strength", { ...equipment, bellWeightCount: 3 }).length,
+    0,
+  );
 });

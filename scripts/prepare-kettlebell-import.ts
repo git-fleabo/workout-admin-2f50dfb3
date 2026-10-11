@@ -7,7 +7,7 @@ import { KETTLEBELL_CATEGORIES, kettlebellWorkoutSchema } from "../src/lib/kettl
 const pilotSchema = z
   .object({
     personId: z.string().uuid(),
-    workouts: z.array(kettlebellWorkoutSchema).min(5).max(15),
+    workouts: z.array(kettlebellWorkoutSchema).min(1).max(1000),
   })
   .strict();
 const literal = (value: string) => `'${value.replaceAll("'", "''")}'`;
@@ -28,6 +28,23 @@ export function prepareKettlebellPilotImport(input: unknown) {
     ids.add(workout.id);
   }
   if (expected.size) throw new Error("Each supplied category must contain all of workouts 1–5.");
+  return renderImport(pilot, true);
+}
+
+export function prepareKettlebellImport(input: unknown) {
+  const batch = pilotSchema.parse(input);
+  const keys = new Set<string>();
+  const ids = new Set<string>();
+  for (const w of batch.workouts) {
+    const key = `${w.category}:${w.sourceNumber}`;
+    if (keys.has(key) || ids.has(w.id)) throw new Error("Duplicate source number or workout ID.");
+    keys.add(key);
+    ids.add(w.id);
+  }
+  return renderImport(batch, false);
+}
+
+function renderImport(pilot: z.infer<typeof pilotSchema>, update: boolean) {
   const rows = pilot.workouts.map((w) => ({
     id: w.id,
     person_id: pilot.personId,
@@ -39,13 +56,14 @@ export function prepareKettlebellPilotImport(input: unknown) {
     instructions: w.instructions,
     source_reference: w.sourceReference,
     bell_count: w.bellCount,
+    required_bell_weights: w.requiredBellWeights,
     required_equipment_ids: w.requiredEquipmentIds,
     duration_minutes: w.durationMinutes,
     verified: w.verified,
     is_available: w.isAvailable,
     prescription: w.prescription,
   }));
-  return `-- Personal workout content: review locally; do not commit this file.\n-- Initial batch: source workouts 1–5 in Strength, Muscle and Conditioning.\nbegin;\ninsert into public.kettlebell_workouts(id,person_id,collection_key,category,source_number,title,summary,instructions,source_reference,bell_count,required_equipment_ids,duration_minutes,verified,is_available,prescription)\nselect id,person_id,collection_key,category,source_number,title,summary,instructions,source_reference,bell_count,required_equipment_ids,duration_minutes,verified,is_available,prescription\nfrom jsonb_to_recordset(${literal(JSON.stringify(rows))}::jsonb) as r(id uuid,person_id uuid,collection_key text,category text,source_number integer,title text,summary text,instructions text,source_reference text,bell_count integer,required_equipment_ids uuid[],duration_minutes numeric,verified boolean,is_available boolean,prescription jsonb)\non conflict(person_id,collection_key,category,source_number) do update set title=excluded.title,summary=excluded.summary,instructions=excluded.instructions,source_reference=excluded.source_reference,bell_count=excluded.bell_count,required_equipment_ids=excluded.required_equipment_ids,duration_minutes=excluded.duration_minutes,verified=excluded.verified,is_available=excluded.is_available,prescription=excluded.prescription;\ncommit;\n`;
+  return `-- Personal workout content: review locally; do not commit this file.\n-- Source keys: ${pilot.workouts.map((w) => `${w.category}:${w.sourceNumber}`).join(", ")}.\nbegin;\ninsert into public.kettlebell_workouts(id,person_id,collection_key,category,source_number,title,summary,instructions,source_reference,bell_count,required_bell_weights,required_equipment_ids,duration_minutes,verified,is_available,prescription)\nselect id,person_id,collection_key,category,source_number,title,summary,instructions,source_reference,bell_count,required_bell_weights,required_equipment_ids,duration_minutes,verified,is_available,prescription\nfrom jsonb_to_recordset(${literal(JSON.stringify(rows))}::jsonb) as r(id uuid,person_id uuid,collection_key text,category text,source_number integer,title text,summary text,instructions text,source_reference text,bell_count integer,required_bell_weights integer,required_equipment_ids uuid[],duration_minutes numeric,verified boolean,is_available boolean,prescription jsonb)\non conflict(person_id,collection_key,category,source_number) ${update ? "do update set title=excluded.title,summary=excluded.summary,instructions=excluded.instructions,source_reference=excluded.source_reference,bell_count=excluded.bell_count,required_bell_weights=excluded.required_bell_weights,required_equipment_ids=excluded.required_equipment_ids,duration_minutes=excluded.duration_minutes,verified=excluded.verified,is_available=excluded.is_available,prescription=excluded.prescription" : "do nothing"};\ncommit;\n`;
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
@@ -55,13 +73,13 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
       throw new Error(
         "Usage: node --experimental-strip-types scripts/prepare-kettlebell-import.ts /path/to/pilot.json",
       );
-    const sql = prepareKettlebellPilotImport(JSON.parse(readFileSync(inputPath, "utf8")));
+    const sql = prepareKettlebellImport(JSON.parse(readFileSync(inputPath, "utf8")));
     const folder = resolve("kettlebell-import.local");
     mkdirSync(folder, { recursive: true, mode: 0o700 });
-    const output = join(folder, "pilot.sql");
+    const output = join(folder, "batch.sql");
     writeFileSync(output, sql, { mode: 0o600 });
     console.log(
-      `Prepared the supplied complete category batches for review: ${output}. No database changes made.`,
+      `Prepared the supplied workout batch for review: ${output}. No database changes made.`,
     );
   } catch (error) {
     console.error(error instanceof Error ? error.message : "Import preparation failed.");

@@ -223,4 +223,18 @@ describe("kettlebell workout picker", () => {
     ).toBeInTheDocument();
     expect(mocks.start).not.toHaveBeenCalled();
   });
+  it("only offers a chain after three weights are confirmed and passes that capability on start", async () => {
+    const chain = { ...kbFixture("strength", 6), requiredBellWeights: 3 as const };
+    mocks.data = data([chain]);
+    show();
+    await userEvent.click(screen.getByRole("button", { name: "Pick a kettlebell workout" }));
+    const variety = await screen.findByRole("combobox", { name: "Weights available for chains" });
+    expect(screen.getByRole("button", { name: "Pick workout", exact: true })).toBeDisabled();
+    await userEvent.selectOptions(variety, "3");
+    await userEvent.click(screen.getByRole("button", { name: "Pick workout", exact: true }));
+    expect(screen.getByText(/Three weights · one bell at a time/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Start this workout" }));
+    await waitFor(() => expect(mocks.start).toHaveBeenCalled());
+    expect(mocks.start.mock.calls[0][4]).toBe(3);
+  });
 });

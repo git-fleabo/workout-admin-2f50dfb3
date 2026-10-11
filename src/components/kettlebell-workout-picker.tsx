@@ -50,6 +50,7 @@ export function KettlebellWorkoutPicker({
         category: "random",
         locationId: data.locations[0]?.id ?? "",
         bellCount: 1,
+        bellWeightCount: 1,
         offeredIds: [],
         previewId: null,
         previewVersion: null,
@@ -70,6 +71,7 @@ export function KettlebellWorkoutPicker({
     return eligibleKettlebellWorkouts(data.workouts, selection.category, {
       locationId: selection.locationId,
       bellCount: selection.bellCount,
+      bellWeightCount: selection.bellWeightCount,
       equipmentIds,
       hasKettlebells: data.equipmentItems.some(
         (item) => item.circuitGroup === "kettlebell" && equipmentIds.includes(item.id),
@@ -98,7 +100,10 @@ export function KettlebellWorkoutPicker({
       previewVersion: null,
       requestId: crypto.randomUUID(),
     };
-    if (state.previewId && (updates.category || updates.locationId || updates.bellCount)) {
+    if (
+      state.previewId &&
+      (updates.category || updates.locationId || updates.bellCount || updates.bellWeightCount)
+    ) {
       const chosen = pickKettlebellWorkout(eligibleFor(next), next.offeredIds, data?.recentIds);
       if (chosen) {
         next.previewId = chosen.id;
@@ -139,6 +144,7 @@ export function KettlebellWorkoutPicker({
         location.id,
         state.bellCount,
         state.requestId,
+        state.bellWeightCount,
       );
       window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(plan));
       setHandoffReady(true);
@@ -228,7 +234,11 @@ export function KettlebellWorkoutPicker({
                           value={state.locationId}
                           disabled={starting || handoffReady}
                           onChange={(event) =>
-                            change({ locationId: event.target.value, bellCount: 1 })
+                            change({
+                              locationId: event.target.value,
+                              bellCount: 1,
+                              bellWeightCount: 1,
+                            })
                           }
                         >
                           <option value="" disabled>
@@ -257,6 +267,21 @@ export function KettlebellWorkoutPicker({
                         </select>
                       </label>
                     </div>
+                    <label className="block space-y-1 text-sm">
+                      <span>Weights available for chains</span>
+                      <select
+                        className="h-10 w-full rounded-md border bg-background px-3"
+                        aria-label="Weights available for chains"
+                        value={state.bellWeightCount}
+                        disabled={starting || handoffReady}
+                        onChange={(event) =>
+                          change({ bellWeightCount: Number(event.target.value) as 1 | 3 })
+                        }
+                      >
+                        <option value={1}>No three-weight chain setup</option>
+                        <option value={3}>Light, medium and heavy bells</option>
+                      </select>
+                    </label>
                     {!eligible.length && (
                       <p role="status" className="text-sm text-muted-foreground">
                         No {state.category === "random" ? "kettlebell" : state.category} workouts
@@ -277,7 +302,11 @@ export function KettlebellWorkoutPicker({
                         <div>
                           <p className="text-xs font-medium capitalize text-primary">
                             {preview.category} · Workout {preview.sourceNumber} ·{" "}
-                            {preview.bellCount === 1 ? "One bell" : "Two bells"}
+                            {preview.requiredBellWeights === 3
+                              ? "Three weights · one bell at a time"
+                              : preview.bellCount === 1
+                                ? "One bell"
+                                : "Two bells"}
                             {preview.durationMinutes ? ` · ${preview.durationMinutes} min` : ""}
                           </p>
                           <h3 className="mt-1 text-lg font-semibold">{preview.title}</h3>

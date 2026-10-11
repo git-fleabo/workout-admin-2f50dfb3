@@ -12,7 +12,7 @@ export async function getKettlebellCatalogueClient() {
   const [rows, locations, library, recent] = await Promise.all([
     supabasePublicSelect<Record<string, unknown>>("kettlebell_workouts", {
       select:
-        "id,collection_key,category,source_number,title,summary,instructions,source_reference,bell_count,required_equipment_ids,duration_minutes,version,verified,is_available,prescription",
+        "id,collection_key,category,source_number,title,summary,instructions,source_reference,bell_count,required_bell_weights,required_equipment_ids,duration_minutes,version,verified,is_available,prescription",
       person_id: `eq.${person.id}`,
       collection_key: "eq.strong_on",
       order: "category.asc,source_number.asc",
@@ -40,6 +40,7 @@ export async function getKettlebellCatalogueClient() {
       instructions: row.instructions,
       sourceReference: row.source_reference,
       bellCount: row.bell_count,
+      requiredBellWeights: row.required_bell_weights,
       requiredEquipmentIds: row.required_equipment_ids,
       durationMinutes: row.duration_minutes == null ? null : Number(row.duration_minutes),
       version: row.version,
@@ -67,12 +68,14 @@ export async function startKettlebellWorkoutClient(
   locationId: string,
   bellCount: 1 | 2,
   requestId: string,
+  bellWeightCount: 1 | 3 = 1,
 ) {
   const id = await supabasePublicRpc<string>("start_kettlebell_workout", {
     p_workout_id: workout.id,
     p_expected_version: workout.version,
     p_location_id: locationId,
     p_bell_count: bellCount,
+    p_bell_weight_count: bellWeightCount,
     p_request_id: requestId,
     p_suggested_for: todayISO(),
   });

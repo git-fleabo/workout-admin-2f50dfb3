@@ -17,6 +17,7 @@ export function kbFixture(
       "Test instructions: finish each set with control, then rest. Record your actual work.",
     sourceReference: "Original test data, not a book workout",
     bellCount: 1,
+    requiredBellWeights: 1,
     requiredEquipmentIds: [],
     durationMinutes: null,
     version: 1,

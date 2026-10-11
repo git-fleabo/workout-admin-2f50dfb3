@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { prepareKettlebellPilotImport } from "../scripts/prepare-kettlebell-import.ts";
+import {
+  prepareKettlebellImport,
+  prepareKettlebellPilotImport,
+} from "../scripts/prepare-kettlebell-import.ts";
 import { kbFixture, kbId } from "./helpers/kettlebell-fixtures.ts";
 
 const pilot = () => ({
@@ -44,5 +47,21 @@ test("complete first-five categories can be prepared as the user supplies them",
   assert.throws(
     () => prepareKettlebellPilotImport({ ...input, workouts: input.workouts.slice(0, 6) }),
     /must contain all/,
+  );
+});
+
+// Later batches append by source identity and never rewrite earlier workouts.
+test("later batches support source numbers beyond the pilot and reject duplicate keys", () => {
+  const batch = {
+    personId: kbId(1),
+    workouts: [6, 7, 8, 9, 10].map((n) => kbFixture("strength", n)),
+  };
+  const sql = prepareKettlebellImport(batch);
+  assert.match(sql, /strength:6/);
+  assert.match(sql, /do nothing/);
+  assert.doesNotMatch(sql, /do update/);
+  assert.throws(
+    () => prepareKettlebellImport({ ...batch, workouts: [batch.workouts[0], batch.workouts[0]] }),
+    /Duplicate/,
   );
 });

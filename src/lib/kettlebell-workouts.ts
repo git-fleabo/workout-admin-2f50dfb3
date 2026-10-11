@@ -127,6 +127,7 @@ export const kettlebellWorkoutSchema = z
     instructions: z.string().trim().min(1).max(16000),
     sourceReference: z.string().max(500),
     bellCount: z.union([z.literal(1), z.literal(2)]),
+    requiredBellWeights: z.union([z.literal(1), z.literal(3)]).default(1),
     requiredEquipmentIds: z.array(z.string().uuid()).max(30),
     durationMinutes: z.number().positive().max(20).nullable(),
     version: z.number().int().positive(),
@@ -139,6 +140,7 @@ export type KettlebellWorkout = z.infer<typeof kettlebellWorkoutSchema>;
 export type KettlebellEquipment = {
   locationId: string;
   bellCount: 1 | 2;
+  bellWeightCount?: 1 | 3;
   hasKettlebells: boolean;
   equipmentIds: string[];
   enabledExerciseIds: string[];
@@ -159,6 +161,7 @@ export function eligibleKettlebellWorkouts(
       KETTLEBELL_CATEGORIES.includes(workout.category) &&
       (category === "random" || category === workout.category) &&
       workout.bellCount <= equipment.bellCount &&
+      (workout.requiredBellWeights ?? 1) <= (equipment.bellWeightCount ?? 1) &&
       workout.requiredEquipmentIds.every((id) => available.has(id)) &&
       workout.prescription.movements.every((movement) => enabled.has(movement.exerciseId)),
   );
@@ -203,6 +206,7 @@ export const kettlebellPickerStateSchema = z
     category: z.enum(["strength", "muscle", "conditioning", "random"]),
     locationId: z.string(),
     bellCount: z.union([z.literal(1), z.literal(2)]),
+    bellWeightCount: z.union([z.literal(1), z.literal(3)]).default(1),
     offeredIds: z.array(z.string().uuid()).max(1000),
     previewId: z.string().uuid().nullable(),
     previewVersion: z.number().int().positive().nullable(),

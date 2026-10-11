@@ -29,6 +29,7 @@ test(
         "20261004193959_allow_programme_support_completion",
         "20261010142048_add_kettlebell_workout_catalogue",
         "20261010185512_index_kettlebell_workout_sessions",
+        "20261011123827_add_kettlebell_chain_weight_requirements",
       ]) {
         sql(readFileSync(new URL(`../supabase/migrations/${name}.sql`, import.meta.url), "utf8"));
       }
@@ -47,10 +48,31 @@ test(
       const w = kbFixture("conditioning");
       const insert = (value = w) =>
         sql(
-          `insert into public.kettlebell_workouts(id,person_id,category,source_number,title,instructions,bell_count,verified,is_available,prescription) values('${value.id}','${id(1)}',${literal(value.category)},${value.sourceNumber},${literal(value.title)},${literal(value.instructions)},${value.bellCount},true,true,${json(value.prescription)})`,
+          `insert into public.kettlebell_workouts(id,person_id,category,source_number,title,instructions,bell_count,required_bell_weights,verified,is_available,prescription) values('${value.id}','${id(1)}',${literal(value.category)},${value.sourceNumber},${literal(value.title)},${literal(value.instructions)},${value.bellCount},${value.requiredBellWeights},true,true,${json(value.prescription)})`,
           id(1),
         );
       insert();
+      await t.test(
+        "three-weight chains reject unconfirmed equipment and accept explicit variety",
+        () => {
+          const chain = { ...kbFixture("strength", 6), requiredBellWeights: 3 as const };
+          insert(chain);
+          const call = `select public.start_kettlebell_workout('${chain.id}',1,'${id(30)}',1,'${id(65)}','2026-10-11'`;
+          assert.throws(() => sql(`${call})`, id(1)), /requires light, medium and heavy/);
+          assert.throws(() => sql(`${call},2)`, id(1)), /valid workout/);
+          const plan = sql(`${call},3)`, id(1));
+          assert.equal(sql(`${call},3)`, id(1)), plan);
+          assert.equal(
+            sql(
+              `select (program_assignment_id is null and program_workout_id is null)::text from public.suggested_workouts where id='${plan}'`,
+            ),
+            "true",
+          );
+          sql(
+            `delete from public.suggested_workout_sets where suggested_workout_entry_id in (select id from public.suggested_workout_entries where suggested_workout_id='${plan}'); delete from public.suggested_workout_entries where suggested_workout_id='${plan}'; delete from public.suggested_workouts where id='${plan}'; delete from public.kettlebell_workouts where id='${chain.id}'`,
+          );
+        },
+      );
       const prescriptionsBefore = sql(
         "select jsonb_agg(to_jsonb(e) order by program_assignment_id,slot_key) from public.program_assignment_exercises e",
       );
