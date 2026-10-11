@@ -130,6 +130,7 @@ export type LibraryClientRow = LibraryRow & {
 
 export type LibraryFields = Omit<LibraryRow, "row"> & {
   equipmentItemIds: string[];
+  locationScope?: ExerciseLocationScope;
 };
 export { claimNoamProfile };
 
@@ -507,7 +508,7 @@ export async function addExerciseClient(fields: LibraryFields, personId?: string
         person_id: targetPerson.id,
         exercise_id: exercise.id,
         is_enabled: true,
-        location_scope: "both",
+        location_scope: fields.locationScope ?? "both",
         is_quick_log: false,
         quick_log_order: null,
       }),
@@ -558,6 +559,9 @@ export async function updateExerciseClient(id: string, fields: LibraryFields, pe
   );
   await syncExerciseCategories(id, fields);
   await syncExerciseEquipmentItems(id, targetPerson.id, selectedEquipment);
+  if (fields.locationScope !== undefined) {
+    await setExerciseLocationScopeClient(id, fields.locationScope, targetPerson.id);
+  }
   return { ok: true };
 }
 

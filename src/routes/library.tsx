@@ -130,7 +130,10 @@ type EditorState =
   | { mode: "create" }
   | { mode: "edit"; row: LibraryClientRow };
 
-const BLANK: Omit<LibraryRow, "row"> & { equipmentItemIds: string[] } = {
+const BLANK: Omit<LibraryRow, "row"> & {
+  equipmentItemIds: string[];
+  locationScope: ExerciseLocationScope;
+} = {
   workoutType: "",
   additionalWorkoutTypes: [],
   focusArea: "",
@@ -144,6 +147,7 @@ const BLANK: Omit<LibraryRow, "row"> & { equipmentItemIds: string[] } = {
   positionMeasurementDirection: "",
   notes: "",
   equipmentItemIds: [],
+  locationScope: "both",
   ...DEFAULT_CIRCUIT_METADATA,
 };
 
@@ -1474,6 +1478,7 @@ function ExerciseEditorForm({
           positionMeasurementDirection: state.row.positionMeasurementDirection,
           notes: state.row.notes,
           equipmentItemIds: state.row.equipmentItemIds,
+          locationScope: state.row.locationScope ?? "both",
           circuitSuitability: state.row.circuitSuitability,
           circuitPattern: state.row.circuitPattern,
           circuitDifficulty: state.row.circuitDifficulty,
@@ -1759,6 +1764,25 @@ function ExerciseEditorForm({
             onChange={(e) => update("focusArea", e.target.value)}
             placeholder={fieldConfig.focusPlaceholder}
           />
+        </Field>
+        <Field label="Training location">
+          <Select
+            value={form.locationScope}
+            onValueChange={(value) => update("locationScope", value as ExerciseLocationScope)}
+            disabled={isPending}
+          >
+            <SelectTrigger aria-label="Training location">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="both">Both (Home + Gym)</SelectItem>
+              <SelectItem value="home">Home only</SelectItem>
+              <SelectItem value="gym">Gym only</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Each location still needs the required equipment. Other locations use equipment only.
+          </p>
         </Field>
         <Field label="Required equipment">
           <EquipmentMultiSelect

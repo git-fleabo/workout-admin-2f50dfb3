@@ -20,6 +20,7 @@ vi.mock("@/lib/supabase-people.browser", () => ({
 }));
 import {
   listLibraryClient,
+  addExerciseClient,
   updateExerciseClient,
   type LibraryFields,
 } from "@/lib/supabase-library.browser";
@@ -58,6 +59,11 @@ it("round-trips additional categories and saves them through the admin RPC witho
   const fields: LibraryFields = { ...swing, equipmentItemIds: [] };
   await updateExerciseClient("swing", fields);
   expect(mocks.update).toHaveBeenCalledWith(
+    "person_exercises",
+    { id: "eq.enabled" },
+    { location_scope: "both" },
+  );
+  expect(mocks.update).toHaveBeenCalledWith(
     "exercises",
     { id: "eq.swing" },
     expect.objectContaining({ activity_type_id: "conditioning", default_metric: "weight_reps" }),
@@ -68,6 +74,24 @@ it("round-trips additional categories and saves them through the admin RPC witho
   });
   mocks.rpc.mockClear();
   delete fields.additionalWorkoutTypes;
+  delete fields.locationScope;
+  mocks.update.mockClear();
   await updateExerciseClient("swing", fields);
   expect(mocks.rpc).not.toHaveBeenCalled();
+  expect(mocks.update.mock.calls.some(([table]) => table === "person_exercises")).toBe(false);
+  await updateExerciseClient("swing", { ...fields, locationScope: "home" });
+  expect(mocks.update).toHaveBeenCalledWith(
+    "person_exercises",
+    { id: "eq.enabled" },
+    { location_scope: "home" },
+  );
+  mocks.insert.mockImplementation(async (table) => (table === "exercises" ? [{ id: "new" }] : []));
+  await addExerciseClient({ ...fields, locationScope: "gym" });
+  expect(mocks.insert).toHaveBeenCalledWith(
+    "person_exercises",
+    expect.objectContaining({
+      exercise_id: "new",
+      location_scope: "gym",
+    }),
+  );
 });

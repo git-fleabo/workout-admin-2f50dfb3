@@ -22,6 +22,12 @@ Ring Dip required the same Gymnastic rings equipment record assigned to Home and
 
 The database repair is live. Frontend publication has not been performed or verified; the repository changes are ready for user-managed Lovable synchronization.
 
+## Manual editing follow-up
+
+The shared Edit/Create form now includes Training location next to Required equipment, with Both (Home + Gym), Home only, and Gym only options. Editing restores the current preference and Save persists it through the existing personal exercise setter. Creating uses the chosen preference, defaulting to Both. Calls that omit the new optional field preserve existing preferences. No live settings were changed for this UI follow-up.
+
+Five focused component and persistence checks passed, including changing and reopening the preference, saving it on create/edit, preserving preferences when omitted, and Library/Log availability consistency. Typecheck, scoped lint, and build passed.
+
 ## Remaining audit findings
 
 The earlier read-only audit found 18 active exercises without any equipped saved location (10 enabled), 30 unenabled JACKED imports with equipment text but no structured equipment links, and an extra Bike requirement on Air Bike. Weighted Dip names Dip bars, which is absent from the equipment catalogue. These were outside the approved ring/TRX and shared-validation repair. Resolving inventory gaps requires confirming where the equipment actually exists.

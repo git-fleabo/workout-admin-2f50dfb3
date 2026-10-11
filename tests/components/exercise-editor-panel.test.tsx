@@ -4,6 +4,54 @@ import { ExerciseEditorPanel } from "@/routes/library";
 import userEvent from "@testing-library/user-event";
 
 describe("exercise editor panel", () => {
+  it("edits and restores the training location alongside equipment", async () => {
+    const user = userEvent.setup();
+    const save = vi.fn();
+    const props = {
+      onClose: vi.fn(),
+      onSubmit: save,
+      isPending: false,
+      workoutTypes: ["Strength"],
+      equipmentItems: [],
+    };
+    const { rerender } = render(<ExerciseEditorPanel {...props} state={{ mode: "create" }} />);
+    await user.type(screen.getByPlaceholderText("Choose default category"), "Strength");
+    await user.type(screen.getByPlaceholderText("e.g. Bench Press"), "Ring Dip");
+    const location = screen.getByRole("combobox", { name: "Training location", exact: true });
+    expect(location).toHaveTextContent("Both (Home + Gym)");
+    location.focus();
+    await user.keyboard("{ArrowDown}");
+    await screen.findByRole("option", { name: "Gym only" });
+    await user.keyboard("{End}{Enter}");
+    expect(location).toHaveTextContent("Gym only");
+    await user.click(screen.getByRole("button", { name: "Create", exact: true }));
+    const saved = save.mock.calls[0][0];
+    expect(saved.locationScope).toBe("gym");
+    rerender(
+      <ExerciseEditorPanel
+        {...props}
+        state={{ mode: "edit", row: { ...saved, id: "dip", row: 0 } }}
+      />,
+    );
+    expect(
+      screen.getByRole("combobox", { name: "Training location", exact: true }),
+    ).toHaveTextContent("Gym only");
+    screen.getByRole("combobox", { name: "Training location", exact: true }).focus();
+    await user.keyboard("{ArrowDown}");
+    await screen.findByRole("option", { name: "Home only" });
+    await user.keyboard("{Home}{ArrowDown}{Enter}");
+    await user.click(screen.getByRole("button", { name: "Save", exact: true }));
+    expect(save.mock.calls[1][0]).toMatchObject({ locationScope: "home", equipmentItemIds: [] });
+    rerender(
+      <ExerciseEditorPanel
+        {...props}
+        state={{ mode: "edit", row: { ...save.mock.calls[1][0], id: "dip", row: 0 } }}
+      />,
+    );
+    expect(
+      screen.getByRole("combobox", { name: "Training location", exact: true }),
+    ).toHaveTextContent("Home only");
+  });
   it("saves extra categories without changing the default or tracking, then restores and removes them", async () => {
     const user = userEvent.setup();
     const save = vi.fn();
