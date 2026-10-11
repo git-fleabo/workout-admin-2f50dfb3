@@ -1,4 +1,6 @@
 import {
+  SupabaseAuthRequiredError,
+  supabaseCachedSelect,
   supabasePublicDelete,
   supabasePublicInsert,
   supabasePublicRpc,
@@ -23,7 +25,13 @@ import {
   type LoadSemantics,
 } from "./data-quality";
 import { workoutSessionDraftKey } from "./workout-local-state";
-import { enqueueWorkoutSave, isLikelyOfflineError } from "./workout-offline-queue";
+import {
+  enqueueWorkoutSave,
+  PendingWorkoutSaveError,
+  isLikelyOfflineError,
+  removeQueuedWorkoutSave,
+  sendQueuedWorkoutSave,
+} from "./workout-offline-queue";
 
 export const REST_OPTIONS = [
   "0–30s",
@@ -281,6 +289,7 @@ export type TrainingLocation = {
 
 export type WorkoutSessionInput = {
   mobilityRunId?: string | null;
+  suggestedWorkoutId?: string | null;
   date: string;
   title: string;
   trainingLocationId: string;
@@ -457,7 +466,7 @@ export async function getLibraryClient() {
 export async function getTrainingLocationsClient(): Promise<TrainingLocation[]> {
   const person = await requirePerson();
   const [rows, assignments] = await Promise.all([
-    supabasePublicSelect<{
+    supabaseCachedSelect<{
       id: string;
       name: string;
       kind: "home" | "gym" | "other";
@@ -467,7 +476,7 @@ export async function getTrainingLocationsClient(): Promise<TrainingLocation[]> 
       is_active: "eq.true",
       order: "kind.asc,name.asc",
     }),
-    supabasePublicSelect<{ location_id: string; equipment_item_id: string }>(
+    supabaseCachedSelect<{ location_id: string; equipment_item_id: string }>(
       "training_location_equipment",
       { select: "location_id,equipment_item_id" },
     ),
@@ -949,25 +958,50 @@ async function prepareWorkoutSave(data: WorkoutSessionInput, personId: string) {
   return { rpcBody, rpcFunctionName, saveBody };
 }
 
+export async function prepareQueuedWorkoutSave(data: WorkoutSessionInput, personId: string) {
+  const { rpcBody } = await prepareWorkoutSave(data, personId);
+  return {
+    ...rpcBody,
+    p_suggested_workout_id: data.suggestedWorkoutId ?? null,
+    p_mobility_run_id: data.mobilityRunId ?? null,
+  };
+}
+
 export async function addWorkoutSessionClient(
   data: WorkoutSessionInput,
-  options: { queueWhenOffline?: boolean } = {},
+  options: { queueWhenOffline?: boolean; draftKey?: string } = {},
 ) {
+  // Local validation and profile references happen before retaining a save. No
+  // exercise lookup or server write is needed to finish while offline.
+  data.entries.forEach((entry) => validatedFeel(entry.feel));
+  if (!data.entries.some((entry) => entry.exercise.trim()))
+    throw new Error("Add at least one movement.");
   const person = await requirePerson();
-  const { rpcFunctionName, saveBody } = await prepareWorkoutSave(data, person.id);
+  const item = enqueueWorkoutSave({
+    personId: person.id,
+    input: data,
+    draftKey: options.draftKey ?? workoutSessionDraftKey(),
+  });
   try {
-    const sessionId = await supabasePublicRpc<string>(rpcFunctionName, saveBody);
-    if (!sessionId) throw new Error("Workout was not saved.");
+    const sessionId = await sendQueuedWorkoutSave(item);
+    if (!sessionId) {
+      if (options.queueWhenOffline === false) throw new TypeError("Offline; retry when connected.");
+      return { ok: true, row: "Queued", sessionId: "", queued: true as const };
+    }
     return { ok: true, row: "Supabase", sessionId, queued: false as const };
   } catch (error) {
-    if (!options.queueWhenOffline || !isLikelyOfflineError(error)) throw error;
-    enqueueWorkoutSave({
-      personId: person.id,
-      rpcBody: saveBody,
-      rpcFunctionName,
-      draftKey: workoutSessionDraftKey(),
-    });
-    return { ok: true, row: "Offline queue", sessionId: null, queued: true as const };
+    if (
+      isLikelyOfflineError(error) ||
+      error instanceof SupabaseAuthRequiredError ||
+      error instanceof PendingWorkoutSaveError
+    ) {
+      if (options.queueWhenOffline === false) throw error;
+      return { ok: true, row: "Queued", sessionId: "", queued: true as const };
+    }
+    // A definitive validation rejection did not commit a session. Keep the form
+    // draft editable, rather than blocking subsequent valid saves behind it.
+    removeQueuedWorkoutSave(item.id);
+    throw error;
   }
 }
 

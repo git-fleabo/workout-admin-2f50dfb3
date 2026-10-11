@@ -1,4 +1,9 @@
-import { getSupabaseSession, supabasePublicSelect, supabasePublicUpdate } from "./supabase-public";
+import {
+  getSupabaseSession,
+  supabaseCachedSelect,
+  supabasePublicSelect,
+  supabasePublicUpdate,
+} from "./supabase-public";
 
 export type PersonRecord = {
   id: string;
@@ -15,7 +20,7 @@ export async function getCurrentPerson() {
   const session = getSupabaseSession();
   const userId = session?.user?.id;
   if (!userId) throw new Error("Sign in to Supabase first.");
-  const people = await supabasePublicSelect<PersonRecord>("people", {
+  const people = await supabaseCachedSelect<PersonRecord>("people", {
     select: "id,auth_user_id,display_name",
     auth_user_id: `eq.${userId}`,
     limit: 1,
@@ -23,15 +28,49 @@ export async function getCurrentPerson() {
   return people[0] ?? null;
 }
 
+export class AccountNotApprovedError extends Error {}
+
+function approvalKey() {
+  return `workout-approved-account:${getSupabaseSession()?.user.id ?? "signed-out"}`;
+}
+
+export function hasCachedAccountApproval() {
+  try {
+    return window.localStorage.getItem(approvalKey()) === "approved";
+  } catch {
+    return false;
+  }
+}
+
 export async function verifyApprovedAccount() {
-  const person = await getCurrentPerson();
-  if (!person) throw new Error("This account is not approved for this app.");
-  const adminRows = await supabasePublicSelect<AdminPersonRecord>("admin_people", {
-    select: "id,admin_person_id",
-    admin_person_id: `eq.${person.id}`,
+  if (typeof navigator !== "undefined" && !navigator.onLine) throw new TypeError("Offline");
+  const userId = getSupabaseSession()?.user.id;
+  const people = await supabasePublicSelect<PersonRecord>("people", {
+    select: "id,auth_user_id,display_name",
+    auth_user_id: `eq.${userId}`,
     limit: 1,
   });
-  if (!adminRows[0]) throw new Error("This account is not approved for this app.");
+  const person = people[0];
+  const adminRows = person
+    ? await supabasePublicSelect<AdminPersonRecord>("admin_people", {
+        select: "id,admin_person_id",
+        admin_person_id: `eq.${person.id}`,
+        limit: 1,
+      })
+    : [];
+  if (getSupabaseSession()?.user.id !== userId) throw new Error("Your sign-in changed. Try again.");
+  if (!person || !adminRows[0]) {
+    window.localStorage.removeItem(approvalKey());
+    throw new AccountNotApprovedError("This account is not approved for this app.");
+  }
+  try {
+    window.localStorage.setItem(approvalKey(), "approved");
+  } catch {
+    /* Online approval still works. */
+  }
+  // Populate the profile reference used when finishing a workout offline.
+  await getCurrentPerson();
+  if (getSupabaseSession()?.user.id !== userId) throw new Error("Your sign-in changed. Try again.");
   return person;
 }
 
@@ -56,7 +95,7 @@ export async function claimNoamProfile() {
 }
 
 export async function listManagedPeopleClient() {
-  return supabasePublicSelect<PersonRecord>("people", {
+  return supabaseCachedSelect<PersonRecord>("people", {
     select: "id,auth_user_id,display_name",
     order: "display_name.asc",
   });

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Loader2, LogIn } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { APP_BUILD_LABEL } from "@/lib/build-info";
 import {
+  SUPABASE_SESSION_EVENT,
+  SupabaseAuthRequiredError,
   clearSupabaseSession,
   clearSupabaseRecoveryUrl,
   getSupabaseRecoveryTokenFromUrl,
@@ -13,9 +15,22 @@ import {
   signInWithPassword,
   updatePasswordWithRecoveryToken,
 } from "@/lib/supabase-public";
-import { verifyApprovedAccount } from "@/lib/supabase-people.browser";
+import {
+  AccountNotApprovedError,
+  hasCachedAccountApproval,
+  verifyApprovedAccount,
+} from "@/lib/supabase-people.browser";
 
-export function SupabaseAuthGate({ children }: { children: ReactNode }) {
+export function SupabaseAuthGate({
+  children,
+  onAccountChanged,
+}: {
+  children: ReactNode;
+  onAccountChanged?: () => void;
+}) {
+  const accountId = useRef(getSupabaseSession()?.user.id);
+  const [retryable, setRetryable] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [signedIn, setSignedIn] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [email, setEmail] = useState("");
@@ -50,24 +65,72 @@ export function SupabaseAuthGate({ children }: { children: ReactNode }) {
       }
       try {
         await verifyApprovedAccount();
-        if (alive) setSignedIn(true);
-      } catch {
-        clearSupabaseSession();
-        if (alive) {
-          setSignedIn(false);
-          setError("This account is not approved for this app.");
+        if (alive && getSupabaseSession()?.user.id === session.user.id) {
+          setSignedIn(true);
+          setRetryable(false);
+          setError(null);
         }
+      } catch (err) {
+        if (!alive || (getSupabaseSession() && getSupabaseSession()?.user.id !== session.user.id))
+          return;
+        const denied =
+          err instanceof AccountNotApprovedError || err instanceof SupabaseAuthRequiredError;
+        if (denied) clearSupabaseSession();
+        setSignedIn(!denied && hasCachedAccountApproval());
+        setRetryable(!denied);
+        setError(
+          denied
+            ? err instanceof Error
+              ? err.message
+              : "Sign in again."
+            : "The connection was interrupted. Your sign-in and local workouts are kept.",
+        );
       } finally {
         if (alive) setHydrated(true);
       }
     }
-    verify();
+    void verify();
+    const retry = () => setAttempt((value) => value + 1);
+    const sessionChanged = (event: Event) => {
+      if (event instanceof StorageEvent && event.key !== "supabase-session") return;
+      const userId = getSupabaseSession()?.user.id;
+      if (userId !== accountId.current) {
+        accountId.current = userId;
+        setSignedIn(false);
+        onAccountChanged?.();
+      }
+      if (!getSupabaseSession()) {
+        setSignedIn(false);
+        setRetryable(false);
+        setHydrated(true);
+        setError("Sign in again; your local workouts are kept.");
+      } else retry();
+    };
+    window.addEventListener(SUPABASE_SESSION_EVENT, sessionChanged);
+    window.addEventListener("storage", sessionChanged);
+    window.addEventListener("online", retry);
     return () => {
       alive = false;
+      window.removeEventListener(SUPABASE_SESSION_EVENT, sessionChanged);
+      window.removeEventListener("storage", sessionChanged);
+      window.removeEventListener("online", retry);
     };
-  }, []);
+  }, [attempt, onAccountChanged]);
 
-  if (hydrated && signedIn) return <>{children}</>;
+  if (hydrated && signedIn)
+    return (
+      <>
+        {retryable && (
+          <div role="status" className="border-b bg-muted p-3 text-sm">
+            {error}{" "}
+            <Button variant="outline" size="sm" onClick={() => setAttempt((value) => value + 1)}>
+              Retry connection
+            </Button>
+          </div>
+        )}
+        {children}
+      </>
+    );
 
   const onPasswordReset = async (e: FormEvent) => {
     e.preventDefault();
@@ -95,12 +158,20 @@ export function SupabaseAuthGate({ children }: { children: ReactNode }) {
     setBusy(true);
     setError(null);
     try {
-      await signInWithPassword(email.trim(), password);
+      const login = await signInWithPassword(email.trim(), password);
+      setPassword("");
       await verifyApprovedAccount();
+      if (getSupabaseSession()?.user.id !== login.user.id) return;
+      setRetryable(false);
       setSignedIn(true);
       setPassword("");
     } catch (err) {
-      clearSupabaseSession();
+      if (err instanceof AccountNotApprovedError || err instanceof SupabaseAuthRequiredError) {
+        clearSupabaseSession();
+        setRetryable(false);
+      } else {
+        setRetryable(Boolean(getSupabaseSession()));
+      }
       setError(err instanceof Error ? err.message : "Could not sign in.");
     } finally {
       setBusy(false);
@@ -163,6 +234,15 @@ export function SupabaseAuthGate({ children }: { children: ReactNode }) {
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update password"}
             </Button>
           </form>
+        ) : retryable ? (
+          <div className="space-y-3">
+            <p role="alert" className="text-sm">
+              {error}
+            </p>
+            <Button className="w-full" onClick={() => setAttempt((value) => value + 1)}>
+              Retry connection
+            </Button>
+          </div>
         ) : (
           <form onSubmit={onSubmit} className="space-y-3">
             {passwordUpdated && (

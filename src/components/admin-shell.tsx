@@ -10,6 +10,7 @@ import {
   Sun,
 } from "lucide-react";
 
+import { WorkoutSyncStatus } from "./workout-sync-status";
 import { Button } from "@/components/ui/button";
 import { APP_BUILD_LABEL } from "@/lib/build-info";
 import { signOutOfSupabase } from "@/lib/supabase-public";
@@ -192,6 +193,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <main
         className={`mx-auto max-w-6xl ${workspaceRoute ? "lg:max-w-[1560px]" : ""} px-4 pb-28 pt-6 sm:px-6 sm:pb-24`}
       >
+        <WorkoutSyncStatus />
         {children}
       </main>
       <nav

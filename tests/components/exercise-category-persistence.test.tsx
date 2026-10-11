@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
 }));
 vi.mock("@/lib/supabase-public", () => ({
+  supabaseCachedSelect: mocks.select,
   supabasePublicSelect: mocks.select,
   supabasePublicUpdate: mocks.update,
   supabasePublicInsert: mocks.insert,

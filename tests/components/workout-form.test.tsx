@@ -41,6 +41,7 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("sonner", () => ({
   toast: {
     message: vi.fn(),
+    info: vi.fn(),
     success: vi.fn(),
     warning: vi.fn(),
     error: vi.fn(),
@@ -362,6 +363,24 @@ describe("FullWorkoutForm draft lifecycle", () => {
     });
   });
 
+  it("transfers an offline finish into the pending save and clears the form without recording completion", async () => {
+    renderWithQueries(<FullWorkoutForm />);
+    await screen.findByText("Your workout");
+    await chooseBenchPress();
+    mocks.addWorkoutSessionClient.mockResolvedValueOnce({ sessionId: "", queued: true } as {
+      sessionId: string;
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Review and finish" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Finish workout", exact: true }),
+    );
+    await waitFor(() =>
+      expect(window.localStorage.getItem("workout-session-draft:signed-out")).toBeNull(),
+    );
+    expect(window.localStorage.getItem("last-completed-workout:signed-out")).toBeNull();
+    expect(mocks.addWorkoutSessionClient).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps set number fields focused while entering multi-digit values", async () => {
     renderWithQueries(<FullWorkoutForm />);
     await screen.findByText("Your workout");
@@ -491,8 +510,53 @@ describe("FullWorkoutForm draft lifecycle", () => {
   });
 });
 
+describe("ClimbForm durable draft", () => {
+  it("restores the unfinished climb after remount and can finish offline without a remote duplicate check", async () => {
+    mocks.addWorkoutSessionClient.mockClear();
+    const view = renderWithQueries(<ClimbForm />);
+    const minutes = await screen.findByRole("spinbutton", { name: "Climbing duration minutes" });
+    await userEvent.type(minutes, "30");
+    await waitFor(() =>
+      expect(
+        JSON.parse(window.localStorage.getItem("climbing-session-draft:signed-out") ?? "null")?.form
+          .durationMinutes,
+      ).toBe("30"),
+    );
+    const entryClientId = JSON.parse(
+      window.localStorage.getItem("climbing-session-draft:signed-out")!,
+    ).entryClientId;
+    view.unmount();
+    renderWithQueries(<ClimbForm />);
+    await waitFor(() =>
+      expect(screen.getByRole("spinbutton", { name: "Climbing duration minutes" })).toHaveValue(30),
+    );
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    try {
+      mocks.addWorkoutSessionClient.mockResolvedValueOnce({ sessionId: "", queued: true } as {
+        sessionId: string;
+      });
+      const button = screen.getByRole("button", { name: "Log climb", exact: true });
+      await waitFor(() => expect(button).toBeEnabled());
+      await userEvent.click(button);
+      await waitFor(() => expect(mocks.addWorkoutSessionClient).toHaveBeenCalledTimes(1));
+      await waitFor(() =>
+        expect(window.localStorage.getItem("climbing-session-draft:signed-out")).toBeNull(),
+      );
+      expect(mocks.addWorkoutSessionClient.mock.calls[0][0]).toMatchObject({
+        entries: [{ clientId: entryClientId }],
+      });
+      expect(mocks.addWorkoutSessionClient.mock.calls[0][1]).toMatchObject({
+        draftKey: "climbing-session-draft:signed-out",
+      });
+    } finally {
+      Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+    }
+  });
+});
+
 describe("ClimbForm duplicate-session warning", () => {
   beforeEach(() => {
+    mocks.addWorkoutSessionClient.mockClear();
     mocks.duplicateResponse = true;
   });
 

@@ -14,6 +14,10 @@ export function workoutSessionDraftKey() {
   return accountStorageKey(WORKOUT_SESSION_DRAFT_KEY_PREFIX);
 }
 
+export function climbingSessionDraftKey() {
+  return accountStorageKey("climbing-session-draft");
+}
+
 export function workoutFavoritesKey() {
   return accountStorageKey(WORKOUT_FAVORITES_KEY_PREFIX);
 }

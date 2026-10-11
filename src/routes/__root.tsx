@@ -7,7 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useCallback, useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -154,6 +154,7 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const resetAccountQueries = useCallback(() => queryClient.clear(), [queryClient]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -162,7 +163,7 @@ function RootComponent() {
       });
     }
     const flush = () => {
-      void flushQueuedWorkoutSaves();
+      void flushQueuedWorkoutSaves().catch(() => undefined);
     };
     flush();
     window.addEventListener("online", flush);
@@ -171,7 +172,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <SupabaseAuthGate>
+      <SupabaseAuthGate onAccountChanged={resetAccountQueries}>
         <AdminShell>
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           <Outlet />

@@ -1,3 +1,5 @@
+import { withBrowserLock } from "./browser-lock";
+
 // Deliberately kept as a small hand-rolled browser client for now. The data
 // layer currently relies on its PostgREST parameter contract, explicit
 // 401/refresh retry, and the legacy `supabase-session` storage key. Replacing
@@ -8,8 +10,9 @@
 const SUPABASE_URL = "https://dvcdghmcqqfvlbzufpyy.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_iqg20-V7vRrN97WXoG1miw_Jw8QR2uk";
 const SESSION_KEY = "supabase-session";
+export const SUPABASE_SESSION_EVENT = "supabase-session-updated";
 
-type Session = {
+export type Session = {
   access_token: string;
   refresh_token: string;
   expires_at?: number;
@@ -19,6 +22,24 @@ type Session = {
     email?: string;
   };
 };
+
+export class SupabaseAuthRequiredError extends Error {}
+
+export class SupabaseRequestError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message);
+  }
+}
+
+export function isTransientSupabaseError(error: unknown) {
+  return (
+    error instanceof TypeError ||
+    (error instanceof SupabaseRequestError && (error.status >= 500 || error.status === 429))
+  );
+}
 
 type QueryValue = string | number | boolean | null | undefined;
 
@@ -56,11 +77,13 @@ export function setSupabaseSession(session: Session) {
     session.expires_at ??
     (session.expires_in ? Math.floor(Date.now() / 1000) + session.expires_in : undefined);
   window.localStorage.setItem(SESSION_KEY, JSON.stringify({ ...session, expires_at: expiresAt }));
+  window.dispatchEvent(new Event(SUPABASE_SESSION_EVENT));
 }
 
 export function clearSupabaseSession() {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(SESSION_KEY);
+  window.dispatchEvent(new Event(SUPABASE_SESSION_EVENT));
 }
 
 export function getSupabaseRecoveryTokenFromUrl() {
@@ -91,7 +114,7 @@ async function authRequest<T>(path: string, body: Record<string, unknown>) {
   if (!res.ok) {
     const text = await res.text();
     console.error("Supabase Auth error", res.status, text);
-    throw new Error("Supabase sign-in failed.");
+    throw new SupabaseRequestError("Supabase sign-in failed.", res.status);
   }
   return res.json() as Promise<T>;
 }
@@ -121,13 +144,13 @@ export async function updatePasswordWithRecoveryToken(accessToken: string, passw
 
 export async function signOutOfSupabase() {
   const session = getSupabaseSession();
+  clearSupabaseSession();
   if (session?.access_token) {
     await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
       method: "POST",
       headers: headers(session.access_token),
     }).catch(() => undefined);
   }
-  clearSupabaseSession();
 }
 
 function sessionNeedsRefresh(session: Session) {
@@ -136,25 +159,59 @@ function sessionNeedsRefresh(session: Session) {
   return session.expires_at <= Math.floor(Date.now() / 1000) + refreshBufferSeconds;
 }
 
-export async function refreshSupabaseSession() {
-  const session = getSupabaseSession();
-  if (!session?.refresh_token) {
-    clearSupabaseSession();
-    throw new Error("Sign in to Supabase first.");
-  }
+const refreshes = new Map<string, Promise<Session>>();
 
-  const data = await authRequest<Session>("token?grant_type=refresh_token", {
-    refresh_token: session.refresh_token,
+export function refreshSupabaseSession(expected = getSupabaseSession()): Promise<Session> {
+  if (!expected?.refresh_token) {
+    return Promise.reject(new SupabaseAuthRequiredError("Sign in to Supabase first."));
+  }
+  const existing = refreshes.get(expected.refresh_token);
+  if (existing) return existing;
+  const work = withBrowserLock("train-track-auth-refresh", async () => {
+    const current = getSupabaseSession();
+    if (!current || current.user.id !== expected.user.id) {
+      throw new SupabaseAuthRequiredError("Your sign-in changed. Try again.");
+    }
+    if (current.refresh_token !== expected.refresh_token) return current;
+    try {
+      const data = await authRequest<Session>("token?grant_type=refresh_token", {
+        refresh_token: current.refresh_token,
+      });
+      const latest = getSupabaseSession();
+      if (!latest || latest.user.id !== current.user.id) {
+        throw new SupabaseAuthRequiredError("Your sign-in changed. Try again.");
+      }
+      if (latest.refresh_token !== current.refresh_token) return latest;
+      setSupabaseSession(data);
+      return getSupabaseSession()!;
+    } catch (error) {
+      const latest = getSupabaseSession();
+      if (latest?.user.id === current.user.id && latest.refresh_token !== current.refresh_token) {
+        return latest;
+      }
+      if (error instanceof SupabaseRequestError && [400, 401].includes(error.status)) {
+        if (latest?.refresh_token === current.refresh_token) clearSupabaseSession();
+        throw new SupabaseAuthRequiredError(
+          "Your sign-in expired. Sign in again; your local work is kept.",
+        );
+      }
+      throw error;
+    }
   });
-  setSupabaseSession(data);
-  return data;
+  refreshes.set(expected.refresh_token, work);
+  void work
+    .finally(() => {
+      if (refreshes.get(expected.refresh_token) === work) refreshes.delete(expected.refresh_token);
+    })
+    .catch(() => undefined);
+  return work;
 }
 
 async function getActiveSession() {
   const session = getSupabaseSession();
-  if (!session?.access_token) throw new Error("Sign in to Supabase first.");
+  if (!session?.access_token) throw new SupabaseAuthRequiredError("Sign in to Supabase first.");
   if (!sessionNeedsRefresh(session)) return session;
-  return refreshSupabaseSession();
+  return refreshSupabaseSession(session);
 }
 
 function supabaseErrorMessage(status: number, text: string) {
@@ -173,6 +230,14 @@ function supabaseErrorMessage(status: number, text: string) {
   }
 }
 
+async function readRestResponse<T>(response: Response, userId: string): Promise<T> {
+  const data = response.status === 204 ? undefined : await response.json();
+  if (getSupabaseSession()?.user.id !== userId) {
+    throw new SupabaseAuthRequiredError("Your sign-in changed. Try again.");
+  }
+  return data as T;
+}
+
 async function restRequest<T>(
   path: string,
   init?: RequestInit,
@@ -187,8 +252,15 @@ async function restRequest<T>(
       ...(init?.headers ?? {}),
     },
   });
+  if (getSupabaseSession()?.user.id !== session.user.id) {
+    throw new SupabaseAuthRequiredError("Your sign-in changed. Try again.");
+  }
   if (res.status === 401) {
-    const refreshed = await refreshSupabaseSession();
+    const latest = getSupabaseSession();
+    const refreshed =
+      latest?.user.id === session.user.id && latest.access_token !== session.access_token
+        ? latest
+        : await refreshSupabaseSession(session);
     const retry = await fetch(`${SUPABASE_URL}/rest/v1/${path}${queryString(params)}`, {
       ...init,
       headers: {
@@ -197,21 +269,28 @@ async function restRequest<T>(
         ...(init?.headers ?? {}),
       },
     });
+    if (getSupabaseSession()?.user.id !== refreshed.user.id) {
+      throw new SupabaseAuthRequiredError("Your sign-in changed. Try again.");
+    }
     if (!retry.ok) {
       const text = await retry.text();
       console.error("Supabase REST error", retry.status, text);
-      throw new Error(`Supabase request failed: ${supabaseErrorMessage(retry.status, text)}`);
+      throw new SupabaseRequestError(
+        `Supabase request failed: ${supabaseErrorMessage(retry.status, text)}`,
+        retry.status,
+      );
     }
-    if (retry.status === 204) return undefined as T;
-    return retry.json() as Promise<T>;
+    return readRestResponse<T>(retry, refreshed.user.id);
   }
   if (!res.ok) {
     const text = await res.text();
     console.error("Supabase REST error", res.status, text);
-    throw new Error(`Supabase request failed: ${supabaseErrorMessage(res.status, text)}`);
+    throw new SupabaseRequestError(
+      `Supabase request failed: ${supabaseErrorMessage(res.status, text)}`,
+      res.status,
+    );
   }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  return readRestResponse<T>(res, session.user.id);
 }
 
 export function supabasePublicSelect<T>(table: string, params?: Record<string, QueryValue>) {
@@ -252,4 +331,36 @@ export function supabasePublicRpc<T>(functionName: string, body: Record<string, 
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+// Used only for logger references, not training history or coaching decisions.
+// Cache entries are scoped to the signed-in user and exact query. Denied access
+// never falls back to cached data; every write still requires server approval.
+export async function supabaseCachedSelect<T>(table: string, params?: Record<string, QueryValue>) {
+  const userId = getSupabaseSession()?.user.id;
+  if (!userId) throw new SupabaseAuthRequiredError("Sign in to Supabase first.");
+  const key = `workout-reference:${userId}:${table}${queryString(params)}`;
+  const cached = () => {
+    try {
+      return JSON.parse(window.localStorage.getItem(key) ?? "null") as T[] | null;
+    } catch {
+      return null;
+    }
+  };
+  try {
+    if (typeof navigator !== "undefined" && !navigator.onLine) throw new TypeError("Offline");
+    const rows = await supabasePublicSelect<T>(table, params);
+    try {
+      window.localStorage.setItem(key, JSON.stringify(rows));
+    } catch {
+      /* Reads work without storage. */
+    }
+    return rows;
+  } catch (error) {
+    if (isTransientSupabaseError(error) && getSupabaseSession()?.user.id === userId) {
+      const rows = cached();
+      if (Array.isArray(rows)) return rows;
+    }
+    throw error;
+  }
 }

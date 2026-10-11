@@ -1,6 +1,7 @@
 import { expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ select: vi.fn(), scope: "both", homeEquipment: ["rings"] }));
 vi.mock("@/lib/supabase-public", () => ({
+  supabaseCachedSelect: mocks.select,
   supabasePublicSelect: mocks.select,
   supabasePublicUpdate: vi.fn(),
   supabasePublicInsert: vi.fn(),

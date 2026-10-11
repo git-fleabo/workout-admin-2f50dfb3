@@ -6,7 +6,7 @@ import {
 import {
   supabasePublicDelete,
   supabasePublicInsert,
-  supabasePublicSelect,
+  supabaseCachedSelect as supabasePublicSelect,
   supabasePublicUpdate,
 } from "./supabase-public";
 

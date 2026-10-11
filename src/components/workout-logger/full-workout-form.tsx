@@ -1,9 +1,9 @@
 import { dupBackOffRows } from "@/lib/base-strength-backoff";
 import { progressionSummary } from "@/lib/programme-progression";
-import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowDown,
@@ -65,15 +65,19 @@ import {
 } from "@/lib/supabase-log.browser";
 import { formatUKDate, todayISO } from "@/lib/date";
 import {
-  completeSuggestedWorkoutClient,
   getNextSuggestedWorkoutsClient,
   updateSuggestedWorkoutStatusClient,
   type SavedWorkoutPlan,
 } from "@/lib/supabase-plans.browser";
-import { lastCompletedWorkoutKey, WORKOUT_REPEAT_SESSION_KEY } from "@/lib/workout-local-state";
+import {
+  climbingSessionDraftKey,
+  lastCompletedWorkoutKey,
+  WORKOUT_REPEAT_SESSION_KEY,
+} from "@/lib/workout-local-state";
 import { useFavoriteExercises } from "@/hooks/use-favorite-exercises";
 import { useMethodBlockEditor } from "@/hooks/use-method-block-editor";
 import { useRecentSessionTemplates } from "@/hooks/use-recent-session-templates";
+import { isLikelyOfflineError } from "@/lib/workout-offline-queue";
 import { useWorkoutDraft } from "@/hooks/use-workout-draft";
 import { workoutSessionSchema } from "./workout-session-schema";
 import {
@@ -120,37 +124,6 @@ const CLIMBING_WORKOUT_TYPE = "Climbing";
 const CLIMBING_WALL_EQUIPMENT_NAME = "Climbing wall";
 const CLASS_WORKOUT_TYPE = "Class";
 const MOBILITY_WORKOUT_TYPE = "Mobility/Flexibility";
-
-function useCompleteSuggestedWorkoutMutation(queryClient: QueryClient) {
-  return useMutation({
-    mutationFn: ({ workoutId, sessionId }: { workoutId: string; sessionId: string }) =>
-      completeSuggestedWorkoutClient(workoutId, sessionId),
-    onMutate: async ({ workoutId }) => {
-      await queryClient.cancelQueries({ queryKey: ["next-suggested-workouts"] });
-      const previousPlans = queryClient.getQueryData<SavedWorkoutPlan[]>([
-        "next-suggested-workouts",
-      ]);
-      queryClient.setQueryData<SavedWorkoutPlan[]>(["next-suggested-workouts"], (plans) =>
-        plans?.filter((plan) => plan.suggestedWorkoutId !== workoutId),
-      );
-      return { previousPlans };
-    },
-    onError: (_error, _variables, context) => {
-      if (context?.previousPlans !== undefined) {
-        queryClient.setQueryData(["next-suggested-workouts"], context.previousPlans);
-      }
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
-      void queryClient.invalidateQueries({ queryKey: ["workout-lifecycle"] });
-      void queryClient.invalidateQueries({ queryKey: ["programme-workout-offers"] });
-      void queryClient.invalidateQueries({ queryKey: ["programme-assignments"] });
-      void queryClient.invalidateQueries({ queryKey: ["programme-exercise-rule"] });
-      void queryClient.invalidateQueries({ queryKey: ["my-programme-overview"] });
-      void queryClient.invalidateQueries({ queryKey: ["programme-schedule"] });
-    },
-  });
-}
 
 function coerceExerciseEquipment(exercise: unknown) {
   if (!exercise || typeof exercise !== "object" || !("equipment" in exercise)) return "";
@@ -914,12 +887,64 @@ function climbCountLabel(movement: string) {
 
 export function ClimbForm() {
   const qc = useQueryClient();
-  const completeSuggestedWorkoutMutation = useCompleteSuggestedWorkoutMutation(qc);
   const [form, setForm] = useState<ClimbFormState>(() => blankClimbForm());
   const [loadedSuggestionId, setLoadedSuggestionId] = useState<string | null>(null);
   const [loadedPlanTitle, setLoadedPlanTitle] = useState("");
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+  const [climbDraftLoaded, setClimbDraftLoaded] = useState(false);
+  const climbDraftKey = useMemo(climbingSessionDraftKey, []);
+  const climbEntryId = useRef<string>(crypto.randomUUID());
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(climbDraftKey) ?? "null");
+      if (
+        saved?.version === 1 &&
+        saved.form &&
+        Object.entries(blankClimbForm()).every(
+          ([key, value]) => typeof saved.form[key] === typeof value,
+        )
+      ) {
+        setForm(saved.form);
+        if (typeof saved.entryClientId === "string") climbEntryId.current = saved.entryClientId;
+        setLoadedSuggestionId(
+          typeof saved.loadedSuggestionId === "string" ? saved.loadedSuggestionId : null,
+        );
+        setLoadedPlanTitle(typeof saved.loadedPlanTitle === "string" ? saved.loadedPlanTitle : "");
+      }
+    } catch {
+      /* An unreadable draft must not prevent opening the logger. */
+    }
+    setClimbDraftLoaded(true);
+  }, [climbDraftKey]);
+  useEffect(() => {
+    if (!climbDraftLoaded) return;
+    try {
+      if (
+        !form.durationHours &&
+        !form.durationMinutes &&
+        !form.problemsOrRoutes &&
+        !form.rpe &&
+        !form.notes &&
+        !loadedSuggestionId
+      ) {
+        window.localStorage.removeItem(climbDraftKey);
+        return;
+      }
+      window.localStorage.setItem(
+        climbDraftKey,
+        JSON.stringify({
+          version: 1,
+          form,
+          loadedSuggestionId,
+          loadedPlanTitle,
+          entryClientId: climbEntryId.current,
+        }),
+      );
+    } catch {
+      toast.error("This device could not retain the climb draft. Keep this page open until saved.");
+    }
+  }, [climbDraftKey, climbDraftLoaded, form, loadedSuggestionId, loadedPlanTitle]);
   const library = useQuery({
     queryKey: ["library"],
     queryFn: getLibraryClient,
@@ -1060,53 +1085,61 @@ export function ClimbForm() {
   const mutate = useMutation({
     mutationFn: () => {
       const duration = String(totalMinutes ?? "");
-      return addWorkoutSessionClient({
-        date: form.date,
-        title: form.movement,
-        trainingLocationId: form.trainingLocationId,
-        duration,
-        intensity: "",
-        rpe: form.rpe,
-        completed: true,
-        notes: form.notes,
-        entries: [
-          {
-            ...blank(CLIMBING_WORKOUT_TYPE),
-            exercise: form.movement,
-            workoutType: CLIMBING_WORKOUT_TYPE,
-            entryKind: CLIMBING_WORKOUT_TYPE,
-            duration,
-            rpe: form.rpe,
-            notes: form.notes,
-            climbingTrackingMode: trackingMode,
-            climbingBoulders: form.problemsOrRoutes,
-            climbingMaxGrade: form.grade,
-            climbingGradeSystem: form.gradeSystem,
-            climbingSendType: form.sendType,
-            climbingIsProject: form.isProject,
-            climbingGradient: supportsClimbingGradient(form.movement) ? form.gradient : "",
-          },
-        ],
-        methodBlocks: [],
-      });
+      return addWorkoutSessionClient(
+        {
+          date: form.date,
+          title: form.movement,
+          trainingLocationId: form.trainingLocationId,
+          duration,
+          intensity: "",
+          rpe: form.rpe,
+          completed: true,
+          notes: form.notes,
+          entries: [
+            {
+              ...blank(CLIMBING_WORKOUT_TYPE),
+              clientId: climbEntryId.current,
+              exercise: form.movement,
+              workoutType: CLIMBING_WORKOUT_TYPE,
+              entryKind: CLIMBING_WORKOUT_TYPE,
+              duration,
+              rpe: form.rpe,
+              notes: form.notes,
+              climbingTrackingMode: trackingMode,
+              climbingBoulders: form.problemsOrRoutes,
+              climbingMaxGrade: form.grade,
+              climbingGradeSystem: form.gradeSystem,
+              climbingSendType: form.sendType,
+              climbingIsProject: form.isProject,
+              climbingGradient: supportsClimbingGradient(form.movement) ? form.gradient : "",
+            },
+          ],
+          methodBlocks: [],
+          suggestedWorkoutId: loadedSuggestionId,
+        },
+        { draftKey: climbingSessionDraftKey() },
+      );
     },
     onSuccess: async (result) => {
+      climbEntryId.current = crypto.randomUUID();
       if (result.queued) {
         toast.info("Climb queued for sync", {
           description: "It is saved on this device and will upload when you are back online.",
         });
+        window.localStorage.removeItem(climbingSessionDraftKey());
+        setForm((current) => ({
+          ...blankClimbForm(),
+          trainingLocationId: current.trainingLocationId,
+        }));
+        setLoadedSuggestionId(null);
+        setLoadedPlanTitle("");
+        setDuplicateOpen(false);
         return;
       }
-      if (loadedSuggestionId) {
-        try {
-          await completeSuggestedWorkoutMutation.mutateAsync({
-            workoutId: loadedSuggestionId,
-            sessionId: result.sessionId,
-          });
-        } catch {
-          toast.warning("Climb saved, but the plan could not be marked complete.");
-        }
-      }
+      window.localStorage.removeItem(climbingSessionDraftKey());
+      qc.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
+      qc.invalidateQueries({ queryKey: ["programme-assignments"] });
+      qc.invalidateQueries({ queryKey: ["programme-workout-offers"] });
       toast.success("Climb logged", {
         description: `${climbMovementLabel(form.movement)} · ${totalMinutes} minutes`,
       });
@@ -1137,7 +1170,7 @@ export function ClimbForm() {
 
   const submit = async (skipDuplicateCheck = false) => {
     if (!canSubmit || checkingDuplicate) return;
-    if (!skipDuplicateCheck) {
+    if (!skipDuplicateCheck && navigator.onLine) {
       setCheckingDuplicate(true);
       try {
         const [unifiedDuplicate, legacyDuplicate] = await Promise.all([
@@ -1157,8 +1190,10 @@ export function ClimbForm() {
           return;
         }
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Could not check for duplicates.");
-        return;
+        if (!isLikelyOfflineError(error) && navigator.onLine) {
+          toast.error(error instanceof Error ? error.message : "Could not check for duplicates.");
+          return;
+        }
       } finally {
         setCheckingDuplicate(false);
       }
@@ -1483,7 +1518,6 @@ export function ClimbForm() {
 
 export function FullWorkoutForm() {
   const qc = useQueryClient();
-  const completeSuggestedWorkoutMutation = useCompleteSuggestedWorkoutMutation(qc);
   const lastCompletedStorageKey = useMemo(lastCompletedWorkoutKey, []);
   const lib = useQuery({ queryKey: ["library"], queryFn: getLibraryClient });
   const recent = useQuery({
@@ -2239,11 +2273,19 @@ export function FullWorkoutForm() {
         const result = await replaceWorkoutSessionClient(editingSessionId, buildWorkoutPayload());
         return { ...result, wasCorrection: true };
       }
-      const result = await addWorkoutSessionClient(buildWorkoutPayload());
+      const result = await addWorkoutSessionClient({
+        ...buildWorkoutPayload(),
+        suggestedWorkoutId: loadedSuggestionId,
+      });
       return { ...result, wasCorrection: false, planRelinkFailed: false };
     },
     onSuccess: async (result) => {
       if (result.queued) {
+        window.localStorage.removeItem(draftStorageKey);
+        setForm(blankSession());
+        setLoadedSuggestionId(null);
+        setMobilityRunId(null);
+        setDraftSavedAt(null);
         setFinishSummaryOpen(false);
         toast.info("Workout queued for sync", {
           description: "It is saved on this device and will upload when you are back online.",
@@ -2251,16 +2293,6 @@ export function FullWorkoutForm() {
         return;
       }
       window.localStorage.removeItem(draftStorageKey);
-      if (loadedSuggestionId && !result.wasCorrection) {
-        try {
-          await completeSuggestedWorkoutMutation.mutateAsync({
-            workoutId: loadedSuggestionId,
-            sessionId: result.sessionId,
-          });
-        } catch {
-          toast.warning("Workout saved, but the plan could not be marked complete.");
-        }
-      }
       if (result.planRelinkFailed) {
         toast.warning("Workout updated, but its saved plan link could not be restored.");
       }
@@ -2287,6 +2319,9 @@ export function FullWorkoutForm() {
       setLoadedSuggestionId(null);
       setEditingSessionId(null);
       setMobilityRunId(null);
+      qc.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
+      qc.invalidateQueries({ queryKey: ["programme-assignments"] });
+      qc.invalidateQueries({ queryKey: ["programme-workout-offers"] });
       qc.invalidateQueries({ queryKey: ["mobility-practice"] });
       qc.invalidateQueries({ queryKey: ["recent-workouts"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });

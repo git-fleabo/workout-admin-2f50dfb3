@@ -1,7 +1,7 @@
 import {
   supabasePublicDelete,
   supabasePublicInsert,
-  supabasePublicSelect,
+  supabaseCachedSelect as supabasePublicSelect,
   supabasePublicUpdate,
   supabasePublicRpc,
 } from "./supabase-public";

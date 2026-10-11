@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { toast } from "sonner";
 
 import { workoutSessionDraftKey } from "@/lib/workout-local-state";
@@ -43,6 +43,7 @@ export function useWorkoutDraft({
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const [discardDraftOpen, setDiscardDraftOpen] = useState(false);
   const storageKey = workoutSessionDraftKey();
+  const storageWarningShown = useRef(false);
 
   useEffect(() => {
     if (!initialFormLoaded) return;
@@ -60,8 +61,18 @@ export function useWorkoutDraft({
       editingSessionId,
       mobilityRunId,
     };
-    window.localStorage.setItem(storageKey, JSON.stringify(draft));
-    setDraftSavedAt(savedAt);
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(draft));
+      setDraftSavedAt(savedAt);
+      storageWarningShown.current = false;
+    } catch {
+      if (!storageWarningShown.current) {
+        toast.error(
+          "This device could not retain the workout draft. Keep this page open until saved.",
+        );
+        storageWarningShown.current = true;
+      }
+    }
   }, [
     editingSessionId,
     form,
