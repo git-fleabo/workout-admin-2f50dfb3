@@ -293,8 +293,12 @@ async function restRequest<T>(
   return readRestResponse<T>(res, session.user.id);
 }
 
-export function supabasePublicSelect<T>(table: string, params?: Record<string, QueryValue>) {
-  return restRequest<T[]>(table, { method: "GET" }, params);
+export function supabasePublicSelect<T>(
+  table: string,
+  params?: Record<string, QueryValue>,
+  options?: Pick<RequestInit, "cache">,
+) {
+  return restRequest<T[]>(table, { method: "GET", ...options }, params);
 }
 
 export function supabasePublicInsert<T>(

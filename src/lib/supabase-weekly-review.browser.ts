@@ -130,6 +130,7 @@ export type WeeklyReviewData = {
   };
   programmeAdherence: ProgrammeAdherence;
   programmeCompletedThisWeek: number;
+  supportCompletedThisWeek: number;
   activityMix: Array<{ label: string; sessions: number }>;
   locations: Array<{ label: string; sessions: number }>;
   highlights: WeeklyReviewItem[];
@@ -362,12 +363,14 @@ function buildHighlights({
   prs,
   adherence,
   programmeCompletedThisWeek,
+  supportCompletedThisWeek,
 }: {
   current: ReturnType<typeof summarize>;
   previous: ReturnType<typeof summarize>;
   prs: WeeklyReviewPR[];
   adherence: WeeklyReviewData["adherence"];
   programmeCompletedThisWeek: number;
+  supportCompletedThisWeek: number;
 }) {
   const highlights: WeeklyReviewItem[] = prs.slice(0, 2).map((pr) => ({
     title: `${pr.title} personal best`,
@@ -384,8 +387,16 @@ function buildHighlights({
   }
   if (programmeCompletedThisWeek > 0) {
     highlights.push({
-      title: `${programmeCompletedThisWeek} programme session${programmeCompletedThisWeek === 1 ? "" : "s"} completed`,
+      title: `${programmeCompletedThisWeek} strength programme session${programmeCompletedThisWeek === 1 ? "" : "s"} completed`,
       detail: "Programme dates are guidance; each completed session moves the programme forward.",
+      tone: "positive",
+    });
+  }
+  if (supportCompletedThisWeek > 0) {
+    highlights.push({
+      title: `${supportCompletedThisWeek} supporting session${supportCompletedThisWeek === 1 ? "" : "s"} completed`,
+      detail:
+        "Supporting work stays linked to your programme without advancing its strength position.",
       tone: "positive",
     });
   }
@@ -631,13 +642,26 @@ export async function getWeeklyReviewClient(anchor?: string): Promise<WeeklyRevi
   const completedSessionDates = new Map(
     sessionRows.map((session) => [session.id, session.session_date]),
   );
+  const completedProgrammePlans = planRows.filter((plan) => {
+    const date = plan.completed_session_id
+      ? completedSessionDates.get(plan.completed_session_id)
+      : null;
+    return (
+      plan.status === "completed" &&
+      plan.program_assignment_id &&
+      date &&
+      date >= weekStart &&
+      date <= reviewEnd
+    );
+  });
   const programmeCompletedThisWeek = new Set(
-    planRows
-      .filter((plan) => plan.program_assignment_id && plan.completed_session_id)
-      .filter((plan) => {
-        const date = completedSessionDates.get(plan.completed_session_id!);
-        return date != null && date >= weekStart && date <= reviewEnd;
-      })
+    completedProgrammePlans
+      .filter((plan) => plan.program_workout_id)
+      .map((plan) => plan.completed_session_id),
+  ).size;
+  const supportCompletedThisWeek = new Set(
+    completedProgrammePlans
+      .filter((plan) => !plan.program_workout_id)
       .map((plan) => plan.completed_session_id),
   ).size;
   const programmeLinks: ProgrammeAdherenceLink[] = planRows.flatMap((plan) =>
@@ -697,6 +721,7 @@ export async function getWeeklyReviewClient(anchor?: string): Promise<WeeklyRevi
     adherence,
     programmeAdherence,
     programmeCompletedThisWeek,
+    supportCompletedThisWeek,
     activityMix: countLabels(currentSessions, "activities"),
     locations: countLabels(currentSessions, "location"),
     highlights: buildHighlights({
@@ -705,6 +730,7 @@ export async function getWeeklyReviewClient(anchor?: string): Promise<WeeklyRevi
       prs: weeklyPRs,
       adherence,
       programmeCompletedThisWeek,
+      supportCompletedThisWeek,
     }),
     watchlist: buildWatchlist({ current, previous }),
     actions: buildActions({

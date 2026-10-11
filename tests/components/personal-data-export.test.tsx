@@ -11,6 +11,7 @@ import {
 } from "@/lib/supabase-export.browser";
 type Row = Record<string, unknown>;
 function database(tables: Record<string, Row[]>, serverLimit = 500) {
+  if (!tables.people) tables.people = [{ id: "person" }];
   mocks.select.mockImplementation(
     async (table: string, params: Record<string, string | number>) => {
       expect(params.select).toBe("*");
@@ -127,4 +128,40 @@ it.each(["json", "csv"] as const)("creates a downloadable %s file", async (forma
   } finally {
     vi.unstubAllGlobals();
   }
+});
+it("keeps session CSV independent of unrelated backup tables", async () => {
+  database({ sessions: [{ id: "s1", person_id: "person", title: "Workout" }] });
+  const original = mocks.select.getMockImplementation()!;
+  mocks.select.mockImplementation(async (table, params) => {
+    if (table === "coaching_preferences") throw new Error("Unavailable preferences");
+    return original(table, params);
+  });
+  vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:csv"), revokeObjectURL: vi.fn() });
+  const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  try {
+    await downloadPersonalData("csv");
+    expect(click).toHaveBeenCalledOnce();
+    expect(mocks.select.mock.calls.some(([table]) => table === "coaching_preferences")).toBe(false);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+it("rejects a backup when sync or editing changes its profile between complete reads", async () => {
+  database({
+    programs: [{ id: "program", created_by_person_id: "person" }],
+    program_assignments: [
+      { id: "assignment", person_id: "person", program_id: "program", current_workout_index: 0 },
+    ],
+  });
+  const original = mocks.select.getMockImplementation()!;
+  let captures = 0;
+  mocks.select.mockImplementation(async (table, params) => {
+    if (table === "program_assignments" && params.offset === 0) captures++;
+    const rows = await original(table, params);
+    return table === "program_assignments"
+      ? rows.map((row: Row) => ({ ...row, current_workout_index: captures - 1 }))
+      : rows;
+  });
+  await expect(getPersonalDataExport()).rejects.toThrow("changed during the backup");
 });

@@ -250,3 +250,82 @@ describe("strength programme review", () => {
     expect(screen.getByRole("button", { name: "Review exact week" })).toBeInTheDocument();
   });
 });
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
+}));
+
+it.each([
+  ["volume_intensity", "Volume/Intensity", "saved wave targets"],
+  ["bullmastiff", "Bullmastiff", "Review completed plus set"],
+  ["dup", "DUP", "Peak back-off loads"],
+] as const)(
+  "explains the %s source-specific review workflow without claiming there are no sessions",
+  async (programme, label, detail) => {
+    const sourceAssignment = {
+      ...assignment,
+      personalProgramme: {
+        name: label,
+        sessions: [
+          {
+            workoutId: template.workouts[0].id,
+            name: "Saved session",
+            scheduledDate: "2026-10-12",
+            revision: 1,
+            plan: {
+              version: 1 as const,
+              locationKind: "gym" as const,
+              baseStrength: programme,
+              movements: [],
+            },
+          },
+        ],
+      },
+    };
+    const onSave = vi.fn(),
+      onApplyReview = vi.fn();
+    render(
+      <ProgrammeRefreshCard
+        assignment={sourceAssignment}
+        template={template}
+        recovery={recovery}
+        appliedReview={null}
+        saving={false}
+        onSave={onSave}
+        onApplyReview={onApplyReview}
+      />,
+    );
+    expect(screen.getByText(`${label} programme review`)).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(detail))).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open saved programme" })).toHaveAttribute(
+      "href",
+      "/plan",
+    );
+    expect(screen.queryByText("No unstarted strength sessions to review")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Review exact week/ })).toBeNull();
+    expect(onApplyReview).not.toHaveBeenCalled();
+    expect(onSave).not.toHaveBeenCalled();
+  },
+);
+it("distinguishes started sessions from an empty or unsupported programme", () => {
+  const personal = {
+    ...assignment,
+    personalProgramme: { name: "Saved", sessions: [] },
+    reviewLockedWorkoutIds: template.workouts.map((workout) => workout.id),
+  };
+  render(
+    <ProgrammeRefreshCard
+      assignment={personal}
+      template={template}
+      recovery={recovery}
+      appliedReview={null}
+      saving={false}
+      onSave={vi.fn()}
+      onApplyReview={vi.fn()}
+    />,
+  );
+  expect(screen.getByText("Current strength sessions already started")).toBeInTheDocument();
+  expect(screen.getByText(/Resume the started session from Today/)).toBeInTheDocument();
+});

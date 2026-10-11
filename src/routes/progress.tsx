@@ -32,6 +32,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 
+import { ClimbingGradeChart } from "@/components/climbing-grade-chart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SessionDetailDialog } from "@/components/session-detail-dialog";
@@ -73,7 +74,7 @@ import { getMovementMetricProfile, type MetricProfile } from "@/lib/movement-met
 import type { ExerciseMethodUse, ExerciseSessionPoint, LibraryRow } from "@/lib/training-types";
 import { cn } from "@/lib/utils";
 import { formatPositionMeasurementDirection } from "@/lib/position-measurements";
-import { climbingGradeProgress, openClimbingProjects } from "@/lib/climbing-metrics";
+import { openClimbingProjects } from "@/lib/climbing-metrics";
 import { getClimbingProgressClient } from "@/lib/supabase-climbing.browser";
 import { getCurrentProgrammeWorkoutOffersClient } from "@/lib/supabase-programmes.browser";
 
@@ -666,10 +667,6 @@ function ProgressPage() {
     queryFn: getClimbingProgressClient,
     staleTime: 60_000,
   });
-  const gradeProgress = useMemo(
-    () => climbingGradeProgress(climbingProgress.data ?? []),
-    [climbingProgress.data],
-  );
   const projects = useMemo(
     () => openClimbingProjects(climbingProgress.data ?? []),
     [climbingProgress.data],
@@ -934,31 +931,9 @@ function ProgressPage() {
         <ExercisePicker exercises={locationExercises} value={exerciseId} onChange={setExerciseId} />
       </header>
 
-      {gradeProgress.length || projects.length ? (
+      {climbingProgress.isSuccess || projects.length ? (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.5fr)]">
-          {gradeProgress.length ? (
-            <Card>
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-sm">Climbing grade progress</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-2">
-                <ResponsiveContainer width="100%" height={190}>
-                  <BarChart data={gradeProgress} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                    <YAxis hide />
-                    <Tooltip formatter={(value) => [value, "Highest grade"]} />
-                    <Bar
-                      dataKey="highestGrade"
-                      name="Highest grade"
-                      fill="var(--color-chart-2)"
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          ) : null}
+          <ClimbingGradeChart entries={climbingProgress.data ?? []} />
           {projects.length ? (
             <Card>
               <CardHeader className="p-4 pb-2">

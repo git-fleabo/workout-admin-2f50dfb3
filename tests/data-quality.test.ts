@@ -392,8 +392,20 @@ test("climbing grade progress keeps the highest grade for each month", () => {
       { date: "bad", grade: "V9", gradeSystem: "V-scale" },
     ]),
     [
-      { month: "2026-01", highestGrade: "V5", gradeSystem: "V-scale" },
-      { month: "2026-02", highestGrade: "6b+", gradeSystem: "Font" },
+      {
+        month: "2026-02",
+        highestGrade: "6b+",
+        gradeSystem: "Font",
+        gradeOrdinal: 11,
+        gradeLabel: "6B+",
+      },
+      {
+        month: "2026-01",
+        highestGrade: "V5",
+        gradeSystem: "V-scale",
+        gradeOrdinal: 9,
+        gradeLabel: "V5",
+      },
     ],
   );
 });

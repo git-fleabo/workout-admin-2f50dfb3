@@ -118,7 +118,7 @@ function SettingsPage() {
     setExporting(format);
     try {
       await downloadPersonalData(format);
-      toast.success(format === "json" ? "JSON export downloaded" : "CSV export downloaded");
+      toast.success(format === "json" ? "Profile backup downloaded" : "CSV export downloaded");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "The export could not be created.");
     } finally {
@@ -268,13 +268,18 @@ function SettingsPage() {
           </p>
         </div>
         <Card className="flex flex-wrap items-center gap-3 p-4">
+          <p className="w-full text-xs text-muted-foreground">
+            JSON includes your programme targets, coaching, mobility setup, training history and
+            their catalogue references. CSV contains session rows for analysis. Sign-in, access
+            permissions and unsynced device work are separate.
+          </p>
           <button
             type="button"
             className="rounded-lg border border-border px-3 py-2 text-sm hover:bg-accent"
             disabled={Boolean(exporting)}
             onClick={() => void exportData("json")}
           >
-            {exporting === "json" ? "Preparing…" : "Download my data (JSON)"}
+            {exporting === "json" ? "Preparing…" : "Download profile backup (JSON)"}
           </button>
           <button
             type="button"

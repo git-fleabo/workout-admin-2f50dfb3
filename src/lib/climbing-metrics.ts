@@ -62,27 +62,81 @@ export type ClimbingProgressEntry = {
   isProject?: boolean | null;
 };
 
-export function climbingGradeProgress(entries: ClimbingProgressEntry[]) {
-  const byMonth = new Map<
-    string,
-    { month: string; highestGrade: string; gradeSystem: string | null }
-  >();
+export function climbingGradeOrdinal(grade: string, system: string | null | undefined) {
+  const value = grade.trim();
+  if (system === "V-scale") {
+    if (value.toUpperCase() === "VB") return { ordinal: 1, label: "VB" };
+    const match = value.match(/^V(0|[1-9]\d?)([-+]?)$/i);
+    if (!match || (match[2] && match[1] !== "0")) return null;
+    const number = Number(match[1]);
+    return {
+      ordinal: number === 0 ? 2 + ["-", "", "+"].indexOf(match[2]) : number + 4,
+      label: `V${number}${match[2]}`,
+    };
+  }
+  if (system === "Font" || system === "French") {
+    const normalized = system === "Font" ? value.toUpperCase() : value.toLowerCase();
+    const lower =
+      system === "Font"
+        ? ["1", "2", "3", "4", "4+", "5", "5+"]
+        : ["1", "2", "3a", "3b", "3c", "4a", "4b", "4c", "5a", "5b", "5c"];
+    const low = lower.indexOf(normalized);
+    if (low >= 0) return { ordinal: low + 1, label: normalized };
+    const match = normalized.match(/^([6-9])([abc])(\+?)$/i);
+    if (!match) return null;
+    return {
+      ordinal:
+        lower.length +
+        1 +
+        (Number(match[1]) - 6) * 6 +
+        "abc".indexOf(match[2].toLowerCase()) * 2 +
+        (match[3] ? 1 : 0),
+      label: normalized,
+    };
+  }
+  if (system === "YDS") {
+    const match = value.match(/^5\.(0|[1-9]|1\d)([a-d]?)$/i);
+    if (!match) return null;
+    const number = Number(match[1]);
+    if (number >= 10 !== Boolean(match[2])) return null;
+    return {
+      ordinal:
+        number < 10 ? number + 1 : 11 + (number - 10) * 4 + "abcd".indexOf(match[2].toLowerCase()),
+      label: value.toLowerCase(),
+    };
+  }
+  return null;
+}
+
+export type ClimbingGradePoint = {
+  month: string;
+  highestGrade: string;
+  gradeSystem: string;
+  gradeOrdinal: number;
+  gradeLabel: string;
+};
+
+export function climbingGradeProgress(entries: ClimbingProgressEntry[]): ClimbingGradePoint[] {
+  const byMonthAndSystem = new Map<string, ClimbingGradePoint>();
   for (const entry of entries) {
-    if (!entry.grade.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(entry.date)) continue;
+    const parsed = climbingGradeOrdinal(entry.grade, entry.gradeSystem);
+    if (!parsed || !/^\d{4}-\d{2}-\d{2}$/.test(entry.date)) continue;
     const month = entry.date.slice(0, 7);
-    const current = byMonth.get(month);
-    if (
-      !current ||
-      entry.grade.localeCompare(current.highestGrade, undefined, { numeric: true }) > 0
-    ) {
-      byMonth.set(month, {
+    const key = `${entry.gradeSystem}:${month}`;
+    const current = byMonthAndSystem.get(key);
+    if (!current || parsed.ordinal > current.gradeOrdinal) {
+      byMonthAndSystem.set(key, {
         month,
         highestGrade: entry.grade.trim(),
-        gradeSystem: entry.gradeSystem ?? null,
+        gradeSystem: entry.gradeSystem!,
+        gradeOrdinal: parsed.ordinal,
+        gradeLabel: parsed.label,
       });
     }
   }
-  return Array.from(byMonth.values()).sort((a, b) => a.month.localeCompare(b.month));
+  return Array.from(byMonthAndSystem.values()).sort(
+    (a, b) => a.gradeSystem.localeCompare(b.gradeSystem) || a.month.localeCompare(b.month),
+  );
 }
 
 export function openClimbingProjects(entries: ClimbingProgressEntry[]) {

@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { personalStrengthReviewIsStale } from "@/lib/personal-strength-review";
 import { CalendarDays, RefreshCw, SlidersHorizontal, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -111,6 +112,52 @@ export function ProgrammeRefreshCard({
   onApplyReview: (review: StrengthProgrammeReview) => Promise<void>;
 }) {
   const personal = Boolean(assignment.personalProgramme);
+  const sourceProgramme = assignment.personalProgramme?.sessions.find(
+    (session) => session.plan.baseStrength,
+  )?.plan.baseStrength;
+  const sourceGuidance =
+    sourceProgramme === "bullmastiff"
+      ? {
+          title: "Bullmastiff programme review",
+          detail:
+            "Review your phase-specific estimated 1RMs and saved targets in Plan. Use Review completed plus set for eligible main lifts, then approve any proposed load change.",
+        }
+      : sourceProgramme === "dup"
+        ? {
+            title: "DUP programme review",
+            detail:
+              "Review your phase-specific estimated 1RMs and saved wave targets in Plan. Peak back-off loads can be calculated from the logged top set in Log.",
+          }
+        : sourceProgramme === "volume_intensity"
+          ? {
+              title: "Volume/Intensity programme review",
+              detail:
+                "Review your phase-specific estimated 1RMs and saved wave targets in Plan. This programme follows its saved prescriptions; the weekly coach does not apply temporary strength reviews to it.",
+            }
+          : null;
+  const remainingPersonalWorkouts = template.workouts.filter(
+    (workout) => workout.sequenceIndex >= assignment.currentWorkoutIndex,
+  );
+  const fallbackTitle =
+    sourceGuidance?.title ??
+    (assignment.status !== "active"
+      ? "Resume your programme to review"
+      : remainingPersonalWorkouts.length &&
+          remainingPersonalWorkouts.every((workout) =>
+            assignment.reviewLockedWorkoutIds?.includes(workout.id),
+          )
+        ? "Current strength sessions already started"
+        : "No eligible saved strength sessions to review");
+  const fallbackDetail =
+    sourceGuidance?.detail ??
+    (assignment.status !== "active"
+      ? "Resume your saved programme in Plan before reviewing an unstarted week."
+      : remainingPersonalWorkouts.length &&
+          remainingPersonalWorkouts.every((workout) =>
+            assignment.reviewLockedWorkoutIds?.includes(workout.id),
+          )
+        ? "Resume the started session from Today. Started prescriptions stay fixed while you log them."
+        : "Open your saved programme in Plan to inspect upcoming sessions and their targets.");
   const exercises = useMemo(
     () =>
       assignment.exercises.filter((exercise) => exercise.enabled && exercise.trainingMax != null),
@@ -237,9 +284,7 @@ export function ProgrammeRefreshCard({
                   {awaitingAppliedWeek
                     ? "Strength review applied"
                     : (defaultCoachReview?.title ??
-                      (personal
-                        ? "No unstarted strength sessions to review"
-                        : "Refresh upcoming sessions"))}
+                      (personal ? fallbackTitle : "Refresh upcoming sessions"))}
                 </p>
                 {awaitingAppliedWeek ? (
                   <Badge variant="secondary" className="text-[10px]">
@@ -262,7 +307,7 @@ export function ProgrammeRefreshCard({
                     : `Complete programme week ${appliedReview?.programmeWeek ?? "review"}. The coach will compare the recorded lift outcomes before drafting the following week.`
                   : (defaultCoachReview?.detail ??
                     (personal
-                      ? "Resume or finish your current session from Today. Your original personal targets remain saved."
+                      ? fallbackDetail
                       : "Amend a training max or review a lift after a week that felt too hard or too easy. Every unstarted programme session is recalculated from the saved values."))}
               </p>
               {activeOverrides.length ? (
@@ -284,6 +329,11 @@ export function ProgrammeRefreshCard({
             {defaultCoachReview ? (
               <Button onClick={openCoachReview} disabled={!defaultCoachReview.exercises.length}>
                 <Sparkles className="mr-2 h-4 w-4" /> Review exact week
+              </Button>
+            ) : null}
+            {personal && !defaultCoachReview && !awaitingAppliedWeek ? (
+              <Button asChild variant="outline">
+                <Link to="/plan">Open saved programme</Link>
               </Button>
             ) : null}
             {!personal ? (

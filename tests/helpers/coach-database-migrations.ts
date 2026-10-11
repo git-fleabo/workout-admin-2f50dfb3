@@ -14,4 +14,5 @@ export const coachDatabaseMigrations = [
   "20261005174824_harden_strength_week_review_loop.sql",
   "20261005182137_add_week_scoped_strength_volume.sql",
   "20261010000854_fix_programme_workout_positions.sql",
+  "20261011210526_enforce_strength_review_owner.sql",
 ];

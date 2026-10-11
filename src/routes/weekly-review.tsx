@@ -280,7 +280,7 @@ function WeeklyReviewPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    Programme activity
+                    Strength programme
                   </p>
                   <h2 className="mt-1 text-lg font-semibold">
                     {data.programmeCompletedThisWeek} completed this week
@@ -289,6 +289,11 @@ function WeeklyReviewPage() {
                 <Target className="h-5 w-5 text-fuchsia-300" />
               </div>
               <p className="mt-4 text-sm text-muted-foreground">
+                {data.supportCompletedThisWeek} supporting session
+                {data.supportCompletedThisWeek === 1 ? "" : "s"} completed this week. Supporting
+                work does not advance your strength position.
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
                 Suggested dates guide the programme. Your next unfinished session stays available in
                 Today until you complete it or explicitly skip ahead.
               </p>

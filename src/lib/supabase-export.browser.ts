@@ -1,3 +1,9 @@
+import {
+  makeProfileBackup,
+  PROFILE_BACKUP_TABLES,
+  type ProfileBackupData,
+  type BackupTable,
+} from "./profile-backup";
 import { supabasePublicSelect } from "./supabase-public";
 import { getCurrentPerson } from "./supabase-people.browser";
 
@@ -7,6 +13,13 @@ const PAGE_SIZE = 500;
 const ID_BATCH_SIZE = 50;
 const compositeOrder: Record<string, string> = {
   person_training_methods: "person_id.asc,training_method_id.asc",
+  coaching_preferences: "person_id.asc",
+  personal_programmes: "assignment_id.asc",
+  personal_programme_sessions: "assignment_id.asc,program_workout_id.asc",
+  person_exercise_toolkit_lessons: "person_id.asc,exercise_id.asc,skill.asc",
+  exercise_equipment_items: "exercise_id.asc,equipment_item_id.asc",
+  exercise_tag_links: "exercise_id.asc,tag_id.asc",
+  training_location_equipment: "location_id.asc,equipment_item_id.asc",
   session_method_block_entries: "block_id.asc,session_entry_id.asc",
   suggested_workout_method_block_entries: "block_id.asc,suggested_workout_entry_id.asc",
 };
@@ -15,13 +28,17 @@ async function allRows(table: string, params: Record<string, string>) {
   const rows: Row[] = [];
   // Continue until empty, including when the server applies a smaller row cap.
   for (;;) {
-    const page = await supabasePublicSelect<Row>(table, {
-      select: "*",
-      ...params,
-      order: compositeOrder[table] ?? "id.asc",
-      limit: PAGE_SIZE,
-      offset: rows.length,
-    });
+    const page = await supabasePublicSelect<Row>(
+      table,
+      {
+        select: "*",
+        ...params,
+        order: compositeOrder[table] ?? "id.asc",
+        limit: PAGE_SIZE,
+        offset: rows.length,
+      },
+      { cache: "no-store" },
+    );
     if (!page.length) return rows;
     rows.push(...page);
   }
@@ -69,129 +86,163 @@ function csvValue(value: unknown) {
   return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
+async function captureProfileData(personId: string) {
+  const data = {} as ProfileBackupData;
+  for (const table of PROFILE_BACKUP_TABLES) data[table] = [];
+  const ownedTables: Partial<Record<BackupTable, string>> = {
+    people: "id",
+    programs: "created_by_person_id",
+    sessions: "person_id",
+    one_rm_tests: "person_id",
+    bodyweight_logs: "person_id",
+    goals: "person_id",
+    goal_checkins: "person_id",
+    daily_rotation_items: "person_id",
+    daily_rotation_assignments: "person_id",
+    training_locations: "person_id",
+    equipment_items: "person_id",
+    person_exercises: "person_id",
+    program_assignments: "person_id",
+    suggested_workouts: "person_id",
+    person_training_methods: "person_id",
+    data_quality_batches: "person_id",
+    data_quality_audit_events: "person_id",
+    coaching_preferences: "person_id",
+    coaching_recommendation_decisions: "person_id",
+    mobility_practice_runs: "person_id",
+    kettlebell_workouts: "person_id",
+    person_app_profiles: "person_id",
+    person_exercise_toolkit_lessons: "person_id",
+    training_methods: "person_id",
+    programme_strength_week_reviews: "person_id",
+  };
+  await Promise.all(
+    Object.entries(ownedTables).map(async ([table, column]) => {
+      data[table as BackupTable] = await owned(table, personId, column);
+    }),
+  );
+  const load = async (table: BackupTable, column: string, parents: Row[], parentColumn = "id") => {
+    data[table] = await children(table, column, ids(parents, parentColumn));
+  };
+  await Promise.all([
+    load("session_entries", "session_id", data.sessions),
+    load("session_method_blocks", "session_id", data.sessions),
+    load("program_assignment_exercises", "program_assignment_id", data.program_assignments),
+    load("program_assignment_exercise_pools", "program_assignment_id", data.program_assignments),
+    load("program_workout_reviews", "program_assignment_id", data.program_assignments),
+    load("personal_programmes", "assignment_id", data.program_assignments),
+    load("personal_programme_sessions", "assignment_id", data.program_assignments),
+    load("suggested_workout_entries", "suggested_workout_id", data.suggested_workouts),
+    load("suggested_workout_method_blocks", "suggested_workout_id", data.suggested_workouts),
+    load("coaching_recommendation_outcomes", "decision_id", data.coaching_recommendation_decisions),
+    load("mobility_practice_drills", "run_id", data.mobility_practice_runs),
+    load("mobility_assessment_results", "run_id", data.mobility_practice_runs),
+    load("training_location_equipment", "location_id", data.training_locations),
+    load("exercise_equipment_items", "equipment_item_id", data.equipment_items),
+    load("app_profiles", "id", data.person_app_profiles, "app_profile_id"),
+  ]);
+  const merge = (left: Row[], right: Row[]) => [
+    ...new Map([...left, ...right].map((row) => [row.id, row])).values(),
+  ];
+  const programmeIds = [
+    ...new Set([...ids(data.programs), ...ids(data.program_assignments, "program_id")]),
+  ];
+  const referencedWorkouts = [
+    ...new Set([
+      ...ids(data.suggested_workouts, "program_workout_id"),
+      ...ids(data.program_workout_reviews, "program_workout_id"),
+      ...ids(data.personal_programme_sessions, "program_workout_id"),
+    ]),
+  ];
+  const [programmeWorkouts, linkedWorkouts] = await Promise.all([
+    children("program_workouts", "program_id", programmeIds),
+    children("program_workouts", "id", referencedWorkouts),
+  ]);
+  data.program_workouts = merge(programmeWorkouts, linkedWorkouts);
+  data.programs = merge(
+    data.programs,
+    await children("programs", "id", [
+      ...new Set([...programmeIds, ...ids(data.program_workouts, "program_id")]),
+    ]),
+  );
+  await Promise.all([
+    load("entry_sets", "session_entry_id", data.session_entries),
+    load("entry_metrics", "session_entry_id", data.session_entries),
+    load("session_method_block_entries", "block_id", data.session_method_blocks),
+    load("program_workout_entries", "program_workout_id", data.program_workouts),
+    load("suggested_workout_sets", "suggested_workout_entry_id", data.suggested_workout_entries),
+    load(
+      "suggested_workout_method_block_entries",
+      "block_id",
+      data.suggested_workout_method_blocks,
+    ),
+  ]);
+  await Promise.all([
+    load("entry_set_segments", "entry_set_id", data.entry_sets),
+    load("suggested_workout_set_segments", "suggested_workout_set_id", data.suggested_workout_sets),
+  ]);
+  // Saved plans/reviews/collections also keep identifiers inside JSON. Include
+  // those catalogue references, including exercises no longer enabled locally.
+  const references = new Set<string>();
+  const visit = (value: unknown): void => {
+    if (
+      typeof value === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+    )
+      references.add(value);
+    else if (Array.isArray(value)) value.forEach(visit);
+    else if (value && typeof value === "object") Object.values(value).forEach(visit);
+  };
+  Object.values(data).forEach(visit);
+  const exerciseIds = [
+    ...new Set([...references, ...Object.values(data).flatMap((rows) => ids(rows, "exercise_id"))]),
+  ];
+  data.exercises = await children("exercises", "id", exerciseIds);
+  data.training_methods = merge(
+    data.training_methods,
+    await children("training_methods", "id", [
+      ...new Set([
+        ...references,
+        ...Object.values(data).flatMap((rows) => ids(rows, "training_method_id")),
+      ]),
+    ]),
+  );
+  await Promise.all([
+    load("exercise_activity_types", "exercise_id", data.exercises),
+    load("exercise_tag_links", "exercise_id", data.exercises),
+    load("exercise_aliases", "exercise_id", data.exercises),
+  ]);
+  await Promise.all([
+    load("exercise_tags", "id", data.exercise_tag_links, "tag_id"),
+    load(
+      "activity_types",
+      "id",
+      [
+        ...data.exercises,
+        ...data.session_entries,
+        ...data.sessions,
+        ...data.exercise_activity_types,
+        ...data.exercise_aliases,
+      ],
+      "activity_type_id",
+    ),
+  ]);
+  return data;
+}
+
 export async function getPersonalDataExport() {
   const person = await getCurrentPerson();
   if (!person) throw new Error("This account is not linked to a training profile.");
-  const [
-    people,
-    sessions,
-    oneRmTests,
-    bodyweightLogs,
-    goals,
-    goalCheckins,
-    rotationItems,
-    rotationAssignments,
-    locations,
-    equipment,
-    personExercises,
-    programmeAssignments,
-    suggestedWorkouts,
-    personMethods,
-    qualityBatches,
-    qualityEvents,
-    programs,
-  ] = await Promise.all([
-    owned("people", person.id, "id"),
-    owned("sessions", person.id),
-    owned("one_rm_tests", person.id),
-    owned("bodyweight_logs", person.id),
-    owned("goals", person.id),
-    owned("goal_checkins", person.id),
-    owned("daily_rotation_items", person.id),
-    owned("daily_rotation_assignments", person.id),
-    owned("training_locations", person.id),
-    owned("equipment_items", person.id),
-    owned("person_exercises", person.id),
-    owned("program_assignments", person.id),
-    owned("suggested_workouts", person.id),
-    owned("person_training_methods", person.id),
-    owned("data_quality_batches", person.id),
-    owned("data_quality_audit_events", person.id),
-    owned("programs", person.id, "created_by_person_id"),
-  ]);
-  const sessionIds = ids(sessions);
-  const assignmentIds = ids(programmeAssignments);
-  const suggestionIds = ids(suggestedWorkouts);
-  const programIds = [...new Set([...ids(programs), ...ids(programmeAssignments, "program_id")])];
-  const referencedPrograms = await children("programs", "id", programIds);
-  const exportedPrograms = [
-    ...new Map([...programs, ...referencedPrograms].map((row) => [row.id, row])).values(),
-  ];
-  const [
-    entries,
-    sessionBlocks,
-    programWorkouts,
-    assignmentExercises,
-    assignmentPools,
-    programReviews,
-    suggestedEntries,
-    suggestedBlocks,
-  ] = await Promise.all([
-    children("session_entries", "session_id", sessionIds),
-    children("session_method_blocks", "session_id", sessionIds),
-    children("program_workouts", "program_id", programIds),
-    children("program_assignment_exercises", "program_assignment_id", assignmentIds),
-    children("program_assignment_exercise_pools", "program_assignment_id", assignmentIds),
-    children("program_workout_reviews", "program_assignment_id", assignmentIds),
-    children("suggested_workout_entries", "suggested_workout_id", suggestionIds),
-    children("suggested_workout_method_blocks", "suggested_workout_id", suggestionIds),
-  ]);
-  const [
-    sessionSets,
-    sessionMetrics,
-    blockEntries,
-    programEntries,
-    suggestedSets,
-    suggestedBlockEntries,
-  ] = await Promise.all([
-    children("entry_sets", "session_entry_id", ids(entries)),
-    children("entry_metrics", "session_entry_id", ids(entries)),
-    children("session_method_block_entries", "block_id", ids(sessionBlocks)),
-    children("program_workout_entries", "program_workout_id", ids(programWorkouts)),
-    children("suggested_workout_sets", "suggested_workout_entry_id", ids(suggestedEntries)),
-    children("suggested_workout_method_block_entries", "block_id", ids(suggestedBlocks)),
-  ]);
-  const [sessionSegments, suggestedSetSegments] = await Promise.all([
-    children("entry_set_segments", "entry_set_id", ids(sessionSets)),
-    children("suggested_workout_set_segments", "suggested_workout_set_id", ids(suggestedSets)),
-  ]);
-  return {
-    exported_at: new Date().toISOString(),
-    person_id: person.id,
-    sessions,
-    session_entries: entries,
-    entry_sets: sessionSets,
-    entry_set_segments: sessionSegments,
-    entry_metrics: sessionMetrics,
-    session_method_blocks: sessionBlocks,
-    session_method_block_entries: blockEntries,
-    one_rm_tests: oneRmTests,
-    bodyweight_logs: bodyweightLogs,
-    goals,
-    goal_checkins: goalCheckins,
-    daily_rotation_items: rotationItems,
-    daily_rotation_assignments: rotationAssignments,
-    programs: exportedPrograms,
-    program_workouts: programWorkouts,
-    program_workout_entries: programEntries,
-    program_assignments: programmeAssignments,
-    program_assignment_exercises: assignmentExercises,
-    program_assignment_exercise_pools: assignmentPools,
-    program_workout_reviews: programReviews,
-    suggested_workouts: suggestedWorkouts,
-    suggested_workout_entries: suggestedEntries,
-    suggested_workout_sets: suggestedSets,
-    suggested_workout_set_segments: suggestedSetSegments,
-    suggested_workout_method_blocks: suggestedBlocks,
-    suggested_workout_method_block_entries: suggestedBlockEntries,
-    training_locations: locations,
-    equipment_items: equipment,
-    person_exercises: personExercises,
-    person_training_methods: personMethods,
-    data_quality_batches: qualityBatches,
-    data_quality_audit_events: qualityEvents,
-    people,
-  };
+  const first = await captureProfileData(person.id);
+  const confirmed = await captureProfileData(person.id);
+  // Multiple REST reads are not a database snapshot. Require two matching
+  // complete reads so background sync or edits cannot yield a mixed backup.
+  if (JSON.stringify(first) !== JSON.stringify(confirmed)) {
+    throw new Error(
+      "Training data or setup changed during the backup. Finish syncing or editing, then retry.",
+    );
+  }
+  return makeProfileBackup(confirmed, person.id);
 }
 
 const CSV_HEADERS = [
@@ -266,12 +317,22 @@ export function serializeSessionCsv(
     .join("\n");
 }
 
+async function getSessionCsvData() {
+  const person = await getCurrentPerson();
+  if (!person) throw new Error("This account is not linked to a training profile.");
+  const sessions = await owned("sessions", person.id);
+  const session_entries = await children("session_entries", "session_id", ids(sessions));
+  const entry_sets = await children("entry_sets", "session_entry_id", ids(session_entries));
+  return { sessions, session_entries, entry_sets };
+}
+
 export async function downloadPersonalData(format: "json" | "csv") {
-  const data = await getPersonalDataExport();
   const date = new Date().toISOString().slice(0, 10);
   if (format === "json") {
+    const data = await getPersonalDataExport();
     download(`training-data-${date}.json`, JSON.stringify(data, null, 2), "application/json");
     return;
   }
+  const data = await getSessionCsvData();
   download(`training-sessions-${date}.csv`, serializeSessionCsv(data), "text/csv;charset=utf-8");
 }
