@@ -3,6 +3,7 @@ import {
   StaleWeeklyCoachDraftError,
 } from "@/lib/save-weekly-coach-draft";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { exerciseIsAvailableAtKind } from "@/lib/exercise-availability";
 import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -308,11 +309,7 @@ function PlanPage() {
   const matchingLogs = useMemo(() => {
     const allowed = new Set(
       (library.data?.exercises ?? [])
-        .filter(
-          (exercise) =>
-            (exercise.locationScope === "both" || exercise.locationScope === location) &&
-            exercise.availableLocationKinds.includes(location),
-        )
+        .filter((exercise) => exerciseIsAvailableAtKind(exercise, location))
         .map((exercise) => exercise.name.toLowerCase()),
     );
     return (history.data?.recent ?? []).filter((log) => allowed.has(log.exercise.toLowerCase()));
@@ -392,11 +389,8 @@ function PlanPage() {
   }, [library.data?.exercises, matchingLogs]);
   const locationCircuitCandidateCount = useMemo(
     () =>
-      circuitCandidates.filter(
-        (candidate) =>
-          (candidate.locationScope === "both" || candidate.locationScope === location) &&
-          candidate.availableLocationKinds.includes(location),
-      ).length,
+      circuitCandidates.filter((candidate) => exerciseIsAvailableAtKind(candidate, location))
+        .length,
     [circuitCandidates, location],
   );
   const circuitConfig = useMemo<CircuitBuilderConfig>(() => {

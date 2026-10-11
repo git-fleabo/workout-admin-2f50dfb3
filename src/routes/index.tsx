@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { progressionSummary } from "@/lib/programme-progression";
+import { exerciseIsAvailableAtKind } from "@/lib/exercise-availability";
 import { MobilityPracticeOverview } from "@/components/mobility-practice-overview";
 import { KettlebellWorkoutPicker } from "@/components/kettlebell-workout-picker";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -296,9 +297,7 @@ export function TodayPage() {
     const buildFor = (location: PlannerLocation) => {
       const allowed = new Set(
         (library.data?.exercises ?? [])
-          .filter(
-            (exercise) => exercise.locationScope === "both" || exercise.locationScope === location,
-          )
+          .filter((exercise) => exerciseIsAvailableAtKind(exercise, location))
           .map((exercise) => exercise.name.toLowerCase()),
       );
       const logs = (recent.data?.recent ?? []).filter((log) =>

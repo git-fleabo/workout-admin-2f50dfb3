@@ -17,6 +17,7 @@ export function MovementPicker({
   exercises,
   availableExerciseNames,
   selectedLocationName,
+  unavailableReason,
   favoriteNames,
   recentNames,
   onChange,
@@ -25,6 +26,7 @@ export function MovementPicker({
   exercises: { name: string; workoutType: string; equipment?: string; quickLog?: boolean }[];
   availableExerciseNames: Set<string>;
   selectedLocationName?: string;
+  unavailableReason?: (name: string) => string;
   favoriteNames: string[];
   recentNames: string[];
   onChange: (value: string) => void;
@@ -121,9 +123,16 @@ export function MovementPicker({
                     }}
                   >
                     <Check className={value === exercise.name ? "opacity-100" : "opacity-0"} />
-                    <span className="min-w-0 flex-1 truncate">{exercise.name}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{exercise.name}</span>
+                      {group.unavailable && unavailableReason ? (
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {unavailableReason(exercise.name)}
+                        </span>
+                      ) : null}
+                    </span>
                     <span className="shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {group.unavailable ? "Equipment not assigned" : exercise.workoutType}
+                      {group.unavailable ? "Unavailable" : exercise.workoutType}
                     </span>
                   </CommandItem>
                 ))}

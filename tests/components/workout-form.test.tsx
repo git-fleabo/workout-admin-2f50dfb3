@@ -11,6 +11,12 @@ const mocks = vi.hoisted(() => ({
   })),
   duplicateResponse: false,
   trainingMethods: [] as TrainingMethod[],
+  locations: [] as {
+    id: string;
+    name: string;
+    kind: "home" | "gym" | "other";
+    equipmentItemIds: string[];
+  }[],
   extraExercises: [] as {
     id: string;
     name: string;
@@ -19,6 +25,8 @@ const mocks = vi.hoisted(() => ({
     focusArea: string;
     availableLocationIds: string[];
     equipment: string;
+    locationScope?: "home" | "gym" | "both";
+    equipmentItemIds?: string[];
   }[],
 }));
 
@@ -90,13 +98,19 @@ vi.mock("@/lib/supabase-log.browser", () => ({
       },
     ],
     locations: [{ id: "gym", name: "Gym", kind: "gym", equipmentItemIds: [] }],
-    equipmentItems: [{ id: "climbing-wall", name: "Climbing wall", isActive: true }],
+    equipmentItems: [
+      { id: "climbing-wall", name: "Climbing wall", isActive: true },
+      { id: "rings", name: "Gymnastic rings", isActive: true },
+      { id: "mat", name: "Mat", isActive: true },
+    ],
     intensities: [],
   })),
   getRecentLogsClient: vi.fn(async () => ({ recent: [] })),
-  getTrainingLocationsClient: vi.fn(async () => [
-    { id: "gym", name: "Gym", kind: "gym", equipmentItemIds: ["climbing-wall"] },
-  ]),
+  getTrainingLocationsClient: vi.fn(async () =>
+    mocks.locations.length
+      ? mocks.locations
+      : [{ id: "gym", name: "Gym", kind: "gym", equipmentItemIds: ["climbing-wall"] }],
+  ),
   replaceWorkoutSessionClient: vi.fn(),
 }));
 
@@ -133,6 +147,7 @@ describe("FullWorkoutForm draft lifecycle", () => {
     mocks.addWorkoutSessionClient.mockClear();
     mocks.extraExercises = [];
     mocks.trainingMethods = [];
+    mocks.locations = [];
   });
 
   afterEach(() => {
@@ -161,6 +176,112 @@ describe("FullWorkoutForm draft lifecycle", () => {
     const cancelButtons = screen.getAllByRole("button", { name: "Cancel workout" });
     await userEvent.setup().click(cancelButtons[cancelButtons.length - 1]!);
     await waitFor(() => expect(window.localStorage.getItem(draftKey)).toBeNull());
+  });
+
+  it("offers repaired Ring Dip at Home and keeps equipment checks when changing locations", async () => {
+    mocks.locations = [
+      { id: "home", name: "Home", kind: "home", equipmentItemIds: ["rings"] },
+      { id: "other", name: "Unfurl", kind: "other", equipmentItemIds: ["mat"] },
+    ];
+    mocks.extraExercises = [
+      {
+        id: "dip",
+        name: "Ring Dip",
+        workoutType: "Strength",
+        metric: "reps_only",
+        focusArea: "Push",
+        equipment: "Gymnastic rings",
+        equipmentItemIds: ["rings"],
+        locationScope: "both",
+        availableLocationIds: ["home"],
+      },
+    ];
+    const user = userEvent.setup();
+    renderWithQueries(<FullWorkoutForm />);
+    await user.click(await screen.findByRole("button", { name: "Home" }));
+    await user.click(
+      screen
+        .getAllByRole("combobox")
+        .find((element) => element.getAttribute("aria-haspopup") === "dialog")!,
+    );
+    await user.click(await screen.findByRole("option", { name: /Ring Dip/ }));
+    expect(screen.queryByText("Some movements are not available here")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Unfurl" }));
+    expect(
+      await screen.findByText(/Missing equipment at Unfurl: Gymnastic rings/),
+    ).toBeInTheDocument();
+  });
+
+  it("explains a scope restriction without blaming equipment that Home already has", async () => {
+    mocks.locations = [
+      { id: "gym", name: "Gym", kind: "gym", equipmentItemIds: ["rings"] },
+      { id: "home", name: "Home", kind: "home", equipmentItemIds: ["rings"] },
+    ];
+    mocks.extraExercises = [
+      {
+        id: "dip",
+        name: "Ring Dip",
+        workoutType: "Strength",
+        metric: "reps_only",
+        focusArea: "Push",
+        equipment: "Gymnastic rings",
+        equipmentItemIds: ["rings"],
+        locationScope: "gym",
+        availableLocationIds: ["gym"],
+      },
+    ];
+    const user = userEvent.setup();
+    renderWithQueries(<FullWorkoutForm />);
+    await user.click(await screen.findByRole("button", { name: "Gym" }));
+    await user.click(
+      screen
+        .getAllByRole("combobox")
+        .find((element) => element.getAttribute("aria-haspopup") === "dialog")!,
+    );
+    await user.click(await screen.findByRole("option", { name: /Ring Dip/ }));
+    await user.click(screen.getByRole("button", { name: "Home" }));
+    expect(await screen.findByText(/Ring Dip: Set to Gym only in Library/)).toBeInTheDocument();
+    expect(screen.queryByText(/Missing equipment/)).not.toBeInTheDocument();
+    await user.click(
+      screen
+        .getAllByRole("combobox")
+        .find((element) => element.getAttribute("aria-haspopup") === "dialog")!,
+    );
+    await user.type(screen.getByPlaceholderText("Search movement name..."), "Ring Dip");
+    expect(await screen.findByRole("option", { name: /Ring Dip.*Gym only/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(screen.queryByText("Equipment not assigned")).not.toBeInTheDocument();
+  });
+
+  it("offers Gym-scoped movements at equipped Other locations consistently with Library", async () => {
+    mocks.locations = [{ id: "other", name: "Unfurl", kind: "other", equipmentItemIds: ["mat"] }];
+    mocks.extraExercises = [
+      {
+        id: "yoga",
+        name: "Yoga Class",
+        workoutType: "Yoga",
+        metric: "duration",
+        focusArea: "",
+        equipment: "Mat",
+        equipmentItemIds: ["mat"],
+        locationScope: "gym",
+        availableLocationIds: ["other"],
+      },
+    ];
+    const user = userEvent.setup();
+    renderWithQueries(<FullWorkoutForm />);
+    await user.click(await screen.findByRole("button", { name: "Unfurl" }));
+    await user.click(
+      screen
+        .getAllByRole("combobox")
+        .find((element) => element.getAttribute("aria-haspopup") === "dialog")!,
+    );
+    const option = await screen.findByRole("option", { name: /Yoga Class/ });
+    expect(option).not.toHaveAttribute("aria-disabled", "true");
+    await user.click(option);
+    expect(screen.queryByText("Some movements are not available here")).not.toBeInTheDocument();
   });
 
   it("calculates DUP back-offs from the actual top-set load and records the selected loads", async () => {

@@ -13,6 +13,7 @@ import {
 } from "./supabase-people.browser";
 import type { LibraryRow } from "./training-types";
 import { exerciseCategories } from "./exercise-categories";
+import { exerciseLocationAvailability, type ExerciseLocationScope } from "./exercise-availability";
 import type { MobilitySkill } from "./mobility-practice";
 import {
   DEFAULT_CIRCUIT_METADATA,
@@ -101,7 +102,7 @@ type TrainingLocationEquipmentRecord = {
   equipment_item_id: string;
 };
 
-export type ExerciseLocationScope = "home" | "gym" | "both";
+export type { ExerciseLocationScope } from "./exercise-availability";
 
 export type LibraryEquipmentItem = {
   id: string;
@@ -148,10 +149,6 @@ function slugify(value: string) {
     .slice(0, 80);
 }
 
-function scopeAllowsKind(scope: ExerciseLocationScope, kind: TrainingLocationRecord["kind"]) {
-  return kind === "other" || scope === "both" || scope === kind;
-}
-
 function mapExercise(
   row: ExerciseRecord,
   personExercise: PersonExerciseRecord | undefined,
@@ -162,11 +159,16 @@ function mapExercise(
 ): LibraryClientRow {
   const locationScope = personExercise?.location_scope ?? "both";
   const requiredIds = equipmentItems.map((item) => item.id);
-  const availableLocations = locations.filter((location) => {
-    if (!scopeAllowsKind(locationScope, location.kind)) return false;
-    const availableIds = locationEquipment.get(location.id) ?? new Set<string>();
-    return requiredIds.every((id) => availableIds.has(id));
-  });
+  const availableLocations = locations.filter(
+    (location) =>
+      exerciseLocationAvailability(
+        { locationScope, equipmentItemIds: requiredIds },
+        {
+          ...location,
+          equipmentItemIds: Array.from(locationEquipment.get(location.id) ?? []),
+        },
+      ).available,
+  );
   return {
     id: row.id,
     row: row.source_row ?? 0,
@@ -451,7 +453,12 @@ export async function listLibraryClient(personId?: string, includeInactive = fal
       circuitGroup: item.circuit_group,
       isActive: item.is_active,
     })),
-    locations: locations.map(({ id, name, kind }) => ({ id, name, kind })),
+    locations: locations.map(({ id, name, kind }) => ({
+      id,
+      name,
+      kind,
+      equipmentItemIds: Array.from(equipmentByLocation.get(id) ?? []),
+    })),
   };
 }
 

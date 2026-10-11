@@ -107,6 +107,10 @@ import { SetRowsEditor } from "./set-rows-editor";
 import { MetricFields, PositionMeasurementField } from "./metric-fields";
 import type { LoadSemantics } from "@/lib/data-quality";
 import { DateInput, Field, SimpleSelect } from "./form-bits";
+import {
+  exerciseLocationAvailability,
+  exerciseUnavailableReason,
+} from "@/lib/exercise-availability";
 
 const today = todayISO;
 const SKILL_WORKOUT_TYPE = "Skills/Calisthenics";
@@ -953,7 +957,9 @@ export function ClimbForm() {
   );
   const movementMeta = library.data?.exercises.find((exercise) => exercise.name === form.movement);
   const movementAvailable = Boolean(
-    movementMeta?.availableLocationIds.includes(form.trainingLocationId),
+    movementMeta &&
+    selectedLocation &&
+    exerciseLocationAvailability(movementMeta, selectedLocation).available,
   );
   const totalMinutes = climbDurationInMinutes(form.durationHours, form.durationMinutes);
   const trackingMode = form.problemsOrRoutes.trim() ? "Problems / routes" : "Time only";
@@ -1264,7 +1270,9 @@ export function ClimbForm() {
             {CLIMBING_MOVEMENTS.map((movement) => {
               const meta = library.data?.exercises.find((exercise) => exercise.name === movement);
               const available = Boolean(
-                meta?.availableLocationIds.includes(form.trainingLocationId),
+                meta &&
+                selectedLocation &&
+                exerciseLocationAvailability(meta, selectedLocation).available,
               );
               return (
                 <Button
@@ -1276,7 +1284,11 @@ export function ClimbForm() {
                   title={
                     available
                       ? undefined
-                      : `${meta?.equipment || "Required equipment"} is not available at ${selectedLocation?.name ?? "this location"}`
+                      : exerciseUnavailableReason(
+                          meta,
+                          selectedLocation,
+                          library.data?.equipmentItems,
+                        )
                   }
                   onClick={() => {
                     update("movement", movement);
@@ -1290,9 +1302,11 @@ export function ClimbForm() {
           </div>
           {form.trainingLocationId && !movementAvailable ? (
             <p className="mt-2 text-xs text-amber-300">
-              {movementMeta?.equipment || "Required climbing equipment"} is not assigned to{" "}
-              {selectedLocation?.name ?? "this location"}. Update the location equipment or choose
-              another movement.
+              {exerciseUnavailableReason(
+                movementMeta,
+                selectedLocation,
+                library.data?.equipmentItems,
+              )}
             </p>
           ) : null}
         </Field>
@@ -1553,23 +1567,21 @@ export function FullWorkoutForm() {
     () => (recent.data?.recent ?? []).filter((item) => item.workoutType !== CLIMBING_WORKOUT_TYPE),
     [recent.data?.recent],
   );
-  const selectedLocationKind = locations.data?.find(
+  const selectedLocation = locations.data?.find(
     (location) => location.id === form.trainingLocationId,
-  )?.kind;
+  );
+  const selectedLocationKind = selectedLocation?.kind;
   const libraryExercises = useMemo(
     () =>
       form.trainingLocationId
-        ? workoutLibraryExercises.filter(
-            (exercise) =>
-              (!("locationScope" in exercise) ||
-                exercise.locationScope === "both" ||
-                exercise.locationScope === selectedLocationKind) &&
-              (!("availableLocationIds" in exercise) ||
-                !Array.isArray(exercise.availableLocationIds) ||
-                exercise.availableLocationIds.includes(form.trainingLocationId)),
+        ? workoutLibraryExercises.filter((exercise) =>
+            Boolean(
+              selectedLocation &&
+              exerciseLocationAvailability(exercise, selectedLocation).available,
+            ),
           )
         : workoutLibraryExercises,
-    [form.trainingLocationId, selectedLocationKind, workoutLibraryExercises],
+    [form.trainingLocationId, selectedLocation, workoutLibraryExercises],
   );
   const availableExerciseNames = useMemo(
     () => new Set(libraryExercises.map((exercise) => exercise.name.toLowerCase())),
@@ -2378,9 +2390,6 @@ export function FullWorkoutForm() {
       )
     );
   });
-  const selectedLocation = locations.data?.find(
-    (location) => location.id === form.trainingLocationId,
-  );
   const totalRecordedSets = workoutEntries.reduce(
     (total, entry) =>
       total +
@@ -2569,11 +2578,21 @@ export function FullWorkoutForm() {
         {unavailableWorkoutEntries.length > 0 ? (
           <div className="rounded-lg border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2 text-xs text-amber-100">
             <p className="font-medium">Some movements are not available here</p>
-            <p className="mt-1 text-amber-100/80">
-              {unavailableWorkoutEntries.map((entry) => entry.exercise).join(", ")} require
-              equipment that is not assigned to this location. Remove them or choose another
-              location before saving.
-            </p>
+            <ul className="mt-1 space-y-1 text-amber-100/80">
+              {unavailableWorkoutEntries.map((entry, index) => (
+                <li key={index}>
+                  {entry.exercise}:{" "}
+                  {exerciseUnavailableReason(
+                    workoutLibraryExercises.find(
+                      (exercise) =>
+                        exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
+                    ),
+                    selectedLocation,
+                    lib.data?.equipmentItems,
+                  )}
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
 
@@ -2748,6 +2767,15 @@ export function FullWorkoutForm() {
                     exercises={workoutLibraryExercises}
                     availableExerciseNames={availableExerciseNames}
                     selectedLocationName={selectedLocation?.name}
+                    unavailableReason={(name) =>
+                      exerciseUnavailableReason(
+                        workoutLibraryExercises.find(
+                          (exercise) => exercise.name.toLowerCase() === name.toLowerCase(),
+                        ),
+                        selectedLocation,
+                        lib.data?.equipmentItems,
+                      )
+                    }
                     favoriteNames={favoriteExercises}
                     recentNames={recentExerciseNames}
                     onChange={(name) => selectEntryExercise(index, name)}

@@ -6,6 +6,7 @@ import type {
   CircuitMovementPattern,
 } from "./circuit-metadata.ts";
 import { getTrackingModeValue } from "./movement-metrics.ts";
+import { exerciseIsAvailableAtKind } from "./exercise-availability.ts";
 import type { PlannerLocation, SessionDifficulty, WorkoutPlanMovement } from "./workout-plan.ts";
 
 export const CIRCUIT_FOCUS_OPTIONS = [
@@ -232,10 +233,7 @@ function impactScore(impact: CircuitImpact, intensity: CircuitIntensity) {
 
 function isEligible(candidate: CircuitCandidate, config: CircuitBuilderConfig) {
   if (candidate.circuitSuitability === "excluded") return false;
-  if (candidate.locationScope !== "both" && candidate.locationScope !== config.location) {
-    return false;
-  }
-  if (!candidate.availableLocationKinds.includes(config.location)) return false;
+  if (!exerciseIsAvailableAtKind(candidate, config.location)) return false;
   if (config.excludedExerciseIds.includes(candidate.id)) return false;
   if (!equipmentMatches(candidate, config.equipment)) return false;
   if (!formatMatches(config.format, candidate.circuitDoseMode)) return false;
