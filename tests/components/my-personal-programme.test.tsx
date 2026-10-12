@@ -17,14 +17,17 @@ vi.mock("@/components/personal-programme-editor", () => ({
   PersonalProgrammeEditor: ({
     assignment,
     lockedWorkoutIds,
+    initialWorkoutId,
   }: {
     assignment: { id: string };
     lockedWorkoutIds: string[];
+    initialWorkoutId?: string;
   }) => {
     const [value, setValue] = useState("Unsaved target");
     return (
       <div>
         Editor for {assignment.id}, locked {lockedWorkoutIds.length}
+        {initialWorkoutId ? <p>Reviewing {initialWorkoutId}</p> : null}
         <label>
           Draft target
           <input value={value} onChange={(event) => setValue(event.target.value)} />
@@ -66,17 +69,34 @@ const draft = {
     ],
   },
 };
-const renderOverview = (initialAssignmentId?: string) =>
+const renderOverview = (initialAssignmentId?: string, initialWorkoutId?: string) =>
   render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
-      <MyProgrammeOverview initialAssignmentId={initialAssignmentId} />
+      <MyProgrammeOverview
+        initialAssignmentId={initialAssignmentId}
+        initialWorkoutId={initialWorkoutId}
+      />
     </QueryClientProvider>,
   );
 describe("planning a personal version alongside a current run", () => {
   beforeEach(() => {
     mocks.activate.mockReset();
+  });
+  it("opens saved targets for a session linked from Today", async () => {
+    mocks.overview.mockResolvedValue({
+      assignments: [{ ...draft, status: "active" }],
+      templates: [source],
+      skippedWorkoutIds: [],
+      lockedWorkoutIds: [],
+    });
+    renderOverview("draft", "w1");
+    expect(await screen.findByText("Reviewing w1")).toBeVisible();
+    expect(screen.getByText("Saved sessions and targets (2)").closest("details")).toHaveAttribute(
+      "open",
+    );
+    expect(mocks.activate).not.toHaveBeenCalled();
   });
   it("leads an active run with its next action and keeps unsaved editing through disclosure changes", async () => {
     const activePersonal = {

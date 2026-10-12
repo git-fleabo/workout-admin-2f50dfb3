@@ -107,6 +107,17 @@ it.each(["volume_intensity", "bullmastiff", "dup"] as const)(
       p_easier: false,
       p_strength_review_id: "review",
     });
+    // A fresh offer must prevent both start paths from reaching the RPC when a
+    // saved target is missing, even if Today previously showed a ready version.
+    next.plan.movements[0].setRows[0].weight = "";
+    mocks.rpc.mockClear();
+    await expect(startProgrammeWorkoutClient("assignment", "gym", {}, false)).rejects.toThrow(
+      "choose a load for every set",
+    );
+    await expect(startProgrammeWorkoutClient("assignment", "gym", {}, true)).rejects.toThrow(
+      "choose a load for every set",
+    );
+    expect(mocks.rpc).not.toHaveBeenCalled();
     mocks.select.mockImplementation(async (table) => {
       if (table === "suggested_workouts")
         return [{ program_assignment_id: "assignment", program_workout_id: next.workoutId }];

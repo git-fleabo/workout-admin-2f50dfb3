@@ -1,8 +1,27 @@
 # Workout App Context
 
-Last updated: 2026-10-06
+Last updated: 2026-10-12
 
 This file is the handoff document for the train n track workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
+
+## 2026-10-12 Base Strength Start Target Review
+
+- Read-only inspection confirmed the active Volume/Intensity session has Kettlebell Clean & Press
+  accessory targets of 3 × 8 with blank loads. The live `guard_base_strength_start` correctly rejects
+  these targets; Today previously offered Start without exposing the missing-load requirement.
+- `baseStrengthStartIssues` mirrors the saved-target portion of that guard. Today shows the missing
+  fields and a Review session targets link instead of Continue/Ease back in until they are filled.
+  The start client rechecks the freshly loaded saved prescription before calling the RPC. Plus-set
+  reps can remain open, rep-only exercises need no load, and main-lift/max review requirements remain.
+- `/plan?programme=<assignment>&session=<workout>` opens the correct programme's saved targets and
+  selects the session editor on phone or desktop. Started/skipped/past sessions remain read-only.
+  The editor explains outstanding targets while still allowing drafts for future sessions.
+- No migration, live data change, programme advancement or Lovable publication was performed.
+  The current session still needs the user's chosen kettlebell load entered for each planned set.
+- Verification: 6 source/readiness unit tests and 32 focused component tests passed, including phone
+  editing/saving, Today recovery after saving, stale-target starts and locked-session protection.
+  TypeScript, focused ESLint and the production build passed. Push through GitHub Desktop, then
+  sync/publish through Lovable before treating this UI fix as released.
 
 ## 2026-10-06 Desktop Planning Workspaces
 

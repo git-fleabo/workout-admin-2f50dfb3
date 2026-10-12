@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildBaseStrengthPersonalSessions } from "../src/lib/base-strength-personal.ts";
+import {
+  baseStrengthStartIssues,
+  buildBaseStrengthPersonalSessions,
+} from "../src/lib/base-strength-personal.ts";
 import {
   DEFAULT_VOLUME_INTENSITY_OPTIONS,
   buildBaseStrengthWeeks,
@@ -19,6 +22,39 @@ const build = (programme: BaseStrengthProgrammeId, choices = strengthChoices(pro
     increment: 2.5,
     locationKind: "gym",
   });
+
+test("start readiness catches unset accessory loads without rejecting plus sets or changing the plan", () => {
+  const plan = build("volume_intensity")[0].plan;
+  assert.deepEqual(baseStrengthStartIssues(plan), []);
+  const accessory = plan.movements[2];
+  accessory.exercise = "Kettlebell Clean & Press";
+  accessory.setRows[1].weight = "";
+  const before = structuredClone(plan);
+  assert.deepEqual(baseStrengthStartIssues(plan), [
+    "Kettlebell Clean & Press: choose a load for every set.",
+  ]);
+  assert.deepEqual(plan, before);
+  accessory.setRows[1].weight = "0";
+  assert.deepEqual(baseStrengthStartIssues(plan), []);
+  accessory.trackingMode = "reps_only";
+  accessory.setRows[1].weight = "";
+  assert.deepEqual(baseStrengthStartIssues(plan), []);
+  accessory.setRows[1].reps = "0";
+  assert.deepEqual(baseStrengthStartIssues(plan), [
+    "Kettlebell Clean & Press: choose reps for every set.",
+  ]);
+  delete plan.baseStrength;
+  assert.deepEqual(baseStrengthStartIssues(plan), []);
+});
+
+test("start readiness keeps main lift and reassessed percentage requirements", () => {
+  const pending = build("bullmastiff")[4].plan;
+  assert.ok(baseStrengthStartIssues(pending).some((issue) => issue.includes("choose a load")));
+  const peak = build("bullmastiff")[36].plan;
+  assert.ok(
+    baseStrengthStartIssues(peak).some((issue) => issue.includes("reassess the estimated max")),
+  );
+});
 
 test("personal source versions preserve waves, stable identities, own variation maxes and pending plus loads", () => {
   const sessions = build("bullmastiff");

@@ -1,4 +1,5 @@
 import { reviewedPersonalLoad } from "./personal-strength-review";
+import { baseStrengthStartIssues } from "./base-strength-personal";
 import {
   supabasePublicDelete,
   supabasePublicInsert,
@@ -978,6 +979,13 @@ export async function startProgrammeWorkoutClient(
   );
   if (!offer) {
     throw new Error("This programme session is no longer available. Refresh Today to continue.");
+  }
+  if (offer.personalSession) {
+    const issues = baseStrengthStartIssues(offer.personalSession.plan);
+    if (issues.length)
+      throw new Error(
+        `${issues.join(" ")} Review this session in My Programme on Plan before starting.`,
+      );
   }
   const library = await listLibraryClient(currentPerson.id);
   const libraryById = new Map(library.items.map((item) => [item.id, item]));

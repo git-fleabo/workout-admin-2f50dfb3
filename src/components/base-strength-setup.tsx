@@ -268,7 +268,8 @@ export function BaseStrengthSetupForm({
         ))}
       <p className="text-xs text-muted-foreground">
         {programme === "bullmastiff" ? "Weeks 2 and 3 await the previous completed plus set. " : ""}
-        RPE-based loads and any blank accessory loads need your review in My Programme.
+        RPE-based loads and any blank accessory loads need your review in My Programme before
+        training. Today will link you to the session if any targets are still missing.
       </p>
       {error ? (
         <p role="alert" className="text-sm text-destructive">

@@ -3,6 +3,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
+import { buildBaseStrengthPersonalSessions } from "@/lib/base-strength-personal";
+import { DEFAULT_VOLUME_INTENSITY_OPTIONS } from "@/lib/base-strength-preview";
+import { strengthChoices, strengthTemplate } from "../helpers/base-strength-fixtures";
 
 const mocks = vi.hoisted(() => ({
   library: vi.fn(),
@@ -17,9 +20,15 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (config: unknown) => config,
-  Link: ({ children, ...props }: { children: ReactNode; to: string }) => (
-    <a href={props.to}>{children}</a>
-  ),
+  Link: ({
+    children,
+    to,
+    search,
+  }: {
+    children: ReactNode;
+    to: string;
+    search?: Record<string, string>;
+  }) => <a href={to + (search ? `?${new URLSearchParams(search)}` : "")}>{children}</a>,
   useNavigate: () => vi.fn(),
 }));
 
@@ -111,6 +120,62 @@ describe("TodayPage branching", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+  });
+
+  it("routes missing accessory targets to the exact editor and restores starting after they are saved", async () => {
+    const choices = strengthChoices("volume_intensity");
+    choices["accessory:Row:2"].load = null;
+    choices["accessory:Row:2"].exerciseName = "Kettlebell Clean & Press";
+    const [session] = buildBaseStrengthPersonalSessions({
+      programme: "volume_intensity",
+      template: strengthTemplate("volume_intensity"),
+      options: DEFAULT_VOLUME_INTENSITY_OPTIONS,
+      choices,
+      startedOn: "2026-10-06",
+      increment: 2.5,
+      locationKind: "gym",
+    });
+    mocks.programmeOffers = [
+      {
+        ...programmeOffer,
+        programWorkoutId: session.workoutId,
+        movements: session.plan.movements,
+        personalSession: session,
+      },
+    ];
+    mocks.library.mockResolvedValue({
+      exercises: [],
+      locations: [{ id: "gym", name: "Gym", kind: "gym" }],
+      intensities: [],
+    });
+    const { queryClient } = renderToday();
+    const review = await screen.findByRole("link", { name: "Review session targets" });
+    expect(review).toHaveAttribute(
+      "href",
+      `/plan?programme=assignment-1&session=${session.workoutId}`,
+    );
+    expect(
+      screen.getByText("Kettlebell Clean & Press: choose a load for every set."),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Continue with this session" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ease back in" })).toBeNull();
+    const saved = structuredClone(session);
+    saved.plan.movements[2].setRows.forEach((set) => {
+      set.weight = "16";
+    });
+    mocks.programmeOffers = [
+      {
+        ...programmeOffer,
+        programWorkoutId: saved.workoutId,
+        movements: saved.plan.movements,
+        personalSession: saved,
+      },
+    ];
+    await queryClient.invalidateQueries({ queryKey: ["programme-workout-offers"] });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Continue with this session" })).toBeEnabled(),
+    );
+    expect(screen.queryByRole("link", { name: "Review session targets" })).toBeNull();
   });
 
   it("shows a saved next workout when one is available", async () => {

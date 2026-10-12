@@ -45,6 +45,7 @@ import { useIsDesktop } from "@/hooks/use-desktop";
 import { cn } from "@/lib/utils";
 import { BaseStrengthProgression } from "./base-strength-progression";
 import { roundedPreviewLoad } from "@/lib/base-strength-preview";
+import { baseStrengthStartIssues } from "@/lib/base-strength-personal";
 
 type Exercise = Awaited<ReturnType<typeof getLibraryClient>>["exercises"][number];
 const selectClass = "h-10 w-full rounded-md border border-input bg-background px-3 text-sm";
@@ -186,6 +187,7 @@ export function ProgrammeSessionEditor({
       setError((failure as Error).message);
     }
   };
+  const startIssues = baseStrengthStartIssues(draft.plan);
   const content = (
     <>
       {presentation === "dialog" ? (
@@ -196,6 +198,19 @@ export function ProgrammeSessionEditor({
             do when you train.
           </DialogDescription>
         </DialogHeader>
+      ) : null}
+      {startIssues.length ? (
+        <div role="status" className="rounded-lg border border-amber-400/25 p-3 text-sm">
+          <p className="font-medium">Before starting this session</p>
+          <ul className="mt-2 space-y-1 text-muted-foreground">
+            {startIssues.map((issue) => (
+              <li key={issue}>{issue}</li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-muted-foreground">
+            You can save a draft now. Fill these targets before continuing from Today.
+          </p>
+        </div>
       ) : null}
       {session.reviewedPlan ? (
         <p className="rounded-lg border border-cyan-400/25 p-3 text-xs text-muted-foreground">
@@ -644,14 +659,16 @@ export function PersonalProgrammeEditor({
   assignment,
   template,
   lockedWorkoutIds,
+  initialWorkoutId,
 }: {
   assignment: ProgrammeAssignment;
   template: ProgrammeTemplate;
   lockedWorkoutIds: string[];
+  initialWorkoutId?: string;
 }) {
   const queryClient = useQueryClient();
   const isDesktop = useIsDesktop();
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialWorkoutId ?? null);
   const [dirty, setDirty] = useState(false);
   const [pendingSelection, setPendingSelection] = useState<string | null>(null);
   const [editorVersion, setEditorVersion] = useState(0);

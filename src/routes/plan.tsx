@@ -171,8 +171,9 @@ import {
 } from "@/lib/climbing-circuit-generator";
 
 export const Route = createFileRoute("/plan")({
-  validateSearch: (search: Record<string, unknown>): { programme?: string } => ({
+  validateSearch: (search: Record<string, unknown>): { programme?: string; session?: string } => ({
     programme: typeof search.programme === "string" ? search.programme : undefined,
+    session: typeof search.session === "string" ? search.session : undefined,
   }),
   head: () => ({
     meta: [
@@ -256,7 +257,7 @@ function methodBlockSummary(block: WorkoutPlanMethodBlock) {
 }
 
 function PlanPage() {
-  const { programme: selectedProgrammeId } = Route.useSearch();
+  const { programme: selectedProgrammeId, session: selectedSessionId } = Route.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const history = useQuery({
@@ -1908,8 +1909,9 @@ function PlanPage() {
       <DesktopPlanWorkspace
         programmeHeader={
           <MyProgrammeOverview
-            key={selectedProgrammeId ?? "current"}
+            key={`${selectedProgrammeId ?? "current"}:${selectedSessionId ?? "overview"}`}
             initialAssignmentId={selectedProgrammeId}
+            initialWorkoutId={selectedSessionId}
           />
         }
         coaching={coachingPanel}
@@ -2337,8 +2339,9 @@ function PlanPage() {
       </header>
 
       <MyProgrammeOverview
-        key={selectedProgrammeId ?? "current"}
+        key={`${selectedProgrammeId ?? "current"}:${selectedSessionId ?? "overview"}`}
         initialAssignmentId={selectedProgrammeId}
+        initialWorkoutId={selectedSessionId}
       />
       {coachingPanel}
       <MobilityPracticeOverview />

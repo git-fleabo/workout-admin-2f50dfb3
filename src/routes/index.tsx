@@ -2,6 +2,7 @@ import { countLabel } from "@/lib/display-labels";
 import { repLabel } from "@/lib/workout-preview";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { progressionSummary } from "@/lib/programme-progression";
+import { baseStrengthStartIssues } from "@/lib/base-strength-personal";
 import { exerciseIsAvailableAtKind } from "@/lib/exercise-availability";
 import { MobilityPracticeOverview } from "@/components/mobility-practice-overview";
 import { KettlebellWorkoutPicker } from "@/components/kettlebell-workout-picker";
@@ -511,6 +512,9 @@ export function TodayPage() {
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             {programmeOffers.data.map((offer) => {
+              const startIssues = offer.personalSession
+                ? baseStrengthStartIssues(offer.personalSession.plan)
+                : [];
               const daysOverdue = daysSinceSuggestedSession(offer.scheduledDate, today);
               const availableLocations = availableProgrammeLocations(
                 offer,
@@ -711,6 +715,31 @@ export function TodayPage() {
                           <RotateCcw className="mr-2 h-4 w-4" /> Resume current workout
                         </Link>
                       </Button>
+                    ) : startIssues.length ? (
+                      <div className="mt-3 space-y-3">
+                        <div className="rounded-lg border border-amber-400/25 bg-amber-400/[0.06] p-3 text-sm">
+                          <p className="font-medium">Review targets before starting</p>
+                          <ul className="mt-2 space-y-1 text-muted-foreground">
+                            {startIssues.map((issue) => (
+                              <li key={issue}>{issue}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <Button asChild className="w-full">
+                          <Link
+                            to="/plan"
+                            search={{
+                              programme: offer.assignmentId,
+                              session: offer.programWorkoutId,
+                            }}
+                          >
+                            Review session targets
+                          </Link>
+                        </Button>
+                        <Button asChild variant="ghost" className="w-full">
+                          <Link to="/plan">Skip ahead</Link>
+                        </Button>
+                      </div>
                     ) : (
                       <div className="mt-3 space-y-2">
                         <Button

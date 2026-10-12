@@ -54,7 +54,8 @@ import {
 
 export function MyProgrammeOverview({
   initialAssignmentId,
-}: { initialAssignmentId?: string } = {}) {
+  initialWorkoutId,
+}: { initialAssignmentId?: string; initialWorkoutId?: string } = {}) {
   const queryClient = useQueryClient();
   const [selectedAssignmentId, setSelectedAssignmentId] = useState(initialAssignmentId);
   const [skipOpen, setSkipOpen] = useState(false);
@@ -397,7 +398,7 @@ export function MyProgrammeOverview({
                 </details>
                 <details
                   key={active.id}
-                  open={active.status === "paused"}
+                  open={active.status === "paused" || Boolean(initialWorkoutId)}
                   className="rounded-lg border border-border px-3 py-2"
                 >
                   <summary className="cursor-pointer text-sm font-medium">
@@ -408,6 +409,7 @@ export function MyProgrammeOverview({
                       assignment={active}
                       template={template}
                       lockedWorkoutIds={overview.data.lockedWorkoutIds ?? []}
+                      initialWorkoutId={initialWorkoutId}
                     />
                   </div>
                 </details>

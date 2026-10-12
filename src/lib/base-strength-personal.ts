@@ -7,7 +7,11 @@ import {
   type BaseStrengthProgrammeId,
   type VolumeIntensityOptions,
 } from "./base-strength-preview.ts";
-import { personalPlanSchema, type PersonalProgrammeSession } from "./personal-programme.ts";
+import {
+  personalPlanSchema,
+  type PersonalProgrammePlan,
+  type PersonalProgrammeSession,
+} from "./personal-programme.ts";
 import { FIXED_PROGRESSION } from "./programme-progression.ts";
 import { programmeWorkoutScheduledDate } from "./adaptive-strength.ts";
 import type { ProgrammeTemplate } from "./supabase-programmes.browser.ts";
@@ -17,6 +21,32 @@ export const isBaseStrengthMethod = (method: string | null) =>
   method === baseStrengthMethod("bullmastiff") ||
   method === baseStrengthMethod("volume_intensity") ||
   method === baseStrengthMethod("dup");
+
+// Mirror guard_base_strength_start for saved targets. Drafts can retain blank
+// future loads, but Today must offer review before sending a start request.
+export function baseStrengthStartIssues(plan: PersonalProgrammePlan): string[] {
+  if (!plan.baseStrength) return [];
+  return plan.movements.flatMap((movement) => {
+    const issues: string[] = [];
+    const rule = movement.baseStrength;
+    if (
+      movement.progression.type === "source" &&
+      rule &&
+      (rule.role === "main" || rule.role === "variation") &&
+      rule.percent != null &&
+      rule.referenceMax == null
+    )
+      issues.push(`${movement.exercise}: reassess the estimated max for percentage loads.`);
+    if (
+      movement.trackingMode === "weight_reps" &&
+      movement.setRows.some((set) => set.weight === "")
+    )
+      issues.push(`${movement.exercise}: choose a load for every set.`);
+    if (!rule?.plusLastSet && movement.setRows.some((set) => Number(set.reps) <= 0))
+      issues.push(`${movement.exercise}: choose reps for every set.`);
+    return issues;
+  });
+}
 export type BaseStrengthChoice = {
   exerciseId: string;
   exerciseName: string;
