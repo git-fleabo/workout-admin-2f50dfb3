@@ -42,6 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PersonalProgrammeEditor } from "@/components/personal-programme-editor";
+import { BaseStrengthLevelEditor } from "@/components/base-strength-level-editor";
 import { ProgrammeSupportPlanner } from "@/components/programme-support-planner";
 import { formatUKDate } from "@/lib/date";
 import { buildProgrammeWeekOverview } from "@/lib/programme-overview";
@@ -300,6 +301,14 @@ export function MyProgrammeOverview({
                 Review this version in advance. Pause or end your current programme before starting
                 it.
               </p>
+            ) : null}
+            {active.personalProgramme ? (
+              <BaseStrengthLevelEditor
+                key={active.id}
+                assignment={active}
+                template={template}
+                lockedWorkoutIds={overview.data.lockedWorkoutIds ?? []}
+              />
             ) : null}
             <details className="rounded-lg border border-border px-3 py-2">
               <summary className="cursor-pointer text-sm font-medium">

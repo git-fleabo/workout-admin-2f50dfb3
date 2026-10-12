@@ -4,6 +4,28 @@ Last updated: 2026-10-12
 
 This file is the handoff document for the train n track workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
 
+## 2026-10-12 Programme Base Levels Editor
+
+- Plan → My Programme now exposes a visible Base levels card with Edit base levels, above the
+  saved-session disclosures. Base Strength personal runs can edit phase-specific estimated maxes
+  for main lifts/variations and phase-specific supporting loads from one dialog.
+- `src/lib/base-strength-levels.ts` groups only source-controlled future prescriptions by exercise,
+  role and phase. Max edits recalculate each saved percentage with that movement's own increment;
+  supporting-load edits change only set weights. Percentages, waves, reps, set counts, progression,
+  exercises, session order and dates remain intact. Personal fixed/rep-range progression is excluded.
+- Mixed saved values are shown explicitly and remain unchanged until the user enters a value.
+  Pure RPE phases/top sets are left to the session editor. Bullmastiff unknown plus-set loads stay
+  unresolved; changing their max clears any old approval and its dependent load for fresh review.
+- Preview shows every affected future movement before Apply. The existing atomic
+  `save_personal_programme_sessions` RPC receives the reviewed revisions; stale edits or newly
+  started sessions roll back the entire batch. Successful saves refresh Today, Plan and reviews.
+- Verification: 6 calculation tests, 35 focused component tests and 4 isolated PostgreSQL checks
+  passed. Database checks cover stale-revision rollback, start-race rollback and successful saved
+  plans while retaining source, completed history and programme progress. Phone-width synthetic
+  browser review confirmed the control, fields, preserved wave percentages and visible actions.
+  Typecheck, focused ESLint and the production build passed. No live data or schema changed;
+  push through GitHub Desktop and sync/publish in Lovable to release the new control.
+
 ## 2026-10-12 Base Strength Start Target Review
 
 - Read-only inspection confirmed the active Volume/Intensity session has Kettlebell Clean & Press
