@@ -1,3 +1,4 @@
+import { programmeSessionLabel } from "@/lib/display-labels";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -254,8 +255,7 @@ export function MyProgrammeOverview({
                   Next to complete
                 </p>
                 <p className="mt-1 font-medium">
-                  {next.weekNumber ? `Week ${next.weekNumber} · ` : ""}
-                  {next.name}
+                  {programmeSessionLabel(next.name, next.weekNumber)}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Session {currentIndex + 1} of {total}.{" "}
@@ -266,6 +266,40 @@ export function MyProgrammeOverview({
               </div>
             ) : null}
 
+            <div className="flex flex-wrap items-start gap-2">
+              {selectedAssignmentId && otherActive ? (
+                <Button variant="outline" onClick={() => setSelectedAssignmentId(undefined)}>
+                  Back to current programme
+                </Button>
+              ) : null}
+              {active.status === "paused" ? (
+                <div>
+                  <Button
+                    disabled={activate.isPending || otherActive}
+                    onClick={() => activate.mutate(active.id)}
+                  >
+                    Start programme
+                  </Button>
+                  {!otherActive ? (
+                    <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+                      Starting makes session 1 available on Today. Your later sessions remain
+                      editable until you begin them.
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <Button asChild>
+                  <Link to="/">Go to next workout</Link>
+                </Button>
+              )}
+            </div>
+
+            {otherActive && active.status === "paused" ? (
+              <p className="text-sm text-muted-foreground">
+                Review this version in advance. Pause or end your current programme before starting
+                it.
+              </p>
+            ) : null}
             <details className="rounded-lg border border-border px-3 py-2">
               <summary className="cursor-pointer text-sm font-medium">
                 View all {weeks.length} weeks
@@ -349,16 +383,34 @@ export function MyProgrammeOverview({
                     </Button>
                   </div>
                 ) : null}
-                <ProgrammeSupportPlanner
-                  assignmentId={active.id}
-                  programmeName={template.name}
-                  sessions={active.personalProgramme.sessions}
-                />
-                <PersonalProgrammeEditor
-                  assignment={active}
-                  template={template}
-                  lockedWorkoutIds={overview.data.lockedWorkoutIds ?? []}
-                />
+                <details className="rounded-lg border border-border px-3 py-2">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    Supporting goals and schedule
+                  </summary>
+                  <div className="mt-4">
+                    <ProgrammeSupportPlanner
+                      assignmentId={active.id}
+                      programmeName={template.name}
+                      sessions={active.personalProgramme.sessions}
+                    />
+                  </div>
+                </details>
+                <details
+                  key={active.id}
+                  open={active.status === "paused"}
+                  className="rounded-lg border border-border px-3 py-2"
+                >
+                  <summary className="cursor-pointer text-sm font-medium">
+                    Saved sessions and targets ({total})
+                  </summary>
+                  <div className="mt-4">
+                    <PersonalProgrammeEditor
+                      assignment={active}
+                      template={template}
+                      lockedWorkoutIds={overview.data.lockedWorkoutIds ?? []}
+                    />
+                  </div>
+                </details>
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">
@@ -366,112 +418,88 @@ export function MyProgrammeOverview({
                 This existing run keeps its original rules.
               </p>
             )}
-            {otherActive && active.status === "paused" ? (
-              <p className="text-sm text-muted-foreground">
-                Review this version in advance. Pause or end your current programme before starting
-                it.
-              </p>
-            ) : null}
-            <div className="flex flex-wrap gap-2 border-t border-border pt-4">
-              {selectedAssignmentId && otherActive ? (
-                <Button variant="outline" onClick={() => setSelectedAssignmentId(undefined)}>
-                  Back to current programme
-                </Button>
-              ) : null}
-              {active.status === "paused" ? (
-                <div>
+            <details className="rounded-lg border border-border px-3 py-2">
+              <summary className="cursor-pointer text-sm font-medium">Programme controls</summary>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {active.status === "active" ? (
                   <Button
-                    disabled={activate.isPending || otherActive}
-                    onClick={() => activate.mutate(active.id)}
+                    variant="outline"
+                    disabled={activate.isPending}
+                    onClick={() => {
+                      void setProgrammeAssignmentStatusClient(active.id, "paused")
+                        .then(() => queryClient.invalidateQueries())
+                        .catch((error: Error) => toast.error(error.message));
+                    }}
                   >
-                    Start programme
+                    Pause programme
                   </Button>
-                  {!otherActive ? (
-                    <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-                      Starting makes session 1 available on Today. Your later sessions remain
-                      editable until you begin them.
-                    </p>
-                  ) : null}
-                </div>
-              ) : (
-                <Button asChild>
-                  <Link to="/">Go to next workout</Link>
-                </Button>
-              )}
-              {active.status === "active" ? (
-                <Button
-                  variant="outline"
-                  disabled={activate.isPending}
-                  onClick={() => {
-                    void setProgrammeAssignmentStatusClient(active.id, "paused")
-                      .then(() => queryClient.invalidateQueries())
-                      .catch((error: Error) => toast.error(error.message));
-                  }}
-                >
-                  Pause programme
-                </Button>
-              ) : null}
-              {active.status === "active" && laterWorkouts.length ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setTargetWorkoutId(laterWorkouts[0].id);
-                    setSkipOpen(true);
-                  }}
-                >
-                  <SkipForward className="mr-1.5 h-4 w-4" /> Skip ahead
-                </Button>
-              ) : null}
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button size="sm" variant="outline" disabled={changeRun.isPending || otherActive}>
-                    <RotateCcw className="mr-1.5 h-4 w-4" /> Start again
+                ) : null}
+                {active.status === "active" && laterWorkouts.length ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setTargetWorkoutId(laterWorkouts[0].id);
+                      setSkipOpen(true);
+                    }}
+                  >
+                    <SkipForward className="mr-1.5 h-4 w-4" /> Skip ahead
                   </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Start this programme again?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      A new run starts today at session 1. This run and all completed workouts stay
-                      in your history. Unfinished programme workout plans are closed.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Keep current run</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => changeRun.mutate({ id: active.id, action: "restart" })}
+                ) : null}
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={changeRun.isPending || otherActive}
                     >
-                      Start again
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button size="sm" variant="ghost" disabled={changeRun.isPending}>
-                    <Square className="mr-1.5 h-4 w-4" /> End programme
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>End this programme?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      It will leave Today and Plan. This run and your completed workouts stay in
-                      your history. You can choose another programme afterwards.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Keep programme</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => changeRun.mutate({ id: active.id, action: "end" })}
-                    >
-                      End programme
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
+                      <RotateCcw className="mr-1.5 h-4 w-4" /> Start again
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Start this programme again?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        A new run starts today at session 1. This run and all completed workouts
+                        stay in your history. Unfinished programme workout plans are closed.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Keep current run</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => changeRun.mutate({ id: active.id, action: "restart" })}
+                      >
+                        Start again
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="sm" variant="ghost" disabled={changeRun.isPending}>
+                      <Square className="mr-1.5 h-4 w-4" /> End programme
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>End this programme?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        It will leave Today and Plan. This run and your completed workouts stay in
+                        your history. You can choose another programme afterwards.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Keep programme</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => changeRun.mutate({ id: active.id, action: "end" })}
+                      >
+                        End programme
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </details>
           </CardContent>
         </Card>
       )}
@@ -492,8 +520,7 @@ export function MyProgrammeOverview({
             <SelectContent className="max-h-72">
               {laterWorkouts.map((workout) => (
                 <SelectItem key={workout.id} value={workout.id}>
-                  {workout.weekNumber ? `Week ${workout.weekNumber} · ` : ""}
-                  {workout.name}
+                  {programmeSessionLabel(workout.name, workout.weekNumber)}
                 </SelectItem>
               ))}
             </SelectContent>

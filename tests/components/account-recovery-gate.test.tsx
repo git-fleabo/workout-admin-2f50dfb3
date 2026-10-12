@@ -1,6 +1,7 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderToString } from "react-dom/server";
 import {
   clearSupabaseSession,
   getSupabaseSession,
@@ -22,6 +23,76 @@ beforeEach(() => {
   setSupabaseSession({ access_token: "access", refresh_token: "refresh", user: { id: "owner" } });
 });
 afterEach(() => vi.restoreAllMocks());
+it("server rendering waits for verification without showing credentials or protected content", () => {
+  const html = renderToString(
+    <SupabaseAuthGate>
+      <p>Private logger</p>
+    </SupabaseAuthGate>,
+  );
+  expect(html).toContain("Checking sign-in");
+  expect(html).not.toContain("<form");
+  expect(html).not.toContain("Private logger");
+  expect(mocks.verify).not.toHaveBeenCalled();
+});
+it("a stored session shows a loading state until its approval check finishes", async () => {
+  let release!: () => void;
+  mocks.verify.mockImplementation(
+    () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+  );
+  render(
+    <SupabaseAuthGate>
+      <p>Private logger</p>
+    </SupabaseAuthGate>,
+  );
+  expect(screen.getByRole("status")).toHaveTextContent("Checking sign-in");
+  expect(screen.queryByRole("button", { name: "Sign in", exact: true })).toBeNull();
+  expect(screen.queryByText("Private logger")).toBeNull();
+  release();
+  expect(await screen.findByText("Private logger")).toBeVisible();
+  expect(getSupabaseSession()?.user.id).toBe("owner");
+});
+it("an account change hides the previous view until the new account is verified", async () => {
+  let release!: () => void;
+  mocks.verify.mockResolvedValueOnce({ id: "person" }).mockImplementation(
+    () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+  );
+  const changed = vi.fn();
+  render(
+    <SupabaseAuthGate onAccountChanged={changed}>
+      <p>Private logger</p>
+    </SupabaseAuthGate>,
+  );
+  await screen.findByText("Private logger");
+  setSupabaseSession({
+    access_token: "second",
+    refresh_token: "second-refresh",
+    user: { id: "second-owner" },
+  });
+  expect(await screen.findByRole("status")).toHaveTextContent("Checking sign-in");
+  expect(screen.queryByText("Private logger")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Sign in", exact: true })).toBeNull();
+  expect(changed).toHaveBeenCalledOnce();
+  release();
+  expect(await screen.findByText("Private logger")).toBeVisible();
+});
+it("a missing session still reaches the named sign-in form", async () => {
+  clearSupabaseSession();
+  render(
+    <SupabaseAuthGate>
+      <p>Private logger</p>
+    </SupabaseAuthGate>,
+  );
+  expect(await screen.findByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+  expect(screen.getByRole("textbox", { name: "Email" })).toBeVisible();
+  expect(screen.getByLabelText("Password", { exact: true })).toBeVisible();
+  expect(mocks.verify).not.toHaveBeenCalled();
+});
 it("transient verification failure retains sign-in and offers retry instead of an approval denial", async () => {
   mocks.verify
     .mockRejectedValueOnce(new TypeError("Failed to fetch"))

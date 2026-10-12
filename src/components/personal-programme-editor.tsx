@@ -1,3 +1,5 @@
+import { repLabel } from "@/lib/workout-preview";
+import { countLabel } from "@/lib/display-labels";
 import { usesDupBackOff, dupBackOffRows } from "@/lib/base-strength-backoff";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useBlocker } from "@tanstack/react-router";
@@ -1122,7 +1124,10 @@ export function PersonalProgrammeEditor({
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
                 {session.plan.movements
-                  .map((movement) => `${movement.exercise} (${movement.setRows.length} sets)`)
+                  .map(
+                    (movement) =>
+                      `${movement.exercise} (${countLabel(movement.setRows.length, "set")})`,
+                  )
                   .join(" · ")}
               </p>
               <details className="mt-2">
@@ -1134,7 +1139,7 @@ export function PersonalProgrammeEditor({
                       .map((set) =>
                         [
                           set.weight ? `${set.weight} kg` : "",
-                          set.reps ? `${set.reps} reps` : "",
+                          set.reps ? repLabel(set.reps) : "",
                           set.durationSeconds ? `${set.durationSeconds}s` : "",
                         ]
                           .filter(Boolean)
@@ -1221,7 +1226,7 @@ function ReadOnlyProgrammeSession({
                   <span>{set.weight ? `${set.weight} kg` : "—"}</span>
                   <span>
                     {set.reps
-                      ? `${set.reps} reps`
+                      ? repLabel(set.reps)
                       : set.durationSeconds
                         ? `${set.durationSeconds}s`
                         : "—"}

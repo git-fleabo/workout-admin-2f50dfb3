@@ -1,3 +1,4 @@
+import { countLabel } from "@/lib/display-labels";
 import { useDialogReturnFocus } from "@/hooks/use-dialog-return-focus";
 import { dupBackOffRows } from "@/lib/base-strength-backoff";
 import { progressionSummary } from "@/lib/programme-progression";
@@ -1862,7 +1863,7 @@ export function FullWorkoutForm() {
           methodBlocks: session.methodBlocks,
         });
         toast.message("Recent workout loaded", {
-          description: `${session.entries.length} movements copied from ${formatUKDate(session.date)}.`,
+          description: `${countLabel(session.entries.length, "movement")} copied from ${formatUKDate(session.date)}.`,
         });
       }
     }
@@ -2190,7 +2191,7 @@ export function FullWorkoutForm() {
     setMobilityRunId(null);
     setPendingRecentSession(null);
     toast.message("Recent workout loaded", {
-      description: `${session.entries.length} movements copied from ${formatUKDate(session.date)}.`,
+      description: `${countLabel(session.entries.length, "movement")} copied from ${formatUKDate(session.date)}.`,
     });
   };
 
@@ -2314,7 +2315,7 @@ export function FullWorkoutForm() {
         setLastCompletedWorkout(null);
       }
       toast.success(result.wasCorrection ? "Workout updated" : "Workout session saved", {
-        description: `${form.entries.filter((entry) => entry.exercise).length} movements were ${
+        description: `${countLabel(form.entries.filter((entry) => entry.exercise).length, "movement")} ${form.entries.filter((entry) => entry.exercise).length === 1 ? "was" : "were"} ${
           result.wasCorrection ? "updated" : "added"
         }.`,
       });
@@ -2500,8 +2501,11 @@ export function FullWorkoutForm() {
                 <WorkoutLifecycleBadge state="completed" />
               </div>
               <p className="text-xs text-muted-foreground">
-                {lastCompletedWorkout.form.entries.filter((entry) => entry.exercise).length}{" "}
-                movements · Finished at{" "}
+                {countLabel(
+                  lastCompletedWorkout.form.entries.filter((entry) => entry.exercise).length,
+                  "movement",
+                )}{" "}
+                · Finished at{" "}
                 {new Date(lastCompletedWorkout.savedAt).toLocaleTimeString([], {
                   hour: "2-digit",
                   minute: "2-digit",
@@ -2543,7 +2547,7 @@ export function FullWorkoutForm() {
                       ) : null}
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {plan.movements.length} movements ·{" "}
+                      {countLabel(plan.movements.length, "movement")} ·{" "}
                       {plan.movements.map((item) => item.exercise).join(", ")}
                     </p>
                   </div>
@@ -2657,7 +2661,7 @@ export function FullWorkoutForm() {
                     <History className="h-4 w-4 shrink-0 text-muted-foreground" />
                   </span>
                   <span className="mt-1 block text-xs text-muted-foreground">
-                    {formatUKDate(session.date)} · {session.entries.length} movements
+                    {formatUKDate(session.date)} · {countLabel(session.entries.length, "movement")}
                     {session.location?.name ? ` · ${session.location.name}` : ""}
                   </span>
                   <span className="mt-1 block truncate text-[11px] text-muted-foreground">
@@ -3087,6 +3091,8 @@ export function FullWorkoutForm() {
                   Movement notes {entry.notes ? "· Added" : "· Optional"}
                 </summary>
                 <Textarea
+                  id={`movement-notes-${field.id}`}
+                  aria-label={`Movement ${index + 1} notes${entry.exercise ? `: ${entry.exercise}` : ""}`}
                   rows={2}
                   className="mt-2"
                   value={entry.notes}

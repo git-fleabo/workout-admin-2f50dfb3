@@ -1,3 +1,5 @@
+import { countLabel } from "@/lib/display-labels";
+import { SessionDurationField } from "@/components/session-duration-field";
 import {
   saveReviewedWeeklyCoachDraft,
   StaleWeeklyCoachDraftError,
@@ -1080,7 +1082,7 @@ function PlanPage() {
     );
     const combinedPlan: WorkoutPlanSuggestion = {
       ...result.suggestion,
-      basis: `${result.suggestion.basis} Conditioning finisher: ${finisher.movements.length} movements × ${finisher.rounds} rounds with ${finisher.restBetweenRoundsSeconds}s between rounds.`,
+      basis: `${result.suggestion.basis} Conditioning finisher: ${countLabel(finisher.movements.length, "movement")} × ${finisher.rounds} rounds with ${finisher.restBetweenRoundsSeconds}s between rounds.`,
       movements: combinedMovements,
       methodBlocks: block ? [block] : [],
     };
@@ -1106,7 +1108,7 @@ function PlanPage() {
       setMovements(result.movements);
       setCircuitMovementIds(result.selections.map((selection) => selection.candidate.id));
       toast.success("Circuit built", {
-        description: `${result.movements.length} movements · ${result.rounds} rounds · about ${result.estimatedMinutes} minutes`,
+        description: `${countLabel(result.movements.length, "movement")} · ${result.rounds} rounds · about ${result.estimatedMinutes} minutes`,
       });
     } else {
       setMovements([]);
@@ -2084,9 +2086,15 @@ function PlanPage() {
               <Card>
                 <CardContent className="p-8 text-center">
                   <Dumbbell className="mx-auto mb-3 h-6 w-6 text-muted-foreground" />
-                  <p className="font-medium">Not enough history yet</p>
+                  <p className="font-medium">
+                    {guidedStrengthCandidates.length
+                      ? "Ready to build your session"
+                      : "Not enough history yet"}
+                  </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Log a completed workout, then return here for a suggestion.
+                    {guidedStrengthCandidates.length
+                      ? "Choose your brief above, then build a preview to review its movements and targets."
+                      : "Log a completed workout, then return here for a suggestion."}
                   </p>
                 </CardContent>
               </Card>
@@ -2487,9 +2495,15 @@ function PlanPage() {
             <Card>
               <CardContent className="p-8 text-center">
                 <Dumbbell className="mx-auto mb-3 h-6 w-6 text-muted-foreground" />
-                <p className="font-medium">Not enough history yet</p>
+                <p className="font-medium">
+                  {guidedStrengthCandidates.length
+                    ? "Ready to build your session"
+                    : "Not enough history yet"}
+                </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Log a completed workout, then return here for a suggestion.
+                  {guidedStrengthCandidates.length
+                    ? "Choose your brief above, then build a preview to review its movements and targets."
+                    : "Log a completed workout, then return here for a suggestion."}
                 </p>
               </CardContent>
             </Card>
@@ -2773,25 +2787,13 @@ function StrengthBuilderCard({
       </CardHeader>
       <CardContent className="space-y-5 p-4 pt-3">
         <div className="grid gap-4">
-          <div className="space-y-2">
-            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              Total duration
-            </p>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={30}
-                max={90}
-                step={5}
-                value={inputs.durationMinutes}
-                onChange={(event) =>
-                  update("durationMinutes", Math.max(30, Math.min(90, Number(event.target.value))))
-                }
-              />
-              <span className="text-xs text-muted-foreground">minutes</span>
-            </div>
-          </div>
+          <SessionDurationField
+            value={inputs.durationMinutes}
+            min={30}
+            max={90}
+            label="Total duration"
+            onChange={(value) => update("durationMinutes", value)}
+          />
           <CircuitChoiceGroup
             label="Focus"
             value={inputs.focus}
@@ -2935,25 +2937,13 @@ function CircuitBuilderCard({
       </CardHeader>
       <CardContent className="space-y-5 p-4 pt-3">
         <div className="grid gap-4 lg:grid-cols-[180px_1fr]">
-          <div className="space-y-2">
-            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              Duration
-            </p>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={10}
-                max={45}
-                step={5}
-                value={inputs.durationMinutes}
-                onChange={(event) =>
-                  update("durationMinutes", Math.max(10, Math.min(45, Number(event.target.value))))
-                }
-              />
-              <span className="text-xs text-muted-foreground">minutes</span>
-            </div>
-          </div>
+          <SessionDurationField
+            value={inputs.durationMinutes}
+            min={10}
+            max={45}
+            label="Duration"
+            onChange={(value) => update("durationMinutes", value)}
+          />
           <CircuitChoiceGroup
             label="Focus"
             value={inputs.focus}
@@ -3114,26 +3104,14 @@ function ClimbingBuilderCard({
       </CardHeader>
       <CardContent className="space-y-5 p-4 pt-3">
         <div className="grid gap-4 lg:grid-cols-[180px_1fr]">
-          <div className="space-y-2">
-            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              Total duration
-            </p>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={20}
-                max={60}
-                step={5}
-                value={inputs.durationMinutes}
-                onChange={(event) =>
-                  update("durationMinutes", Math.max(20, Math.min(60, Number(event.target.value))))
-                }
-              />
-              <span className="text-xs text-muted-foreground">minutes</span>
-            </div>
-            <p className="text-[10px] text-muted-foreground">Includes the warm-up.</p>
-          </div>
+          <SessionDurationField
+            value={inputs.durationMinutes}
+            min={20}
+            max={60}
+            label="Total duration"
+            description="Includes the warm-up."
+            onChange={(value) => update("durationMinutes", value)}
+          />
           <CircuitChoiceGroup
             label="Goal"
             value={inputs.goal}

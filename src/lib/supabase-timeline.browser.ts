@@ -204,9 +204,9 @@ function describeSets(
     const noun = durationStyle === "hold" ? "attempt" : "interval";
     parts.push(`${compactNumber(attemptCount)} ${attemptCount === 1 ? noun : `${noun}s`}`);
   } else if (setCount != null && setCount > 0) {
-    parts.push(`${compactNumber(setCount)} sets`);
+    parts.push(`${compactNumber(setCount)} ${setCount === 1 ? "set" : "sets"}`);
   }
-  if (reps != null && reps > 0) parts.push(`${compactNumber(reps)} reps`);
+  if (reps != null && reps > 0) parts.push(`${compactNumber(reps)} ${reps === 1 ? "rep" : "reps"}`);
   const partialReps = workRows.reduce(
     (total, item) =>
       total + (item.range_of_motion?.toLowerCase() === "partial" ? (toNum(item.reps) ?? 0) : 0),

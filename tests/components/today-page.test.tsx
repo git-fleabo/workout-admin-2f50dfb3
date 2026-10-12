@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 
 const mocks = vi.hoisted(() => ({
+  library: vi.fn(),
   plans: [] as unknown[],
   programmeOffers: [] as unknown[],
   programmeOverview: {
@@ -23,7 +24,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("@/lib/supabase-log.browser", () => ({
-  getLibraryClient: vi.fn(async () => ({ exercises: [], locations: [], intensities: [] })),
+  getLibraryClient: mocks.library,
   getRecentLogsClient: vi.fn(async () => ({ recent: [] })),
 }));
 
@@ -62,11 +63,12 @@ function renderToday() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
+  const result = render(
     <QueryClientProvider client={queryClient}>
       <TodayPage />
     </QueryClientProvider>,
   );
+  return { ...result, queryClient };
 }
 
 const savedPlan = {
@@ -98,6 +100,7 @@ describe("TodayPage branching", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-06T12:00:00.000Z"));
     mocks.plans = [];
+    mocks.library.mockReset().mockResolvedValue({ exercises: [], locations: [], intensities: [] });
     mocks.programmeOffers = [];
     mocks.programmeOverview.assignments = [];
     mocks.programmeOverview.templates = [];
@@ -189,6 +192,75 @@ describe("TodayPage branching", () => {
     expect(screen.getByRole("button", { name: "Continue with this session" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ease back in" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Skip ahead" })).toBeInTheDocument();
+  });
+
+  it("keeps programme actions safe while location data is pending rather than reporting missing equipment", async () => {
+    let release!: (value: unknown) => void;
+    mocks.library.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    mocks.programmeOffers = [programmeOffer];
+    renderToday();
+    expect(await screen.findByText("Loading training locations…")).toBeVisible();
+    expect(screen.queryByText(/These mapped movements do not share/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Continue with this session" })).toBeDisabled();
+    release({
+      exercises: [],
+      locations: [{ id: "gym", name: "Gym", kind: "gym" }],
+      intensities: [],
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Continue with this session" })).toBeEnabled(),
+    );
+    expect(
+      screen.getByRole("combobox", { name: "Base Strength training location" }),
+    ).toHaveTextContent("Gym");
+  });
+
+  it("offers a retry for failed reference reads and enables the programme only after recovery", async () => {
+    mocks.library.mockRejectedValueOnce(new TypeError("Offline")).mockResolvedValue({
+      exercises: [],
+      locations: [{ id: "gym", name: "Gym", kind: "gym" }],
+      intensities: [],
+    });
+    mocks.programmeOffers = [programmeOffer];
+    renderToday();
+    const retry = await screen.findByRole("button", { name: "Retry training setup" });
+    expect(screen.getByRole("button", { name: "Continue with this session" })).toBeDisabled();
+    expect(screen.queryByText(/These mapped movements do not share/)).toBeNull();
+    await userEvent.click(retry);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Continue with this session" })).toBeEnabled(),
+    );
+  });
+
+  it("does not start from stale cached setup after a failed refresh", async () => {
+    mocks.library
+      .mockResolvedValueOnce({
+        exercises: [],
+        locations: [{ id: "gym", name: "Gym", kind: "gym" }],
+        intensities: [],
+      })
+      .mockRejectedValue(new TypeError("Offline"));
+    mocks.programmeOffers = [programmeOffer];
+    const { queryClient } = renderToday();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Continue with this session" })).toBeEnabled(),
+    );
+    await queryClient.refetchQueries({ queryKey: ["library"] });
+    expect(await screen.findByRole("button", { name: "Retry training setup" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Continue with this session" })).toBeDisabled();
+  });
+
+  it("still reports a genuine location mismatch after successful reference loading", async () => {
+    mocks.programmeOffers = [programmeOffer];
+    renderToday();
+    expect(await screen.findByText(/These mapped movements do not share/)).toBeVisible();
+    expect(screen.queryByText("Loading training locations…")).toBeNull();
+    expect(screen.getByRole("button", { name: "Continue with this session" })).toBeDisabled();
   });
 
   it("offers a gentle return after a long break", async () => {

@@ -97,6 +97,7 @@ export function SupabaseAuthGate({
       if (userId !== accountId.current) {
         accountId.current = userId;
         setSignedIn(false);
+        setHydrated(!userId);
         onAccountChanged?.();
       }
       if (!getSupabaseSession()) {
@@ -116,6 +117,21 @@ export function SupabaseAuthGate({
       window.removeEventListener("online", retry);
     };
   }, [attempt, onAccountChanged]);
+
+  if (!hydrated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <Card
+          role="status"
+          aria-busy="true"
+          className="flex items-center gap-3 border-border bg-card p-6 text-sm"
+        >
+          <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" />
+          Checking sign-in…
+        </Card>
+      </div>
+    );
+  }
 
   if (hydrated && signedIn)
     return (
@@ -204,6 +220,7 @@ export function SupabaseAuthGate({
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="New password"
+              aria-label="New password"
               autoComplete="new-password"
             />
             <Input
@@ -211,6 +228,7 @@ export function SupabaseAuthGate({
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Confirm new password"
+              aria-label="Confirm new password"
               autoComplete="new-password"
             />
             {newPassword && newPassword.length < 8 && (
@@ -256,6 +274,7 @@ export function SupabaseAuthGate({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Email"
+              aria-label="Email"
               autoComplete="email"
             />
             <Input
@@ -263,6 +282,7 @@ export function SupabaseAuthGate({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
+              aria-label="Password"
               autoComplete="current-password"
             />
             {error && <p className="text-xs text-destructive">{error}</p>}

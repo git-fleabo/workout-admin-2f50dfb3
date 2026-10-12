@@ -1,3 +1,4 @@
+import { countLabel } from "@/lib/display-labels";
 import { repLabel } from "@/lib/workout-preview";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { progressionSummary } from "@/lib/programme-progression";
@@ -127,7 +128,7 @@ function targetSummary(movement: WorkoutPlanMovement) {
       .filter(Boolean)
       .join(" · ");
   }
-  const targets = `${rows.length} sets · ${rows
+  const targets = `${countLabel(rows.length, "set")} · ${rows
     .map((row) =>
       [
         row.weight ? `${row.weight} kg` : "",
@@ -442,7 +443,7 @@ export function TodayPage() {
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {draft.movements.length
-                    ? `${draft.movements.length} movements · ${draft.movements.join(", ")}`
+                    ? `${countLabel(draft.movements.length, "movement")} · ${draft.movements.join(", ")}`
                     : "Workout details in progress"}
                 </p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
@@ -478,7 +479,7 @@ export function TodayPage() {
                   <WorkoutLifecycleBadge state="completed" />
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {completed.movements.length} movements · Finished at{" "}
+                  {countLabel(completed.movements.length, "movement")} · Finished at{" "}
                   {formatTime(completed.savedAt)}
                 </p>
               </div>
@@ -584,7 +585,26 @@ export function TodayPage() {
                         .join(", ")}
                     </p>
 
-                    {availableLocations.length ? (
+                    {!library.isSuccess ? (
+                      library.isError ? (
+                        <div className="mt-4 space-y-2" role="alert">
+                          <p className="text-sm">
+                            Training locations and exercises could not be loaded.
+                          </p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void library.refetch()}
+                          >
+                            Retry training setup
+                          </Button>
+                        </div>
+                      ) : (
+                        <p role="status" className="mt-4 text-sm text-muted-foreground">
+                          Loading training locations…
+                        </p>
+                      )
+                    ) : availableLocations.length ? (
                       <div className="mt-4 space-y-1.5">
                         <p className="text-xs font-medium">Training location</p>
                         <Select
@@ -625,7 +645,7 @@ export function TodayPage() {
                       </p>
                     )}
 
-                    {offer.selections.length ? (
+                    {library.isSuccess && offer.selections.length ? (
                       <div className="mt-4 space-y-3">
                         {offer.selections.map((selection) => {
                           const availableOptions = selectedLocation
@@ -698,7 +718,9 @@ export function TodayPage() {
                           onClick={() =>
                             selectedLocation && startProgramme(offer, selectedLocation.id)
                           }
-                          disabled={!selectedLocation || Boolean(startingProgrammeId)}
+                          disabled={
+                            !library.isSuccess || !selectedLocation || Boolean(startingProgrammeId)
+                          }
                         >
                           {startingProgrammeId === offer.assignmentId ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -713,7 +735,11 @@ export function TodayPage() {
                             onClick={() =>
                               selectedLocation && startProgramme(offer, selectedLocation.id, true)
                             }
-                            disabled={!selectedLocation || Boolean(startingProgrammeId)}
+                            disabled={
+                              !library.isSuccess ||
+                              !selectedLocation ||
+                              Boolean(startingProgrammeId)
+                            }
                           >
                             Ease back in
                           </Button>

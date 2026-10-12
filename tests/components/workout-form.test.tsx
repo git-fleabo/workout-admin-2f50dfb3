@@ -144,6 +144,21 @@ async function chooseBenchPress() {
 }
 
 describe("FullWorkoutForm draft lifecycle", () => {
+  it("names repeated movement notes and keeps each control ID distinct", async () => {
+    renderWithQueries(<FullWorkoutForm />);
+    await screen.findByText("Your workout");
+    await userEvent.click(screen.getByRole("button", { name: "Add movement", exact: true }));
+    for (const summary of screen.getAllByText("Movement notes · Optional", { exact: true })) {
+      await userEvent.click(summary);
+    }
+    const first = screen.getByRole("textbox", { name: "Movement 1 notes", exact: true });
+    const second = screen.getByRole("textbox", { name: "Movement 2 notes", exact: true });
+    expect(first).toBeVisible();
+    expect(second).toBeVisible();
+    expect(first.id).toBeTruthy();
+    expect(second.id).not.toBe(first.id);
+    expect(mocks.addWorkoutSessionClient).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     mocks.addWorkoutSessionClient.mockClear();
     mocks.extraExercises = [];
