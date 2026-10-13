@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
     sessionId: "saved-session",
   })),
   duplicateResponse: false,
+  savedKBPlan: null as unknown,
   trainingMethods: [] as TrainingMethod[],
   locations: [] as {
     id: string;
@@ -118,6 +119,7 @@ vi.mock("@/lib/supabase-log.browser", () => ({
 vi.mock("@/lib/supabase-plans.browser", () => ({
   completeSuggestedWorkoutClient: vi.fn(),
   getNextSuggestedWorkoutsClient: vi.fn(async () => []),
+  getSavedWorkoutPlanClient: vi.fn(async () => mocks.savedKBPlan),
   updateSuggestedWorkoutStatusClient: vi.fn(),
 }));
 
@@ -126,6 +128,10 @@ vi.mock("@/lib/supabase-training-methods.browser", () => ({
 }));
 
 import { ClimbForm, FullWorkoutForm } from "@/components/workout-logger/full-workout-form";
+import { kettlebellWorkoutDraft } from "@/lib/kettlebell-workouts";
+import { kbFixture, kbId } from "../helpers/kettlebell-fixtures";
+import { WORKOUT_PLAN_DRAFT_KEY } from "@/lib/workout-plan";
+import { replaceWorkoutSessionClient } from "@/lib/supabase-log.browser";
 
 function renderWithQueries(node: ReactNode) {
   const queryClient = new QueryClient({
@@ -144,6 +150,143 @@ async function chooseBenchPress() {
 }
 
 describe("FullWorkoutForm draft lifecycle", () => {
+  function kbPlan(mode = "amrap") {
+    const workout = kbFixture();
+    workout.prescription.movements[0].exercise = "Bench Press";
+    workout.durationMinutes = 20;
+    workout.prescription.methodBlocks = [
+      {
+        trainingMethodId: kbId(500),
+        methodName: mode.toUpperCase(),
+        family: "timed_density",
+        memberMovementIndexes: [0],
+        rounds: "",
+        blockDurationMinutes: "20",
+        restBetweenRoundsSeconds: "",
+        restBetweenMovementsSeconds: "",
+        workIntervalSeconds: "",
+        restIntervalSeconds: "",
+        config: { mode },
+      },
+    ];
+    return {
+      ...kettlebellWorkoutDraft(workout, { id: "gym", kind: "gym" }),
+      suggestedWorkoutId: "kb-plan",
+    };
+  }
+
+  it("defaults a prescribed KB session to one-click summary completion without set inputs", async () => {
+    window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(kbPlan()));
+    renderWithQueries(<FullWorkoutForm />);
+    await screen.findByText("Kettlebell · Simple session log");
+    expect(screen.getByRole("spinbutton", { name: "Duration (minutes)" })).toHaveValue(20);
+    expect(screen.queryByText("Movements and sets")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Finish workout", exact: true }));
+    await waitFor(() => expect(mocks.addWorkoutSessionClient).toHaveBeenCalledTimes(1));
+    const saved = mocks.addWorkoutSessionClient.mock
+      .calls[0][0] as import("@/lib/supabase-log.browser").WorkoutSessionInput;
+    expect(saved.suggestedWorkoutId).toBe("kb-plan");
+    expect(saved.kettlebellSummary).toEqual({
+      weightUsed: "",
+      result: "",
+      resultLabel: "Rounds completed",
+    });
+    expect(saved.entries).toHaveLength(1);
+    expect(saved.entries[0].setRows).toEqual([]);
+    expect(saved.entries[0].reps).toBe("");
+    expect(saved.methodBlocks).toEqual([]);
+    expect(saved.entries[0].notes).toContain("Prescribed workout (reference only)");
+  });
+
+  it("upgrades an older unfinished KB draft from its saved snapshot", async () => {
+    const plan = kbPlan();
+    mocks.savedKBPlan = { ...plan, programAssignmentId: null, programWorkoutId: null };
+    const older = { ...plan };
+    delete older.kettlebell;
+    window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(older));
+    renderWithQueries(<FullWorkoutForm />);
+    await screen.findByText("Kettlebell · Simple session log");
+    expect(screen.getByRole("spinbutton", { name: "Duration (minutes)" })).toHaveValue(20);
+    await userEvent.click(screen.getByRole("button", { name: "Log individual sets" }));
+    expect(screen.getByText("Movements and sets")).toBeVisible();
+    expect(mocks.addWorkoutSessionClient).not.toHaveBeenCalled();
+  });
+
+  it("restores KB summary inputs and preserves them when switching to individual sets and back", async () => {
+    window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(kbPlan()));
+    const first = renderWithQueries(<FullWorkoutForm />);
+    await screen.findByText("Kettlebell · Simple session log");
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Weight used (optional)" }),
+      "2 × 16 kg",
+    );
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Session notes (optional)" }),
+      "Stopped early",
+    );
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Rounds completed (optional)" }),
+      "4 + part of next",
+    );
+    const minutes = screen.getByRole("spinbutton", { name: "Duration (minutes)" });
+    await userEvent.clear(minutes);
+    await userEvent.type(minutes, "18");
+    first.unmount();
+    renderWithQueries(<FullWorkoutForm />);
+    expect(await screen.findByRole("textbox", { name: "Weight used (optional)" })).toHaveValue(
+      "2 × 16 kg",
+    );
+    expect(screen.getByRole("spinbutton", { name: "Duration (minutes)" })).toHaveValue(18);
+    await userEvent.click(screen.getByRole("button", { name: "Log individual sets" }));
+    expect(screen.getByText("Movements and sets")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Use simple session log" }));
+    expect(screen.getByRole("textbox", { name: "Rounds completed (optional)" })).toHaveValue(
+      "4 + part of next",
+    );
+    expect(screen.getByRole("textbox", { name: "Session notes (optional)" })).toHaveValue(
+      "Stopped early",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Finish workout", exact: true }));
+    await waitFor(() => expect(mocks.addWorkoutSessionClient).toHaveBeenCalledTimes(1));
+    expect(mocks.addWorkoutSessionClient.mock.calls[0][0]).toMatchObject({
+      duration: "18",
+      notes: expect.stringContaining("Stopped early"),
+      kettlebellSummary: { weightUsed: "2 × 16 kg", result: "4 + part of next" },
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Edit workout", exact: true }));
+    expect(screen.getByRole("textbox", { name: "Weight used (optional)" })).toHaveValue(
+      "2 × 16 kg",
+    );
+    expect(screen.getByRole("button", { name: "Save correction" })).toBeVisible();
+    vi.mocked(replaceWorkoutSessionClient).mockResolvedValue({
+      ok: true,
+      sessionId: "saved-session",
+      replacedSessionId: "saved-session",
+      planRelinkFailed: false,
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Save correction" }));
+    await waitFor(() =>
+      expect(replaceWorkoutSessionClient).toHaveBeenCalledWith(
+        "saved-session",
+        expect.objectContaining({
+          kettlebellSummary: expect.objectContaining({ weightUsed: "2 × 16 kg" }),
+          entries: [expect.objectContaining({ setRows: [] })],
+        }),
+      ),
+    );
+  });
+
+  it("keeps EMOM logging minimal and rejects a blank duration while retaining the draft", async () => {
+    window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(kbPlan("emom")));
+    renderWithQueries(<FullWorkoutForm />);
+    await screen.findByText("Kettlebell · Simple session log");
+    expect(screen.queryByRole("textbox", { name: /Rounds completed/ })).not.toBeInTheDocument();
+    await userEvent.clear(screen.getByRole("spinbutton", { name: "Duration (minutes)" }));
+    await userEvent.click(screen.getByRole("button", { name: "Finish workout", exact: true }));
+    expect(mocks.addWorkoutSessionClient).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("enter a duration");
+    expect(window.localStorage.getItem("workout-session-draft:signed-out")).not.toBeNull();
+  });
   it("names repeated movement notes and keeps each control ID distinct", async () => {
     renderWithQueries(<FullWorkoutForm />);
     await screen.findByText("Your workout");
@@ -161,6 +304,7 @@ describe("FullWorkoutForm draft lifecycle", () => {
   });
   beforeEach(() => {
     mocks.addWorkoutSessionClient.mockClear();
+    mocks.savedKBPlan = null;
     mocks.extraExercises = [];
     mocks.trainingMethods = [];
     mocks.locations = [];

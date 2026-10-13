@@ -289,6 +289,7 @@ export type TrainingLocation = {
 };
 
 export type WorkoutSessionInput = {
+  kettlebellSummary?: { weightUsed: string; result: string; resultLabel: string };
   mobilityRunId?: string | null;
   suggestedWorkoutId?: string | null;
   date: string;
@@ -577,6 +578,9 @@ export async function getRecentLogsClient(limit = 15) {
         asText(row.sessions?.duration_minutes);
       return {
         entryId: row.id,
+        ...(metricValue(metrics, "logging_mode") === "kettlebell_summary"
+          ? { loggingMode: "kettlebell_summary" as const }
+          : {}),
         date: row.sessions?.session_date ?? "",
         id: row.sessions?.id ?? "",
         orderIndex: Number(row.order_index ?? 0),
@@ -698,7 +702,7 @@ async function prepareWorkoutSave(data: WorkoutSessionInput, personId: string) {
     entries.map(async (entryData, index) => {
       const [activityType, exercise] = await Promise.all([
         getOrCreateActivityType(entryData.workoutType || "Other"),
-        findExercise(entryData.exercise),
+        data.kettlebellSummary ? Promise.resolve(null) : findExercise(entryData.exercise),
       ]);
       const activityTypeId = exercise?.activity_type_id ?? activityType?.id ?? null;
       if (!activityTypeId) throw new Error(`${entryData.exercise} needs an activity type.`);
@@ -717,33 +721,35 @@ async function prepareWorkoutSave(data: WorkoutSessionInput, personId: string) {
       const explicitSets = (entryData.setRows ?? []).filter(
         (set) => set.reps || set.weight || set.durationSeconds || set.rpe || set.method,
       );
-      const rawSets = setlessActivity
-        ? []
-        : explicitSets.length > 0
-          ? explicitSets.map((set, setIndex) => ({
-              set,
-              setNumber: setIndex + 1,
-              dataShape: "individual" as const,
-              aggregateSetCount: null,
-            }))
-          : [
-              {
-                set: {
-                  reps: entryData.reps,
-                  weight: entryData.weight,
-                  durationSeconds: entryData.holdSeconds,
-                  rpe: entryData.rpe,
-                  completed: entryData.completed,
-                  method: undefined,
+      const rawSets =
+        setlessActivity || data.kettlebellSummary
+          ? []
+          : explicitSets.length > 0
+            ? explicitSets.map((set, setIndex) => ({
+                set,
+                setNumber: setIndex + 1,
+                dataShape: "individual" as const,
+                aggregateSetCount: null,
+              }))
+            : [
+                {
+                  set: {
+                    reps: entryData.reps,
+                    weight: entryData.weight,
+                    durationSeconds: entryData.holdSeconds,
+                    rpe: entryData.rpe,
+                    completed: entryData.completed,
+                    method: undefined,
+                  },
+                  setNumber: 1,
+                  dataShape:
+                    (toNum(entryData.sets) ?? 1) > 1
+                      ? ("aggregate" as const)
+                      : ("individual" as const),
+                  aggregateSetCount:
+                    (toNum(entryData.sets) ?? 1) > 1 ? toNum(entryData.sets) : null,
                 },
-                setNumber: 1,
-                dataShape:
-                  (toNum(entryData.sets) ?? 1) > 1
-                    ? ("aggregate" as const)
-                    : ("individual" as const),
-                aggregateSetCount: (toNum(entryData.sets) ?? 1) > 1 ? toNum(entryData.sets) : null,
-              },
-            ];
+              ];
       const sets = rawSets.map(({ set, setNumber, dataShape, aggregateSetCount }) => {
         const weight = toNum(set.weight);
         const classification =
@@ -804,6 +810,18 @@ async function prepareWorkoutSave(data: WorkoutSessionInput, personId: string) {
         };
       });
       const metrics = [
+        ...(data.kettlebellSummary
+          ? [
+              { metric_key: "logging_mode", metric_text: "kettlebell_summary" },
+              { metric_key: "weight_used", metric_text: data.kettlebellSummary.weightUsed || null },
+              {
+                metric_key: "workout_result",
+                metric_text: data.kettlebellSummary.result
+                  ? `${data.kettlebellSummary.resultLabel}: ${data.kettlebellSummary.result}`
+                  : null,
+              },
+            ]
+          : []),
         {
           metric_key: "duration_minutes",
           metric_value: toNum(entryData.duration),

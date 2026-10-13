@@ -85,6 +85,14 @@ export type RecentWorkoutMethodBlock = WorkoutPlanMethodBlock & {
 };
 
 export type WorkoutPlanDraft = {
+  kettlebell?: {
+    workoutId: string;
+    category: "strength" | "muscle" | "conditioning";
+    instructions: string;
+    bellCount: 1 | 2;
+    requiredBellWeights: 1 | 3;
+    durationMinutes: number | null;
+  };
   personalProgramme?: boolean;
   version: 1;
   suggestedWorkoutId?: string;
@@ -574,6 +582,12 @@ export function readWorkoutPlanDraft(value: string | null): WorkoutPlanDraft | n
       draft.version !== 1 ||
       (draft.suggestedWorkoutId != null && typeof draft.suggestedWorkoutId !== "string") ||
       (draft.mobilityRunId != null && typeof draft.mobilityRunId !== "string") ||
+      (draft.kettlebell != null &&
+        (typeof draft.kettlebell.workoutId !== "string" ||
+          typeof draft.kettlebell.instructions !== "string" ||
+          !["strength", "muscle", "conditioning"].includes(draft.kettlebell.category) ||
+          ![1, 2].includes(draft.kettlebell.bellCount) ||
+          ![1, 3].includes(draft.kettlebell.requiredBellWeights))) ||
       !draft.title ||
       !["home", "gym"].includes(draft.locationKind) ||
       !Array.isArray(draft.movements) ||

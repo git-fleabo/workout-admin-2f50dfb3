@@ -68,6 +68,7 @@ import {
 import { formatUKDate, todayISO } from "@/lib/date";
 import {
   getNextSuggestedWorkoutsClient,
+  getSavedWorkoutPlanClient,
   updateSuggestedWorkoutStatusClient,
   type SavedWorkoutPlan,
 } from "@/lib/supabase-plans.browser";
@@ -82,6 +83,13 @@ import { useRecentSessionTemplates } from "@/hooks/use-recent-session-templates"
 import { isLikelyOfflineError } from "@/lib/workout-offline-queue";
 import { useWorkoutDraft } from "@/hooks/use-workout-draft";
 import { workoutSessionSchema } from "./workout-session-schema";
+import { KettlebellSummaryLog } from "./kettlebell-summary-log";
+import {
+  buildKettlebellSummaryPayload,
+  kettlebellDefaultDuration,
+  kettlebellLogSchema,
+  type KettlebellLogState,
+} from "@/lib/kettlebell-summary";
 import {
   getMovementMetricProfile,
   type MetricProfile,
@@ -269,6 +277,7 @@ export type WorkoutSetMethodState = {
 };
 
 export type SessionFormState = {
+  kettlebellLog?: KettlebellLogState;
   date: string;
   title: string;
   trainingLocationId: string;
@@ -410,7 +419,9 @@ function isSessionFormState(form: unknown): form is SessionFormState {
         typeof entry.workoutType === "string" &&
         Array.isArray(entry.setRows),
     ) &&
-    (candidate.methodBlocks == null || Array.isArray(candidate.methodBlocks)),
+    (candidate.methodBlocks == null || Array.isArray(candidate.methodBlocks)) &&
+    (candidate.kettlebellLog == null ||
+      kettlebellLogSchema.safeParse(candidate.kettlebellLog).success),
   );
 }
 
@@ -757,6 +768,7 @@ function buildRecentSessionTemplates(
   const completed = logs.filter(
     (log) =>
       log.completed &&
+      log.loggingMode !== "kettlebell_summary" &&
       log.exercise &&
       log.id &&
       (!allowedExerciseNames || allowedExerciseNames.has(log.exercise.toLowerCase())),
@@ -1799,6 +1811,10 @@ export function FullWorkoutForm() {
         trainingLocationId: trainingLocation?.id ?? "",
         entries,
         methodBlocks,
+        duration: draft.kettlebell ? kettlebellDefaultDuration(draft) : "",
+        kettlebellLog: draft.kettlebell
+          ? { mode: "summary", plan: draft, weightUsed: "", result: "" }
+          : undefined,
       });
       setLoadedSuggestionId(draft.suggestedWorkoutId ?? null);
       setMobilityRunId(draft.mobilityRunId ?? null);
@@ -1918,6 +1934,43 @@ export function FullWorkoutForm() {
 
   const update = <K extends keyof SessionFormState>(k: K, v: SessionFormState[K]) =>
     setValue(k as never, v as never, { shouldDirty: true });
+
+  // Upgrade an unfinished KB draft created before summary logging existed.
+  // Preserve every editable set so choosing detailed logging remains reversible.
+  useEffect(() => {
+    if (
+      !initialFormLoaded ||
+      !loadedSuggestionId ||
+      form.kettlebellLog ||
+      editingSessionId ||
+      !form.title.includes("Strong ON!")
+    )
+      return;
+    let current = true;
+    void getSavedWorkoutPlanClient(loadedSuggestionId)
+      .then((plan) => {
+        if (!current || !plan.kettlebell || plan.programAssignmentId || plan.programWorkoutId)
+          return;
+        setForm((previous) => ({
+          ...previous,
+          duration: previous.duration || kettlebellDefaultDuration(plan),
+          kettlebellLog: { mode: "summary", plan, weightUsed: "", result: "" },
+        }));
+      })
+      .catch(() => {
+        /* Keep the existing editable draft when its source cannot be loaded. */
+      });
+    return () => {
+      current = false;
+    };
+  }, [
+    initialFormLoaded,
+    loadedSuggestionId,
+    editingSessionId,
+    form.kettlebellLog,
+    form.title,
+    setForm,
+  ]);
   const updateEntry = <K extends keyof FormState>(index: number, key: K, value: FormState[K]) =>
     setValue(`entries.${index}.${String(key)}` as never, value as never, { shouldDirty: true });
   const selectEntryExercise = (index: number, name: string) => {
@@ -2203,7 +2256,8 @@ export function FullWorkoutForm() {
     loadRecentSession(session);
   };
 
-  const buildWorkoutPayload = () => ({
+  const summaryMode = form.kettlebellLog?.mode === "summary";
+  const buildDetailedWorkoutPayload = () => ({
     mobilityRunId,
     date: form.date,
     title: form.title,
@@ -2271,6 +2325,13 @@ export function FullWorkoutForm() {
       config: block.config,
     })),
   });
+
+  const buildWorkoutPayload = () => {
+    const payload = buildDetailedWorkoutPayload();
+    return summaryMode && form.kettlebellLog
+      ? buildKettlebellSummaryPayload(payload, form.kettlebellLog)
+      : payload;
+  };
 
   const mutate = useMutation({
     mutationFn: async () => {
@@ -2379,21 +2440,28 @@ export function FullWorkoutForm() {
       isDumbbell && entry.setRows.some((set) => Number(set.weight) > 0) && !entry.loadSemantics
     );
   });
-  const canSubmit =
-    form.date &&
-    form.trainingLocationId &&
-    form.entries.some((entry) => entry.exercise.trim()) &&
-    form.entries.every(
-      (entry) =>
-        !entry.exercise.trim() ||
-        libraryExercises.some(
-          (exercise) => exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
-        ),
-    ) &&
-    !incompleteSetMethod &&
-    !dumbbellSemanticsMissing &&
-    climbingIssues.length === 0 &&
-    !mutate.isPending;
+  const canSubmit = summaryMode
+    ? Boolean(
+        form.date &&
+        form.trainingLocationId &&
+        Number(form.duration) > 0 &&
+        Number(form.duration) <= 1440 &&
+        !mutate.isPending,
+      )
+    : form.date &&
+      form.trainingLocationId &&
+      form.entries.some((entry) => entry.exercise.trim()) &&
+      form.entries.every(
+        (entry) =>
+          !entry.exercise.trim() ||
+          libraryExercises.some(
+            (exercise) => exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
+          ),
+      ) &&
+      !incompleteSetMethod &&
+      !dumbbellSemanticsMissing &&
+      climbingIssues.length === 0 &&
+      !mutate.isPending;
   const reviewAndFinish = async () => {
     const schemaValid = await trigger();
     if (!schemaValid || !canSubmit) {
@@ -2401,6 +2469,10 @@ export function FullWorkoutForm() {
       return;
     }
     setShowValidationErrors(false);
+    if (summaryMode) {
+      mutate.mutate();
+      return;
+    }
     setFinishSummaryOpen(true);
   };
   const hasDraftContent = sessionHasDraftContent(form);
@@ -2580,659 +2652,703 @@ export function FullWorkoutForm() {
         </section>
       ) : null}
 
-      <Card className="space-y-4 border-border bg-card p-4 sm:p-5">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold">Your workout</h2>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <p className="text-xs text-muted-foreground">
-                Choose where, then log one movement or add the whole session.
-              </p>
-              {hasDraftContent ? <WorkoutLifecycleBadge state="in_progress" /> : null}
-            </div>
-          </div>
-          <div className="flex shrink-0 flex-col items-end gap-1">
-            <Badge variant="outline" className="gap-1 border-border text-muted-foreground">
-              <Calendar className="h-3 w-3" /> {formatUKDate(form.date)}
-            </Badge>
-            {hasDraftContent ? (
-              <span className="text-[10px] text-muted-foreground">
-                {draftTime ? `Autosaved ${draftTime} on this device` : "Autosaving on this device…"}
-              </span>
-            ) : null}
-          </div>
-        </div>
-
-        <Field label="Where are you training?">
-          <div className="grid grid-cols-2 gap-2 sm:flex">
-            {(locations.data ?? []).map((location) => (
-              <Button
-                key={location.id}
-                type="button"
-                variant={form.trainingLocationId === location.id ? "secondary" : "outline"}
-                className="sm:min-w-28"
-                onClick={() => {
-                  update("trainingLocationId", location.id);
-                  window.localStorage.setItem(WORKOUT_TRAINING_LOCATION_KEY, location.id);
-                }}
-              >
-                {location.name}
-              </Button>
-            ))}
-          </div>
-        </Field>
-
-        {unavailableWorkoutEntries.length > 0 ? (
-          <div className="rounded-lg border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2 text-xs text-amber-100">
-            <p className="font-medium">Some movements are not available here</p>
-            <ul className="mt-1 space-y-1 text-amber-100/80">
-              {unavailableWorkoutEntries.map((entry, index) => (
-                <li key={index}>
-                  {entry.exercise}:{" "}
-                  {exerciseUnavailableReason(
-                    workoutLibraryExercises.find(
-                      (exercise) =>
-                        exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
-                    ),
-                    selectedLocation,
-                    lib.data?.equipmentItems,
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-
-        {recentSessionTemplates.length > 0 ? (
-          <details className="rounded-lg border border-border bg-secondary/20 px-3 py-2">
-            <summary className="cursor-pointer text-sm font-medium">
-              Repeat a recent workout
-            </summary>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {recentSessionTemplates.map((session) => (
-                <button
-                  key={session.id}
-                  type="button"
-                  className="rounded-md border border-border bg-background p-3 text-left transition-colors hover:bg-secondary/60"
-                  onClick={() => requestRecentSession(session)}
-                >
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-medium">{session.title}</span>
-                    <History className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  </span>
-                  <span className="mt-1 block text-xs text-muted-foreground">
-                    {formatUKDate(session.date)} · {countLabel(session.entries.length, "movement")}
-                    {session.location?.name ? ` · ${session.location.name}` : ""}
-                  </span>
-                  <span className="mt-1 block truncate text-[11px] text-muted-foreground">
-                    {session.entries.map((entry) => entry.exercise).join(", ")}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </details>
-        ) : null}
-
-        <details className="rounded-lg border border-border bg-secondary/20 px-3 py-2">
-          <summary className="cursor-pointer text-sm font-medium">
-            Session details (optional)
-          </summary>
-          <div className="mt-4 space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Date">
-                <DateInput value={form.date} onChange={(v) => update("date", v)} />
-              </Field>
-              <Field label="Session name">
-                <Input value={form.title} onChange={(e) => update("title", e.target.value)} />
-              </Field>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Field label="Minutes">
-                <Input
-                  inputMode="numeric"
-                  value={form.duration}
-                  onChange={(e) => update("duration", e.target.value)}
-                />
-              </Field>
-              <Field label="Intensity">
-                <SimpleSelect
-                  value={form.intensity}
-                  onChange={(v) => update("intensity", v)}
-                  options={lib.data?.intensities ?? []}
-                />
-              </Field>
-              <Field label="Overall RPE">
-                <Input
-                  inputMode="decimal"
-                  value={form.rpe}
-                  onChange={(e) => update("rpe", e.target.value)}
-                />
-              </Field>
-            </div>
-            <Field label="Session notes">
-              <Textarea
-                rows={2}
-                value={form.notes}
-                onChange={(e) => update("notes", e.target.value)}
-                placeholder="Overall workout notes..."
-              />
-            </Field>
-          </div>
-        </details>
-      </Card>
-
-      <div>
-        <h2 className="text-base font-semibold">Movements and sets</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {mobilityRunId
-            ? "Choose toolkit exercises for this mobility practice. Set-level methods stay attached to the set they change."
-            : "Build the workout first. Set-level methods stay attached to the set they change."}
-        </p>
-      </div>
-      <div className="space-y-3">
-        {entryFields.map((field, index) => {
-          const entry = form.entries[index];
-          if (!entry) return null;
-          const methodBlock = form.methodBlocks.find((block) =>
-            block.memberClientIds.includes(entry.clientId),
-          );
-          const methodPosition = methodBlock?.memberClientIds.indexOf(entry.clientId) ?? -1;
-          const selectedExercise = libraryExercises.find(
-            (exercise) => exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
-          );
-          const isDumbbell = coerceExerciseEquipment(selectedExercise).includes("dumbbell");
-          const profile = getMovementMetricProfile({
-            workoutType: selectedExercise?.workoutType ?? entry.workoutType,
-            movement: entry.exercise,
-            defaultMetric: selectedExercise?.metric,
-          });
-          const hasPlannedTimedSets = entry.setRows.some((set) => set.durationSeconds);
-          const isGrip =
-            entry.entryKind === GRIP_WORKOUT_TYPE ||
-            entry.workoutType === GRIP_WORKOUT_TYPE ||
-            selectedExercise?.workoutType === GRIP_WORKOUT_TYPE;
-          const previousWorkout = previousWorkoutFor(entry.exercise);
-          const previousSets = previousWorkout ? setRowsFromRecentLog(previousWorkout) : [];
-
-          return (
-            <Card
-              key={field.id}
-              className={`space-y-4 bg-card p-4 ${
-                methodBlock ? "border-indigo-400/35" : "border-border"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-                  Movement {index + 1}
-                  {methodBlock ? (
-                    <Badge
-                      variant="outline"
-                      className="border-indigo-400/30 text-[10px] text-indigo-300"
-                    >
-                      {methodBlock.methodName} · {String.fromCharCode(65 + methodPosition)}
-                    </Badge>
-                  ) : null}
-                </h3>
-                <div className="flex items-center gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => moveEntry(index, -1)}
-                    disabled={index === 0}
-                    aria-label={`Move movement ${index + 1} up`}
-                  >
-                    <ArrowUp className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => moveEntry(index, 1)}
-                    disabled={index === form.entries.length - 1}
-                    aria-label={`Move movement ${index + 1} down`}
-                  >
-                    <ArrowDown className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeEntry(index)}
-                    disabled={form.entries.length === 1}
-                  >
-                    Remove
-                  </Button>
+      {form.kettlebellLog && !summaryMode ? (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={mutate.isPending}
+          onClick={() => update("kettlebellLog", { ...form.kettlebellLog!, mode: "summary" })}
+        >
+          Use simple session log
+        </Button>
+      ) : null}
+      {summaryMode && form.kettlebellLog ? (
+        <KettlebellSummaryLog
+          log={form.kettlebellLog}
+          duration={form.duration}
+          notes={form.notes}
+          date={form.date}
+          locationId={form.trainingLocationId}
+          locations={locations.data ?? []}
+          saving={mutate.isPending}
+          onDuration={(value) => update("duration", value)}
+          onNotes={(value) => update("notes", value)}
+          onDate={(value) => update("date", value)}
+          onLocation={(value) => update("trainingLocationId", value)}
+          onLog={(value) => update("kettlebellLog", value)}
+        />
+      ) : (
+        <>
+          <Card className="space-y-4 border-border bg-card p-4 sm:p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold">Your workout</h2>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    Choose where, then log one movement or add the whole session.
+                  </p>
+                  {hasDraftContent ? <WorkoutLifecycleBadge state="in_progress" /> : null}
                 </div>
               </div>
-              <Field label="Movement">
-                <div className="flex gap-2">
-                  <MovementPicker
-                    value={entry.exercise}
-                    exercises={workoutLibraryExercises}
-                    availableExerciseNames={availableExerciseNames}
-                    selectedLocationName={selectedLocation?.name}
-                    unavailableReason={(name) =>
-                      exerciseUnavailableReason(
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <Badge variant="outline" className="gap-1 border-border text-muted-foreground">
+                  <Calendar className="h-3 w-3" /> {formatUKDate(form.date)}
+                </Badge>
+                {hasDraftContent ? (
+                  <span className="text-[10px] text-muted-foreground">
+                    {draftTime
+                      ? `Autosaved ${draftTime} on this device`
+                      : "Autosaving on this device…"}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            <Field label="Where are you training?">
+              <div className="grid grid-cols-2 gap-2 sm:flex">
+                {(locations.data ?? []).map((location) => (
+                  <Button
+                    key={location.id}
+                    type="button"
+                    variant={form.trainingLocationId === location.id ? "secondary" : "outline"}
+                    className="sm:min-w-28"
+                    onClick={() => {
+                      update("trainingLocationId", location.id);
+                      window.localStorage.setItem(WORKOUT_TRAINING_LOCATION_KEY, location.id);
+                    }}
+                  >
+                    {location.name}
+                  </Button>
+                ))}
+              </div>
+            </Field>
+
+            {unavailableWorkoutEntries.length > 0 ? (
+              <div className="rounded-lg border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2 text-xs text-amber-100">
+                <p className="font-medium">Some movements are not available here</p>
+                <ul className="mt-1 space-y-1 text-amber-100/80">
+                  {unavailableWorkoutEntries.map((entry, index) => (
+                    <li key={index}>
+                      {entry.exercise}:{" "}
+                      {exerciseUnavailableReason(
                         workoutLibraryExercises.find(
-                          (exercise) => exercise.name.toLowerCase() === name.toLowerCase(),
+                          (exercise) =>
+                            exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
                         ),
                         selectedLocation,
                         lib.data?.equipmentItems,
-                      )
-                    }
-                    favoriteNames={favoriteExercises}
-                    recentNames={recentExerciseNames}
-                    onChange={(name) => selectEntryExercise(index, name)}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="shrink-0"
-                    disabled={!entry.exercise}
-                    onClick={() => toggleFavoriteExercise(entry.exercise)}
-                    aria-label={
-                      favoriteExercises.some(
-                        (item) => item.toLowerCase() === entry.exercise.toLowerCase(),
-                      )
-                        ? `Remove ${entry.exercise} from favourites`
-                        : `Add ${entry.exercise} to favourites`
-                    }
-                  >
-                    <Star
-                      className={`h-4 w-4 ${
-                        favoriteExercises.some(
-                          (item) => item.toLowerCase() === entry.exercise.toLowerCase(),
-                        )
-                          ? "fill-amber-400 text-amber-400"
-                          : ""
-                      }`}
-                    />
-                  </Button>
-                </div>
-              </Field>
-              {entry.workoutType && (
-                <Badge
-                  variant="outline"
-                  className="w-fit text-[10px] uppercase tracking-wider text-muted-foreground"
-                >
-                  {entry.workoutType}
-                </Badge>
-              )}
-              {entry.exercise &&
-              (profileUsesStandardSets(profile) ||
-                profile === "hold" ||
-                profile === "grip" ||
-                hasPlannedTimedSets) ? (
-                <div className="space-y-3">
-                  {entry.dupBackOffIncrement && (
-                    <div className="space-y-2 rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground">
-                        DUP: set 1 is the top set. After choosing its actual load, calculate 10%
-                        lighter targets for the remaining sets. Record what you actually perform.
-                      </p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={!entry.setRows[0]?.weight || Number(entry.setRows[0].weight) <= 0}
-                        onClick={() =>
-                          updateEntry(
-                            index,
-                            "setRows",
-                            dupBackOffRows(
-                              entry.setRows,
-                              entry.setRows[0].weight,
-                              entry.dupBackOffIncrement!,
-                            ),
-                          )
-                        }
-                      >
-                        Calculate back-off loads
-                      </Button>
-                    </div>
-                  )}
-                  <SetRowsEditor
-                    control={control}
-                    entryIndex={index}
-                    rows={entry.setRows}
-                    usesLoad={profileUsesLoad(profile)}
-                    valueKind={
-                      profile === "hold" || profile === "grip" || hasPlannedTimedSets
-                        ? "duration"
-                        : "reps"
-                    }
-                    durationLabel={
-                      profile === "hold" || profile === "grip" || profile === "mobility_position"
-                        ? "Hold (sec)"
-                        : "Seconds"
-                    }
-                    setMethods={setMethods}
-                    previousWorkout={
-                      previousWorkout
-                        ? {
-                            date: previousWorkout.date,
-                            location:
-                              previousWorkout.trainingLocation?.name ??
-                              previousWorkout.trainingLocation?.kind,
-                            rows: previousSets,
-                          }
-                        : undefined
-                    }
-                    onChange={(setIndex, key, value) => updateSet(index, setIndex, key, value)}
-                    onCopyPrevious={() => copyPreviousWorkout(index, entry.exercise)}
-                    onRepeat={() => repeatLastSet(index)}
-                    onAddMethod={(setIndex, method) => addSetMethod(index, setIndex, method)}
-                    onAddSegment={(setIndex) => addSetSegment(index, setIndex)}
-                    onUpdateSegment={(setIndex, segmentIndex, key, value) =>
-                      updateSetSegment(index, setIndex, segmentIndex, key, value)
-                    }
-                    onRemoveSegment={(setIndex, segmentIndex) =>
-                      removeSetSegment(index, setIndex, segmentIndex)
-                    }
-                    onRemoveMethod={(setIndex) => updateSet(index, setIndex, "method", undefined)}
-                  />
-                  {isDumbbell && entry.setRows.some((set) => Number(set.weight) > 0) ? (
-                    <Field label="Dumbbell weight means">
-                      <Select
-                        value={entry.loadSemantics || undefined}
-                        onValueChange={(value) =>
-                          updateEntry(index, "loadSemantics", value as LoadSemantics)
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Choose before saving" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="per_implement_load">Per dumbbell</SelectItem>
-                          <SelectItem value="combined_implement_load">
-                            Combined dumbbell weight
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                  ) : null}
-                  {profile === "reps" || profile === "hold" || profile === "grip" ? (
-                    <div className="grid gap-3 rounded-lg border border-border bg-secondary/20 p-3 sm:grid-cols-3">
-                      <Field label={profile === "grip" ? "Grip style" : "Progression"}>
-                        {profile === "grip" ? (
-                          <SimpleSelect
-                            value={entry.gripStyle}
-                            onChange={(value) => updateEntry(index, "gripStyle", value)}
-                            options={GRIP_STYLES}
-                          />
-                        ) : (
-                          <Input
-                            value={entry.progressionLevel}
-                            onChange={(event) =>
-                              updateEntry(index, "progressionLevel", event.target.value)
-                            }
-                            placeholder={
-                              profile === "hold"
-                                ? "Full, straddle, tuck..."
-                                : "Strict, assisted, variation..."
-                            }
-                          />
-                        )}
-                      </Field>
-                      <Field label={profile === "grip" ? "Load type" : "Assistance"}>
-                        <SimpleSelect
-                          value={profile === "grip" ? entry.gripLoadType : entry.assistanceType}
-                          onChange={(value) =>
-                            updateEntry(
-                              index,
-                              profile === "grip" ? "gripLoadType" : "assistanceType",
-                              value,
-                            )
-                          }
-                          options={
-                            profile === "grip" ? GRIP_LOAD_TYPES : (lib.data?.assistanceTypes ?? [])
-                          }
-                        />
-                      </Field>
-                      <Field label={profile === "grip" ? "Load detail" : "Assistance detail"}>
-                        <Input
-                          value={entry.assistanceDetail}
-                          onChange={(event) =>
-                            updateEntry(index, "assistanceDetail", event.target.value)
-                          }
-                          placeholder={
-                            profile === "grip"
-                              ? "20mm edge, +10kg..."
-                              : "8.5 kg counterweight, band colour..."
-                          }
-                        />
-                      </Field>
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                entry.exercise && (
-                  <MetricFields
-                    profile={profile}
-                    form={entry}
-                    update={(key, value) => updateEntry(index, key, value)}
-                    intensities={lib.data?.intensities ?? []}
-                    qualities={lib.data?.qualities ?? []}
-                    assistanceTypes={lib.data?.assistanceTypes ?? []}
-                    usesLoad={profileUsesLoad(profile)}
-                    isGrip={isGrip}
-                    showIntensity={entry.workoutType === CLASS_WORKOUT_TYPE}
-                    validationIssue={
-                      profile === "climbing"
-                        ? climbingMetricIssue({
-                            minutes: entry.duration,
-                            trackingMode: entry.climbingTrackingMode,
-                            problemsOrRoutes: entry.climbingBoulders,
-                            gradeSystem: entry.climbingGradeSystem,
-                            sendType: entry.climbingSendType,
-                          })
-                        : null
-                    }
-                  />
-                )
-              )}
-              {entry.exercise && selectedExercise?.positionMeasurementGuide ? (
-                <PositionMeasurementField
-                  label={selectedExercise.positionMeasurementLabel || "Position height"}
-                  direction={selectedExercise.positionMeasurementDirection || "neutral"}
-                  value={entry.positionMeasurementCm}
-                  setup={entry.positionMeasurementSetup}
-                  onChange={(value, setup) => {
-                    updateEntry(index, "positionMeasurementCm", value);
-                    updateEntry(index, "positionMeasurementSetup", setup);
-                  }}
-                />
-              ) : null}
-              {entry.exercise && entry.workoutType.trim().toLowerCase() === "strength" ? (
-                <div className="grid gap-3 rounded-lg border border-emerald-400/20 bg-emerald-400/[0.04] p-3 sm:grid-cols-3">
-                  <Field label="Rest between sets">
-                    <SimpleSelect
-                      value={entry.restTime}
-                      onChange={(value) => updateEntry(index, "restTime", value)}
-                      options={REST_OPTIONS}
-                      noneLabel="Not recorded"
-                    />
-                  </Field>
-                  <Field label="Technique (optional)">
-                    <Select
-                      value={entry.technique || undefined}
-                      onValueChange={(value) => updateEntry(index, "technique", value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose after the lift" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="good">Good</SelectItem>
-                        <SelectItem value="acceptable">Acceptable</SelectItem>
-                        <SelectItem value="poor">Poor</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Pain (0-10, optional)">
-                    <Input
-                      type="number"
-                      min={0}
-                      max={10}
-                      step={1}
-                      inputMode="numeric"
-                      value={entry.pain}
-                      onChange={(event) => updateEntry(index, "pain", event.target.value)}
-                      placeholder="0"
-                    />
-                  </Field>
-                </div>
-              ) : null}
-              <details className="rounded-lg border border-border/70 bg-secondary/10 px-3 py-2">
-                <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
-                  Movement notes {entry.notes ? "· Added" : "· Optional"}
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {recentSessionTemplates.length > 0 ? (
+              <details className="rounded-lg border border-border bg-secondary/20 px-3 py-2">
+                <summary className="cursor-pointer text-sm font-medium">
+                  Repeat a recent workout
                 </summary>
-                <Textarea
-                  id={`movement-notes-${field.id}`}
-                  aria-label={`Movement ${index + 1} notes${entry.exercise ? `: ${entry.exercise}` : ""}`}
-                  rows={2}
-                  className="mt-2"
-                  value={entry.notes}
-                  onChange={(e) => updateEntry(index, "notes", e.target.value)}
-                  placeholder="Movement-specific notes..."
-                />
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {recentSessionTemplates.map((session) => (
+                    <button
+                      key={session.id}
+                      type="button"
+                      className="rounded-md border border-border bg-background p-3 text-left transition-colors hover:bg-secondary/60"
+                      onClick={() => requestRecentSession(session)}
+                    >
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="truncate text-sm font-medium">{session.title}</span>
+                        <History className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      </span>
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        {formatUKDate(session.date)} ·{" "}
+                        {countLabel(session.entries.length, "movement")}
+                        {session.location?.name ? ` · ${session.location.name}` : ""}
+                      </span>
+                      <span className="mt-1 block truncate text-[11px] text-muted-foreground">
+                        {session.entries.map((entry) => entry.exercise).join(", ")}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </details>
-            </Card>
-          );
-        })}
-      </div>
+            ) : null}
 
-      <Button type="button" variant="outline" className="w-full" onClick={addEntry}>
-        <Plus className="mr-1 h-4 w-4" /> Add movement
-      </Button>
+            <details className="rounded-lg border border-border bg-secondary/20 px-3 py-2">
+              <summary className="cursor-pointer text-sm font-medium">
+                Session details (optional)
+              </summary>
+              <div className="mt-4 space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Date">
+                    <DateInput value={form.date} onChange={(v) => update("date", v)} />
+                  </Field>
+                  <Field label="Session name">
+                    <Input value={form.title} onChange={(e) => update("title", e.target.value)} />
+                  </Field>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Field label="Minutes">
+                    <Input
+                      inputMode="numeric"
+                      value={form.duration}
+                      onChange={(e) => update("duration", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Intensity">
+                    <SimpleSelect
+                      value={form.intensity}
+                      onChange={(v) => update("intensity", v)}
+                      options={lib.data?.intensities ?? []}
+                    />
+                  </Field>
+                  <Field label="Overall RPE">
+                    <Input
+                      inputMode="decimal"
+                      value={form.rpe}
+                      onChange={(e) => update("rpe", e.target.value)}
+                    />
+                  </Field>
+                </div>
+                <Field label="Session notes">
+                  <Textarea
+                    rows={2}
+                    value={form.notes}
+                    onChange={(e) => update("notes", e.target.value)}
+                    placeholder="Overall workout notes..."
+                  />
+                </Field>
+              </div>
+            </details>
+          </Card>
 
-      {advancedMethodEntries.length > 0 ? (
-        <Card className="space-y-3 border-border bg-card p-4">
           <div>
-            <h2 className="flex items-center gap-2 text-base font-semibold">
-              <Layers3 className="h-4 w-4 text-indigo-300" /> Advanced methods
-            </h2>
+            <h2 className="text-base font-semibold">Movements and sets</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Optional. Choose whether the method joins movements or changes one set.
+              {mobilityRunId
+                ? "Choose toolkit exercises for this mobility practice. Set-level methods stay attached to the set they change."
+                : "Build the workout first. Set-level methods stay attached to the set they change."}
             </p>
           </div>
+          <div className="space-y-3">
+            {entryFields.map((field, index) => {
+              const entry = form.entries[index];
+              if (!entry) return null;
+              const methodBlock = form.methodBlocks.find((block) =>
+                block.memberClientIds.includes(entry.clientId),
+              );
+              const methodPosition = methodBlock?.memberClientIds.indexOf(entry.clientId) ?? -1;
+              const selectedExercise = libraryExercises.find(
+                (exercise) => exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
+              );
+              const isDumbbell = coerceExerciseEquipment(selectedExercise).includes("dumbbell");
+              const profile = getMovementMetricProfile({
+                workoutType: selectedExercise?.workoutType ?? entry.workoutType,
+                movement: entry.exercise,
+                defaultMetric: selectedExercise?.metric,
+              });
+              const hasPlannedTimedSets = entry.setRows.some((set) => set.durationSeconds);
+              const isGrip =
+                entry.entryKind === GRIP_WORKOUT_TYPE ||
+                entry.workoutType === GRIP_WORKOUT_TYPE ||
+                selectedExercise?.workoutType === GRIP_WORKOUT_TYPE;
+              const previousWorkout = previousWorkoutFor(entry.exercise);
+              const previousSets = previousWorkout ? setRowsFromRecentLog(previousWorkout) : [];
 
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div className="flex min-h-24 flex-col justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
-              <div>
-                <p className="text-sm font-medium">Across movements</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Supersets, circuits, AMRAP, EMOM, EDT and Tabata.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={openCreate}
-                disabled={workoutEntries.length < 1 || blockMethods.length === 0}
-              >
-                <Plus className="mr-1 h-3.5 w-3.5" /> Add grouped or timed method
-              </Button>
-            </div>
-            <div className="flex min-h-24 flex-col justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
-              <div>
-                <p className="text-sm font-medium">Within a set</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Drop sets, clusters, rest-pause, pyramids, eccentrics, negatives and more.
-                </p>
-              </div>
-              <p className="text-xs font-medium text-fuchsia-200">
-                Use “Set method” beneath the set it applies to.
-              </p>
-            </div>
-          </div>
-
-          {methods.isLoading ? (
-            <p className="text-xs text-muted-foreground">Loading available methods…</p>
-          ) : form.methodBlocks.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-              {workoutEntries.length
-                ? "No grouped or timed method added."
-                : "Add a movement before creating a grouped or timed method."}
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {form.methodBlocks.map((block) => {
-                const movementNames = block.memberClientIds
-                  .map((id) => form.entries.find((entry) => entry.clientId === id)?.exercise)
-                  .filter(Boolean);
-                return (
-                  <div
-                    key={block.id}
-                    className="flex flex-col gap-3 rounded-lg border border-indigo-400/25 bg-indigo-400/[0.05] p-3 sm:flex-row sm:items-center"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">{block.methodName}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {block.family === "timed_density"
-                          ? [
-                              movementNames.join(" → "),
-                              block.blockDurationMinutes
-                                ? `${block.blockDurationMinutes} min block`
-                                : "",
-                              block.config.mode === "emom" &&
-                              typeof block.config.interval_seconds === "number"
-                                ? `Start every ${block.config.interval_seconds}s`
-                                : "",
-                              block.workIntervalSeconds ? `${block.workIntervalSeconds}s work` : "",
-                              block.restIntervalSeconds ? `${block.restIntervalSeconds}s rest` : "",
-                              block.completedRounds
-                                ? `${block.completedRounds}/${block.rounds || "—"} rounds done`
-                                : block.rounds
-                                  ? `${block.rounds} rounds planned`
-                                  : "",
-                            ]
-                              .filter(Boolean)
-                              .join(" · ")
-                          : [
-                              movementNames.join(" → "),
-                              `${block.rounds || "—"} rounds`,
-                              block.config.mode === "timed_sequence" &&
-                              typeof block.config.round_seconds === "number"
-                                ? `${block.config.round_seconds / 60} min per round`
-                                : "",
-                              `${block.restBetweenRoundsSeconds || "0"}s between rounds`,
-                            ]
-                              .filter(Boolean)
-                              .join(" · ")}
-                      </p>
-                    </div>
-                    <div className="flex justify-end gap-1">
+              return (
+                <Card
+                  key={field.id}
+                  className={`space-y-4 bg-card p-4 ${
+                    methodBlock ? "border-indigo-400/35" : "border-border"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                      Movement {index + 1}
+                      {methodBlock ? (
+                        <Badge
+                          variant="outline"
+                          className="border-indigo-400/30 text-[10px] text-indigo-300"
+                        >
+                          {methodBlock.methodName} · {String.fromCharCode(65 + methodPosition)}
+                        </Badge>
+                      ) : null}
+                    </h3>
+                    <div className="flex items-center gap-1">
                       <Button
                         type="button"
                         variant="ghost"
-                        size="sm"
-                        onClick={() => openEdit(block.id)}
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => moveEntry(index, -1)}
+                        disabled={index === 0}
+                        aria-label={`Move movement ${index + 1} up`}
                       >
-                        <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => moveEntry(index, 1)}
+                        disabled={index === form.entries.length - 1}
+                        aria-label={`Move movement ${index + 1} down`}
+                      >
+                        <ArrowDown className="h-4 w-4" />
                       </Button>
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => removeMethodBlock(block.id)}
+                        onClick={() => removeEntry(index)}
+                        disabled={form.entries.length === 1}
                       >
                         Remove
                       </Button>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-      ) : null}
+                  <Field label="Movement">
+                    <div className="flex gap-2">
+                      <MovementPicker
+                        value={entry.exercise}
+                        exercises={workoutLibraryExercises}
+                        availableExerciseNames={availableExerciseNames}
+                        selectedLocationName={selectedLocation?.name}
+                        unavailableReason={(name) =>
+                          exerciseUnavailableReason(
+                            workoutLibraryExercises.find(
+                              (exercise) => exercise.name.toLowerCase() === name.toLowerCase(),
+                            ),
+                            selectedLocation,
+                            lib.data?.equipmentItems,
+                          )
+                        }
+                        favoriteNames={favoriteExercises}
+                        recentNames={recentExerciseNames}
+                        onChange={(name) => selectEntryExercise(index, name)}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="shrink-0"
+                        disabled={!entry.exercise}
+                        onClick={() => toggleFavoriteExercise(entry.exercise)}
+                        aria-label={
+                          favoriteExercises.some(
+                            (item) => item.toLowerCase() === entry.exercise.toLowerCase(),
+                          )
+                            ? `Remove ${entry.exercise} from favourites`
+                            : `Add ${entry.exercise} to favourites`
+                        }
+                      >
+                        <Star
+                          className={`h-4 w-4 ${
+                            favoriteExercises.some(
+                              (item) => item.toLowerCase() === entry.exercise.toLowerCase(),
+                            )
+                              ? "fill-amber-400 text-amber-400"
+                              : ""
+                          }`}
+                        />
+                      </Button>
+                    </div>
+                  </Field>
+                  {entry.workoutType && (
+                    <Badge
+                      variant="outline"
+                      className="w-fit text-[10px] uppercase tracking-wider text-muted-foreground"
+                    >
+                      {entry.workoutType}
+                    </Badge>
+                  )}
+                  {entry.exercise &&
+                  (profileUsesStandardSets(profile) ||
+                    profile === "hold" ||
+                    profile === "grip" ||
+                    hasPlannedTimedSets) ? (
+                    <div className="space-y-3">
+                      {entry.dupBackOffIncrement && (
+                        <div className="space-y-2 rounded-lg border p-3">
+                          <p className="text-xs text-muted-foreground">
+                            DUP: set 1 is the top set. After choosing its actual load, calculate 10%
+                            lighter targets for the remaining sets. Record what you actually
+                            perform.
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={
+                              !entry.setRows[0]?.weight || Number(entry.setRows[0].weight) <= 0
+                            }
+                            onClick={() =>
+                              updateEntry(
+                                index,
+                                "setRows",
+                                dupBackOffRows(
+                                  entry.setRows,
+                                  entry.setRows[0].weight,
+                                  entry.dupBackOffIncrement!,
+                                ),
+                              )
+                            }
+                          >
+                            Calculate back-off loads
+                          </Button>
+                        </div>
+                      )}
+                      <SetRowsEditor
+                        control={control}
+                        entryIndex={index}
+                        rows={entry.setRows}
+                        usesLoad={profileUsesLoad(profile)}
+                        valueKind={
+                          profile === "hold" || profile === "grip" || hasPlannedTimedSets
+                            ? "duration"
+                            : "reps"
+                        }
+                        durationLabel={
+                          profile === "hold" ||
+                          profile === "grip" ||
+                          profile === "mobility_position"
+                            ? "Hold (sec)"
+                            : "Seconds"
+                        }
+                        setMethods={setMethods}
+                        previousWorkout={
+                          previousWorkout
+                            ? {
+                                date: previousWorkout.date,
+                                location:
+                                  previousWorkout.trainingLocation?.name ??
+                                  previousWorkout.trainingLocation?.kind,
+                                rows: previousSets,
+                              }
+                            : undefined
+                        }
+                        onChange={(setIndex, key, value) => updateSet(index, setIndex, key, value)}
+                        onCopyPrevious={() => copyPreviousWorkout(index, entry.exercise)}
+                        onRepeat={() => repeatLastSet(index)}
+                        onAddMethod={(setIndex, method) => addSetMethod(index, setIndex, method)}
+                        onAddSegment={(setIndex) => addSetSegment(index, setIndex)}
+                        onUpdateSegment={(setIndex, segmentIndex, key, value) =>
+                          updateSetSegment(index, setIndex, segmentIndex, key, value)
+                        }
+                        onRemoveSegment={(setIndex, segmentIndex) =>
+                          removeSetSegment(index, setIndex, segmentIndex)
+                        }
+                        onRemoveMethod={(setIndex) =>
+                          updateSet(index, setIndex, "method", undefined)
+                        }
+                      />
+                      {isDumbbell && entry.setRows.some((set) => Number(set.weight) > 0) ? (
+                        <Field label="Dumbbell weight means">
+                          <Select
+                            value={entry.loadSemantics || undefined}
+                            onValueChange={(value) =>
+                              updateEntry(index, "loadSemantics", value as LoadSemantics)
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Choose before saving" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="per_implement_load">Per dumbbell</SelectItem>
+                              <SelectItem value="combined_implement_load">
+                                Combined dumbbell weight
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                      ) : null}
+                      {profile === "reps" || profile === "hold" || profile === "grip" ? (
+                        <div className="grid gap-3 rounded-lg border border-border bg-secondary/20 p-3 sm:grid-cols-3">
+                          <Field label={profile === "grip" ? "Grip style" : "Progression"}>
+                            {profile === "grip" ? (
+                              <SimpleSelect
+                                value={entry.gripStyle}
+                                onChange={(value) => updateEntry(index, "gripStyle", value)}
+                                options={GRIP_STYLES}
+                              />
+                            ) : (
+                              <Input
+                                value={entry.progressionLevel}
+                                onChange={(event) =>
+                                  updateEntry(index, "progressionLevel", event.target.value)
+                                }
+                                placeholder={
+                                  profile === "hold"
+                                    ? "Full, straddle, tuck..."
+                                    : "Strict, assisted, variation..."
+                                }
+                              />
+                            )}
+                          </Field>
+                          <Field label={profile === "grip" ? "Load type" : "Assistance"}>
+                            <SimpleSelect
+                              value={profile === "grip" ? entry.gripLoadType : entry.assistanceType}
+                              onChange={(value) =>
+                                updateEntry(
+                                  index,
+                                  profile === "grip" ? "gripLoadType" : "assistanceType",
+                                  value,
+                                )
+                              }
+                              options={
+                                profile === "grip"
+                                  ? GRIP_LOAD_TYPES
+                                  : (lib.data?.assistanceTypes ?? [])
+                              }
+                            />
+                          </Field>
+                          <Field label={profile === "grip" ? "Load detail" : "Assistance detail"}>
+                            <Input
+                              value={entry.assistanceDetail}
+                              onChange={(event) =>
+                                updateEntry(index, "assistanceDetail", event.target.value)
+                              }
+                              placeholder={
+                                profile === "grip"
+                                  ? "20mm edge, +10kg..."
+                                  : "8.5 kg counterweight, band colour..."
+                              }
+                            />
+                          </Field>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    entry.exercise && (
+                      <MetricFields
+                        profile={profile}
+                        form={entry}
+                        update={(key, value) => updateEntry(index, key, value)}
+                        intensities={lib.data?.intensities ?? []}
+                        qualities={lib.data?.qualities ?? []}
+                        assistanceTypes={lib.data?.assistanceTypes ?? []}
+                        usesLoad={profileUsesLoad(profile)}
+                        isGrip={isGrip}
+                        showIntensity={entry.workoutType === CLASS_WORKOUT_TYPE}
+                        validationIssue={
+                          profile === "climbing"
+                            ? climbingMetricIssue({
+                                minutes: entry.duration,
+                                trackingMode: entry.climbingTrackingMode,
+                                problemsOrRoutes: entry.climbingBoulders,
+                                gradeSystem: entry.climbingGradeSystem,
+                                sendType: entry.climbingSendType,
+                              })
+                            : null
+                        }
+                      />
+                    )
+                  )}
+                  {entry.exercise && selectedExercise?.positionMeasurementGuide ? (
+                    <PositionMeasurementField
+                      label={selectedExercise.positionMeasurementLabel || "Position height"}
+                      direction={selectedExercise.positionMeasurementDirection || "neutral"}
+                      value={entry.positionMeasurementCm}
+                      setup={entry.positionMeasurementSetup}
+                      onChange={(value, setup) => {
+                        updateEntry(index, "positionMeasurementCm", value);
+                        updateEntry(index, "positionMeasurementSetup", setup);
+                      }}
+                    />
+                  ) : null}
+                  {entry.exercise && entry.workoutType.trim().toLowerCase() === "strength" ? (
+                    <div className="grid gap-3 rounded-lg border border-emerald-400/20 bg-emerald-400/[0.04] p-3 sm:grid-cols-3">
+                      <Field label="Rest between sets">
+                        <SimpleSelect
+                          value={entry.restTime}
+                          onChange={(value) => updateEntry(index, "restTime", value)}
+                          options={REST_OPTIONS}
+                          noneLabel="Not recorded"
+                        />
+                      </Field>
+                      <Field label="Technique (optional)">
+                        <Select
+                          value={entry.technique || undefined}
+                          onValueChange={(value) => updateEntry(index, "technique", value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Choose after the lift" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="good">Good</SelectItem>
+                            <SelectItem value="acceptable">Acceptable</SelectItem>
+                            <SelectItem value="poor">Poor</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                      <Field label="Pain (0-10, optional)">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={10}
+                          step={1}
+                          inputMode="numeric"
+                          value={entry.pain}
+                          onChange={(event) => updateEntry(index, "pain", event.target.value)}
+                          placeholder="0"
+                        />
+                      </Field>
+                    </div>
+                  ) : null}
+                  <details className="rounded-lg border border-border/70 bg-secondary/10 px-3 py-2">
+                    <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+                      Movement notes {entry.notes ? "· Added" : "· Optional"}
+                    </summary>
+                    <Textarea
+                      id={`movement-notes-${field.id}`}
+                      aria-label={`Movement ${index + 1} notes${entry.exercise ? `: ${entry.exercise}` : ""}`}
+                      rows={2}
+                      className="mt-2"
+                      value={entry.notes}
+                      onChange={(e) => updateEntry(index, "notes", e.target.value)}
+                      placeholder="Movement-specific notes..."
+                    />
+                  </details>
+                </Card>
+              );
+            })}
+          </div>
 
+          <Button type="button" variant="outline" className="w-full" onClick={addEntry}>
+            <Plus className="mr-1 h-4 w-4" /> Add movement
+          </Button>
+
+          {advancedMethodEntries.length > 0 ? (
+            <Card className="space-y-3 border-border bg-card p-4">
+              <div>
+                <h2 className="flex items-center gap-2 text-base font-semibold">
+                  <Layers3 className="h-4 w-4 text-indigo-300" /> Advanced methods
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Optional. Choose whether the method joins movements or changes one set.
+                </p>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="flex min-h-24 flex-col justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
+                  <div>
+                    <p className="text-sm font-medium">Across movements</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Supersets, circuits, AMRAP, EMOM, EDT and Tabata.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={openCreate}
+                    disabled={workoutEntries.length < 1 || blockMethods.length === 0}
+                  >
+                    <Plus className="mr-1 h-3.5 w-3.5" /> Add grouped or timed method
+                  </Button>
+                </div>
+                <div className="flex min-h-24 flex-col justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
+                  <div>
+                    <p className="text-sm font-medium">Within a set</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Drop sets, clusters, rest-pause, pyramids, eccentrics, negatives and more.
+                    </p>
+                  </div>
+                  <p className="text-xs font-medium text-fuchsia-200">
+                    Use “Set method” beneath the set it applies to.
+                  </p>
+                </div>
+              </div>
+
+              {methods.isLoading ? (
+                <p className="text-xs text-muted-foreground">Loading available methods…</p>
+              ) : form.methodBlocks.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+                  {workoutEntries.length
+                    ? "No grouped or timed method added."
+                    : "Add a movement before creating a grouped or timed method."}
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {form.methodBlocks.map((block) => {
+                    const movementNames = block.memberClientIds
+                      .map((id) => form.entries.find((entry) => entry.clientId === id)?.exercise)
+                      .filter(Boolean);
+                    return (
+                      <div
+                        key={block.id}
+                        className="flex flex-col gap-3 rounded-lg border border-indigo-400/25 bg-indigo-400/[0.05] p-3 sm:flex-row sm:items-center"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium">{block.methodName}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {block.family === "timed_density"
+                              ? [
+                                  movementNames.join(" → "),
+                                  block.blockDurationMinutes
+                                    ? `${block.blockDurationMinutes} min block`
+                                    : "",
+                                  block.config.mode === "emom" &&
+                                  typeof block.config.interval_seconds === "number"
+                                    ? `Start every ${block.config.interval_seconds}s`
+                                    : "",
+                                  block.workIntervalSeconds
+                                    ? `${block.workIntervalSeconds}s work`
+                                    : "",
+                                  block.restIntervalSeconds
+                                    ? `${block.restIntervalSeconds}s rest`
+                                    : "",
+                                  block.completedRounds
+                                    ? `${block.completedRounds}/${block.rounds || "—"} rounds done`
+                                    : block.rounds
+                                      ? `${block.rounds} rounds planned`
+                                      : "",
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ")
+                              : [
+                                  movementNames.join(" → "),
+                                  `${block.rounds || "—"} rounds`,
+                                  block.config.mode === "timed_sequence" &&
+                                  typeof block.config.round_seconds === "number"
+                                    ? `${block.config.round_seconds / 60} min per round`
+                                    : "",
+                                  `${block.restBetweenRoundsSeconds || "0"}s between rounds`,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                          </p>
+                        </div>
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEdit(block.id)}
+                          >
+                            <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeMethodBlock(block.id)}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          ) : null}
+        </>
+      )}
       <div className="sticky bottom-20 z-10 rounded-xl border border-border bg-background/95 p-2 shadow-xl backdrop-blur sm:bottom-3">
         <p className="sr-only">Finished workouts appear in History and on the Dashboard.</p>
         <Button
@@ -3242,7 +3358,13 @@ export function FullWorkoutForm() {
           style={canSubmit ? { backgroundImage: "var(--gradient-primary)" } : undefined}
         >
           <CircleCheck className="mr-1.5 h-5 w-5" />
-          {editingSessionId ? "Review correction" : "Review and finish"}
+          {summaryMode
+            ? editingSessionId
+              ? "Save correction"
+              : "Finish workout"
+            : editingSessionId
+              ? "Review correction"
+              : "Review and finish"}
         </Button>
       </div>
       {showValidationErrors && Object.keys(errors).length > 0 ? (
@@ -3258,7 +3380,12 @@ export function FullWorkoutForm() {
           {errors.entries?.message ? <p>{String(errors.entries.message)}</p> : null}
         </div>
       ) : null}
-      {incompleteSetMethod ? (
+      {summaryMode && showValidationErrors && !canSubmit ? (
+        <p role="alert" className="text-sm text-destructive">
+          Choose a date and location, and enter a duration between 0 and 1,440 minutes.
+        </p>
+      ) : null}
+      {!summaryMode && incompleteSetMethod ? (
         <p className="text-center text-xs text-amber-300">
           Add load and reps to every segment before finishing.
         </p>

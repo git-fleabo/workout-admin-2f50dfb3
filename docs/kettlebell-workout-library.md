@@ -12,6 +12,16 @@ Full workout text must be supplied directly before later records can be prepared
 
 ## Storage and preparation
 
+### Simple session logging — 13 October 2026
+
+Prescribed KB workouts now open in a simple session log by default: editable actual duration, optional weight used and optional notes, followed by **Finish workout**. Weight is a single text field so one bell, double bells and three-weight chains can be recorded without repeated entry. AMRAPs offer optional rounds completed; ladders/pyramids offer optional progress text; EMOMs and timed sequences add no result field. **Log individual sets** opens the usual logger, and switching back preserves both sets and summary inputs in the local draft.
+
+Accepted plans carry the immutable kettlebell snapshot into the logger, including when resumed from Today. Older unfinished KB drafts are upgraded from their saved snapshot while retaining their editable sets. Summary inputs use the existing draft recovery, offline queue and same-session correction paths.
+
+A summary saves one session-level entry with **zero set rows** and no inferred reps, loads, completed method rounds or lifting volume. Weight and optional result are text metrics, and History labels the session **Summary log**. The source prescription is kept as reference notes and through the completed saved-plan link. These summary records are excluded from generic movement/set repeat templates. Main programme progress and prior training records remain unchanged.
+
+Validation covered summary completion with blank optional fields, load/result/notes persistence, mode switching, legacy draft recovery, offline sync, correction, saved-plan metadata and history labels. Isolated PostgreSQL tests accepted summary saves/corrections with zero sets and verified existing KB programme-isolation guards. TypeScript, targeted lint, the production build and a 390-pixel local visual check passed. Live verification was read-only; no schema migration or live user-data test was required. GitHub push and Lovable publication remain user-managed.
+
 ### Prescription display audit — 13 October 2026
 
 A read-only check covered all 30 live catalogue records. Twenty-five contain movement reasons that already include the target detail; the preview previously printed both. Ladder workouts also repeated the same guidance at every rung. The full prescription now shows the workout instructions once and compact ordered targets, with the preserved step-specific notes in a separate disclosure. Repeating sequences of up to four exercises use table rows in their original order; other sequences use a concise ordered list. Steps are labelled as steps rather than inferred rounds or passes. No catalogue, saved plan, programme or history data was changed.

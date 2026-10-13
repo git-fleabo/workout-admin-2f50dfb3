@@ -134,6 +134,13 @@ function MovementDetail({ entry }: { entry: SessionDetailEntry }) {
       {entry.metrics.length ? (
         <div className="mt-3 flex flex-wrap gap-2">
           {entry.metrics.map((metric) => {
+            if (metric.key === "logging_mode" && metric.text === "kettlebell_summary") {
+              return (
+                <Badge key={metric.key} variant="secondary">
+                  Summary log
+                </Badge>
+              );
+            }
             const value = displayValue(metric.text ?? metric.value);
             return value ? (
               <Badge key={metric.key} variant="secondary" className="font-normal">

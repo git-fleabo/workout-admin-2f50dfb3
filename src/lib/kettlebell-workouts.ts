@@ -187,6 +187,14 @@ export function kettlebellWorkoutDraft(
   const source = `Strong ON! · ${workout.category} ${workout.sourceNumber} · ${workout.sourceReference}`;
   return {
     version: 1,
+    kettlebell: {
+      workoutId: workout.id,
+      category: workout.category,
+      instructions: workout.instructions,
+      bellCount: workout.bellCount,
+      requiredBellWeights: workout.requiredBellWeights,
+      durationMinutes: workout.durationMinutes,
+    },
     title: `${workout.title} · Strong ON! ${workout.category} ${workout.sourceNumber}`,
     locationKind: location.kind,
     trainingLocationId: location.id,

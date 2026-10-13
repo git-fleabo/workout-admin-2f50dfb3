@@ -246,6 +246,65 @@ test(
         assert.notEqual(second, saved);
         assert.equal(db.sql("select count(*) from public.sessions"), "2");
       });
+      await t.test("a kettlebell summary saves and corrects without any fabricated sets", () => {
+        const summarySession = {
+          ...session,
+          title: "KB summary",
+          duration_minutes: 18,
+          notes: "Weight used: 2 × 16 kg",
+        };
+        const summaryEntries = [
+          {
+            client_id: "summary",
+            name: "KB summary",
+            activity_type_id: id(3),
+            completed: true,
+            sets: [],
+            notes: "Prescribed workout (reference only)",
+            metrics: [
+              { metric_key: "logging_mode", metric_text: "kettlebell_summary" },
+              { metric_key: "weight_used", metric_text: "2 × 16 kg" },
+            ],
+          },
+        ];
+        const summaryId = db.sql(
+          `select public.save_workout('${id(1)}',${json(summarySession)},${json(summaryEntries)},'[]'::jsonb)`,
+          id(1),
+        );
+        assert.equal(
+          db.sql(
+            `select completed||':'||duration_minutes||':'||activity_type_id from public.sessions where id='${summaryId}'`,
+          ),
+          `true:18:${id(3)}`,
+        );
+        assert.equal(
+          db.sql(
+            `select count(*) from public.entry_sets s join public.session_entries e on e.id=s.session_entry_id where e.session_id='${summaryId}'`,
+          ),
+          "0",
+        );
+        assert.equal(
+          db.sql(
+            `select public.correct_workout('${summaryId}','${id(1)}',${json({ ...summarySession, duration_minutes: 16 })},${json(summaryEntries)},'[]'::jsonb)`,
+            id(1),
+          ),
+          summaryId,
+        );
+        assert.equal(
+          db.sql(`select duration_minutes from public.sessions where id='${summaryId}'`),
+          "16",
+        );
+        assert.equal(
+          db.sql(
+            `select count(*) from public.entry_sets s join public.session_entries e on e.id=s.session_entry_id where e.session_id='${summaryId}'`,
+          ),
+          "0",
+        );
+        assert.equal(
+          db.sql(`select completed_session_id||':'||status from public.suggested_workouts`),
+          `${saved}:completed`,
+        );
+      });
     } finally {
       db.close();
     }

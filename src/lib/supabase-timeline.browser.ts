@@ -245,6 +245,15 @@ function workoutEntry(session: SessionRecord, entry: SessionEntryRecord): Timeli
   });
   const durationStyle = ["hold", "grip", "mobility_position"].includes(profile) ? "hold" : "time";
   const details = [
+    ...(metricText(entry.entry_metrics, "logging_mode") === "kettlebell_summary"
+      ? [
+          "Summary log",
+          metricText(entry.entry_metrics, "weight_used")
+            ? `Weight used: ${metricText(entry.entry_metrics, "weight_used")}`
+            : "",
+          metricText(entry.entry_metrics, "workout_result"),
+        ]
+      : []),
     session.training_locations?.name ? `Location: ${session.training_locations.name}` : "",
     session.activity_types?.name ?? entry.activity_types?.name,
     entry.entry_kind,
@@ -269,7 +278,7 @@ function workoutEntry(session: SessionRecord, entry: SessionEntryRecord): Timeli
     title: entry.name,
     subtitle: session.title ?? "Workout",
     details,
-    notes: combineNotes(entry.notes, session.notes),
+    notes: combineNotes(session.notes, entry.notes),
     minutes: minutes || null,
     value: null,
     isPr: false,

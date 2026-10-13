@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { kettlebellLogSchema } from "@/lib/kettlebell-summary";
 
 const stringRecordSchema = z.record(z.union([z.string(), z.number(), z.boolean()]));
 const loadSemanticsSchema = z.union([
@@ -103,6 +104,7 @@ const methodBlockSchema = z.object({
 });
 
 export const workoutSessionSchema = z.object({
+  kettlebellLog: kettlebellLogSchema.optional(),
   date: z.string(),
   title: z.string(),
   trainingLocationId: z.string().min(1, "Training location is required"),

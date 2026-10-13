@@ -64,4 +64,27 @@ describe("accepted standalone plans stay independently resumable", () => {
     mocks.select.mockResolvedValue([row(90, "accepted"), row(91, "accepted")]);
     expect(await getNextSuggestedWorkoutsClient()).toHaveLength(2);
   });
+  it("retains the KB snapshot when resuming an accepted plan from Today", async () => {
+    mocks.select.mockResolvedValue([
+      {
+        ...row(90, "accepted"),
+        kettlebell_workout_id: kbId(80),
+        kettlebell_snapshot: {
+          category: "conditioning",
+          instructions: "Preserved source rules",
+          bell_count: 2,
+          required_bell_weights: 1,
+          duration_minutes: 20,
+        },
+      },
+    ]);
+    const [plan] = await getNextSuggestedWorkoutsClient();
+    expect(plan.kettlebell).toMatchObject({
+      workoutId: kbId(80),
+      instructions: "Preserved source rules",
+      bellCount: 2,
+      durationMinutes: 20,
+    });
+    expect(mocks.select.mock.calls[0][1].select).toContain("kettlebell_snapshot");
+  });
 });

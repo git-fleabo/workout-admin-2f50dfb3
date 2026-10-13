@@ -66,6 +66,43 @@ it("connection loss during reference preparation retains the raw workout for a l
   vi.mocked(fetch).mockImplementation(async (url) => fakeServer(url));
   expect(await flushQueuedWorkoutSaves()).toBe(0);
 });
+it("retains an offline KB summary and syncs zero sets with its original plan link", async () => {
+  const summary = {
+    ...input,
+    mobilityRunId: undefined,
+    title: "KB summary",
+    duration: "18",
+    notes: "Weight used: 2 × 16 kg",
+    kettlebellSummary: { weightUsed: "2 × 16 kg", result: "4", resultLabel: "Rounds completed" },
+    entries: [
+      {
+        exercise: "KB summary",
+        workoutType: "Strength",
+        setRows: [],
+        reps: "",
+        sets: "",
+        weight: "",
+        pain: "",
+        notes: "Prescribed workout (reference only)",
+      },
+    ],
+  } as WorkoutSessionInput;
+  Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+  expect(await addWorkoutSessionClient(summary)).toMatchObject({ queued: true });
+  expect(pendingWorkoutSaves()[0].input?.kettlebellSummary).toEqual(summary.kettlebellSummary);
+  Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+  expect(await flushQueuedWorkoutSaves()).toBe(0);
+  const save = vi
+    .mocked(fetch)
+    .mock.calls.find(([url]) => String(url).includes("/rpc/save_workout_once"));
+  const body = JSON.parse(save![1]!.body as string);
+  expect(body.p_suggested_workout_id).toBe("plan");
+  expect(body.p_entries[0].sets).toEqual([]);
+  expect(body.p_entries[0].metrics).toContainEqual({
+    metric_key: "weight_used",
+    metric_text: "2 × 16 kg",
+  });
+});
 it("a committed save with a lost response retries exactly the same operation and validated payload", async () => {
   const savedBodies: string[] = [];
   vi.mocked(fetch).mockImplementation(async (url, init) => {

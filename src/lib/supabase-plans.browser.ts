@@ -59,6 +59,13 @@ type SuggestedEntryRow = {
 
 type SuggestedWorkoutRow = {
   kettlebell_workout_id?: string | null;
+  kettlebell_snapshot?: {
+    category: "strength" | "muscle" | "conditioning";
+    instructions: string;
+    bell_count: 1 | 2;
+    required_bell_weights?: 1 | 3;
+    duration_minutes: number | null;
+  } | null;
   id: string;
   title: string;
   basis: string | null;
@@ -320,6 +327,17 @@ function planFromRow(row: SuggestedWorkoutRow): SavedWorkoutPlan | null {
     version: 1,
     suggestedWorkoutId: row.id,
     kettlebellWorkoutId: row.kettlebell_workout_id ?? null,
+    kettlebell:
+      row.kettlebell_workout_id && row.kettlebell_snapshot
+        ? {
+            workoutId: row.kettlebell_workout_id,
+            category: row.kettlebell_snapshot.category,
+            instructions: row.kettlebell_snapshot.instructions,
+            bellCount: row.kettlebell_snapshot.bell_count,
+            requiredBellWeights: row.kettlebell_snapshot.required_bell_weights ?? 1,
+            durationMinutes: row.kettlebell_snapshot.duration_minutes,
+          }
+        : undefined,
     title: row.title,
     locationKind,
     trainingLocationId: row.training_location_id ?? undefined,
@@ -546,7 +564,7 @@ const SAVED_WORKOUT_SELECT =
 export async function getSavedWorkoutPlanClient(id: string) {
   const person = await requirePerson();
   const rows = await supabasePublicSelect<SuggestedWorkoutRow>("suggested_workouts", {
-    select: `${SAVED_WORKOUT_SELECT},kettlebell_workout_id`,
+    select: `${SAVED_WORKOUT_SELECT},kettlebell_workout_id,kettlebell_snapshot`,
     id: `eq.${id}`,
     person_id: `eq.${person.id}`,
     limit: 1,
@@ -559,7 +577,7 @@ export async function getSavedWorkoutPlanClient(id: string) {
 export async function getNextSuggestedWorkoutsClient() {
   const person = await requirePerson();
   const rows = await supabasePublicSelect<SuggestedWorkoutRow>("suggested_workouts", {
-    select: SAVED_WORKOUT_SELECT,
+    select: `${SAVED_WORKOUT_SELECT},kettlebell_workout_id,kettlebell_snapshot`,
     status: "in.(pending,accepted)",
     person_id: `eq.${person.id}`,
     order: "suggested_for.asc,created_at.desc",
