@@ -12,6 +12,12 @@ Full workout text must be supplied directly before later records can be prepared
 
 ## Storage and preparation
 
+### Prescription display audit — 13 October 2026
+
+A read-only check covered all 30 live catalogue records. Twenty-five contain movement reasons that already include the target detail; the preview previously printed both. Ladder workouts also repeated the same guidance at every rung. The full prescription now shows the workout instructions once and compact ordered targets, with the preserved step-specific notes in a separate disclosure. Repeating sequences of up to four exercises use table rows in their original order; other sequences use a concise ordered list. Steps are labelled as steps rather than inferred rounds or passes. No catalogue, saved plan, programme or history data was changed.
+
+All 30 records passed local rendering checks for exact ordered targets, full instructions, movement notes, rest and method labels, with unchanged input data. Twelve preview/picker regression tests, TypeScript, targeted lint and the production build passed. The affected ladder was also checked visually in a standalone local preview. This verifies the repository display change; publication requires the usual user-managed GitHub/Lovable sync and publish.
+
 Migration: `20261010142048_add_kettlebell_workout_catalogue.sql`. It adds a person-owned `kettlebell_workouts` catalogue, snapshot fields on accepted plans and an atomic `start_kettlebell_workout` RPC. It seeds no content. A new table's Data API grants and RLS are explicit.
 
 The JSON input for import preparation is `{ "personId": "<existing person UUID>", "workouts": [...] }`. The initial pilot helper requires exactly workouts 1–5 in every supplied category. The general import helper accepts later source-numbered batches, rejects duplicate source keys/IDs, and uses append-only conflict handling so previous records are not overwritten. Each record must satisfy `kettlebellWorkoutSchema` in `src/lib/kettlebell-workouts.ts`, including a stable UUID, `collectionKey: "strong_on"`, category, original source number, title, summary, full instructions, source reference, bell count, extra equipment IDs, duration or null, version, verification/availability flags and the full prescription.
