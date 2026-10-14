@@ -42,6 +42,13 @@ const workoutSetSchema = z.object({
 });
 
 const workoutEntrySchema = z.object({
+  holdLog: z
+    .object({
+      prescribed: z.boolean(),
+      plannedRows: z.array(workoutSetSchema).max(100),
+      confirmed: z.boolean(),
+    })
+    .optional(),
   strengthLog: z
     .object({
       prescribed: z.boolean(),

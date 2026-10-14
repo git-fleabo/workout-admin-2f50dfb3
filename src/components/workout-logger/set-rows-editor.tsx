@@ -142,6 +142,7 @@ export function SetRowsEditor({
   onRemoveMethod,
   showCompletion = false,
   protectedSetIndex,
+  rowNoun = "Set",
 }: {
   control: Control<SessionFormState>;
   entryIndex: number;
@@ -171,6 +172,7 @@ export function SetRowsEditor({
   onRemoveMethod: (setIndex: number) => void;
   showCompletion?: boolean;
   protectedSetIndex?: number;
+  rowNoun?: "Set" | "Attempt";
 }) {
   const { fields, append, remove } = useFieldArray({
     control,
@@ -223,7 +225,7 @@ export function SetRowsEditor({
           usesLoad ? "grid-cols-[32px_1fr_1fr_1fr_32px]" : "grid-cols-[32px_1fr_1fr_32px]"
         }`}
       >
-        <span>Set</span>
+        <span>{rowNoun}</span>
         {usesLoad && <span>kg</span>}
         <span>{valueKind === "duration" ? durationLabel : "Reps"}</span>
         <span>RPE</span>
@@ -241,9 +243,9 @@ export function SetRowsEditor({
               <Checkbox
                 checked={set.completed !== false}
                 onCheckedChange={(checked) => onChange(setIndex, "completed", checked === true)}
-                aria-label={`Set ${setIndex + 1} completed`}
+                aria-label={`${rowNoun} ${setIndex + 1} completed`}
               />
-              Completed set {setIndex + 1}
+              Completed {rowNoun.toLowerCase()} {setIndex + 1}
             </label>
           ) : null}
           <div
@@ -253,7 +255,7 @@ export function SetRowsEditor({
           >
             <div className="mb-2 flex items-center justify-between sm:hidden">
               <span className="text-xs font-semibold text-muted-foreground">
-                Set {setIndex + 1}
+                {rowNoun} {setIndex + 1}
               </span>
               <Button
                 type="button"
@@ -264,7 +266,7 @@ export function SetRowsEditor({
                   rows.length === 1 || (protectedSetIndex != null && setIndex <= protectedSetIndex)
                 }
                 onClick={() => removeSet(setIndex)}
-                aria-label={`Remove set ${setIndex + 1}`}
+                aria-label={`Remove ${rowNoun.toLowerCase()} ${setIndex + 1}`}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -285,7 +287,7 @@ export function SetRowsEditor({
                   <Input
                     inputMode="decimal"
                     className="h-12 text-lg font-semibold sm:h-10 sm:text-sm sm:font-normal"
-                    aria-label={`Set ${setIndex + 1} weight`}
+                    aria-label={`${rowNoun} ${setIndex + 1} weight`}
                     value={set.weight}
                     onChange={(event) => onChange(setIndex, "weight", event.target.value)}
                   />
@@ -301,7 +303,7 @@ export function SetRowsEditor({
                   min={0}
                   step={valueKind === "duration" ? 0.1 : 1}
                   className="h-12 text-lg font-semibold sm:h-10 sm:text-sm sm:font-normal"
-                  aria-label={`Set ${setIndex + 1} ${
+                  aria-label={`${rowNoun} ${setIndex + 1} ${
                     valueKind === "duration" && durationLabel === "Hold (sec)"
                       ? "hold seconds"
                       : valueKind === "duration"
@@ -323,7 +325,7 @@ export function SetRowsEditor({
                 <Input
                   inputMode="decimal"
                   className="h-12 text-base sm:h-10 sm:text-sm"
-                  aria-label={`Set ${setIndex + 1} RPE`}
+                  aria-label={`${rowNoun} ${setIndex + 1} RPE`}
                   value={set.rpe}
                   onChange={(event) => onChange(setIndex, "rpe", event.target.value)}
                 />
@@ -338,7 +340,7 @@ export function SetRowsEditor({
                 rows.length === 1 || (protectedSetIndex != null && setIndex <= protectedSetIndex)
               }
               onClick={() => removeSet(setIndex)}
-              aria-label={`Remove set ${setIndex + 1}`}
+              aria-label={`Remove ${rowNoun.toLowerCase()} ${setIndex + 1}`}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -515,7 +517,7 @@ export function SetRowsEditor({
                 }}
               >
                 <SelectTrigger
-                  aria-label={`Set ${setIndex + 1} method (optional)`}
+                  aria-label={`${rowNoun} ${setIndex + 1} method (optional)`}
                   className="border-dashed border-fuchsia-400/25 text-fuchsia-200"
                 >
                   <Layers3 className="mr-2 h-3.5 w-3.5" />
@@ -535,10 +537,10 @@ export function SetRowsEditor({
       ))}
       <div className="grid grid-cols-2 gap-2">
         <Button type="button" variant="outline" size="sm" onClick={onRepeat}>
-          <RotateCcw className="mr-1 h-3.5 w-3.5" /> Repeat last set
+          <RotateCcw className="mr-1 h-3.5 w-3.5" /> Repeat last {rowNoun.toLowerCase()}
         </Button>
         <Button type="button" variant="ghost" size="sm" onClick={addBlank}>
-          <Plus className="mr-1 h-4 w-4" /> Add blank set
+          <Plus className="mr-1 h-4 w-4" /> Add blank {rowNoun.toLowerCase()}
         </Button>
       </div>
     </div>

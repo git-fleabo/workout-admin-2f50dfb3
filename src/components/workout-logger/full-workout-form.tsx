@@ -119,6 +119,15 @@ import { MethodBlockDialog } from "./method-block-dialog";
 import { MovementPicker } from "./movement-picker";
 import { SetRowsEditor } from "./set-rows-editor";
 import { CompactStrengthSets } from "./compact-strength-sets";
+import { CompactHoldAttempts } from "./compact-hold-attempts";
+import {
+  createHoldLog,
+  isHoldLogState,
+  holdRowsReady,
+  gripLoadIssue,
+  gripLoadSemantics,
+  type HoldLogState,
+} from "@/lib/compact-holds";
 import {
   createStrengthLog,
   isStrengthLogState,
@@ -192,6 +201,7 @@ const FALLBACK_MOVEMENTS: Array<{
 ];
 
 export type FormState = {
+  holdLog?: HoldLogState;
   strengthLog?: StrengthLogState;
   dupBackOffIncrement?: number;
   clientId: string;
@@ -426,7 +436,8 @@ function isSessionFormState(form: unknown): form is SessionFormState {
         typeof entry.exercise === "string" &&
         typeof entry.workoutType === "string" &&
         Array.isArray(entry.setRows) &&
-        (entry.strengthLog == null || isStrengthLogState(entry.strengthLog)),
+        (entry.strengthLog == null || isStrengthLogState(entry.strengthLog)) &&
+        (entry.holdLog == null || isHoldLogState(entry.holdLog)),
     ) &&
     (candidate.methodBlocks == null || Array.isArray(candidate.methodBlocks)) &&
     (candidate.kettlebellLog == null ||
@@ -1769,9 +1780,11 @@ export function FullWorkoutForm() {
           movement,
           Boolean(draft.kettlebell || withinTimedBlock),
         );
+        const holdLog = createHoldLog(movement, Boolean(draft.kettlebell || withinTimedBlock));
         return {
           ...blankSessionEntry(),
           strengthLog,
+          holdLog,
           dupBackOffIncrement:
             movement.baseStrength?.programme === "dup" &&
             movement.baseStrength.backOffPercent === 90 &&
@@ -1796,8 +1809,8 @@ export function FullWorkoutForm() {
             : movement.reason,
           setRows: movement.setRows.map((set, index) => ({
             ...set,
-            ...(strengthLog
-              ? { rpe: "", ...(index === strengthLog.plusSetIndex ? { reps: "" } : {}) }
+            ...(strengthLog || holdLog
+              ? { rpe: "", ...(index === strengthLog?.plusSetIndex ? { reps: "" } : {}) }
               : {}),
             completed: true,
           })),
@@ -1999,6 +2012,11 @@ export function FullWorkoutForm() {
       setValue(`entries.${index}.strengthLog` as never, { ...log, confirmed: false } as never, {
         shouldDirty: true,
       });
+    const hold = getValues().entries[index]?.holdLog;
+    if (key === "setRows" && hold)
+      setValue(`entries.${index}.holdLog` as never, { ...hold, confirmed: false } as never, {
+        shouldDirty: true,
+      });
   };
   const selectEntryExercise = (index: number, name: string) => {
     const selected = libraryExercises.find((exercise) => exercise.name === name);
@@ -2015,6 +2033,9 @@ export function FullWorkoutForm() {
       ...currentEntry,
       exercise: name,
       dupBackOffIncrement: undefined,
+      holdLog: ["hold", "grip"].includes(selectedProfile)
+        ? { prescribed: false, plannedRows: [], confirmed: false }
+        : undefined,
       strengthLog:
         selected?.workoutType === "Strength" && profileUsesStandardSets(selectedProfile)
           ? { prescribed: false, plannedRows: [], confirmed: false }
@@ -2109,6 +2130,8 @@ export function FullWorkoutForm() {
     });
     const log = getValues().entries[entryIndex]?.strengthLog;
     if (log) updateEntry(entryIndex, "strengthLog", { ...log, confirmed: false });
+    const hold = getValues().entries[entryIndex]?.holdLog;
+    if (hold) updateEntry(entryIndex, "holdLog", { ...hold, confirmed: false });
   };
   const repeatLastSet = (entryIndex: number) =>
     setForm((current) => ({
@@ -2119,6 +2142,7 @@ export function FullWorkoutForm() {
         return {
           ...entry,
           strengthLog: entry.strengthLog ? { ...entry.strengthLog, confirmed: false } : undefined,
+          holdLog: entry.holdLog ? { ...entry.holdLog, confirmed: false } : undefined,
           setRows: [
             ...entry.setRows,
             {
@@ -2314,7 +2338,10 @@ export function FullWorkoutForm() {
       const isSkill =
         entry.workoutType === SKILL_WORKOUT_TYPE || selected?.workoutType === SKILL_WORKOUT_TYPE;
       const isGrip =
-        entry.workoutType === GRIP_WORKOUT_TYPE || selected?.workoutType === GRIP_WORKOUT_TYPE;
+        profile === "grip" ||
+        entry.entryKind === GRIP_WORKOUT_TYPE ||
+        entry.workoutType === GRIP_WORKOUT_TYPE ||
+        selected?.workoutType === GRIP_WORKOUT_TYPE;
       const isYoga =
         entry.workoutType === YOGA_WORKOUT_TYPE || selected?.workoutType === YOGA_WORKOUT_TYPE;
 
@@ -2475,6 +2502,32 @@ export function FullWorkoutForm() {
       isDumbbell && entry.setRows.some((set) => Number(set.weight) > 0) && !entry.loadSemantics
     );
   });
+  const holdLogIssue = (entry: FormState): string | null => {
+    if (!entry.holdLog) return null;
+    const selected = libraryExercises.find(
+      (item) => item.name.toLowerCase() === entry.exercise.toLowerCase(),
+    );
+    const profile = getMovementMetricProfile({
+      workoutType: selected?.workoutType ?? entry.workoutType,
+      movement: entry.exercise,
+      defaultMetric: selected?.metric,
+    });
+    if (profile !== "hold" && profile !== "grip") return null;
+    if (!holdRowsReady(entry.setRows)) return "Enter the actual time for each completed hold.";
+    if (
+      profile === "grip" ||
+      selected?.workoutType === GRIP_WORKOUT_TYPE ||
+      entry.workoutType === GRIP_WORKOUT_TYPE ||
+      entry.entryKind === GRIP_WORKOUT_TYPE
+    ) {
+      const issue = gripLoadIssue(entry.setRows, entry.gripLoadType);
+      if (issue) return issue;
+    }
+    return entry.holdLog.prescribed && !entry.holdLog.confirmed
+      ? "Confirm prescribed hold attempts before finishing."
+      : null;
+  };
+  const holdLogIssues = [...new Set(form.entries.map(holdLogIssue).filter(Boolean))];
   const canSubmit = summaryMode
     ? Boolean(
         form.date &&
@@ -2495,6 +2548,7 @@ export function FullWorkoutForm() {
       ) &&
       !incompleteSetMethod &&
       !dumbbellSemanticsMissing &&
+      holdLogIssues.length === 0 &&
       !form.entries.some((entry) => {
         if (!entry.strengthLog?.prescribed) return false;
         const exercise = libraryExercises.find(
@@ -2905,6 +2959,7 @@ export function FullWorkoutForm() {
               });
               const hasPlannedTimedSets = entry.setRows.some((set) => set.durationSeconds);
               const isGrip =
+                profile === "grip" ||
                 entry.entryKind === GRIP_WORKOUT_TYPE ||
                 entry.workoutType === GRIP_WORKOUT_TYPE ||
                 selectedExercise?.workoutType === GRIP_WORKOUT_TYPE;
@@ -2912,6 +2967,8 @@ export function FullWorkoutForm() {
               const previousSets = previousWorkout ? setRowsFromRecentLog(previousWorkout) : [];
               const compactStrength =
                 entry.strengthLog && profileUsesStandardSets(profile) && !hasPlannedTimedSets;
+              const compactHold = entry.holdLog && (profile === "hold" || profile === "grip");
+              const compactMovement = compactStrength || compactHold;
 
               return (
                 <Card
@@ -2922,7 +2979,7 @@ export function FullWorkoutForm() {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-                      {compactStrength ? entry.exercise : `Movement ${index + 1}`}
+                      {compactMovement ? entry.exercise : `Movement ${index + 1}`}
                       {methodBlock ? (
                         <Badge
                           variant="outline"
@@ -2967,12 +3024,12 @@ export function FullWorkoutForm() {
                     </div>
                   </div>
                   <details
-                    open={!compactStrength}
-                    className={compactStrength ? "rounded-lg border border-border px-3 py-2" : ""}
+                    open={!compactMovement}
+                    className={compactMovement ? "rounded-lg border border-border px-3 py-2" : ""}
                   >
                     <summary
                       className={
-                        compactStrength ? "cursor-pointer text-xs text-muted-foreground" : "hidden"
+                        compactMovement ? "cursor-pointer text-xs text-muted-foreground" : "hidden"
                       }
                     >
                       Change movement
@@ -3069,7 +3126,62 @@ export function FullWorkoutForm() {
                           </Button>
                         </div>
                       )}
-                      {compactStrength && entry.strengthLog ? (
+                      {compactHold && entry.holdLog ? (
+                        <CompactHoldAttempts
+                          name={entry.exercise}
+                          rows={entry.setRows}
+                          log={entry.holdLog}
+                          loadIssue={
+                            isGrip ? gripLoadIssue(entry.setRows, entry.gripLoadType) : null
+                          }
+                          onRows={(rows) => updateEntry(index, "setRows", rows)}
+                          onConfirm={() =>
+                            updateEntry(index, "holdLog", { ...entry.holdLog!, confirmed: true })
+                          }
+                        >
+                          <SetRowsEditor
+                            control={control}
+                            entryIndex={index}
+                            rows={entry.setRows}
+                            usesLoad
+                            valueKind="duration"
+                            durationLabel="Hold (sec)"
+                            rowNoun="Attempt"
+                            showCompletion
+                            setMethods={setMethods}
+                            previousWorkout={
+                              previousWorkout
+                                ? {
+                                    date: previousWorkout.date,
+                                    location: previousWorkout.trainingLocation?.name ?? undefined,
+                                    rows: previousSets,
+                                  }
+                                : undefined
+                            }
+                            onChange={(setIndex, key, value) =>
+                              updateSet(index, setIndex, key, value)
+                            }
+                            onRemove={() =>
+                              updateEntry(index, "holdLog", { ...entry.holdLog!, confirmed: false })
+                            }
+                            onCopyPrevious={() => copyPreviousWorkout(index, entry.exercise)}
+                            onRepeat={() => repeatLastSet(index)}
+                            onAddMethod={(setIndex, method) =>
+                              addSetMethod(index, setIndex, method)
+                            }
+                            onAddSegment={(setIndex) => addSetSegment(index, setIndex)}
+                            onUpdateSegment={(setIndex, segmentIndex, key, value) =>
+                              updateSetSegment(index, setIndex, segmentIndex, key, value)
+                            }
+                            onRemoveSegment={(setIndex, segmentIndex) =>
+                              removeSetSegment(index, setIndex, segmentIndex)
+                            }
+                            onRemoveMethod={(setIndex) =>
+                              updateSet(index, setIndex, "method", undefined)
+                            }
+                          />
+                        </CompactHoldAttempts>
+                      ) : compactStrength && entry.strengthLog ? (
                         <CompactStrengthSets
                           rows={entry.setRows}
                           log={entry.strengthLog}
@@ -3200,10 +3312,10 @@ export function FullWorkoutForm() {
                           </Select>
                         </Field>
                       ) : null}
-                      {profile === "reps" || profile === "hold" || profile === "grip" ? (
+                      {profile === "reps" || profile === "hold" || isGrip ? (
                         <div className="grid gap-3 rounded-lg border border-border bg-secondary/20 p-3 sm:grid-cols-3">
-                          <Field label={profile === "grip" ? "Grip style" : "Progression"}>
-                            {profile === "grip" ? (
+                          <Field label={isGrip ? "Grip style" : "Progression"}>
+                            {isGrip ? (
                               <SimpleSelect
                                 value={entry.gripStyle}
                                 onChange={(value) => updateEntry(index, "gripStyle", value)}
@@ -3223,31 +3335,29 @@ export function FullWorkoutForm() {
                               />
                             )}
                           </Field>
-                          <Field label={profile === "grip" ? "Load type" : "Assistance"}>
+                          <Field label={isGrip ? "Load type" : "Assistance"}>
                             <SimpleSelect
-                              value={profile === "grip" ? entry.gripLoadType : entry.assistanceType}
-                              onChange={(value) =>
+                              value={isGrip ? entry.gripLoadType : entry.assistanceType}
+                              onChange={(value) => {
                                 updateEntry(
                                   index,
-                                  profile === "grip" ? "gripLoadType" : "assistanceType",
+                                  isGrip ? "gripLoadType" : "assistanceType",
                                   value,
-                                )
-                              }
-                              options={
-                                profile === "grip"
-                                  ? GRIP_LOAD_TYPES
-                                  : (lib.data?.assistanceTypes ?? [])
-                              }
+                                );
+                                if (compactHold && isGrip)
+                                  updateEntry(index, "loadSemantics", gripLoadSemantics(value));
+                              }}
+                              options={isGrip ? GRIP_LOAD_TYPES : (lib.data?.assistanceTypes ?? [])}
                             />
                           </Field>
-                          <Field label={profile === "grip" ? "Load detail" : "Assistance detail"}>
+                          <Field label={isGrip ? "Load detail" : "Assistance detail"}>
                             <Input
                               value={entry.assistanceDetail}
                               onChange={(event) =>
                                 updateEntry(index, "assistanceDetail", event.target.value)
                               }
                               placeholder={
-                                profile === "grip"
+                                isGrip
                                   ? "20mm edge, +10kg..."
                                   : "8.5 kg counterweight, band colour..."
                               }
@@ -3538,6 +3648,11 @@ export function FullWorkoutForm() {
       {!summaryMode && incompleteSetMethod ? (
         <p className="text-center text-xs text-amber-300">
           Add load and reps to every segment before finishing.
+        </p>
+      ) : null}
+      {!summaryMode && showValidationErrors && holdLogIssues.length > 0 ? (
+        <p role="alert" className="text-center text-sm text-destructive">
+          {holdLogIssues.join(" ")}
         </p>
       ) : null}
       {!summaryMode &&

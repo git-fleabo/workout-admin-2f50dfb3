@@ -229,3 +229,71 @@ it("does not copy an overall effort rating into unrecorded compact strength set 
   expect(body.p_session.rpe).toBe(7);
   expect(body.p_entries[0].sets.map((set) => set.rpe)).toEqual([null, null, null]);
 });
+
+it("saves exact compact grip attempts without inferring effort and excludes missed hold time from history", async () => {
+  mocks.select.mockResolvedValue([{ id: "grip", name: "Grip" }]);
+  const rows = ["20", "18", "20"].map((durationSeconds, index) => ({
+    reps: "",
+    weight: "10",
+    durationSeconds,
+    rpe: "",
+    completed: index !== 2,
+  }));
+  const input = {
+    date: "2026-10-14",
+    title: "Grip",
+    duration: "10",
+    rpe: "7",
+    completed: true,
+    entries: [
+      {
+        exercise: "Dead Hang",
+        workoutType: "Grip",
+        pain: "",
+        assistanceType: "Added weight",
+        loadSemantics: "added_bodyweight_load",
+        holdLog: { prescribed: false, plannedRows: [], confirmed: true },
+        setRows: rows,
+      },
+    ],
+  } as WorkoutSessionInput;
+  const body = await prepareQueuedWorkoutSave(input, "person");
+  const sets = body.p_entries[0].sets;
+  expect(sets.map((set) => [set.duration_seconds, set.weight, set.completed])).toEqual([
+    [20, 10, true],
+    [18, 10, true],
+    [20, 10, false],
+  ]);
+  for (const set of sets)
+    expect(set).toMatchObject({
+      rpe: null,
+      data_shape: "individual",
+      aggregate_set_count: null,
+      load_semantics: "added_bodyweight_load",
+      assistance_type: "Added weight",
+    });
+  mocks.history = [
+    {
+      id: "hold-session",
+      session_date: "2026-10-14",
+      title: "Grip",
+      completed: true,
+      activity_types: { name: "Grip" },
+      session_entries: [
+        {
+          id: "hold-entry",
+          name: "Dead Hang",
+          completed: true,
+          entry_kind: "Grip",
+          activity_types: { name: "Grip" },
+          exercises: { default_metric: "grip_hold" },
+          entry_sets: sets,
+          entry_metrics: [],
+        },
+      ],
+    },
+  ];
+  const history = await getTimelineDataClient();
+  expect(history.entries[0].details.join(" ")).toContain("38s total");
+  expect(history.entries[0].details.join(" ")).not.toContain("58s total");
+});

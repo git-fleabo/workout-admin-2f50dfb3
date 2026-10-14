@@ -215,6 +215,7 @@ type BodyweightRecord = {
 };
 
 export type WorkoutLogInput = {
+  holdLog?: import("./compact-holds").HoldLogState;
   strengthLog?: import("./compact-strength").StrengthLogState;
   clientId?: string;
   date: string;
@@ -799,7 +800,7 @@ async function prepareWorkoutSave(data: WorkoutSessionInput, personId: string) {
           duration_seconds: toNum(set.durationSeconds),
           distance: explicitSets.length ? null : toNum(entryData.distance),
           distance_unit: explicitSets.length ? null : entryData.distanceUnit || null,
-          rpe: toNum(set.rpe) ?? (entryData.strengthLog ? null : rpe),
+          rpe: toNum(set.rpe) ?? (entryData.strengthLog || entryData.holdLog ? null : rpe),
           rest_time: entryData.restTime || null,
           assistance_type: entryData.assistanceType || null,
           assistance_detail: entryData.assistanceDetail || null,

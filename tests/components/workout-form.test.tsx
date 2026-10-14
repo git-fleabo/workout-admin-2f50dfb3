@@ -151,6 +151,149 @@ async function chooseBenchPress() {
 }
 
 describe("FullWorkoutForm draft lifecycle", () => {
+  function enableHold(name = "Front Lever", grip = false) {
+    mocks.extraExercises = [
+      {
+        id: grip ? "grip" : "lever",
+        name,
+        workoutType: grip ? "Grip" : "Skills/Calisthenics",
+        metric: grip ? "grip_hold" : "hold",
+        focusArea: "Skills",
+        availableLocationIds: ["gym"],
+        equipment: "bodyweight",
+      },
+    ];
+  }
+
+  function holdPlan() {
+    const movement = structuredClone(kbFixture().prescription.movements[0]);
+    movement.exercise = "Front Lever";
+    movement.workoutType = "Skills/Calisthenics";
+    movement.trackingMode = "hold";
+    movement.setRows = Array.from({ length: 3 }, () => ({
+      reps: "",
+      weight: "",
+      durationSeconds: "20",
+      rpe: "",
+      completed: false,
+    }));
+    return {
+      version: 1,
+      title: "Hold practice",
+      basis: "Supporting practice",
+      suggestedWorkoutId: "hold-plan",
+      locationKind: "gym",
+      trainingLocationId: "gym",
+      movements: [movement],
+      methodBlocks: [],
+    };
+  }
+
+  it("confirms bodyweight holds once and saves individual durations without invented effort", async () => {
+    enableHold();
+    window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(holdPlan()));
+    renderWithQueries(<FullWorkoutForm />);
+    expect(await screen.findByText("3 × 20 sec · 60 sec total")).toBeVisible();
+    expect(
+      screen.queryByRole("spinbutton", { name: "Attempt 1 hold seconds" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Review and finish" }));
+    expect(mocks.addWorkoutSessionClient).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Done as planned" }));
+    await userEvent.click(screen.getByRole("button", { name: "Review and finish" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Finish workout", exact: true }),
+    );
+    await waitFor(() => expect(mocks.addWorkoutSessionClient).toHaveBeenCalledTimes(1));
+    const payload = mocks.addWorkoutSessionClient.mock
+      .calls[0][0] as import("@/lib/supabase-log.browser").WorkoutSessionInput;
+    expect(
+      payload.entries[0].setRows!.map((row) => [
+        row.durationSeconds,
+        row.rpe,
+        row.weight,
+        row.completed,
+      ]),
+    ).toEqual([
+      ["20", "", "", true],
+      ["20", "", "", true],
+      ["20", "", "", true],
+    ]);
+    expect(payload.suggestedWorkoutId).toBe("hold-plan");
+  });
+
+  it("restores shared hold inputs and confirmation after a reload", async () => {
+    enableHold();
+    window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(holdPlan()));
+    const first = renderWithQueries(<FullWorkoutForm />);
+    const seconds = await screen.findByRole("spinbutton", {
+      name: "Front Lever seconds per attempt",
+    });
+    await userEvent.clear(seconds);
+    await userEvent.type(seconds, "25");
+    await userEvent.click(screen.getByRole("button", { name: "Done with these values" }));
+    first.unmount();
+    renderWithQueries(<FullWorkoutForm />);
+    expect(await screen.findByText("3 × 25 sec · 75 sec total")).toBeVisible();
+    expect(screen.getByText("Recorded")).toBeVisible();
+    expect(
+      screen.getByRole("spinbutton", { name: "Front Lever load for all attempts" }),
+    ).toHaveValue(null);
+  });
+
+  it.each(["hold", "grip_hold"])(
+    "records weighted grip attempts once with %s tracking and retains missed attempts",
+    async (metric) => {
+      enableHold("Dead Hang", true);
+      mocks.extraExercises[0].metric = metric;
+      renderWithQueries(<FullWorkoutForm />);
+      await screen.findByRole("button", { name: "Gym" });
+      const user = userEvent.setup();
+      const picker = screen
+        .getAllByRole("combobox")
+        .find((element) => element.getAttribute("aria-haspopup") === "dialog")!;
+      await user.click(picker);
+      await user.click(await screen.findByText("Dead Hang"));
+      const attempts = screen.getByRole("spinbutton", { name: "Dead Hang attempts" });
+      await user.clear(attempts);
+      await user.type(attempts, "3");
+      await user.type(
+        screen.getByRole("spinbutton", { name: "Dead Hang seconds per attempt" }),
+        "20",
+      );
+      await user.type(
+        screen.getByRole("spinbutton", { name: "Dead Hang load for all attempts" }),
+        "10",
+      );
+      expect(screen.getByRole("button", { name: "Done with these values" })).toBeDisabled();
+      within(screen.getByText("Load type").parentElement!).getByRole("combobox").focus();
+      await user.keyboard("{Enter}");
+      await user.click(await screen.findByRole("option", { name: "Added weight", exact: true }));
+      await user.click(screen.getByRole("button", { name: "Change", exact: true }));
+      const second = screen.getByRole("spinbutton", { name: "Attempt 2 hold seconds" });
+      await user.clear(second);
+      await user.type(second, "18");
+      await user.click(screen.getByRole("checkbox", { name: "Attempt 3 completed" }));
+      await user.click(screen.getByRole("button", { name: "Done with these values" }));
+      expect(
+        screen.getByText("3 attempts · 20 / 18 / 20 sec at 10 kg · 38 sec total · 2 completed"),
+      ).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Review and finish" }));
+      await user.click(await screen.findByRole("button", { name: "Finish workout", exact: true }));
+      await waitFor(() => expect(mocks.addWorkoutSessionClient).toHaveBeenCalledTimes(1));
+      const payload = mocks.addWorkoutSessionClient.mock
+        .calls[0][0] as import("@/lib/supabase-log.browser").WorkoutSessionInput;
+      expect(payload.entries[0].loadSemantics).toBe("added_bodyweight_load");
+      expect(payload.entries[0].assistanceType).toBe("Added weight");
+      expect(
+        payload.entries[0].setRows!.map((row) => [row.durationSeconds, row.weight, row.completed]),
+      ).toEqual([
+        ["20", "10", true],
+        ["18", "10", true],
+        ["20", "10", false],
+      ]);
+    },
+  );
   function strengthPlan(plus = false) {
     const movement = structuredClone(kbFixture().prescription.movements[0]);
     movement.exercise = "Bench Press";
