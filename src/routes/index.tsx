@@ -7,7 +7,7 @@ import { exerciseIsAvailableAtKind } from "@/lib/exercise-availability";
 import { MobilityPracticeOverview } from "@/components/mobility-practice-overview";
 import { KettlebellWorkoutPicker } from "@/components/kettlebell-workout-picker";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ArrowRight,
   Building2,
@@ -214,7 +214,6 @@ export function TodayPage() {
   const [recommendationLocation, setRecommendationLocation] = useState<PlannerLocation>("gym");
   const [startingRecommendation, setStartingRecommendation] = useState(false);
   const [discardDraftOpen, setDiscardDraftOpen] = useState(false);
-  const [otherWaysOpen, setOtherWaysOpen] = useState(false);
   const plans = useQuery({
     queryKey: ["next-suggested-workouts", today],
     queryFn: () => getNextSuggestedWorkoutsClient(today),
@@ -249,10 +248,9 @@ export function TodayPage() {
         !plan.programWorkoutId,
     ) ?? [];
   const extraPlans = plans.data?.filter((plan) => !plan.programAssignmentId) ?? [];
-  const scheduledTrainingPlans = [...programmeSupportPlans, ...extraPlans];
-  useEffect(() => {
-    if (activeProgramme && scheduledTrainingPlans.length) setOtherWaysOpen(true);
-  }, [activeProgramme, scheduledTrainingPlans.length]);
+  const scheduledTrainingPlans = [...programmeSupportPlans, ...extraPlans].sort((a, b) =>
+    (a.suggestedFor ?? today).localeCompare(b.suggestedFor ?? today),
+  );
   const activeTemplate = programmeOverview.data?.templates.find(
     (template) => template.id === activeProgramme?.programId,
   );
@@ -314,6 +312,8 @@ export function TodayPage() {
   useEffect(() => {
     if (!recommendations.gym && recommendations.home) setRecommendationLocation("home");
   }, [recommendations.gym, recommendations.home]);
+
+  const hasProgrammeSession = Boolean(programmeOffers.data?.length || linkedProgrammePlans.length);
 
   const discardDraft = () => {
     window.localStorage.removeItem(workoutSessionDraftKey());
@@ -426,7 +426,7 @@ export function TodayPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <header className="border-b border-border pb-4">
-        <h1 className="text-3xl font-semibold tracking-tight">What are you doing today?</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Your next session</h1>
         <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
           <CalendarCheck2 className="h-4 w-4" /> {formatUKDate(today)}
         </div>
@@ -496,581 +496,499 @@ export function TodayPage() {
         </Card>
       ) : null}
 
-      {programmeOffers.error ? (
-        <section className="space-y-3">
-          <div>
-            <h2 className="text-base font-semibold">Your programme</h2>
-            <p className="text-xs text-muted-foreground">
-              Your next programme session could not be loaded.
-            </p>
-          </div>
-          <ErrorCard label="The active programme session could not be loaded." />
-        </section>
-      ) : programmeOffers.data?.length ? (
-        <section className="space-y-3">
-          <div>
-            <h2 className="text-base font-semibold">Your programme</h2>
-            <p className="text-xs text-muted-foreground">
-              Your next session stays available. Suggested dates are guidance, so train when ready.
-            </p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            {programmeOffers.data.map((offer) => {
-              const startIssues = offer.personalSession
-                ? baseStrengthStartIssues(offer.personalSession.plan)
-                : [];
-              const daysOverdue = daysSinceSuggestedSession(offer.scheduledDate, today);
-              const availableLocations = availableProgrammeLocations(
-                offer,
-                library.data?.exercises ?? [],
-                library.data?.locations ?? [],
-              );
-              const requestedLocationId = programmeLocations[offer.assignmentId];
-              const selectedLocation =
-                availableLocations.find((location) => location.id === requestedLocationId) ??
-                availableLocations.find(
-                  (location) => location.kind === offer.personalSession?.plan.locationKind,
-                ) ??
-                availableLocations.find(
-                  (location) => location.id === rememberedTrainingLocationId,
-                ) ??
-                availableLocations.find((location) => location.kind === "gym") ??
-                availableLocations[0];
-              const libraryById = new Map(
-                (library.data?.exercises ?? []).map((exercise) => [exercise.id, exercise]),
-              );
-              return (
-                <Card
-                  key={offer.assignmentId}
-                  className="border-fuchsia-400/30 bg-fuchsia-400/[0.05]"
-                >
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold">{offer.programmeName}</p>
-                          <Badge variant="outline">Next</Badge>
-                          <Badge variant="secondary">
-                            {offer.workoutNumber}/{offer.totalWorkouts}
-                          </Badge>
-                        </div>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {offer.weekNumber &&
-                          (offer.sessionNumber ||
-                            !new RegExp(`\\bWeek ${offer.weekNumber}\\b`, "i").test(
-                              offer.workoutName,
-                            ))
-                            ? `Week ${offer.weekNumber} · `
-                            : ""}
-                          {offer.sessionNumber
-                            ? `Session ${offer.sessionNumber}`
-                            : offer.workoutName}
-                        </p>
-                      </div>
-                      <Layers3 className="h-5 w-5 shrink-0 text-fuchsia-300" />
-                    </div>
-
-                    {activeProgramme?.id === offer.assignmentId ? (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {activeProgramme.currentWorkoutIndex - skippedProgrammeSessions} completed
-                        {skippedProgrammeSessions ? ` · ${skippedProgrammeSessions} skipped` : ""}
-                        {` · Session ${offer.workoutNumber} of ${offer.totalWorkouts}`}
-                      </p>
-                    ) : null}
-                    {daysOverdue >= 7 ? (
-                      <div className="mt-3 rounded-lg border border-amber-400/25 bg-amber-400/[0.06] p-3 text-xs">
-                        <p className="font-medium">Picking up after a break?</p>
-                        <p className="mt-1 text-muted-foreground">
-                          Continue here, start an easier version, or choose a later session. Your
-                          completed workouts stay saved.
-                        </p>
-                      </div>
-                    ) : null}
-
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      {Array.from(new Set(offer.movements.map((movement) => movement.exercise)))
-                        .slice(0, 6)
-                        .join(", ")}
-                    </p>
-
-                    {!library.isSuccess ? (
-                      library.isError ? (
-                        <div className="mt-4 space-y-2" role="alert">
-                          <p className="text-sm">
-                            Training locations and exercises could not be loaded.
-                          </p>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void library.refetch()}
-                          >
-                            Retry training setup
-                          </Button>
-                        </div>
-                      ) : (
-                        <p role="status" className="mt-4 text-sm text-muted-foreground">
-                          Loading training locations…
-                        </p>
-                      )
-                    ) : availableLocations.length ? (
-                      <div className="mt-4 space-y-1.5">
-                        <p className="text-xs font-medium">Training location</p>
-                        <Select
-                          value={selectedLocation?.id}
-                          onValueChange={(value) => {
-                            window.localStorage.setItem(WORKOUT_TRAINING_LOCATION_KEY, value);
-                            setRememberedTrainingLocationId(value);
-                            setProgrammeLocations((current) => ({
-                              ...current,
-                              [offer.assignmentId]: value,
-                            }));
-                            setProgrammeSelections((current) => ({
-                              ...current,
-                              [offer.assignmentId]: {},
-                            }));
-                          }}
-                        >
-                          <SelectTrigger aria-label={`${offer.programmeName} training location`}>
-                            <MapPin className="mr-2 h-4 w-4" />
-                            <SelectValue placeholder="Choose a location" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableLocations.map((location) => (
-                              <SelectItem key={location.id} value={location.id}>
-                                {location.name} · {location.kind}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-[11px] text-muted-foreground">
-                          Main lifts and optional choices use this location’s recorded equipment.
-                        </p>
-                      </div>
-                    ) : (
-                      <p className="mt-4 text-xs text-destructive">
-                        These mapped movements do not share an enabled Home or Gym location. Update
-                        their Library locations or equipment before starting.
-                      </p>
-                    )}
-
-                    {library.isSuccess && offer.selections.length ? (
-                      <div className="mt-4 space-y-3">
-                        {offer.selections.map((selection) => {
-                          const availableOptions = selectedLocation
-                            ? selection.options.filter((option) =>
-                                libraryById
-                                  .get(option.exerciseId)
-                                  ?.availableLocationIds.includes(selectedLocation.id),
-                              )
-                            : [];
-                          const selectedExerciseId =
-                            programmeSelections[offer.assignmentId]?.[selection.role] ?? "";
-                          const selectionValue = availableOptions.some(
-                            (option) => option.exerciseId === selectedExerciseId,
-                          )
-                            ? selectedExerciseId
-                            : "none";
-                          return (
-                            <div key={selection.role} className="space-y-1.5">
-                              <p className="text-xs font-medium">
-                                {selection.label} {selection.required ? "" : "(optional)"}
+      {hasProgrammeSession || programmeOffers.error ? (
+        <TodayChoice secondary={Boolean(draft || completed)} label="Your next programme session">
+          {programmeOffers.error ? (
+            <section className="space-y-3">
+              <div>
+                <h2 className="text-base font-semibold">Your programme</h2>
+                <p className="text-xs text-muted-foreground">
+                  Your next programme session could not be loaded.
+                </p>
+              </div>
+              <ErrorCard label="The active programme session could not be loaded." />
+            </section>
+          ) : programmeOffers.data?.length ? (
+            <section className="space-y-3">
+              <div>
+                <h2 className="text-base font-semibold">Your programme</h2>
+                <p className="text-xs text-muted-foreground">
+                  Follow your saved programme. Suggested dates are guidance, so train when ready.
+                </p>
+              </div>
+              <div className="grid min-w-0 gap-3">
+                {programmeOffers.data.map((offer, offerIndex) => {
+                  const startIssues = offer.personalSession
+                    ? baseStrengthStartIssues(offer.personalSession.plan)
+                    : [];
+                  const daysOverdue = daysSinceSuggestedSession(offer.scheduledDate, today);
+                  const availableLocations = availableProgrammeLocations(
+                    offer,
+                    library.data?.exercises ?? [],
+                    library.data?.locations ?? [],
+                  );
+                  const requestedLocationId = programmeLocations[offer.assignmentId];
+                  const selectedLocation =
+                    availableLocations.find((location) => location.id === requestedLocationId) ??
+                    availableLocations.find(
+                      (location) => location.kind === offer.personalSession?.plan.locationKind,
+                    ) ??
+                    availableLocations.find(
+                      (location) => location.id === rememberedTrainingLocationId,
+                    ) ??
+                    availableLocations.find((location) => location.kind === "gym") ??
+                    availableLocations[0];
+                  const libraryById = new Map(
+                    (library.data?.exercises ?? []).map((exercise) => [exercise.id, exercise]),
+                  );
+                  return (
+                    <TodayChoice
+                      key={offer.assignmentId}
+                      secondary={offerIndex > 0}
+                      label={offer.programmeName}
+                    >
+                      <Card className="border-fuchsia-400/30 bg-fuchsia-400/[0.05]">
+                        <CardContent className="p-5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-semibold">{offer.programmeName}</p>
+                                <Badge variant="outline">Next</Badge>
+                                <Badge variant="secondary">
+                                  {offer.workoutNumber}/{offer.totalWorkouts}
+                                </Badge>
+                              </div>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {offer.weekNumber &&
+                                (offer.sessionNumber ||
+                                  !new RegExp(`\\bWeek ${offer.weekNumber}\\b`, "i").test(
+                                    offer.workoutName,
+                                  ))
+                                  ? `Week ${offer.weekNumber} · `
+                                  : ""}
+                                {offer.sessionNumber
+                                  ? `Session ${offer.sessionNumber}`
+                                  : offer.workoutName}
                               </p>
+                            </div>
+                            <Layers3 className="h-5 w-5 shrink-0 text-fuchsia-300" />
+                          </div>
+
+                          {activeProgramme?.id === offer.assignmentId ? (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              {activeProgramme.currentWorkoutIndex - skippedProgrammeSessions}{" "}
+                              completed
+                              {skippedProgrammeSessions
+                                ? ` · ${skippedProgrammeSessions} skipped`
+                                : ""}
+                              {` · Session ${offer.workoutNumber} of ${offer.totalWorkouts}`}
+                            </p>
+                          ) : null}
+                          {daysOverdue >= 7 ? (
+                            <div className="mt-3 rounded-lg border border-amber-400/25 bg-amber-400/[0.06] p-3 text-xs">
+                              <p className="font-medium">Picking up after a break?</p>
+                              <p className="mt-1 text-muted-foreground">
+                                Continue here, start an easier version, or choose a later session.
+                                Your completed workouts stay saved.
+                              </p>
+                            </div>
+                          ) : null}
+
+                          <p className="mt-3 text-sm text-muted-foreground">
+                            {Array.from(
+                              new Set(offer.movements.map((movement) => movement.exercise)),
+                            )
+                              .slice(0, 6)
+                              .join(", ")}
+                          </p>
+
+                          {!library.isSuccess ? (
+                            library.isError ? (
+                              <div className="mt-4 space-y-2" role="alert">
+                                <p className="text-sm">
+                                  Training locations and exercises could not be loaded.
+                                </p>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => void library.refetch()}
+                                >
+                                  Retry training setup
+                                </Button>
+                              </div>
+                            ) : (
+                              <p role="status" className="mt-4 text-sm text-muted-foreground">
+                                Loading training locations…
+                              </p>
+                            )
+                          ) : availableLocations.length ? (
+                            <div className="mt-4 space-y-1.5">
+                              <p className="text-xs font-medium">Training location</p>
                               <Select
-                                value={selectionValue}
-                                onValueChange={(value) =>
+                                value={selectedLocation?.id}
+                                onValueChange={(value) => {
+                                  window.localStorage.setItem(WORKOUT_TRAINING_LOCATION_KEY, value);
+                                  setRememberedTrainingLocationId(value);
+                                  setProgrammeLocations((current) => ({
+                                    ...current,
+                                    [offer.assignmentId]: value,
+                                  }));
                                   setProgrammeSelections((current) => ({
                                     ...current,
-                                    [offer.assignmentId]: {
-                                      ...(current[offer.assignmentId] ?? {}),
-                                      [selection.role]: value === "none" ? "" : value,
-                                    },
-                                  }))
-                                }
+                                    [offer.assignmentId]: {},
+                                  }));
+                                }}
                               >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Choose from Library pool" />
+                                <SelectTrigger
+                                  aria-label={`${offer.programmeName} training location`}
+                                >
+                                  <MapPin className="mr-2 h-4 w-4" />
+                                  <SelectValue placeholder="Choose a location" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {!selection.required ? (
-                                    <SelectItem value="none">Skip today</SelectItem>
-                                  ) : null}
-                                  {availableOptions.map((option) => (
-                                    <SelectItem key={option.id} value={option.exerciseId}>
-                                      {option.exerciseName}
+                                  {availableLocations.map((location) => (
+                                    <SelectItem key={location.id} value={location.id}>
+                                      {location.name} · {location.kind}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
-                              {!availableOptions.length ? (
-                                <p className="text-[11px] text-muted-foreground">
-                                  No pool choices are available at{" "}
-                                  {selectedLocation?.name ?? "this location"}.
-                                </p>
-                              ) : null}
+                              <p className="text-[11px] text-muted-foreground">
+                                Main lifts and optional choices use this location’s recorded
+                                equipment.
+                              </p>
                             </div>
-                          );
-                        })}
-                      </div>
-                    ) : null}
+                          ) : (
+                            <p className="mt-4 text-xs text-destructive">
+                              These mapped movements do not share an enabled Home or Gym location.
+                              Update their Library locations or equipment before starting.
+                            </p>
+                          )}
 
-                    {draft ? (
-                      <Button asChild className="mt-3 w-full">
-                        <Link to="/log">
-                          <RotateCcw className="mr-2 h-4 w-4" /> Resume current workout
-                        </Link>
-                      </Button>
-                    ) : startIssues.length ? (
-                      <div className="mt-3 space-y-3">
-                        <div className="rounded-lg border border-amber-400/25 bg-amber-400/[0.06] p-3 text-sm">
-                          <p className="font-medium">Review targets before starting</p>
-                          <ul className="mt-2 space-y-1 text-muted-foreground">
-                            {startIssues.map((issue) => (
-                              <li key={issue}>{issue}</li>
-                            ))}
-                          </ul>
+                          {library.isSuccess && offer.selections.length ? (
+                            <div className="mt-4 space-y-3">
+                              {offer.selections.map((selection) => {
+                                const availableOptions = selectedLocation
+                                  ? selection.options.filter((option) =>
+                                      libraryById
+                                        .get(option.exerciseId)
+                                        ?.availableLocationIds.includes(selectedLocation.id),
+                                    )
+                                  : [];
+                                const selectedExerciseId =
+                                  programmeSelections[offer.assignmentId]?.[selection.role] ?? "";
+                                const selectionValue = availableOptions.some(
+                                  (option) => option.exerciseId === selectedExerciseId,
+                                )
+                                  ? selectedExerciseId
+                                  : "none";
+                                return (
+                                  <div key={selection.role} className="space-y-1.5">
+                                    <p className="text-xs font-medium">
+                                      {selection.label} {selection.required ? "" : "(optional)"}
+                                    </p>
+                                    <Select
+                                      value={selectionValue}
+                                      onValueChange={(value) =>
+                                        setProgrammeSelections((current) => ({
+                                          ...current,
+                                          [offer.assignmentId]: {
+                                            ...(current[offer.assignmentId] ?? {}),
+                                            [selection.role]: value === "none" ? "" : value,
+                                          },
+                                        }))
+                                      }
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Choose from Library pool" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {!selection.required ? (
+                                          <SelectItem value="none">Skip today</SelectItem>
+                                        ) : null}
+                                        {availableOptions.map((option) => (
+                                          <SelectItem key={option.id} value={option.exerciseId}>
+                                            {option.exerciseName}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    {!availableOptions.length ? (
+                                      <p className="text-[11px] text-muted-foreground">
+                                        No pool choices are available at{" "}
+                                        {selectedLocation?.name ?? "this location"}.
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+
+                          {draft ? (
+                            <Button asChild className="mt-3 w-full">
+                              <Link to="/log">
+                                <RotateCcw className="mr-2 h-4 w-4" /> Resume current workout
+                              </Link>
+                            </Button>
+                          ) : startIssues.length ? (
+                            <div className="mt-3 space-y-3">
+                              <div className="rounded-lg border border-amber-400/25 bg-amber-400/[0.06] p-3 text-sm">
+                                <p className="font-medium">Review targets before starting</p>
+                                <ul className="mt-2 space-y-1 text-muted-foreground">
+                                  {startIssues.map((issue) => (
+                                    <li key={issue}>{issue}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                              <Button asChild className="w-full">
+                                <Link
+                                  to="/plan"
+                                  search={{
+                                    programme: offer.assignmentId,
+                                    session: offer.programWorkoutId,
+                                  }}
+                                >
+                                  Review session targets
+                                </Link>
+                              </Button>
+                              <Button asChild variant="ghost" className="w-full">
+                                <Link to="/plan">Skip ahead</Link>
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="mt-3 space-y-2">
+                              <Button
+                                className="w-full"
+                                onClick={() =>
+                                  selectedLocation && startProgramme(offer, selectedLocation.id)
+                                }
+                                disabled={
+                                  !library.isSuccess ||
+                                  !selectedLocation ||
+                                  Boolean(startingProgrammeId)
+                                }
+                              >
+                                {startingProgrammeId === offer.assignmentId ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Play className="mr-2 h-4 w-4" />
+                                )}
+                                Continue with this session
+                              </Button>
+                              <div className="grid grid-cols-2 gap-2">
+                                <Button
+                                  variant="outline"
+                                  onClick={() =>
+                                    selectedLocation &&
+                                    startProgramme(offer, selectedLocation.id, true)
+                                  }
+                                  disabled={
+                                    !library.isSuccess ||
+                                    !selectedLocation ||
+                                    Boolean(startingProgrammeId)
+                                  }
+                                >
+                                  Ease back in
+                                </Button>
+                                <Button asChild variant="ghost">
+                                  <Link to="/plan">Skip ahead</Link>
+                                </Button>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground">
+                                Ease back in suggests one fewer set where possible and lighter
+                                loads. Edit every target in the log.
+                              </p>
+                            </div>
+                          )}
+                          <details className="mt-4 rounded-lg border border-border bg-background/30 p-3">
+                            <summary className="cursor-pointer text-sm font-medium">
+                              Workout movements and targets
+                            </summary>
+                            <div className="divide-y divide-border">
+                              {offer.movements.map((movement, movementIndex) => (
+                                <div
+                                  key={`${movement.exercise}:${movementIndex}`}
+                                  className="flex items-baseline justify-between gap-3 p-3"
+                                >
+                                  <div>
+                                    <p className="text-sm font-medium">{movement.exercise}</p>
+                                    {movement.progression ? (
+                                      <p className="mt-1 text-[11px] text-muted-foreground">
+                                        {progressionSummary(movement.progression)}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                  <p className="text-right text-[11px] text-foreground/75">
+                                    {targetSummary(movement)}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        </CardContent>
+                      </Card>
+                    </TodayChoice>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
+          {linkedProgrammePlans.length && !programmeOffers.data?.length ? (
+            <section className="space-y-3">
+              <div>
+                <h2 className="text-base font-semibold">Your programme</h2>
+                <p className="text-xs text-muted-foreground">
+                  Your next session stays available. Suggested dates are guidance.
+                </p>
+              </div>
+              {linkedProgrammePlans.map((plan, planIndex) => {
+                const isCurrentRun = activeProgramme?.id === plan.programAssignmentId;
+                const nextWorkout =
+                  isCurrentRun && activeProgramme
+                    ? activeTemplate?.workouts[activeProgramme.currentWorkoutIndex]
+                    : null;
+                const suggestedDate =
+                  nextWorkout && activeProgramme
+                    ? (activeProgramme.personalProgramme?.sessions.find(
+                        (session) => session.workoutId === nextWorkout.id,
+                      )?.scheduledDate ??
+                      programmeWorkoutScheduledDate(
+                        activeProgramme.startedOn,
+                        nextWorkout.weekNumber,
+                        nextWorkout.dayNumber,
+                      ))
+                    : null;
+                const completedCount = Math.max(
+                  0,
+                  (activeProgramme?.currentWorkoutIndex ?? 0) - skippedProgrammeSessions,
+                );
+                return (
+                  <TodayChoice
+                    key={plan.suggestedWorkoutId}
+                    secondary={planIndex > 0}
+                    label={plan.title}
+                  >
+                    <Card className="border-fuchsia-400/30 p-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold">{plan.title}</p>
+                        <Badge variant="secondary">
+                          {plan.status === "accepted" ? "Started" : "Ready"}
+                        </Badge>
+                      </div>
+                      {isCurrentRun && activeProgramme && activeTemplate ? (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {completedCount} completed
+                          {skippedProgrammeSessions ? ` · ${skippedProgrammeSessions} skipped` : ""}
+                          {` · Session ${activeProgramme.currentWorkoutIndex + 1} of ${activeTemplate.workouts.length}`}
+                        </p>
+                      ) : null}
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {plan.movements.length}{" "}
+                        {plan.movements.length === 1 ? "movement" : "movements"} ·{" "}
+                        {plan.movements.map((movement) => movement.exercise).join(", ")}
+                      </p>
+                      {daysSinceSuggestedSession(suggestedDate, today) >= 7 ? (
+                        <div className="mt-3 rounded-lg border border-amber-400/25 bg-amber-400/[0.06] p-3 text-xs">
+                          <p className="font-medium">Picking up after a break?</p>
+                          <p className="mt-1 text-muted-foreground">
+                            Continue here, use an easier version, or choose a later session.
+                          </p>
                         </div>
-                        <Button asChild className="w-full">
-                          <Link
-                            to="/plan"
-                            search={{
-                              programme: offer.assignmentId,
-                              session: offer.programWorkoutId,
-                            }}
-                          >
-                            Review session targets
-                          </Link>
+                      ) : null}
+                      {draft ? (
+                        <Button asChild className="mt-4 w-full">
+                          <Link to="/log">Resume current workout</Link>
                         </Button>
-                        <Button asChild variant="ghost" className="w-full">
+                      ) : (
+                        <Button
+                          className="mt-4 w-full"
+                          onClick={() => startPlan(plan)}
+                          disabled={Boolean(startingPlanId)}
+                        >
+                          Continue with this session
+                        </Button>
+                      )}
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => startPlan(plan, true)}
+                          disabled={Boolean(draft || startingPlanId)}
+                        >
+                          Ease back in
+                        </Button>
+                        <Button asChild variant="ghost">
                           <Link to="/plan">Skip ahead</Link>
                         </Button>
                       </div>
-                    ) : (
-                      <div className="mt-3 space-y-2">
-                        <Button
-                          className="w-full"
-                          onClick={() =>
-                            selectedLocation && startProgramme(offer, selectedLocation.id)
-                          }
-                          disabled={
-                            !library.isSuccess || !selectedLocation || Boolean(startingProgrammeId)
-                          }
-                        >
-                          {startingProgrammeId === offer.assignmentId ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <Play className="mr-2 h-4 w-4" />
-                          )}
-                          Continue with this session
-                        </Button>
-                        <div className="grid grid-cols-2 gap-2">
-                          <Button
-                            variant="outline"
-                            onClick={() =>
-                              selectedLocation && startProgramme(offer, selectedLocation.id, true)
-                            }
-                            disabled={
-                              !library.isSuccess ||
-                              !selectedLocation ||
-                              Boolean(startingProgrammeId)
-                            }
-                          >
-                            Ease back in
-                          </Button>
-                          <Button asChild variant="ghost">
-                            <Link to="/plan">Skip ahead</Link>
-                          </Button>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground">
-                          Ease back in suggests one fewer set where possible and lighter loads. Edit
-                          every target in the log.
-                        </p>
-                      </div>
-                    )}
-                    <details className="mt-4 rounded-lg border border-border bg-background/30 p-3">
-                      <summary className="cursor-pointer text-sm font-medium">
-                        Workout movements and targets
-                      </summary>
-                      <div className="divide-y divide-border">
-                        {offer.movements.map((movement, movementIndex) => (
-                          <div
-                            key={`${movement.exercise}:${movementIndex}`}
-                            className="flex items-baseline justify-between gap-3 p-3"
-                          >
-                            <div>
-                              <p className="text-sm font-medium">{movement.exercise}</p>
-                              {movement.progression ? (
-                                <p className="mt-1 text-[11px] text-muted-foreground">
-                                  {progressionSummary(movement.progression)}
-                                </p>
-                              ) : null}
-                            </div>
-                            <p className="text-right text-[11px] text-foreground/75">
-                              {targetSummary(movement)}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
-
-      {linkedProgrammePlans.length && !programmeOffers.data?.length ? (
-        <section className="space-y-3">
-          <div>
-            <h2 className="text-base font-semibold">Your programme</h2>
-            <p className="text-xs text-muted-foreground">
-              Your next session stays available. Suggested dates are guidance.
-            </p>
-          </div>
-          {linkedProgrammePlans.map((plan) => {
-            const isCurrentRun = activeProgramme?.id === plan.programAssignmentId;
-            const nextWorkout =
-              isCurrentRun && activeProgramme
-                ? activeTemplate?.workouts[activeProgramme.currentWorkoutIndex]
-                : null;
-            const suggestedDate =
-              nextWorkout && activeProgramme
-                ? (activeProgramme.personalProgramme?.sessions.find(
-                    (session) => session.workoutId === nextWorkout.id,
-                  )?.scheduledDate ??
-                  programmeWorkoutScheduledDate(
-                    activeProgramme.startedOn,
-                    nextWorkout.weekNumber,
-                    nextWorkout.dayNumber,
-                  ))
-                : null;
-            const completedCount = Math.max(
-              0,
-              (activeProgramme?.currentWorkoutIndex ?? 0) - skippedProgrammeSessions,
-            );
-            return (
-              <Card key={plan.suggestedWorkoutId} className="border-fuchsia-400/30 p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold">{plan.title}</p>
-                  <Badge variant="secondary">
-                    {plan.status === "accepted" ? "Started" : "Ready"}
-                  </Badge>
-                </div>
-                {isCurrentRun && activeProgramme && activeTemplate ? (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {completedCount} completed
-                    {skippedProgrammeSessions ? ` · ${skippedProgrammeSessions} skipped` : ""}
-                    {` · Session ${activeProgramme.currentWorkoutIndex + 1} of ${activeTemplate.workouts.length}`}
-                  </p>
-                ) : null}
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {plan.movements.length} {plan.movements.length === 1 ? "movement" : "movements"} ·{" "}
-                  {plan.movements.map((movement) => movement.exercise).join(", ")}
-                </p>
-                {daysSinceSuggestedSession(suggestedDate, today) >= 7 ? (
-                  <div className="mt-3 rounded-lg border border-amber-400/25 bg-amber-400/[0.06] p-3 text-xs">
-                    <p className="font-medium">Picking up after a break?</p>
-                    <p className="mt-1 text-muted-foreground">
-                      Continue here, use an easier version, or choose a later session.
-                    </p>
-                  </div>
-                ) : null}
-                {draft ? (
-                  <Button asChild className="mt-4 w-full">
-                    <Link to="/log">Resume current workout</Link>
-                  </Button>
-                ) : (
-                  <Button
-                    className="mt-4 w-full"
-                    onClick={() => startPlan(plan)}
-                    disabled={Boolean(startingPlanId)}
-                  >
-                    Continue with this session
-                  </Button>
-                )}
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => startPlan(plan, true)}
-                    disabled={Boolean(draft || startingPlanId)}
-                  >
-                    Ease back in
-                  </Button>
-                  <Button asChild variant="ghost">
-                    <Link to="/plan">Skip ahead</Link>
-                  </Button>
-                </div>
-                <p className="mt-2 text-[11px] text-muted-foreground">
-                  {draft
-                    ? "Finish or cancel your current draft before loading another version."
-                    : "Ease back in copies this workout with lighter numeric targets. For open-ended targets, choose a lighter load in Log."}
-                </p>
-              </Card>
-            );
-          })}
-        </section>
-      ) : null}
-
-      <MobilityPracticeOverview compact />
-
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-base font-semibold">Daily practice reminder</h2>
-          <p className="text-xs text-muted-foreground">
-            One small movement selected from your rotation for today.
-          </p>
-        </div>
-        {dailyRotation.isLoading ? (
-          <LoadingRow label="Choosing today's practice…" />
-        ) : dailyRotation.error ? (
-          <ErrorCard label="Today's daily practice could not be loaded." />
-        ) : dailyRotation.data?.rotation ? (
-          <Card
-            className={
-              dailyRotation.data.rotation.completedAt
-                ? "border-emerald-400/35 bg-emerald-400/[0.06]"
-                : "border-violet-400/35 bg-violet-400/[0.06]"
-            }
-          >
-            <CardContent className="p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 gap-3">
-                  {dailyRotation.data.rotation.completedAt ? (
-                    <CircleCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
-                  ) : (
-                    <Shuffle className="mt-0.5 h-5 w-5 shrink-0 text-violet-300" />
-                  )}
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold">{dailyRotation.data.rotation.item.name}</p>
-                      {dailyRotation.data.rotation.item.target ? (
-                        <Badge variant="outline" className="border-violet-400/30 text-violet-100">
-                          {dailyRotation.data.rotation.item.target}
-                        </Badge>
-                      ) : null}
-                    </div>
-                    {dailyRotation.data.rotation.item.cue ? (
-                      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                        {dailyRotation.data.rotation.item.cue}
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        {draft
+                          ? "Finish or cancel your current draft before loading another version."
+                          : "Ease back in copies this workout with lighter numeric targets. For open-ended targets, choose a lighter load in Log."}
                       </p>
-                    ) : null}
-                    {dailyRotation.data.rotation.completedAt ? (
-                      <p className="mt-2 text-[11px] font-medium text-emerald-300">Done today</p>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
-                  <Button
-                    variant={dailyRotation.data.rotation.completedAt ? "outline" : "default"}
-                    onClick={() =>
-                      dailyRotationMutation.mutate({
-                        assignmentId: dailyRotation.data.rotation!.assignmentId,
-                        completed: !dailyRotation.data.rotation!.completedAt,
-                      })
-                    }
-                    disabled={dailyRotationMutation.isPending}
-                  >
-                    {dailyRotationMutation.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <CircleCheck className="mr-2 h-4 w-4" />
-                    )}
-                    {dailyRotation.data.rotation.completedAt ? "Undo" : "Done today"}
-                  </Button>
-                  <Button asChild variant="outline">
-                    <Link to="/rotation">
-                      <Settings2 className="mr-2 h-4 w-4" /> Manage
-                    </Link>
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-medium">
-                  {dailyRotation.data?.hasConfiguredItems
-                    ? "No daily practice scheduled today"
-                    : "Set up your daily rotation"}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {dailyRotation.data?.hasConfiguredItems
-                    ? "Your active items are paused or set for other days."
-                    : "Add movements such as one-arm hangs, handstands or mobility drills."}
-                </p>
-              </div>
-              <Button asChild variant="outline" className="shrink-0">
-                <Link to="/rotation">
-                  <Settings2 className="mr-2 h-4 w-4" /> Configure
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-      </section>
+                    </Card>
+                  </TodayChoice>
+                );
+              })}
+            </section>
+          ) : null}
+        </TodayChoice>
+      ) : null}
 
-      <details
-        key={activeProgramme ? "programme" : "no-programme"}
-        open={!activeProgramme || otherWaysOpen}
-        onToggle={(event) => {
-          if (activeProgramme) setOtherWaysOpen(event.currentTarget.open);
-        }}
-        className="rounded-xl border border-border bg-card/30 p-4"
+      <TodayChoice
+        secondary={Boolean(draft || completed || hasProgrammeSession)}
+        label="Scheduled sessions and suggestions"
       >
-        <summary className="cursor-pointer text-sm font-semibold">
-          {scheduledTrainingPlans.length
-            ? "Scheduled training"
-            : activeProgramme
-              ? "Other ways to train"
-              : "Choose a workout"}
-        </summary>
-        <div className="mt-4 space-y-5">
-          <section className="space-y-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-base font-semibold">
-                  {scheduledTrainingPlans.length ? "Your planned sessions" : "Next workout"}
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  {scheduledTrainingPlans.length
-                    ? "Open the session planned for today, or start another one early."
-                    : "Saved plans appear first; otherwise recent history provides a starting point."}
-                </p>
-              </div>
-              {!scheduledTrainingPlans.length ? (
-                <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-secondary/30 p-1">
-                  {(["home", "gym"] as PlannerLocation[]).map((location) => (
-                    <button
-                      key={location}
-                      type="button"
-                      onClick={() => setRecommendationLocation(location)}
-                      className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium capitalize transition ${
-                        recommendationLocation === location
-                          ? "bg-card text-foreground shadow"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      {location === "home" ? (
-                        <Home className="h-3.5 w-3.5" />
-                      ) : (
-                        <Building2 className="h-3.5 w-3.5" />
-                      )}
-                      {location}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
+        <section className="space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold">
+                {scheduledTrainingPlans.length ? "Your planned sessions" : "Next workout"}
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                {scheduledTrainingPlans.length
+                  ? "Open the session planned for today, or start another one early."
+                  : "Saved plans appear first; otherwise recent history provides a starting point."}
+              </p>
             </div>
-            {plans.isLoading || recent.isLoading || library.isLoading ? (
-              <LoadingRow label="Loading saved workouts…" />
-            ) : plans.error || recent.error || library.error ? (
-              <ErrorCard label="The next workout could not be loaded." />
-            ) : scheduledTrainingPlans.length ? (
-              <div className="grid gap-3 md:grid-cols-2">
-                {scheduledTrainingPlans.map((plan) => (
-                  <Card key={plan.suggestedWorkoutId} className="border-cyan-400/25">
+            {!scheduledTrainingPlans.length ? (
+              <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-secondary/30 p-1">
+                {(["home", "gym"] as PlannerLocation[]).map((location) => (
+                  <button
+                    key={location}
+                    type="button"
+                    onClick={() => setRecommendationLocation(location)}
+                    className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium capitalize transition ${
+                      recommendationLocation === location
+                        ? "bg-card text-foreground shadow"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {location === "home" ? (
+                      <Home className="h-3.5 w-3.5" />
+                    ) : (
+                      <Building2 className="h-3.5 w-3.5" />
+                    )}
+                    {location}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          {plans.isLoading || recent.isLoading || library.isLoading ? (
+            <LoadingRow label="Loading saved workouts…" />
+          ) : plans.error || recent.error || library.error ? (
+            <ErrorCard label="The next workout could not be loaded." />
+          ) : scheduledTrainingPlans.length ? (
+            <div className="grid min-w-0 gap-3">
+              {scheduledTrainingPlans.map((plan, planIndex) => (
+                <TodayChoice
+                  key={plan.suggestedWorkoutId}
+                  secondary={planIndex > 0}
+                  label={plan.title}
+                >
+                  <Card className="border-cyan-400/25">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -1123,72 +1041,190 @@ export function TodayPage() {
                       </Button>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
-            ) : recommendation ? (
-              <Card className="border-violet-400/30 bg-violet-400/[0.05]">
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold">Suggested {recommendation.title}</p>
-                        <Badge variant="outline">Normal readiness</Badge>
+                </TodayChoice>
+              ))}
+            </div>
+          ) : recommendation ? (
+            <Card className="border-violet-400/30 bg-violet-400/[0.05]">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold">Suggested {recommendation.title}</p>
+                      <Badge variant="outline">Normal readiness</Badge>
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                      {recommendation.basis}
+                    </p>
+                  </div>
+                  <Sparkles className="h-5 w-5 shrink-0 text-violet-300" />
+                </div>
+
+                <div className="mt-4 divide-y divide-border rounded-lg border border-border bg-background/30">
+                  {recommendation.movements.slice(0, 2).map((movement, movementIndex) => (
+                    <div key={`${movement.exercise}:${movementIndex}`} className="p-3">
+                      <div className="flex flex-wrap items-baseline justify-between gap-1">
+                        <p className="text-sm font-medium">{movement.exercise}</p>
+                        <p className="text-[11px] text-foreground/75">{targetSummary(movement)}</p>
                       </div>
-                      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                        {recommendation.basis}
+                      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                        {movement.reason}
                       </p>
                     </div>
-                    <Sparkles className="h-5 w-5 shrink-0 text-violet-300" />
-                  </div>
+                  ))}
+                  {recommendation.movements.length > 2 ? (
+                    <p className="p-3 text-xs text-muted-foreground">
+                      +{recommendation.movements.length - 2} more movements in Plan
+                    </p>
+                  ) : null}
+                </div>
 
-                  <div className="mt-4 divide-y divide-border rounded-lg border border-border bg-background/30">
-                    {recommendation.movements.slice(0, 2).map((movement, movementIndex) => (
-                      <div key={`${movement.exercise}:${movementIndex}`} className="p-3">
-                        <div className="flex flex-wrap items-baseline justify-between gap-1">
-                          <p className="text-sm font-medium">{movement.exercise}</p>
-                          <p className="text-[11px] text-foreground/75">
-                            {targetSummary(movement)}
-                          </p>
-                        </div>
-                        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                          {movement.reason}
-                        </p>
-                      </div>
-                    ))}
-                    {recommendation.movements.length > 2 ? (
-                      <p className="p-3 text-xs text-muted-foreground">
-                        +{recommendation.movements.length - 2} more movements in Plan
-                      </p>
-                    ) : null}
-                  </div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <Button onClick={startRecommendedWorkout} disabled={startingRecommendation}>
+                    {startingRecommendation ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Play className="mr-2 h-4 w-4" />
+                    )}
+                    {draft ? "Resume draft first" : "Start recommendation"}
+                  </Button>
+                  <Button variant="outline" onClick={adjustRecommendation}>
+                    Adjust in Plan
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">No saved next workout yet.</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button asChild>
+                    <Link to="/log">Start a workout</Link>
+                  </Button>
+                  <Button asChild variant="outline" size="sm">
+                    <Link to="/plan">Plan one</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </section>
+      </TodayChoice>
 
-                  <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
-                    <Button onClick={startRecommendedWorkout} disabled={startingRecommendation}>
-                      {startingRecommendation ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+      <details className="rounded-xl border border-border bg-card/30 p-4">
+        <summary className="cursor-pointer text-sm font-semibold">Supporting work</summary>
+        <div className="mt-4 space-y-5">
+          <MobilityPracticeOverview compact />
+
+          <section className="space-y-3">
+            <div>
+              <h2 className="text-base font-semibold">Daily practice reminder</h2>
+              <p className="text-xs text-muted-foreground">
+                One small movement selected from your rotation for today.
+              </p>
+            </div>
+            {dailyRotation.isLoading ? (
+              <LoadingRow label="Choosing today's practice…" />
+            ) : dailyRotation.error ? (
+              <ErrorCard label="Today's daily practice could not be loaded." />
+            ) : dailyRotation.data?.rotation ? (
+              <Card
+                className={
+                  dailyRotation.data.rotation.completedAt
+                    ? "border-emerald-400/35 bg-emerald-400/[0.06]"
+                    : "border-violet-400/35 bg-violet-400/[0.06]"
+                }
+              >
+                <CardContent className="p-5">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 gap-3">
+                      {dailyRotation.data.rotation.completedAt ? (
+                        <CircleCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
                       ) : (
-                        <Play className="mr-2 h-4 w-4" />
+                        <Shuffle className="mt-0.5 h-5 w-5 shrink-0 text-violet-300" />
                       )}
-                      {draft ? "Resume draft first" : "Start recommendation"}
-                    </Button>
-                    <Button variant="outline" onClick={adjustRecommendation}>
-                      Adjust in Plan
-                    </Button>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold">{dailyRotation.data.rotation.item.name}</p>
+                          {dailyRotation.data.rotation.item.target ? (
+                            <Badge
+                              variant="outline"
+                              className="border-violet-400/30 text-violet-100"
+                            >
+                              {dailyRotation.data.rotation.item.target}
+                            </Badge>
+                          ) : null}
+                        </div>
+                        {dailyRotation.data.rotation.item.cue ? (
+                          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                            {dailyRotation.data.rotation.item.cue}
+                          </p>
+                        ) : null}
+                        {dailyRotation.data.rotation.completedAt ? (
+                          <p className="mt-2 text-[11px] font-medium text-emerald-300">
+                            Done today
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
+                      <Button
+                        variant={dailyRotation.data.rotation.completedAt ? "outline" : "default"}
+                        onClick={() =>
+                          dailyRotationMutation.mutate({
+                            assignmentId: dailyRotation.data.rotation!.assignmentId,
+                            completed: !dailyRotation.data.rotation!.completedAt,
+                          })
+                        }
+                        disabled={dailyRotationMutation.isPending}
+                      >
+                        {dailyRotationMutation.isPending ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <CircleCheck className="mr-2 h-4 w-4" />
+                        )}
+                        {dailyRotation.data.rotation.completedAt ? "Undo" : "Done today"}
+                      </Button>
+                      <Button asChild variant="outline">
+                        <Link to="/rotation">
+                          <Settings2 className="mr-2 h-4 w-4" /> Manage
+                        </Link>
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             ) : (
               <Card>
                 <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-muted-foreground">No saved next workout yet.</p>
-                  <Button asChild variant="outline" size="sm">
-                    <Link to="/plan">Plan one</Link>
+                  <div>
+                    <p className="text-sm font-medium">
+                      {dailyRotation.data?.hasConfiguredItems
+                        ? "No daily practice scheduled today"
+                        : "Set up your daily rotation"}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {dailyRotation.data?.hasConfiguredItems
+                        ? "Your active items are paused or set for other days."
+                        : "Add movements such as one-arm hangs, handstands or mobility drills."}
+                    </p>
+                  </div>
+                  <Button asChild variant="outline" className="shrink-0">
+                    <Link to="/rotation">
+                      <Settings2 className="mr-2 h-4 w-4" /> Configure
+                    </Link>
                   </Button>
                 </CardContent>
               </Card>
             )}
           </section>
+        </div>
+      </details>
 
+      <details className="rounded-xl border border-border bg-card/30 p-4">
+        <summary className="cursor-pointer text-sm font-semibold">Do something else</summary>
+        <div className="mt-4 space-y-5">
           <section className="space-y-3">
             <div>
               <h2 className="text-base font-semibold">Repeat a recent workout</h2>
@@ -1288,5 +1324,23 @@ function ErrorCard({ label }: { label: string }) {
     <Card className="border-destructive/35">
       <CardContent className="p-4 text-sm text-destructive">{label}</CardContent>
     </Card>
+  );
+}
+
+function TodayChoice({
+  secondary,
+  label,
+  children,
+}: {
+  secondary: boolean;
+  label: string;
+  children: ReactNode;
+}) {
+  if (!secondary) return <>{children}</>;
+  return (
+    <details className="min-w-0 rounded-xl border border-border bg-card/30 p-4">
+      <summary className="cursor-pointer text-sm font-semibold">{label}</summary>
+      <div className="mt-4 min-w-0 space-y-4">{children}</div>
+    </details>
   );
 }

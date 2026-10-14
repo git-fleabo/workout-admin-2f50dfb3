@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
     sessionId: "saved-session",
   })),
   duplicateResponse: false,
+  recentLogs: [] as unknown[],
   savedKBPlan: null as unknown,
   nextPlans: [] as import("@/lib/supabase-plans.browser").SavedWorkoutPlan[],
   skipToday: vi.fn(),
@@ -109,7 +110,7 @@ vi.mock("@/lib/supabase-log.browser", () => ({
     ],
     intensities: [],
   })),
-  getRecentLogsClient: vi.fn(async () => ({ recent: [] })),
+  getRecentLogsClient: vi.fn(async () => ({ recent: mocks.recentLogs })),
   getTrainingLocationsClient: vi.fn(async () =>
     mocks.locations.length
       ? mocks.locations
@@ -401,6 +402,137 @@ describe("FullWorkoutForm draft lifecycle", () => {
     expect(payload.suggestedWorkoutId).toBe("strength-plan");
   });
 
+  it("preserves actual values and confirmations while focusing, navigating and restoring a workout", async () => {
+    enableHold();
+    const plan = strengthPlan();
+    plan.movements.push(holdPlan().movements[0]);
+    window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(plan));
+    const first = renderWithQueries(<FullWorkoutForm />);
+    await screen.findByText("3 × 5 at 60 kg");
+    await userEvent.click(screen.getByRole("button", { name: "Focused view" }));
+    expect(screen.getByText("Saved target")).toBeVisible();
+    expect(
+      screen.queryByRole("spinbutton", { name: "Front Lever seconds per attempt" }),
+    ).toBeNull();
+    const weight = screen.getByRole("spinbutton", { name: "Bench Press weight for all sets" });
+    await userEvent.clear(weight);
+    await userEvent.type(weight, "65");
+    await userEvent.click(screen.getByRole("button", { name: "Done with these values" }));
+    await userEvent.click(screen.getByRole("button", { name: "Next movement" }));
+    expect(screen.getByText("Movement 2 of 2")).toBeVisible();
+    expect(
+      screen.queryByRole("spinbutton", { name: "Bench Press weight for all sets" }),
+    ).toBeNull();
+    expect(screen.queryByText("Recorded", { exact: true })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Done as planned" }));
+    await userEvent.click(screen.getByRole("button", { name: "Previous movement" }));
+    expect(screen.getByRole("spinbutton", { name: "Bench Press weight for all sets" })).toHaveValue(
+      65,
+    );
+    expect(screen.getByText("Recorded", { exact: true })).toBeVisible();
+    // Changing an actual result leaves the original prescription visible.
+    expect(screen.getByText("3 × 5 at 60 kg")).toBeVisible();
+    first.unmount();
+    renderWithQueries(<FullWorkoutForm />);
+    expect(
+      await screen.findByRole("spinbutton", { name: "Bench Press weight for all sets" }),
+    ).toHaveValue(65);
+    expect(screen.getAllByText("Recorded", { exact: true })).toHaveLength(2);
+    await userEvent.click(screen.getByRole("button", { name: "Review and finish" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Finish workout", exact: true }),
+    );
+    await waitFor(() => expect(mocks.addWorkoutSessionClient).toHaveBeenCalledTimes(1));
+    const payload = mocks.addWorkoutSessionClient.mock
+      .calls[0][0] as import("@/lib/supabase-log.browser").WorkoutSessionInput;
+    expect(payload.entries).toHaveLength(2);
+    expect(payload.completed).toBe(true);
+    expect(payload.entries.every((entry) => entry.completed)).toBe(true);
+    expect(payload.entries[0].setRows?.map((row) => [row.reps, row.weight, row.completed])).toEqual(
+      Array.from({ length: 3 }, () => ["5", "65", true]),
+    );
+    expect(payload.entries[1].setRows?.map((row) => [row.durationSeconds, row.completed])).toEqual(
+      Array.from({ length: 3 }, () => ["20", true]),
+    );
+  });
+
+  it.each([false, true])(
+    "shows recorded history without treating missed sets or summary records as actual individual sets (summary: %s)",
+    async (summary) => {
+      mocks.recentLogs = [
+        {
+          id: "past-bench",
+          date: "2026-10-12",
+          sessionTitle: "Past session",
+          exercise: "Bench Press",
+          workoutType: "Strength",
+          completed: true,
+          trainingLocation: { name: "Gym", kind: "gym" },
+          sets: summary ? "3" : "1",
+          reps: summary ? "15" : "5",
+          weight: "57.5",
+          methodBlocks: [],
+          setRows: [
+            {
+              reps: summary ? "15" : "5",
+              weight: "57.5",
+              rpe: "7",
+              durationSeconds: "",
+              completed: true,
+            },
+            ...(summary
+              ? []
+              : [{ reps: "5", weight: "60", rpe: "", durationSeconds: "", completed: false }]),
+          ],
+        },
+      ];
+      window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(strengthPlan()));
+      renderWithQueries(<FullWorkoutForm />);
+      await screen.findByText("3 × 5 at 60 kg");
+      await userEvent.click(screen.getByRole("button", { name: "Focused view" }));
+      expect(
+        screen.getByText(
+          summary ? "3 sets · 15 total reps · 57.5 kg · Summary record" : "1 × 5 at 57.5 kg",
+        ),
+      ).toBeVisible();
+      await userEvent.click(screen.getByText("Previous recorded values"));
+      expect(screen.getByText(`57.5 kg · ${summary ? "15" : "5"} reps · RPE 7`)).toBeVisible();
+      expect(screen.queryByText("60 kg · 5 reps")).toBeNull();
+    },
+  );
+
+  it("keeps navigation separate from completion and reveals incomplete work before finishing", async () => {
+    enableHold();
+    const plan = strengthPlan();
+    plan.movements.push(holdPlan().movements[0]);
+    window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(plan));
+    renderWithQueries(<FullWorkoutForm />);
+    await screen.findByText("3 × 5 at 60 kg");
+    await userEvent.click(screen.getByRole("button", { name: "Focused view" }));
+    await userEvent.click(screen.getByRole("button", { name: "Next movement" }));
+    await userEvent.click(screen.getByRole("button", { name: "Move movement 2 up" }));
+    expect(screen.getByText("Movement 1 of 2")).toBeVisible();
+    expect(
+      screen.getByRole("spinbutton", { name: "Front Lever seconds per attempt" }),
+    ).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Review and finish" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Focused view" })).toBeVisible());
+    expect(
+      screen.getByRole("spinbutton", { name: "Bench Press weight for all sets" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("spinbutton", { name: "Front Lever seconds per attempt" }),
+    ).toBeVisible();
+    expect(screen.queryByText("Recorded", { exact: true })).toBeNull();
+    expect(mocks.addWorkoutSessionClient).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Focused view" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove", exact: true }));
+    expect(screen.getByText("Movement 1 of 1")).toBeVisible();
+    expect(
+      screen.getByRole("spinbutton", { name: "Bench Press weight for all sets" }),
+    ).toBeVisible();
+  });
+
   it("keeps the actual Bullmastiff plus-set result visible and blank until entered", async () => {
     window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(strengthPlan(true)));
     renderWithQueries(<FullWorkoutForm />);
@@ -648,6 +780,7 @@ describe("FullWorkoutForm draft lifecycle", () => {
   });
   beforeEach(() => {
     mocks.addWorkoutSessionClient.mockClear();
+    mocks.recentLogs = [];
     mocks.savedKBPlan = null;
     mocks.nextPlans = [];
     mocks.skipToday.mockReset();

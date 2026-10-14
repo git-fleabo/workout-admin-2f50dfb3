@@ -1,6 +1,27 @@
 # train n track Product Roadmap
 
-Last updated: 2026-10-10
+Last updated: 2026-10-14
+
+## Focused training release — 14 October 2026
+
+Implemented in the repository: Today prioritises an unfinished draft, then the next programme
+session, then a saved session or history-based suggestion. Saved sessions are ordered by suggested
+date, with additional sessions behind individual disclosures. Programme alternatives, supporting
+practice, recent repeats and kettlebells remain accessible without expanding automatically.
+
+The workout logger offers an optional Focused view with one movement at a time, saved targets,
+previous recorded values, and Previous/Next controls. Navigation does not confirm work. Movement
+identity survives reordering; removing a movement safely selects a remaining entry. Session setup
+and workout-method configuration collapse while focused. Invalid finish attempts return to the full
+view so required fields and unconfirmed work can be reviewed. The existing logger, save payload,
+offline queue and correction flow continue to handle all workout data.
+
+The manual rest timer accepts a chosen duration and uses an absolute deadline to catch up after
+background callback delays. It does not alter prescribed rest, confirm sets, or advance a movement.
+It remains a temporary timer for the open logger and resets when that view is reloaded.
+
+See [focused training verification](./focused-training-verification-2026-10-14.md).
+Publication remains a separate user-managed step.
 
 ## Current Personal Priority
 

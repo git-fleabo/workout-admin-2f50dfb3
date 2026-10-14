@@ -13,7 +13,7 @@ const rollback = readFileSync(
 );
 
 test("finishing a workout always writes a completed parent session and completed entries", () => {
-  const payloadStart = formSource.indexOf("const buildWorkoutPayload");
+  const payloadStart = formSource.indexOf("const buildDetailedWorkoutPayload");
   const payloadEnd = formSource.indexOf("const mutate = useMutation", payloadStart);
   const payloadSource = formSource.slice(payloadStart, payloadEnd);
 

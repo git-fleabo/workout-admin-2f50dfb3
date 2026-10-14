@@ -121,8 +121,10 @@ import { MovementPicker } from "./movement-picker";
 import { SetRowsEditor } from "./set-rows-editor";
 import { CompactStrengthSets } from "./compact-strength-sets";
 import { CompactHoldAttempts } from "./compact-hold-attempts";
+import { RestTimer } from "./rest-timer";
 import {
   createHoldLog,
+  holdSummary,
   isHoldLogState,
   holdRowsReady,
   gripLoadIssue,
@@ -131,6 +133,7 @@ import {
 } from "@/lib/compact-holds";
 import {
   createStrengthLog,
+  strengthSetSummary,
   isStrengthLogState,
   strengthRowsReady,
   type StrengthLogState,
@@ -1608,6 +1611,13 @@ export function FullWorkoutForm() {
     move: moveEntryField,
     remove: removeEntryField,
   } = useFieldArray({ control, name: "entries" });
+  const [focusedView, setFocusedView] = useState(false);
+  const [focusedMovementId, setFocusedMovementId] = useState<string | null>(null);
+  const focusedIndex = Math.max(
+    0,
+    form.entries.findIndex((entry) => entry.clientId === focusedMovementId),
+  );
+  const focusedEntry = form.entries[focusedIndex];
   const [initialFormLoaded, setInitialFormLoaded] = useState(false);
   const [loadedSuggestionId, setLoadedSuggestionId] = useState<string | null>(null);
   const [mobilityRunId, setMobilityRunId] = useState<string | null>(null);
@@ -2419,6 +2429,7 @@ export function FullWorkoutForm() {
       return { ...result, wasCorrection: false, planRelinkFailed: false };
     },
     onSuccess: async (result) => {
+      setFocusedView(false);
       if (result.queued) {
         window.localStorage.removeItem(draftStorageKey);
         setForm(blankSession());
@@ -2586,6 +2597,7 @@ export function FullWorkoutForm() {
     const schemaValid = await trigger();
     if (!schemaValid || !canSubmit) {
       setShowValidationErrors(true);
+      setFocusedView(false);
       return;
     }
     setShowValidationErrors(false);
@@ -2654,6 +2666,7 @@ export function FullWorkoutForm() {
   };
 
   const cancelCorrection = () => {
+    setFocusedView(false);
     window.localStorage.removeItem(draftStorageKey);
     setForm(blankSession());
     setEditingSessionId(null);
@@ -2803,162 +2816,226 @@ export function FullWorkoutForm() {
         />
       ) : (
         <>
-          <Card className="space-y-4 border-border bg-card p-4 sm:p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold">Your workout</h2>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <p className="text-xs text-muted-foreground">
-                    Choose where, then log one movement or add the whole session.
-                  </p>
-                  {hasDraftContent ? <WorkoutLifecycleBadge state="in_progress" /> : null}
+          <details
+            open={focusedView ? undefined : true}
+            className={focusedView ? "rounded-lg border border-border bg-card p-3" : ""}
+          >
+            <summary className={focusedView ? "cursor-pointer text-sm font-medium" : "hidden"}>
+              Session setup{selectedLocation?.name ? ` · ${selectedLocation.name}` : ""}
+              {draftTime ? ` · Autosaved ${draftTime}` : ""}
+            </summary>
+            <Card className="space-y-4 border-border bg-card p-4 sm:p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold">Your workout</h2>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      Choose where, then log one movement or add the whole session.
+                    </p>
+                    {hasDraftContent ? <WorkoutLifecycleBadge state="in_progress" /> : null}
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <Badge variant="outline" className="gap-1 border-border text-muted-foreground">
+                    <Calendar className="h-3 w-3" /> {formatUKDate(form.date)}
+                  </Badge>
+                  {hasDraftContent ? (
+                    <span className="text-[10px] text-muted-foreground">
+                      {draftTime
+                        ? `Autosaved ${draftTime} on this device`
+                        : "Autosaving on this device…"}
+                    </span>
+                  ) : null}
                 </div>
               </div>
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                <Badge variant="outline" className="gap-1 border-border text-muted-foreground">
-                  <Calendar className="h-3 w-3" /> {formatUKDate(form.date)}
-                </Badge>
-                {hasDraftContent ? (
-                  <span className="text-[10px] text-muted-foreground">
-                    {draftTime
-                      ? `Autosaved ${draftTime} on this device`
-                      : "Autosaving on this device…"}
-                  </span>
-                ) : null}
-              </div>
-            </div>
 
-            <Field label="Where are you training?">
-              <div className="grid grid-cols-2 gap-2 sm:flex">
-                {(locations.data ?? []).map((location) => (
-                  <Button
-                    key={location.id}
-                    type="button"
-                    variant={form.trainingLocationId === location.id ? "secondary" : "outline"}
-                    className="sm:min-w-28"
-                    onClick={() => {
-                      update("trainingLocationId", location.id);
-                      window.localStorage.setItem(WORKOUT_TRAINING_LOCATION_KEY, location.id);
-                    }}
-                  >
-                    {location.name}
-                  </Button>
-                ))}
-              </div>
-            </Field>
-
-            {unavailableWorkoutEntries.length > 0 ? (
-              <div className="rounded-lg border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2 text-xs text-amber-100">
-                <p className="font-medium">Some movements are not available here</p>
-                <ul className="mt-1 space-y-1 text-amber-100/80">
-                  {unavailableWorkoutEntries.map((entry, index) => (
-                    <li key={index}>
-                      {entry.exercise}:{" "}
-                      {exerciseUnavailableReason(
-                        workoutLibraryExercises.find(
-                          (exercise) =>
-                            exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
-                        ),
-                        selectedLocation,
-                        lib.data?.equipmentItems,
-                      )}
-                    </li>
+              <Field label="Where are you training?">
+                <div className="grid grid-cols-2 gap-2 sm:flex">
+                  {(locations.data ?? []).map((location) => (
+                    <Button
+                      key={location.id}
+                      type="button"
+                      variant={form.trainingLocationId === location.id ? "secondary" : "outline"}
+                      className="sm:min-w-28"
+                      onClick={() => {
+                        update("trainingLocationId", location.id);
+                        window.localStorage.setItem(WORKOUT_TRAINING_LOCATION_KEY, location.id);
+                      }}
+                    >
+                      {location.name}
+                    </Button>
                   ))}
-                </ul>
-              </div>
-            ) : null}
+                </div>
+              </Field>
 
-            {recentSessionTemplates.length > 0 ? (
+              {unavailableWorkoutEntries.length > 0 ? (
+                <div className="rounded-lg border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2 text-xs text-amber-100">
+                  <p className="font-medium">Some movements are not available here</p>
+                  <ul className="mt-1 space-y-1 text-amber-100/80">
+                    {unavailableWorkoutEntries.map((entry, index) => (
+                      <li key={index}>
+                        {entry.exercise}:{" "}
+                        {exerciseUnavailableReason(
+                          workoutLibraryExercises.find(
+                            (exercise) =>
+                              exercise.name.toLowerCase() === entry.exercise.trim().toLowerCase(),
+                          ),
+                          selectedLocation,
+                          lib.data?.equipmentItems,
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {recentSessionTemplates.length > 0 ? (
+                <details className="rounded-lg border border-border bg-secondary/20 px-3 py-2">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    Repeat a recent workout
+                  </summary>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {recentSessionTemplates.map((session) => (
+                      <button
+                        key={session.id}
+                        type="button"
+                        className="rounded-md border border-border bg-background p-3 text-left transition-colors hover:bg-secondary/60"
+                        onClick={() => requestRecentSession(session)}
+                      >
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm font-medium">{session.title}</span>
+                          <History className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        </span>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {formatUKDate(session.date)} ·{" "}
+                          {countLabel(session.entries.length, "movement")}
+                          {session.location?.name ? ` · ${session.location.name}` : ""}
+                        </span>
+                        <span className="mt-1 block truncate text-[11px] text-muted-foreground">
+                          {session.entries.map((entry) => entry.exercise).join(", ")}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </details>
+              ) : null}
+
               <details className="rounded-lg border border-border bg-secondary/20 px-3 py-2">
                 <summary className="cursor-pointer text-sm font-medium">
-                  Repeat a recent workout
+                  Session details (optional)
                 </summary>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {recentSessionTemplates.map((session) => (
-                    <button
-                      key={session.id}
-                      type="button"
-                      className="rounded-md border border-border bg-background p-3 text-left transition-colors hover:bg-secondary/60"
-                      onClick={() => requestRecentSession(session)}
-                    >
-                      <span className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-medium">{session.title}</span>
-                        <History className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      </span>
-                      <span className="mt-1 block text-xs text-muted-foreground">
-                        {formatUKDate(session.date)} ·{" "}
-                        {countLabel(session.entries.length, "movement")}
-                        {session.location?.name ? ` · ${session.location.name}` : ""}
-                      </span>
-                      <span className="mt-1 block truncate text-[11px] text-muted-foreground">
-                        {session.entries.map((entry) => entry.exercise).join(", ")}
-                      </span>
-                    </button>
-                  ))}
+                <div className="mt-4 space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Date">
+                      <DateInput value={form.date} onChange={(v) => update("date", v)} />
+                    </Field>
+                    <Field label="Session name">
+                      <Input value={form.title} onChange={(e) => update("title", e.target.value)} />
+                    </Field>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <Field label="Minutes">
+                      <Input
+                        inputMode="numeric"
+                        value={form.duration}
+                        onChange={(e) => update("duration", e.target.value)}
+                      />
+                    </Field>
+                    <Field label="Intensity">
+                      <SimpleSelect
+                        value={form.intensity}
+                        onChange={(v) => update("intensity", v)}
+                        options={lib.data?.intensities ?? []}
+                      />
+                    </Field>
+                    <Field label="Overall RPE">
+                      <Input
+                        inputMode="decimal"
+                        value={form.rpe}
+                        onChange={(e) => update("rpe", e.target.value)}
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Session notes">
+                    <Textarea
+                      rows={2}
+                      value={form.notes}
+                      onChange={(e) => update("notes", e.target.value)}
+                      placeholder="Overall workout notes..."
+                    />
+                  </Field>
                 </div>
               </details>
-            ) : null}
+            </Card>
+          </details>
 
-            <details className="rounded-lg border border-border bg-secondary/20 px-3 py-2">
-              <summary className="cursor-pointer text-sm font-medium">
-                Session details (optional)
-              </summary>
-              <div className="mt-4 space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Date">
-                    <DateInput value={form.date} onChange={(v) => update("date", v)} />
-                  </Field>
-                  <Field label="Session name">
-                    <Input value={form.title} onChange={(e) => update("title", e.target.value)} />
-                  </Field>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <Field label="Minutes">
-                    <Input
-                      inputMode="numeric"
-                      value={form.duration}
-                      onChange={(e) => update("duration", e.target.value)}
-                    />
-                  </Field>
-                  <Field label="Intensity">
-                    <SimpleSelect
-                      value={form.intensity}
-                      onChange={(v) => update("intensity", v)}
-                      options={lib.data?.intensities ?? []}
-                    />
-                  </Field>
-                  <Field label="Overall RPE">
-                    <Input
-                      inputMode="decimal"
-                      value={form.rpe}
-                      onChange={(e) => update("rpe", e.target.value)}
-                    />
-                  </Field>
-                </div>
-                <Field label="Session notes">
-                  <Textarea
-                    rows={2}
-                    value={form.notes}
-                    onChange={(e) => update("notes", e.target.value)}
-                    placeholder="Overall workout notes..."
-                  />
-                </Field>
-              </div>
-            </details>
-          </Card>
-
-          <div>
-            <h2 className="text-base font-semibold">Movements and sets</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {mobilityRunId
-                ? "Choose toolkit exercises for this mobility practice. Set-level methods stay attached to the set they change."
-                : "Build the workout first. Set-level methods stay attached to the set they change."}
-            </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold">Movements and sets</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {mobilityRunId
+                  ? "Choose toolkit exercises for this mobility practice. Set-level methods stay attached to the set they change."
+                  : focusedView
+                    ? "Follow your targets and confirm the work you performed."
+                    : "Build the workout first. Set-level methods stay attached to the set they change."}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              aria-pressed={focusedView}
+              onClick={() => {
+                if (!focusedView) {
+                  const next = form.entries.find(
+                    (entry) =>
+                      entry.exercise && !(entry.strengthLog?.confirmed || entry.holdLog?.confirmed),
+                  );
+                  setFocusedMovementId((next ?? form.entries[0])?.clientId ?? null);
+                }
+                setFocusedView((value) => !value);
+              }}
+            >
+              {focusedView ? "Show all movements" : "Focused view"}
+            </Button>
           </div>
+          {focusedView ? (
+            <section
+              aria-label="Current movement"
+              className="space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-4"
+            >
+              <p className="text-xs font-medium text-muted-foreground">
+                Movement {focusedIndex + 1} of {form.entries.length}
+              </p>
+              <label className="sr-only" htmlFor="focused-movement">
+                Current movement
+              </label>
+              <Select value={focusedEntry?.clientId} onValueChange={setFocusedMovementId}>
+                <SelectTrigger id="focused-movement">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {form.entries.map((entry, index) => (
+                    <SelectItem key={entry.clientId} value={entry.clientId}>
+                      {index + 1}. {entry.exercise || "Choose a movement"}
+                      {entry.strengthLog?.confirmed || entry.holdLog?.confirmed
+                        ? " · Recorded"
+                        : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="sr-only">
+                Record your actual work below. Moving to another movement does not mark it complete.
+              </p>
+              {focusedEntry?.restTime ? (
+                <p className="text-sm">Rest guidance: {focusedEntry.restTime}</p>
+              ) : null}
+            </section>
+          ) : null}
           <div className="space-y-3">
             {entryFields.map((field, index) => {
               const entry = form.entries[index];
-              if (!entry) return null;
+              if (!entry || (focusedView && index !== focusedIndex)) return null;
               const methodBlock = form.methodBlocks.find((block) =>
                 block.memberClientIds.includes(entry.clientId),
               );
@@ -2984,6 +3061,13 @@ export function FullWorkoutForm() {
                 entry.strengthLog && profileUsesStandardSets(profile) && !hasPlannedTimedSets;
               const compactHold = entry.holdLog && (profile === "hold" || profile === "grip");
               const compactMovement = compactStrength || compactHold;
+              const plannedRows = entry.strengthLog?.prescribed
+                ? entry.strengthLog.plannedRows
+                : entry.holdLog?.prescribed
+                  ? entry.holdLog.plannedRows
+                  : [];
+              const previousCompletedSets =
+                previousWorkout?.setRows.filter((set) => set.completed !== false) ?? [];
 
               return (
                 <Card
@@ -3038,6 +3122,69 @@ export function FullWorkoutForm() {
                       </Button>
                     </div>
                   </div>
+                  {focusedView && plannedRows.length > 0 ? (
+                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                      <p className="text-xs font-medium">Saved target</p>
+                      <p className="mt-1 text-sm">
+                        {compactHold
+                          ? holdSummary(plannedRows.map((row) => ({ ...row, completed: true })))
+                          : strengthSetSummary(
+                              plannedRows.map((row) => ({ ...row, completed: true })),
+                              profileUsesLoad(profile),
+                            )}
+                      </p>
+                      {entry.strengthLog?.plusSetIndex != null ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          The final set is a plus set. Record the reps achieved.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {focusedView &&
+                  previousWorkout &&
+                  previousCompletedSets.length > 0 &&
+                  (profileUsesStandardSets(profile) ||
+                    profile === "hold" ||
+                    profile === "grip" ||
+                    hasPlannedTimedSets) ? (
+                    <div className="rounded-lg border border-border bg-secondary/20 p-3">
+                      <p className="text-xs font-medium">
+                        Last recorded · {formatUKDate(previousWorkout.date)}
+                        {previousWorkout.trainingLocation?.name
+                          ? ` · ${previousWorkout.trainingLocation.name}`
+                          : ""}
+                      </p>
+                      <p className="mt-1 text-sm">
+                        {previousWorkout.setRows.length === 1 && Number(previousWorkout.sets) > 1
+                          ? `${previousWorkout.sets} sets · ${previousWorkout.reps || "—"} total reps${profileUsesLoad(profile) && previousWorkout.weight ? ` · ${previousWorkout.weight} kg` : ""} · Summary record`
+                          : profile === "hold" || profile === "grip" || hasPlannedTimedSets
+                            ? holdSummary(previousCompletedSets)
+                            : strengthSetSummary(previousCompletedSets, profileUsesLoad(profile))}
+                      </p>
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-xs text-muted-foreground">
+                          Previous recorded values
+                        </summary>
+                        <ul className="mt-2 space-y-1 text-xs">
+                          {previousCompletedSets.map((row, rowIndex) => (
+                            <li key={rowIndex}>
+                              {[
+                                profileUsesLoad(profile) && row.weight ? `${row.weight} kg` : "",
+                                row.reps ? `${row.reps} reps` : "",
+                                row.durationSeconds ? `${row.durationSeconds} sec` : "",
+                                row.rpe ? `RPE ${row.rpe}` : "",
+                                row.method
+                                  ? `${row.method.methodName}: ${row.method.segments.map((segment) => `${segment.weight || "—"} kg × ${segment.reps || "—"} reps`).join(" → ")}`
+                                  : "",
+                              ]
+                                .filter(Boolean)
+                                .join(" · ") || "No values recorded"}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    </div>
+                  ) : null}
                   <details
                     open={!compactMovement}
                     className={compactMovement ? "rounded-lg border border-border px-3 py-2" : ""}
@@ -3491,141 +3638,185 @@ export function FullWorkoutForm() {
             })}
           </div>
 
-          <Button type="button" variant="outline" className="w-full" onClick={addEntry}>
+          {hasDraftContent ? (
+            <div hidden={!focusedView}>
+              <RestTimer />
+            </div>
+          ) : null}
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              addEntry();
+              setFocusedView(false);
+            }}
+          >
             <Plus className="mr-1 h-4 w-4" /> Add movement
           </Button>
 
           {advancedMethodEntries.length > 0 ? (
-            <Card className="space-y-3 border-border bg-card p-4">
-              <div>
-                <h2 className="flex items-center gap-2 text-base font-semibold">
-                  <Layers3 className="h-4 w-4 text-indigo-300" /> Advanced methods
-                </h2>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Optional. Choose whether the method joins movements or changes one set.
-                </p>
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="flex min-h-24 flex-col justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
-                  <div>
-                    <p className="text-sm font-medium">Across movements</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Supersets, circuits, AMRAP, EMOM, EDT and Tabata.
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={openCreate}
-                    disabled={workoutEntries.length < 1 || blockMethods.length === 0}
-                  >
-                    <Plus className="mr-1 h-3.5 w-3.5" /> Add grouped or timed method
-                  </Button>
-                </div>
-                <div className="flex min-h-24 flex-col justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
-                  <div>
-                    <p className="text-sm font-medium">Within a set</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Drop sets, clusters, rest-pause, pyramids, eccentrics, negatives and more.
-                    </p>
-                  </div>
-                  <p className="text-xs font-medium text-fuchsia-200">
-                    Use “Set method” beneath the set it applies to.
+            <details
+              open={focusedView ? undefined : true}
+              className={focusedView ? "rounded-lg border border-border bg-card p-3" : ""}
+            >
+              <summary className={focusedView ? "cursor-pointer text-sm font-medium" : "hidden"}>
+                Workout methods
+              </summary>
+              <Card className="space-y-3 border-border bg-card p-4">
+                <div>
+                  <h2 className="flex items-center gap-2 text-base font-semibold">
+                    <Layers3 className="h-4 w-4 text-indigo-300" /> Advanced methods
+                  </h2>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Optional. Choose whether the method joins movements or changes one set.
                   </p>
                 </div>
-              </div>
 
-              {methods.isLoading ? (
-                <p className="text-xs text-muted-foreground">Loading available methods…</p>
-              ) : form.methodBlocks.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-                  {workoutEntries.length
-                    ? "No grouped or timed method added."
-                    : "Add a movement before creating a grouped or timed method."}
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {form.methodBlocks.map((block) => {
-                    const movementNames = block.memberClientIds
-                      .map((id) => form.entries.find((entry) => entry.clientId === id)?.exercise)
-                      .filter(Boolean);
-                    return (
-                      <div
-                        key={block.id}
-                        className="flex flex-col gap-3 rounded-lg border border-indigo-400/25 bg-indigo-400/[0.05] p-3 sm:flex-row sm:items-center"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium">{block.methodName}</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {block.family === "timed_density"
-                              ? [
-                                  movementNames.join(" → "),
-                                  block.blockDurationMinutes
-                                    ? `${block.blockDurationMinutes} min block`
-                                    : "",
-                                  block.config.mode === "emom" &&
-                                  typeof block.config.interval_seconds === "number"
-                                    ? `Start every ${block.config.interval_seconds}s`
-                                    : "",
-                                  block.workIntervalSeconds
-                                    ? `${block.workIntervalSeconds}s work`
-                                    : "",
-                                  block.restIntervalSeconds
-                                    ? `${block.restIntervalSeconds}s rest`
-                                    : "",
-                                  block.completedRounds
-                                    ? `${block.completedRounds}/${block.rounds || "—"} rounds done`
-                                    : block.rounds
-                                      ? `${block.rounds} rounds planned`
-                                      : "",
-                                ]
-                                  .filter(Boolean)
-                                  .join(" · ")
-                              : [
-                                  movementNames.join(" → "),
-                                  `${block.rounds || "—"} rounds`,
-                                  block.config.mode === "timed_sequence" &&
-                                  typeof block.config.round_seconds === "number"
-                                    ? `${block.config.round_seconds / 60} min per round`
-                                    : "",
-                                  `${block.restBetweenRoundsSeconds || "0"}s between rounds`,
-                                ]
-                                  .filter(Boolean)
-                                  .join(" · ")}
-                          </p>
-                        </div>
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openEdit(block.id)}
-                          >
-                            <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeMethodBlock(block.id)}
-                          >
-                            Remove
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="flex min-h-24 flex-col justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
+                    <div>
+                      <p className="text-sm font-medium">Across movements</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Supersets, circuits, AMRAP, EMOM, EDT and Tabata.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={openCreate}
+                      disabled={workoutEntries.length < 1 || blockMethods.length === 0}
+                    >
+                      <Plus className="mr-1 h-3.5 w-3.5" /> Add grouped or timed method
+                    </Button>
+                  </div>
+                  <div className="flex min-h-24 flex-col justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
+                    <div>
+                      <p className="text-sm font-medium">Within a set</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Drop sets, clusters, rest-pause, pyramids, eccentrics, negatives and more.
+                      </p>
+                    </div>
+                    <p className="text-xs font-medium text-fuchsia-200">
+                      Use “Set method” beneath the set it applies to.
+                    </p>
+                  </div>
                 </div>
-              )}
-            </Card>
+
+                {methods.isLoading ? (
+                  <p className="text-xs text-muted-foreground">Loading available methods…</p>
+                ) : form.methodBlocks.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+                    {workoutEntries.length
+                      ? "No grouped or timed method added."
+                      : "Add a movement before creating a grouped or timed method."}
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {form.methodBlocks.map((block) => {
+                      const movementNames = block.memberClientIds
+                        .map((id) => form.entries.find((entry) => entry.clientId === id)?.exercise)
+                        .filter(Boolean);
+                      return (
+                        <div
+                          key={block.id}
+                          className="flex flex-col gap-3 rounded-lg border border-indigo-400/25 bg-indigo-400/[0.05] p-3 sm:flex-row sm:items-center"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium">{block.methodName}</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {block.family === "timed_density"
+                                ? [
+                                    movementNames.join(" → "),
+                                    block.blockDurationMinutes
+                                      ? `${block.blockDurationMinutes} min block`
+                                      : "",
+                                    block.config.mode === "emom" &&
+                                    typeof block.config.interval_seconds === "number"
+                                      ? `Start every ${block.config.interval_seconds}s`
+                                      : "",
+                                    block.workIntervalSeconds
+                                      ? `${block.workIntervalSeconds}s work`
+                                      : "",
+                                    block.restIntervalSeconds
+                                      ? `${block.restIntervalSeconds}s rest`
+                                      : "",
+                                    block.completedRounds
+                                      ? `${block.completedRounds}/${block.rounds || "—"} rounds done`
+                                      : block.rounds
+                                        ? `${block.rounds} rounds planned`
+                                        : "",
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" · ")
+                                : [
+                                    movementNames.join(" → "),
+                                    `${block.rounds || "—"} rounds`,
+                                    block.config.mode === "timed_sequence" &&
+                                    typeof block.config.round_seconds === "number"
+                                      ? `${block.config.round_seconds / 60} min per round`
+                                      : "",
+                                    `${block.restBetweenRoundsSeconds || "0"}s between rounds`,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                            </p>
+                          </div>
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEdit(block.id)}
+                            >
+                              <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeMethodBlock(block.id)}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>{" "}
+            </details>
           ) : null}
         </>
       )}
       <div className="sticky bottom-20 z-10 rounded-xl border border-border bg-background/95 p-2 shadow-xl backdrop-blur sm:bottom-3">
         <p className="sr-only">Finished workouts appear in History and on the Dashboard.</p>
+        {focusedView && !summaryMode ? (
+          <div className="mb-2 grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11"
+              disabled={focusedIndex === 0}
+              onClick={() => setFocusedMovementId(form.entries[focusedIndex - 1]?.clientId ?? null)}
+            >
+              Previous movement
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11"
+              disabled={focusedIndex >= form.entries.length - 1}
+              onClick={() => setFocusedMovementId(form.entries[focusedIndex + 1]?.clientId ?? null)}
+            >
+              Next movement
+            </Button>
+          </div>
+        ) : null}
         <Button
           onClick={() => void reviewAndFinish()}
           disabled={mutate.isPending}
@@ -3835,7 +4026,14 @@ export function FullWorkoutForm() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep workout</AlertDialogCancel>
-            <AlertDialogAction onClick={discardDraft}>Cancel workout</AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => {
+                setFocusedView(false);
+                discardDraft();
+              }}
+            >
+              Cancel workout
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -188,6 +188,61 @@ describe("TodayPage branching", () => {
     expect(screen.getByRole("button", { name: "Start session" })).toBeInTheDocument();
   });
 
+  it("keeps scheduled alternatives and supporting work closed when a programme is next", async () => {
+    mocks.programmeOffers = [programmeOffer];
+    mocks.plans = [savedPlan];
+    mocks.programmeOverview.assignments = [
+      { id: "assignment-1", programId: "programme-1", status: "active", currentWorkoutIndex: 0 },
+    ];
+    renderToday();
+    expect(await screen.findByText("Base Strength")).toBeVisible();
+    expect(
+      screen.getByText("Scheduled sessions and suggestions").closest("details"),
+    ).not.toHaveAttribute("open");
+    expect(screen.getByText("Upper Strength")).not.toBeVisible();
+    expect(screen.getByText("Supporting work").closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByText("Do something else").closest("details")).not.toHaveAttribute("open");
+    await userEvent.click(screen.getByText("Scheduled sessions and suggestions"));
+    expect(screen.getByText("Upper Strength")).toBeVisible();
+  });
+
+  it("prioritises Resume over programme and saved-session actions", async () => {
+    mocks.programmeOffers = [programmeOffer];
+    mocks.plans = [savedPlan];
+    window.localStorage.setItem(
+      "workout-session-draft:signed-out",
+      JSON.stringify({
+        version: 1,
+        savedAt: new Date().toISOString(),
+        form: { date: "2026-10-06", title: "In progress", entries: [{ exercise: "Bench Press" }] },
+      }),
+    );
+    renderToday();
+    expect(await screen.findByRole("link", { name: "Resume workout" })).toBeVisible();
+    expect(await screen.findByText("Base Strength")).not.toBeVisible();
+    expect(screen.getByText("Upper Strength")).not.toBeVisible();
+    await userEvent.click(screen.getByText("Your next programme session"));
+    expect(screen.getByText("Base Strength")).toBeVisible();
+  });
+
+  it("shows the earliest saved session first and keeps later sessions available by disclosure", async () => {
+    mocks.plans = [
+      {
+        ...savedPlan,
+        suggestedWorkoutId: "later",
+        title: "Later session",
+        suggestedFor: "2026-10-08",
+      },
+      savedPlan,
+    ];
+    renderToday();
+    expect(await screen.findByText("Upper Strength")).toBeVisible();
+    expect(screen.getByText("Later session", { selector: "p" })).not.toBeVisible();
+    await userEvent.click(screen.getByText("Later session", { selector: "summary" }));
+    expect(screen.getByText("Later session", { selector: "p" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Start early" })).toBeVisible();
+  });
+
   it("holds supporting sessions back until their programme starts", async () => {
     mocks.plans = [
       {
