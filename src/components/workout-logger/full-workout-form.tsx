@@ -2440,9 +2440,11 @@ export function FullWorkoutForm() {
         setLastCompletedWorkout(null);
       }
       toast.success(result.wasCorrection ? "Workout updated" : "Workout session saved", {
-        description: `${countLabel(form.entries.filter((entry) => entry.exercise).length, "movement")} ${form.entries.filter((entry) => entry.exercise).length === 1 ? "was" : "were"} ${
-          result.wasCorrection ? "updated" : "added"
-        }.`,
+        description: summaryMode
+          ? "Summary workout recorded."
+          : `${countLabel(form.entries.filter((entry) => entry.exercise).length, "movement")} ${form.entries.filter((entry) => entry.exercise).length === 1 ? "was" : "were"} ${
+              result.wasCorrection ? "updated" : "added"
+            }.`,
       });
       setFinishSummaryOpen(false);
       setForm(blankSession());
@@ -2684,10 +2686,12 @@ export function FullWorkoutForm() {
                 <WorkoutLifecycleBadge state="completed" />
               </div>
               <p className="text-xs text-muted-foreground">
-                {countLabel(
-                  lastCompletedWorkout.form.entries.filter((entry) => entry.exercise).length,
-                  "movement",
-                )}{" "}
+                {lastCompletedWorkout.form.kettlebellLog?.mode === "summary"
+                  ? "Summary log"
+                  : countLabel(
+                      lastCompletedWorkout.form.entries.filter((entry) => entry.exercise).length,
+                      "movement",
+                    )}{" "}
                 · Finished at{" "}
                 {new Date(lastCompletedWorkout.savedAt).toLocaleTimeString([], {
                   hour: "2-digit",

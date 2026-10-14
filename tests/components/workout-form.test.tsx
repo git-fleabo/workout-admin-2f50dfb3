@@ -131,6 +131,7 @@ import { ClimbForm, FullWorkoutForm } from "@/components/workout-logger/full-wor
 import { kettlebellWorkoutDraft } from "@/lib/kettlebell-workouts";
 import { kbFixture, kbId } from "../helpers/kettlebell-fixtures";
 import { WORKOUT_PLAN_DRAFT_KEY } from "@/lib/workout-plan";
+import { readCompletedWorkoutSummary } from "@/lib/workout-local-state";
 import { replaceWorkoutSessionClient } from "@/lib/supabase-log.browser";
 
 function renderWithQueries(node: ReactNode) {
@@ -499,6 +500,12 @@ describe("FullWorkoutForm draft lifecycle", () => {
     expect(saved.entries[0].reps).toBe("");
     expect(saved.methodBlocks).toEqual([]);
     expect(saved.entries[0].notes).toContain("Prescribed workout (reference only)");
+    const banner = await screen.findByText("Today's workout is saved");
+    expect(
+      banner.closest("[data-slot='card']") ?? banner.parentElement?.parentElement?.parentElement,
+    ).toHaveTextContent("Summary log");
+    const stored = window.localStorage.getItem("last-completed-workout:signed-out");
+    expect(readCompletedWorkoutSummary(stored)?.loggingMode).toBe("kettlebell_summary");
   });
 
   it("upgrades an older unfinished KB draft from its saved snapshot", async () => {

@@ -443,9 +443,11 @@ export function TodayPage() {
                   <WorkoutLifecycleBadge state="in_progress" />
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {draft.movements.length
-                    ? `${countLabel(draft.movements.length, "movement")} · ${draft.movements.join(", ")}`
-                    : "Workout details in progress"}
+                  {draft.loggingMode === "kettlebell_summary"
+                    ? "Summary log in progress"
+                    : draft.movements.length
+                      ? `${countLabel(draft.movements.length, "movement")} · ${draft.movements.join(", ")}`
+                      : "Workout details in progress"}
                 </p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   Last saved at {formatTime(draft.savedAt)} · on this device
@@ -480,8 +482,10 @@ export function TodayPage() {
                   <WorkoutLifecycleBadge state="completed" />
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {countLabel(completed.movements.length, "movement")} · Finished at{" "}
-                  {formatTime(completed.savedAt)}
+                  {completed.loggingMode === "kettlebell_summary"
+                    ? "Summary log"
+                    : countLabel(completed.movements.length, "movement")}{" "}
+                  · Finished at {formatTime(completed.savedAt)}
                 </p>
               </div>
             </div>

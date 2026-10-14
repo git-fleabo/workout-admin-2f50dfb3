@@ -430,4 +430,23 @@ describe("TodayPage branching", () => {
 
     expect(await screen.findByText("No saved next workout yet.")).toBeInTheDocument();
   });
+
+  it("labels a resumable KB summary instead of counting every prescribed step as a movement", async () => {
+    window.localStorage.setItem(
+      "workout-session-draft:signed-out",
+      JSON.stringify({
+        version: 1,
+        savedAt: new Date().toISOString(),
+        form: {
+          date: new Date().toLocaleDateString("en-CA"),
+          title: "KB practice",
+          entries: Array.from({ length: 40 }, () => ({ exercise: "Kettlebell Swing" })),
+          kettlebellLog: { mode: "summary" },
+        },
+      }),
+    );
+    renderToday();
+    expect(await screen.findByText("Summary log in progress")).toBeVisible();
+    expect(screen.queryByText(/40 movements/)).not.toBeInTheDocument();
+  });
 });

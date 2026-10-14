@@ -34,6 +34,7 @@ export type WorkoutLocalSummary = {
   movements: string[];
   loadedSuggestionId: string | null;
   editingSessionId: string | null;
+  loggingMode?: "kettlebell_summary";
 };
 
 function readSummary(value: string | null, completedOnly: boolean): WorkoutLocalSummary | null {
@@ -49,6 +50,7 @@ function readSummary(value: string | null, completedOnly: boolean): WorkoutLocal
         date?: unknown;
         title?: unknown;
         entries?: Array<{ exercise?: unknown }>;
+        kettlebellLog?: { mode?: unknown };
       };
     };
     if (
@@ -66,6 +68,9 @@ function readSummary(value: string | null, completedOnly: boolean): WorkoutLocal
       typeof entry.exercise === "string" && entry.exercise.trim() ? [entry.exercise.trim()] : [],
     );
     return {
+      ...(stored.form.kettlebellLog?.mode === "summary"
+        ? { loggingMode: "kettlebell_summary" as const }
+        : {}),
       sessionId: typeof stored.sessionId === "string" ? stored.sessionId : null,
       savedAt: stored.savedAt,
       date: stored.form.date,

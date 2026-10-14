@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { buildTrainingStory, type TrainingStory } from "@/lib/training-story";
 import { DeleteConfirmDialog, type DeleteTarget } from "@/components/workout-logger/form-bits";
 import { buildTrainingHeatmap } from "@/lib/training-heatmap";
+import { WorkoutHistoryNotes } from "@/components/workout-history-notes";
 
 export const Route = createFileRoute("/history")({
   head: () => ({
@@ -235,10 +236,7 @@ export function HistoryPage() {
             details: members.map((member) =>
               [member.title, ...member.details].filter(Boolean).join(" · "),
             ),
-            notes: members
-              .map((member) => member.notes)
-              .filter(Boolean)
-              .join("\n"),
+            notes: [...new Set(members.map((member) => member.notes).filter(Boolean))].join("\n"),
             isPr: members.some((member) => member.isPr),
           } satisfies TimelineEntry;
         });
@@ -505,7 +503,7 @@ export function HistoryPage() {
       )}
 
       <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           {selected && (
             <>
               <DialogHeader>
@@ -523,9 +521,10 @@ export function HistoryPage() {
                   ))}
                 </div>
                 {selected.notes && (
-                  <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
-                    {selected.notes}
-                  </div>
+                  <WorkoutHistoryNotes
+                    notes={selected.notes}
+                    summaryLog={selected.details.includes("Summary log")}
+                  />
                 )}
                 {selected.sessionId && (
                   <DialogFooter>
