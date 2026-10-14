@@ -296,7 +296,7 @@ export function HistoryPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">History</h1>
@@ -446,7 +446,7 @@ export function HistoryPage() {
                       : "entries"}
                 </span>
               </div>
-              <div className="grid gap-2">
+              <div className="grid min-w-0 grid-cols-1 gap-2">
                 {entries.map((entry) => {
                   const meta = kindMeta(entry.kind);
                   return (
@@ -455,7 +455,7 @@ export function HistoryPage() {
                       type="button"
                       onClick={() => setSelected(entry)}
                       className={cn(
-                        "rounded-lg border p-3 text-left transition hover:border-foreground/25",
+                        "min-w-0 rounded-lg border p-3 text-left transition hover:border-foreground/25",
                         meta.className,
                       )}
                     >
@@ -463,7 +463,7 @@ export function HistoryPage() {
                         <span className="mt-0.5">{meta.icon}</span>
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h2 className="truncate text-sm font-semibold text-foreground">
+                            <h2 className="max-w-full truncate text-sm font-semibold text-foreground">
                               {entry.title}
                             </h2>
                             {entry.isPr && (
