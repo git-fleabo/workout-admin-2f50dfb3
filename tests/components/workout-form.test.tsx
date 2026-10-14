@@ -279,6 +279,9 @@ describe("FullWorkoutForm draft lifecycle", () => {
         screen.getByText("3 attempts · 20 / 18 / 20 sec at 10 kg · 38 sec total · 2 completed"),
       ).toBeVisible();
       await user.click(screen.getByRole("button", { name: "Review and finish" }));
+      const review = await screen.findByRole("dialog");
+      expect(within(review).getByText("2 attempts · 20s + 18s = 38s total hold")).toBeVisible();
+      expect(within(review).queryByText(/58s total hold/)).not.toBeInTheDocument();
       await user.click(await screen.findByRole("button", { name: "Finish workout", exact: true }));
       await waitFor(() => expect(mocks.addWorkoutSessionClient).toHaveBeenCalledTimes(1));
       const payload = mocks.addWorkoutSessionClient.mock
@@ -413,6 +416,9 @@ describe("FullWorkoutForm draft lifecycle", () => {
     await userEvent.click(screen.getByRole("button", { name: "Done with these values" }));
     expect(screen.getByText("3 × 5 at 60 kg · 2 completed")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Review and finish" }));
+    const review = await screen.findByRole("dialog");
+    expect(within(review).getByText("2 sets · 10 reps · 600 kg volume")).toBeVisible();
+    expect(within(review).queryByText(/900 kg volume/)).not.toBeInTheDocument();
     await userEvent.click(
       await screen.findByRole("button", { name: "Finish workout", exact: true }),
     );

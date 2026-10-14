@@ -648,9 +648,11 @@ function numericInputValue(value: unknown) {
 }
 
 function workoutEntrySummary(entry: FormState, profile: MetricProfile) {
-  const sets = entry.setRows.filter(
+  const recordedSets = entry.setRows.filter(
     (set) => set.reps || set.weight || set.durationSeconds || set.rpe || set.method,
   );
+  const sets = recordedSets.filter((set) => set.completed !== false);
+  if (recordedSets.length > 0 && sets.length === 0) return "No completed sets or attempts";
   if (sets.length > 0) {
     const segments = sets.flatMap((set) => [
       { reps: set.reps, weight: set.weight },
