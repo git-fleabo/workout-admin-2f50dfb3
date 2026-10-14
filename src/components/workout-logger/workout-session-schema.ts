@@ -42,6 +42,14 @@ const workoutSetSchema = z.object({
 });
 
 const workoutEntrySchema = z.object({
+  strengthLog: z
+    .object({
+      prescribed: z.boolean(),
+      plannedRows: z.array(workoutSetSchema).max(100),
+      confirmed: z.boolean(),
+      plusSetIndex: z.number().int().min(0).max(99).optional(),
+    })
+    .optional(),
   dupBackOffIncrement: z.number().positive().max(100).optional(),
   clientId: z.string(),
   date: z.string().min(1, "Date is required"),

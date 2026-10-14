@@ -215,6 +215,7 @@ type BodyweightRecord = {
 };
 
 export type WorkoutLogInput = {
+  strengthLog?: import("./compact-strength").StrengthLogState;
   clientId?: string;
   date: string;
   entryKind: string;
@@ -557,12 +558,14 @@ export async function getRecentLogsClient(limit = 15) {
       );
       const set = sets[0];
       const metrics = row.entry_metrics ?? [];
-      const individualSets = sets.filter((item) => item.data_shape === "individual");
+      const individualSets = sets.filter(
+        (item) => item.data_shape === "individual" && item.completed !== false,
+      );
       const workRows: Array<{
         reps: number | string | null;
         weight: number | string | null;
       }> = [];
-      for (const item of sets) {
+      for (const item of sets.filter((item) => item.completed !== false)) {
         if (item.entry_set_segments?.length) workRows.push(...item.entry_set_segments);
         else workRows.push(item);
       }
@@ -593,9 +596,11 @@ export async function getRecentLogsClient(limit = 15) {
         focusArea: row.exercises?.focus_area ?? "",
         exercise: row.name,
         sets: asText(
-          individualSets.length
+          sets.some((item) => item.data_shape === "individual")
             ? individualSets.length
-            : (set?.aggregate_set_count ?? set?.set_number),
+            : set?.completed === false
+              ? 0
+              : (set?.aggregate_set_count ?? set?.set_number),
         ),
         reps: asText(totalReps),
         weight: asText(maxWeight ?? set?.weight),
@@ -794,7 +799,7 @@ async function prepareWorkoutSave(data: WorkoutSessionInput, personId: string) {
           duration_seconds: toNum(set.durationSeconds),
           distance: explicitSets.length ? null : toNum(entryData.distance),
           distance_unit: explicitSets.length ? null : entryData.distanceUnit || null,
-          rpe: toNum(set.rpe) ?? rpe,
+          rpe: toNum(set.rpe) ?? (entryData.strengthLog ? null : rpe),
           rest_time: entryData.restTime || null,
           assistance_type: entryData.assistanceType || null,
           assistance_detail: entryData.assistanceDetail || null,

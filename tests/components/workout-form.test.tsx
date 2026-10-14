@@ -146,10 +146,164 @@ async function chooseBenchPress() {
   const comboboxes = screen.getAllByRole("combobox");
   await user.click(comboboxes[comboboxes.length - 1]!);
   await user.click(await screen.findByText("Bench Press"));
+  await user.click(screen.getByRole("button", { name: "Change", exact: true }));
   return user;
 }
 
 describe("FullWorkoutForm draft lifecycle", () => {
+  function strengthPlan(plus = false) {
+    const movement = structuredClone(kbFixture().prescription.movements[0]);
+    movement.exercise = "Bench Press";
+    movement.setRows = Array.from({ length: 3 }, () => ({
+      reps: "5",
+      weight: "60",
+      rpe: "",
+      durationSeconds: "",
+      completed: false,
+    }));
+    if (plus)
+      movement.baseStrength = {
+        programme: "bullmastiff",
+        week: 1,
+        phase: "base",
+        wave: 1,
+        waveWeek: 1,
+        role: "main",
+        referenceMax: 100,
+        percent: 60,
+        plusLastSet: true,
+        incrementKg: 2.5,
+      };
+    return {
+      version: 1,
+      suggestedWorkoutId: "strength-plan",
+      title: "Strength session",
+      basis: "Prescribed targets",
+      locationKind: "gym",
+      trainingLocationId: "gym",
+      movements: [movement],
+      methodBlocks: [],
+    };
+  }
+
+  it("confirms a compact prescription and rechecks confirmation after a shared weight change", async () => {
+    window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(strengthPlan()));
+    const first = renderWithQueries(<FullWorkoutForm />);
+    expect(await screen.findByText("3 × 5 at 60 kg")).toBeVisible();
+    expect(screen.queryByRole("textbox", { name: "Set 1 weight" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Review and finish" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Confirm each prescribed strength movement",
+    );
+    expect(mocks.addWorkoutSessionClient).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Done as planned" }));
+    expect(screen.getByText("Recorded")).toBeVisible();
+    const weight = screen.getByRole("spinbutton", { name: "Bench Press weight for all sets" });
+    await userEvent.clear(weight);
+    await userEvent.type(weight, "65");
+    expect(screen.queryByText("Recorded")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Done with these values" }));
+    first.unmount();
+    renderWithQueries(<FullWorkoutForm />);
+    expect(await screen.findByText("3 × 5 at 65 kg")).toBeVisible();
+    expect(screen.getByText("Recorded")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Review and finish" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Finish workout", exact: true }),
+    );
+    await waitFor(() => expect(mocks.addWorkoutSessionClient).toHaveBeenCalledTimes(1));
+    const payload = mocks.addWorkoutSessionClient.mock
+      .calls[0][0] as import("@/lib/supabase-log.browser").WorkoutSessionInput;
+    expect(
+      payload.entries[0].setRows!.map((row) => [row.reps, row.weight, row.rpe, row.completed]),
+    ).toEqual(Array.from({ length: 3 }, () => ["5", "65", "", true]));
+    expect(payload.suggestedWorkoutId).toBe("strength-plan");
+  });
+
+  it("keeps the actual Bullmastiff plus-set result visible and blank until entered", async () => {
+    window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(strengthPlan(true)));
+    renderWithQueries(<FullWorkoutForm />);
+    const plus = await screen.findByRole("spinbutton", {
+      name: "Bench Press plus-set reps achieved",
+    });
+    expect(plus).toHaveValue(null);
+    expect(screen.queryByRole("button", { name: "Done as planned" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Done with these values" })).toBeDisabled();
+    await userEvent.type(plus, "9");
+    await userEvent.click(screen.getByRole("button", { name: "Done with these values" }));
+    await userEvent.click(screen.getByRole("button", { name: "Review and finish" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Finish workout", exact: true }),
+    );
+    await waitFor(() => expect(mocks.addWorkoutSessionClient).toHaveBeenCalledTimes(1));
+    const payload = mocks.addWorkoutSessionClient.mock
+      .calls[0][0] as import("@/lib/supabase-log.browser").WorkoutSessionInput;
+    expect(payload.entries[0].setRows!.map((row) => row.reps)).toEqual(["5", "5", "9"]);
+  });
+
+  it("keeps prescribed effort separate from actual effort", async () => {
+    const plan = strengthPlan();
+    plan.movements[0].setRows[0].rpe = "8";
+    window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(plan));
+    renderWithQueries(<FullWorkoutForm />);
+    expect(
+      await screen.findByRole("spinbutton", { name: "Bench Press set 1 actual RPE" }),
+    ).toHaveValue(null);
+    expect(screen.getByText("Target RPE 8")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Done as planned" }));
+    await userEvent.click(screen.getByRole("button", { name: "Review and finish" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Finish workout", exact: true }),
+    );
+    await waitFor(() => expect(mocks.addWorkoutSessionClient).toHaveBeenCalledTimes(1));
+    const payload = mocks.addWorkoutSessionClient.mock
+      .calls[0][0] as import("@/lib/supabase-log.browser").WorkoutSessionInput;
+    expect(payload.entries[0].setRows!.map((row) => row.rpe)).toEqual(["", "", ""]);
+  });
+
+  it("records a missed set through Change without treating its prescribed reps as completed", async () => {
+    window.localStorage.setItem(WORKOUT_PLAN_DRAFT_KEY, JSON.stringify(strengthPlan()));
+    renderWithQueries(<FullWorkoutForm />);
+    await screen.findByText("3 × 5 at 60 kg");
+    await userEvent.click(screen.getByRole("button", { name: "Change", exact: true }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Set 3 completed" }));
+    await userEvent.click(screen.getByRole("button", { name: "Done with these values" }));
+    expect(screen.getByText("3 × 5 at 60 kg · 2 completed")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Review and finish" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Finish workout", exact: true }),
+    );
+    await waitFor(() => expect(mocks.addWorkoutSessionClient).toHaveBeenCalledTimes(1));
+    const payload = mocks.addWorkoutSessionClient.mock
+      .calls[0][0] as import("@/lib/supabase-log.browser").WorkoutSessionInput;
+    expect(payload.entries[0].setRows!.map((row) => row.completed)).toEqual([true, true, false]);
+  });
+
+  it("lets unplanned strength work use one sets, reps and load entry", async () => {
+    renderWithQueries(<FullWorkoutForm />);
+    await screen.findByText("Your workout");
+    const user = await chooseBenchPress();
+    await user.click(screen.getByRole("button", { name: "Close changes", exact: true }));
+    await user.clear(screen.getByRole("spinbutton", { name: "Bench Press sets" }));
+    await user.type(screen.getByRole("spinbutton", { name: "Bench Press sets" }), "3");
+    await user.type(screen.getByRole("spinbutton", { name: "Bench Press reps per set" }), "10");
+    await user.type(
+      screen.getByRole("spinbutton", { name: "Bench Press weight for all sets" }),
+      "20",
+    );
+    await user.click(screen.getByRole("button", { name: "Done with these values" }));
+    expect(screen.getByText("3 × 10 at 20 kg")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Review and finish" }));
+    await user.click(await screen.findByRole("button", { name: "Finish workout", exact: true }));
+    await waitFor(() => expect(mocks.addWorkoutSessionClient).toHaveBeenCalledTimes(1));
+    const payload = mocks.addWorkoutSessionClient.mock
+      .calls[0][0] as import("@/lib/supabase-log.browser").WorkoutSessionInput;
+    expect(payload.entries[0].setRows!.map((row) => [row.reps, row.weight])).toEqual([
+      ["10", "20"],
+      ["10", "20"],
+      ["10", "20"],
+    ]);
+  });
   function kbPlan(mode = "amrap") {
     const workout = kbFixture();
     workout.prescription.movements[0].exercise = "Bench Press";

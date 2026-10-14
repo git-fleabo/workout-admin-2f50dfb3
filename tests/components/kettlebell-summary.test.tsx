@@ -19,7 +19,7 @@ vi.mock("@/lib/supabase-pagination.browser", () => ({
   supabaseSelectAll: async (table: string) => (table === "sessions" ? mocks.history : []),
   supabaseSelectByIds: vi.fn(async () => []),
 }));
-import { prepareQueuedWorkoutSave } from "@/lib/supabase-log.browser";
+import { prepareQueuedWorkoutSave, getRecentLogsClient } from "@/lib/supabase-log.browser";
 import { getTimelineDataClient } from "@/lib/supabase-timeline.browser";
 
 function draft(kind = "amrap") {
@@ -160,4 +160,72 @@ it("labels summary logs in history with duration, weight and result without a fa
   expect(data.entries[0].notes.indexOf("Stopped early")).toBeLessThan(
     data.entries[0].notes.indexOf("Prescribed workout"),
   );
+});
+
+it("keeps missed strength sets in the record but excludes them from history and recent totals", async () => {
+  const sets = [true, true, false].map((completed, index) => ({
+    set_number: index + 1,
+    reps: completed ? 5 : 99,
+    weight: completed ? 60 : 999,
+    completed,
+    data_shape: "individual",
+    entry_set_segments: [],
+  }));
+  const session = {
+    id: "strength-session",
+    session_date: "2026-10-14",
+    title: "Strength",
+    completed: true,
+    duration_minutes: 30,
+    activity_types: { name: "Strength" },
+  };
+  const entry = {
+    id: "strength-entry",
+    name: "Bench Press",
+    completed: true,
+    entry_kind: "Workout",
+    activity_types: { name: "Strength" },
+    entry_sets: sets,
+    entry_metrics: [],
+  };
+  mocks.history = [{ ...session, session_entries: [entry] }];
+  const timeline = await getTimelineDataClient();
+  expect(timeline.entries[0].details.join(" ")).toContain("2 sets · 10 reps · 60kg max");
+  expect(timeline.entries[0].details.join(" ")).not.toContain("999");
+  mocks.select.mockImplementation(async (table: string) =>
+    table === "session_entries" ? [{ ...entry, sessions: session }] : [],
+  );
+  const logs = await getRecentLogsClient();
+  expect(logs.recent[0]).toMatchObject({ sets: "2", reps: "10", weight: "60" });
+  expect(logs.recent[0].setRows.map((row) => row.completed)).toEqual([true, true, false]);
+});
+
+it("does not copy an overall effort rating into unrecorded compact strength set ratings", async () => {
+  mocks.select.mockResolvedValue([{ id: "strength", name: "Strength" }]);
+  const rows = Array.from({ length: 3 }, () => ({
+    reps: "5",
+    weight: "60",
+    durationSeconds: "",
+    rpe: "",
+    completed: true,
+  }));
+  const input = {
+    date: "2026-10-14",
+    title: "Strength",
+    duration: "30",
+    rpe: "7",
+    completed: true,
+    entries: [
+      {
+        exercise: "Bench Press",
+        workoutType: "Strength",
+        pain: "",
+        strengthLog: { prescribed: true, plannedRows: rows, confirmed: true },
+        setRows: rows,
+      },
+    ],
+  } as WorkoutSessionInput;
+  const body = await prepareQueuedWorkoutSave(input, "person");
+  expect(body.p_session.rpe).toBe(7);
+  expect(body.p_entries[0].sets.map((set) => set.rpe)).toEqual([null, null, null]);
 });

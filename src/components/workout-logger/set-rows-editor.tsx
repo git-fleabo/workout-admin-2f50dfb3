@@ -4,6 +4,7 @@ import { useFieldArray, type Control } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "./form-bits";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -139,6 +140,8 @@ export function SetRowsEditor({
   onUpdateSegment,
   onRemoveSegment,
   onRemoveMethod,
+  showCompletion = false,
+  protectedSetIndex,
 }: {
   control: Control<SessionFormState>;
   entryIndex: number;
@@ -166,6 +169,8 @@ export function SetRowsEditor({
   ) => void;
   onRemoveSegment: (setIndex: number, segmentIndex: number) => void;
   onRemoveMethod: (setIndex: number) => void;
+  showCompletion?: boolean;
+  protectedSetIndex?: number;
 }) {
   const { fields, append, remove } = useFieldArray({
     control,
@@ -173,7 +178,7 @@ export function SetRowsEditor({
   });
   const addBlank = () => append(blankSet());
   const removeSet = (setIndex: number) => {
-    if (rows.length === 1) return;
+    if (rows.length === 1 || (protectedSetIndex != null && setIndex <= protectedSetIndex)) return;
     remove(setIndex);
     onRemove?.(setIndex);
   };
@@ -231,6 +236,16 @@ export function SetRowsEditor({
           role="group"
           aria-label={`Movement ${entryIndex + 1}, set ${setIndex + 1}`}
         >
+          {showCompletion ? (
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Checkbox
+                checked={set.completed !== false}
+                onCheckedChange={(checked) => onChange(setIndex, "completed", checked === true)}
+                aria-label={`Set ${setIndex + 1} completed`}
+              />
+              Completed set {setIndex + 1}
+            </label>
+          ) : null}
           <div
             className={`rounded-md border border-border/70 bg-background p-2 sm:grid sm:items-center sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0 ${
               usesLoad ? "sm:grid-cols-[32px_1fr_1fr_1fr_32px]" : "sm:grid-cols-[32px_1fr_1fr_32px]"
@@ -245,7 +260,9 @@ export function SetRowsEditor({
                 size="icon"
                 variant="ghost"
                 className="h-8 w-8 text-muted-foreground"
-                disabled={rows.length === 1}
+                disabled={
+                  rows.length === 1 || (protectedSetIndex != null && setIndex <= protectedSetIndex)
+                }
                 onClick={() => removeSet(setIndex)}
                 aria-label={`Remove set ${setIndex + 1}`}
               >
@@ -317,7 +334,9 @@ export function SetRowsEditor({
               size="icon"
               variant="ghost"
               className="hidden h-8 w-8 text-muted-foreground sm:inline-flex"
-              disabled={rows.length === 1}
+              disabled={
+                rows.length === 1 || (protectedSetIndex != null && setIndex <= protectedSetIndex)
+              }
               onClick={() => removeSet(setIndex)}
               aria-label={`Remove set ${setIndex + 1}`}
             >

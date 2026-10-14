@@ -1,0 +1,11 @@
+# Compact strength logging — 14 October 2026
+
+Simple strength prescriptions now show one compact movement card with a target summary, one shared weight input for equal-load sets, **Done as planned**, and **Change**. Changing values clears confirmation; a prescribed movement must be confirmed before the session can finish. Individual sets remain the saved data, so history and programme reviews retain their original level of detail.
+
+New unplanned strength movements offer sets, reps per set and weight once. Change opens the existing set editor, including advanced methods, previous-workout copying and completion flags for missed sets. Movement selection, rest, technique, pain and notes remain available through disclosures. The ordinary session review/save, autosave, recovery, offline queue and correction paths remain in use.
+
+Bullmastiff final-set reps start blank and remain visible as actual results. Other unresolved source rep targets and prescribed effort targets also remain visible; effort targets are not copied into actual RPE. An overall session rating does not fill missing individual ratings for compact strength entries. The plus-set position is protected from removal; a missed prescribed set can instead be marked incomplete. Mixed loads are never replaced through the shared-weight control. DUP back-offs, prescribed set methods, timed work and kettlebell sessions retain their existing editors.
+
+Missed sets remain stored with their completion flags. History and recent-workout totals now exclude their reps and loads, and the finish review counts only completed sets with recorded work. No catalogue, programme, assignment or existing training record was rewritten, and no schema change was needed.
+
+Validation covered explicit prescription confirmation, confirmation after load edits, reload recovery, one-entry unplanned sets, actual plus-set results, unknown effort ratings, missed-set history totals, mixed-load protection and unchanged DUP editing. Focused component tests, calculation/data-preservation tests, TypeScript, targeted lint and the production build passed. A standalone 390-pixel preview of the actual compact component showed no horizontal overflow. Live user-data writes and published-app verification were not performed; GitHub push and Lovable publication remain user-managed.

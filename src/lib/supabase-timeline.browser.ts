@@ -165,8 +165,12 @@ function describeSets(
   const set = sets[0];
   const parts: string[] = [];
   const individualSets = sets.length > 1;
-  const setCount = individualSets ? sets.length : toNum(set.set_number);
   const completedSets = sets.filter((item) => item.completed !== false);
+  const setCount = individualSets
+    ? completedSets.length
+    : set.completed === false
+      ? 0
+      : toNum(set.set_number);
   const durationValues = completedSets.flatMap((item) => {
     const duration = toNum(item.duration_seconds);
     return duration != null && duration > 0 ? [duration] : [];
@@ -179,7 +183,7 @@ function describeSets(
     weight: number | string | null;
     range_of_motion: string | null;
   }> = [];
-  for (const item of sets) {
+  for (const item of completedSets) {
     if (item.entry_set_segments?.length) workRows.push(...item.entry_set_segments);
     else
       workRows.push({
