@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   })),
   duplicateResponse: false,
   savedKBPlan: null as unknown,
+  nextPlans: [] as import("@/lib/supabase-plans.browser").SavedWorkoutPlan[],
+  skipToday: vi.fn(),
   trainingMethods: [] as TrainingMethod[],
   locations: [] as {
     id: string;
@@ -118,7 +120,8 @@ vi.mock("@/lib/supabase-log.browser", () => ({
 
 vi.mock("@/lib/supabase-plans.browser", () => ({
   completeSuggestedWorkoutClient: vi.fn(),
-  getNextSuggestedWorkoutsClient: vi.fn(async () => []),
+  getNextSuggestedWorkoutsClient: vi.fn(async () => mocks.nextPlans),
+  skipSuggestedWorkoutTodayClient: mocks.skipToday,
   getSavedWorkoutPlanClient: vi.fn(async () => mocks.savedKBPlan),
   updateSuggestedWorkoutStatusClient: vi.fn(),
 }));
@@ -152,6 +155,37 @@ async function chooseBenchPress() {
 }
 
 describe("FullWorkoutForm draft lifecycle", () => {
+  it.each([false, true])(
+    "removes a saved practice after Skip today and shares the list with Today (climb: %s)",
+    async (climb) => {
+      const plan = {
+        ...holdPlan(),
+        suggestedWorkoutId: "practice-plan",
+        status: "pending",
+      } as import("@/lib/supabase-plans.browser").SavedWorkoutPlan;
+      if (climb) plan.movements[0].trackingMode = "climbing";
+      mocks.nextPlans = [plan];
+      mocks.skipToday.mockImplementation(async () => {
+        mocks.nextPlans = [];
+        return { ok: true };
+      });
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={client}>
+          {climb ? <ClimbForm /> : <FullWorkoutForm />}
+        </QueryClientProvider>,
+      );
+      await userEvent.click(await screen.findByRole("button", { name: "Skip today", exact: true }));
+      await waitFor(() =>
+        expect(screen.queryByText(climb ? "Next climb" : "Next workout")).not.toBeInTheDocument(),
+      );
+      expect(mocks.skipToday).toHaveBeenCalledWith("practice-plan", expect.anything());
+      expect(
+        client.getQueryData(["next-suggested-workouts", new Date().toLocaleDateString("en-CA")]),
+      ).toEqual([]);
+    },
+  );
+
   function enableHold(name = "Front Lever", grip = false) {
     mocks.extraExercises = [
       {
@@ -615,6 +649,8 @@ describe("FullWorkoutForm draft lifecycle", () => {
   beforeEach(() => {
     mocks.addWorkoutSessionClient.mockClear();
     mocks.savedKBPlan = null;
+    mocks.nextPlans = [];
+    mocks.skipToday.mockReset();
     mocks.extraExercises = [];
     mocks.trainingMethods = [];
     mocks.locations = [];

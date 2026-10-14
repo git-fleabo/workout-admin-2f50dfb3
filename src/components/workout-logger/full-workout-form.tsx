@@ -70,6 +70,7 @@ import {
   getNextSuggestedWorkoutsClient,
   getSavedWorkoutPlanClient,
   updateSuggestedWorkoutStatusClient,
+  skipSuggestedWorkoutTodayClient,
   type SavedWorkoutPlan,
 } from "@/lib/supabase-plans.browser";
 import {
@@ -994,8 +995,8 @@ export function ClimbForm() {
     staleTime: 5 * 60_000,
   });
   const nextPlans = useQuery({
-    queryKey: ["next-suggested-workouts"],
-    queryFn: getNextSuggestedWorkoutsClient,
+    queryKey: ["next-suggested-workouts", todayISO()],
+    queryFn: () => getNextSuggestedWorkoutsClient(),
     staleTime: 30_000,
   });
   const climbingPlans = (nextPlans.data ?? []).filter(
@@ -1093,11 +1094,15 @@ export function ClimbForm() {
   });
 
   const skipSavedClimbingPlan = useMutation({
-    mutationFn: (id: string) => updateSuggestedWorkoutStatusClient(id, "skipped"),
-    onSuccess: () => {
+    mutationFn: skipSuggestedWorkoutTodayClient,
+    onSuccess: (_result, id) => {
+      qc.setQueriesData<SavedWorkoutPlan[]>({ queryKey: ["next-suggested-workouts"] }, (plans) =>
+        plans?.filter((plan) => plan.suggestedWorkoutId !== id),
+      );
       qc.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
-      qc.invalidateQueries({ queryKey: ["workout-lifecycle"] });
-      toast.message("Climbing plan skipped");
+      toast.message("Skipped for today", {
+        description: "Your saved plan stays available for another day.",
+      });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -1246,7 +1251,7 @@ export function ClimbForm() {
           <div>
             <h2 className="text-base font-semibold">Next climb</h2>
             <p className="text-xs text-muted-foreground">
-              Saved climbing circuits stay here until you use or skip them.
+              Skip today hides a saved climb until tomorrow.
             </p>
           </div>
           {climbingPlans.map((plan) => (
@@ -1279,7 +1284,7 @@ export function ClimbForm() {
                   onClick={() => skipSavedClimbingPlan.mutate(plan.suggestedWorkoutId)}
                   disabled={useSavedClimbingPlan.isPending || skipSavedClimbingPlan.isPending}
                 >
-                  Skip
+                  Skip today
                 </Button>
               </div>
             </Card>
@@ -1568,8 +1573,8 @@ export function FullWorkoutForm() {
     queryFn: getTrainingLocationsClient,
   });
   const nextPlans = useQuery({
-    queryKey: ["next-suggested-workouts"],
-    queryFn: getNextSuggestedWorkoutsClient,
+    queryKey: ["next-suggested-workouts", todayISO()],
+    queryFn: () => getNextSuggestedWorkoutsClient(),
   });
   const methods = useQuery({
     queryKey: ["training-methods", "workout-composer"],
@@ -1948,11 +1953,15 @@ export function FullWorkoutForm() {
   });
 
   const skipSavedPlan = useMutation({
-    mutationFn: (id: string) => updateSuggestedWorkoutStatusClient(id, "skipped"),
-    onSuccess: () => {
+    mutationFn: skipSuggestedWorkoutTodayClient,
+    onSuccess: (_result, id) => {
+      qc.setQueriesData<SavedWorkoutPlan[]>({ queryKey: ["next-suggested-workouts"] }, (plans) =>
+        plans?.filter((plan) => plan.suggestedWorkoutId !== id),
+      );
       qc.invalidateQueries({ queryKey: ["next-suggested-workouts"] });
-      qc.invalidateQueries({ queryKey: ["workout-lifecycle"] });
-      toast.message("Workout plan skipped");
+      toast.message("Skipped for today", {
+        description: "Your saved plan stays available for another day.",
+      });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -2710,7 +2719,7 @@ export function FullWorkoutForm() {
           <div>
             <h2 className="text-base font-semibold">Next workout</h2>
             <p className="text-xs text-muted-foreground">
-              Saved plans stay here until you use or skip them.
+              Skip today hides a saved plan until tomorrow.
             </p>
           </div>
           <div className="grid gap-3 lg:grid-cols-2">
@@ -2758,7 +2767,7 @@ export function FullWorkoutForm() {
                     onClick={() => skipSavedPlan.mutate(plan.suggestedWorkoutId)}
                     disabled={useSavedPlan.isPending || skipSavedPlan.isPending}
                   >
-                    Skip
+                    Skip today
                   </Button>
                 </div>
               </Card>

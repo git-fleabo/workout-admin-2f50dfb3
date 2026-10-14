@@ -197,6 +197,7 @@ function availableProgrammeLocations(
 }
 
 export function TodayPage() {
+  const today = todayISO();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<WorkoutLocalSummary | null>(null);
@@ -215,8 +216,8 @@ export function TodayPage() {
   const [discardDraftOpen, setDiscardDraftOpen] = useState(false);
   const [otherWaysOpen, setOtherWaysOpen] = useState(false);
   const plans = useQuery({
-    queryKey: ["next-suggested-workouts"],
-    queryFn: getNextSuggestedWorkoutsClient,
+    queryKey: ["next-suggested-workouts", today],
+    queryFn: () => getNextSuggestedWorkoutsClient(today),
   });
   const programmeOffers = useQuery({
     queryKey: ["programme-workout-offers"],
@@ -236,7 +237,6 @@ export function TodayPage() {
     queryFn: getLibraryClient,
     staleTime: 5 * 60_000,
   });
-  const today = todayISO();
   const activeProgramme = programmeOverview.data?.assignments.find(
     (assignment) => assignment.status === "active",
   );

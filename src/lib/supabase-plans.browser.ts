@@ -574,11 +574,12 @@ export async function getSavedWorkoutPlanClient(id: string) {
   return plan;
 }
 
-export async function getNextSuggestedWorkoutsClient() {
+export async function getNextSuggestedWorkoutsClient(date = todayISO()) {
   const person = await requirePerson();
   const rows = await supabasePublicSelect<SuggestedWorkoutRow>("suggested_workouts", {
     select: `${SAVED_WORKOUT_SELECT},kettlebell_workout_id,kettlebell_snapshot`,
     status: "in.(pending,accepted)",
+    or: `(dismissed_for_date.is.null,dismissed_for_date.neq.${date})`,
     person_id: `eq.${person.id}`,
     order: "suggested_for.asc,created_at.desc",
     limit: 30,
@@ -726,6 +727,19 @@ export async function updateSuggestedWorkoutStatusClient(
   status: "pending" | "accepted" | "skipped" | "archived",
 ) {
   await supabasePublicUpdate("suggested_workouts", { id: `eq.${id}` }, { status });
+  return { ok: true };
+}
+
+export async function skipSuggestedWorkoutTodayClient(id: string) {
+  const person = await requirePerson();
+  const rows = await supabasePublicUpdate<{ id: string }>(
+    "suggested_workouts",
+    { id: `eq.${id}`, person_id: `eq.${person.id}`, status: "in.(pending,accepted)" },
+    { dismissed_for_date: todayISO() },
+  );
+  if (!rows.some((row) => row.id === id)) {
+    throw new Error("This plan could not be skipped for today. Refresh and try again.");
+  }
   return { ok: true };
 }
 
