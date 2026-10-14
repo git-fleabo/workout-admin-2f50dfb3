@@ -1,5 +1,19 @@
-// Foreign-key relationships in the v1 profile backup, from the app schema.
+// Foreign-key relationships in the profile backup, from the app schema.
 export const PROFILE_BACKUP_RELATIONS = [
+  {
+    table: "programme_session_dates",
+    columns: ["assignment_id"],
+    targetTable: "program_assignments",
+    targetSchema: "public",
+    targetColumns: ["id"],
+  },
+  {
+    table: "programme_session_dates",
+    columns: ["program_workout_id"],
+    targetTable: "program_workouts",
+    targetSchema: "public",
+    targetColumns: ["id"],
+  },
   {
     table: "bodyweight_logs",
     columns: ["person_id"],

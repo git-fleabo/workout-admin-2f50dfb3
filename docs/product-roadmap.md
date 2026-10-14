@@ -2,6 +2,26 @@
 
 Last updated: 2026-10-14
 
+## Missed-session dates — 14 October 2026
+
+Today now offers **Plans changed** for the active programme. Choose a new date for the next
+session, review the same delay across later unstarted sessions and see clashes with other planned
+training before applying. The immediate **Undo date change** action reviews restoration against
+the dates and revisions just saved. Started, completed and skipped sessions remain fixed.
+
+Date overrides work for personal programmes and template assignments. They are used by Today,
+Plan, the personal editor and strength-review previews while retaining source dates, prescriptions,
+progression and approved strength targets. Batch saves are atomic and reject changes to programme
+position, session dates/revisions, started state or planned clashes after preview.
+
+Migration `20261014202016_programme_schedule_shifts.sql` is applied and recorded in Supabase.
+All 58 existing public/private table counts and fingerprints matched before and after, with zero
+new date overrides or baseline-date changes. The frontend is implemented and verified in the
+repository; publication is user-managed. Profile backups now use v2 to include date overrides,
+and the reader accepts older v1 backups.
+
+See [missed-session verification](./programme-reschedule-verification-2026-10-14.md).
+
 ## Focused training release — 14 October 2026
 
 Implemented in the repository: Today prioritises an unfinished draft, then the next programme

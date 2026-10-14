@@ -7,7 +7,12 @@ type Params = Record<string, string | number | boolean | undefined>;
 export async function supabaseSelectAll<T>(table: string, params: Params = {}): Promise<T[]> {
   const rows: T[] = [];
   const seenPages = new Set<string>();
-  const keys = table === "session_method_block_entries" ? ["block_id", "session_entry_id"] : ["id"];
+  const keys =
+    table === "session_method_block_entries"
+      ? ["block_id", "session_entry_id"]
+      : table === "programme_session_dates"
+        ? ["assignment_id", "program_workout_id"]
+        : ["id"];
   const orderParts = String(params.order ?? "")
     .split(",")
     .filter(Boolean);

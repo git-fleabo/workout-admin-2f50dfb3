@@ -25,3 +25,8 @@ Supabase changes belong in `supabase/migrations/`. Apply a tested migration befo
 For offline workout/climbing logging, open the app and Log while online first to cache the shell and logger references. Finished offline workouts appear as pending saves on the original browser/device and account until confirmed by sync. Keep browser storage until they sync. Older saves made before operation IDs need review against history before retrying. See [save and recovery verification](docs/save-recovery-verification-2026-10-11.md) for the current contract and validation.
 
 Manage offers a versioned JSON backup of server profile data and required catalogue references; CSV contains session-analysis rows. The JSON manifest lists counts, external references and exclusions. `readProfileBackup` validates the supported format; reconstruction is tested in an isolated database, with generated columns recomputed and foreign keys checked before commit. Auth/access setup, server schema and device-only work/preferences are separate. See [backup contract and verification](docs/review-progress-backup-verification-2026-10-11.md).
+
+Profile backup v2 includes programme date overrides; the reader also accepts v1 backups made before
+date overrides existed. Today → Plans changed reviews a delayed programme schedule and its clashes
+before saving. Undo reviews the previous dates and is refused if the programme or sessions have
+changed since the save. See [missed-session verification](docs/programme-reschedule-verification-2026-10-14.md).

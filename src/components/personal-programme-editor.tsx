@@ -1,3 +1,4 @@
+import { programmeSessionScheduledDate } from "@/lib/programme-reschedule";
 import { repLabel } from "@/lib/workout-preview";
 import { countLabel } from "@/lib/display-labels";
 import { usesDupBackOff, dupBackOffRows } from "@/lib/base-strength-backoff";
@@ -687,7 +688,14 @@ export function PersonalProgrammeEditor({
   const sessions = template.workouts.flatMap((workout) => {
     const session = personal.sessions.find((item) => item.workoutId === workout.id);
     return session
-      ? [{ ...session, sequenceIndex: workout.sequenceIndex, week: workout.weekNumber }]
+      ? [
+          {
+            ...session,
+            scheduledDate: programmeSessionScheduledDate(assignment, workout)!,
+            sequenceIndex: workout.sequenceIndex,
+            week: workout.weekNumber,
+          },
+        ]
       : [];
   });
   const editable = sessions.filter(

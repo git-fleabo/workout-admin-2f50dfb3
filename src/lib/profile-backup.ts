@@ -34,6 +34,7 @@ export const PROFILE_BACKUP_TABLES = [
   "program_assignment_exercise_pools",
   "personal_programmes",
   "personal_programme_sessions",
+  "programme_session_dates",
   "programme_strength_week_reviews",
   "program_workout_reviews",
   "coaching_preferences",
@@ -61,7 +62,7 @@ export type BackupTable = (typeof PROFILE_BACKUP_TABLES)[number];
 export type ProfileBackupData = Record<BackupTable, BackupRow[]>;
 export type ProfileBackup = ProfileBackupData & {
   backup_type: "train-track-profile";
-  schema_version: 1;
+  schema_version: 1 | 2;
   exported_at: string;
   person_id: string;
   backup_manifest: {
@@ -75,6 +76,7 @@ const primaryKeys: Partial<Record<BackupTable, string[]>> = {
   person_training_methods: ["person_id", "training_method_id"],
   personal_programmes: ["assignment_id"],
   personal_programme_sessions: ["assignment_id", "program_workout_id"],
+  programme_session_dates: ["assignment_id", "program_workout_id"],
   person_exercise_toolkit_lessons: ["person_id", "exercise_id", "skill"],
   exercise_equipment_items: ["exercise_id", "equipment_item_id"],
   exercise_tag_links: ["exercise_id", "tag_id"],
@@ -152,7 +154,7 @@ export function makeProfileBackup(data: ProfileBackupData, personId: string): Pr
   return {
     ...data,
     backup_type: "train-track-profile",
-    schema_version: 1,
+    schema_version: 2,
     person_id: personId,
     exported_at: new Date().toISOString(),
     backup_manifest: {
@@ -174,12 +176,23 @@ export function readProfileBackup(value: string): ProfileBackup {
   if (
     !backup ||
     backup.backup_type !== "train-track-profile" ||
-    backup.schema_version !== 1 ||
+    ![1, 2].includes(backup.schema_version ?? 0) ||
     typeof backup.person_id !== "string" ||
     typeof backup.exported_at !== "string" ||
     Number.isNaN(Date.parse(backup.exported_at))
   )
     throw new Error("This is not a supported Train & Track profile backup.");
+  // v1 predates programme date overrides. Upgrade only an absent table/count;
+  // a malformed or partially missing newer record must still fail validation.
+  if (
+    backup.schema_version === 1 &&
+    backup.programme_session_dates === undefined &&
+    backup.backup_manifest?.table_counts?.programme_session_dates === undefined
+  ) {
+    backup.programme_session_dates = [];
+    if (backup.backup_manifest?.table_counts)
+      backup.backup_manifest.table_counts.programme_session_dates = 0;
+  }
   for (const table of PROFILE_BACKUP_TABLES) {
     const rows = backup[table];
     if (
@@ -195,5 +208,5 @@ export function readProfileBackup(value: string): ProfileBackup {
     JSON.stringify(backup.backup_manifest?.external_people_ids)
   )
     throw new Error("The profile backup has inconsistent external references.");
-  return backup as ProfileBackup;
+  return { ...backup, schema_version: 2 } as ProfileBackup;
 }

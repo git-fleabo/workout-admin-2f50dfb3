@@ -1,9 +1,10 @@
+import { programmeSessionScheduledDate } from "./programme-reschedule.ts";
 import {
   buildPersonalStrengthProgrammeReview,
   buildPersonalStrengthFollowUp,
 } from "./personal-strength-review.ts";
 import type { PersonalStrengthReviewSnapshot } from "./personal-strength-review.ts";
-import { ADAPTIVE_STRENGTH_METHOD, programmeWorkoutScheduledDate } from "./adaptive-strength.ts";
+import { ADAPTIVE_STRENGTH_METHOD } from "./adaptive-strength.ts";
 import { buildProgrammeMovementPrescription } from "./programme-prescription.ts";
 import type {
   ProgrammeAssignment,
@@ -447,11 +448,7 @@ export function buildStrengthProgrammeReview({
     return {
       workoutId: workout.id,
       workoutName: workout.name,
-      scheduledDate: programmeWorkoutScheduledDate(
-        assignment.startedOn,
-        workout.weekNumber,
-        workout.dayNumber,
-      ),
+      scheduledDate: programmeSessionScheduledDate(assignment, workout),
       sessionNumber: workout.sessionNumber,
       movements,
     };

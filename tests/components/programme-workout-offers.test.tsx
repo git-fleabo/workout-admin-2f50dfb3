@@ -24,6 +24,7 @@ vi.mock("@/lib/supabase-personal-programmes.browser", () => ({
 vi.mock("@/lib/supabase-library.browser", () => ({ listLibraryClient: mocks.library }));
 import {
   getCurrentProgrammeWorkoutOffersClient,
+  getUpcomingProgrammeScheduleClient,
   startProgrammeWorkoutClient,
 } from "@/lib/supabase-programmes.browser";
 afterEach(() => vi.resetAllMocks());
@@ -54,7 +55,17 @@ it.each(["volume_intensity", "bullmastiff", "dup"] as const)(
         ],
       ]),
     );
-    mocks.select.mockImplementation(async (table: string) => {
+    let shiftedDate: string | null = null;
+    mocks.select.mockImplementation(async (table: string, params?: { offset?: number }) => {
+      if (table === "programme_session_dates" && shiftedDate && !params?.offset)
+        return [
+          {
+            assignment_id: "assignment",
+            program_workout_id: next.workoutId,
+            scheduled_on: shiftedDate,
+            revision: 2,
+          },
+        ];
       if (table === "programs")
         return [{ id: template.id, name: template.name, method_type: template.methodType }];
       if (table === "program_workouts")
@@ -97,6 +108,16 @@ it.each(["volume_intensity", "bullmastiff", "dup"] as const)(
       scheduledDate: next.scheduledDate,
     });
     expect(offer.movements).toEqual(next.reviewedPlan.movements);
+    shiftedDate = "2026-11-01";
+    const [moved] = await getCurrentProgrammeWorkoutOffersClient();
+    expect(moved.scheduledDate).toBe(shiftedDate);
+    expect(moved.movements).toEqual(next.reviewedPlan.movements);
+    expect(moved.personalSession?.revision).toBe(4);
+    expect(moved.personalSession?.scheduledDate).toBe(next.scheduledDate);
+    const calendar = await getUpcomingProgrammeScheduleClient(shiftedDate, shiftedDate);
+    expect(
+      calendar.find((session) => session.programWorkoutId === next.workoutId)?.scheduledDate,
+    ).toBe(shiftedDate);
     const started = await startProgrammeWorkoutClient("assignment", "gym", {}, false);
     expect(started.movements).toEqual(next.reviewedPlan.movements);
     expect(mocks.rpc).toHaveBeenCalledWith("start_personal_programme_session", {

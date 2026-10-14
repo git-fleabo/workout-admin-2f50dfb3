@@ -1,3 +1,4 @@
+import { programmeSessionScheduledDate } from "./programme-reschedule.ts";
 import { decideAdaptiveProgression } from "./adaptive-strength.ts";
 import {
   personalPlanSchema,
@@ -243,7 +244,7 @@ export function buildPersonalStrengthProgrammeReview({
     sessions: sessions.map(({ workout, session }) => ({
       workoutId: workout.id,
       workoutName: session!.name,
-      scheduledDate: session!.scheduledDate,
+      scheduledDate: programmeSessionScheduledDate(assignment, workout),
       sessionNumber: workout.sessionNumber,
       personalRevision: session!.revision,
       movements: personalStrengthReviewPlan(

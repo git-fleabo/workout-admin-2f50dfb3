@@ -53,3 +53,10 @@ Security advisors still report only the existing [disabled leaked-password-prote
 | Diff whitespace checks                      | Passed                                                      |
 
 No Lovable sync or frontend publication was performed. After publishing, verify the visible build, signed-in Review/Progress and actual backup downloads independently. Any disposable live write/restore test requires separate authorization, a captured baseline, exact cleanup and restoration verification. Remaining audit work is shared control labels, mobile preview friction, pagination and advisory follow-up (A11, A14, A15).
+
+## 14 October update
+
+Profile backups now use schema version 2 and include programme date overrides. The reader also
+accepts v1 files made before those overrides existed. The export/reconstruction fixture now includes
+a revised programme date and its assignment/workout references. See
+[missed-session verification](./programme-reschedule-verification-2026-10-14.md).

@@ -22,7 +22,7 @@ const ident = (name: string) => {
 };
 
 it.skipIf(Boolean(pgSkip))(
-  "exports and reconstructs the profile against the actual 56-table column/constraint snapshot",
+  "exports and reconstructs the profile against the actual profile column/constraint snapshot",
   async () => {
     const source = temporaryPostgres(),
       restored = temporaryPostgres();
@@ -233,6 +233,12 @@ it.skipIf(Boolean(pgSkip))(
         assigned_by_person_id: id(3),
         status: "active",
         current_workout_index: 0,
+      });
+      add("programme_session_dates", {
+        assignment_id: id(63),
+        program_workout_id: id(61),
+        scheduled_on: "2026-10-14",
+        revision: 3,
       });
       add("program_assignment_exercises", {
         id: id(64),
@@ -588,7 +594,11 @@ it.skipIf(Boolean(pgSkip))(
         },
       );
       const backup = readProfileBackup(JSON.stringify(await getPersonalDataExport()));
-      expect(backup.schema_version).toBe(1);
+      expect(backup.schema_version).toBe(2);
+      expect(backup.programme_session_dates[0]).toMatchObject({
+        scheduled_on: "2026-10-14",
+        revision: 3,
+      });
       expect(backup.backup_manifest.external_people_ids).toEqual([id(3)]);
       expect(backup.people.map((row) => row.id)).toEqual([id(1)]);
       expect(backup.sessions.map((row) => row.id)).toEqual([id(100)]);

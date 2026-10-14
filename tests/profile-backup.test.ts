@@ -14,8 +14,8 @@ const empty = (): ProfileBackupData => {
 };
 test("profile backups carry a version, explicit table counts and recovery exclusions", () => {
   const backup = makeProfileBackup(empty(), "person");
-  assert.equal(backup.schema_version, 1);
-  assert.equal(PROFILE_BACKUP_TABLES.length, 55);
+  assert.equal(backup.schema_version, 2);
+  assert.equal(PROFILE_BACKUP_TABLES.length, 56);
   assert.equal(backup.backup_manifest.table_counts.people, 1);
   assert.ok(backup.backup_manifest.excluded.some((item) => item.includes("Auth")));
   assert.ok(backup.backup_manifest.excluded.some((item) => item.includes("unsynced")));
@@ -25,7 +25,7 @@ test("reader rejects partial, unsupported and inconsistent backups rather than a
   const backup = makeProfileBackup(empty(), "person");
   assert.throws(() => readProfileBackup("null"), /not a supported/);
   assert.throws(
-    () => readProfileBackup(JSON.stringify({ ...backup, schema_version: 2 })),
+    () => readProfileBackup(JSON.stringify({ ...backup, schema_version: 3 })),
     /not a supported/,
   );
   assert.throws(
@@ -78,5 +78,23 @@ test("shared catalogue authors are listed as external IDs without exporting thei
         }),
       ),
     /external references/,
+  );
+});
+
+test("old v1 backups remain readable and new backups require the programme dates table", () => {
+  const backup = makeProfileBackup(empty(), "person");
+  const old = JSON.parse(JSON.stringify(backup));
+  old.schema_version = 1;
+  delete old.programme_session_dates;
+  delete old.backup_manifest.table_counts.programme_session_dates;
+  const read = readProfileBackup(JSON.stringify(old));
+  assert.equal(read.schema_version, 2);
+  assert.deepEqual(read.programme_session_dates, []);
+  assert.equal(read.backup_manifest.table_counts.programme_session_dates, 0);
+  const partial = JSON.parse(JSON.stringify(backup));
+  delete partial.programme_session_dates;
+  assert.throws(
+    () => readProfileBackup(JSON.stringify(partial)),
+    /invalid programme_session_dates/,
   );
 });

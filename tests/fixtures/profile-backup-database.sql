@@ -928,3 +928,11 @@ alter table public.training_location_equipment add constraint training_location_
 alter table public.training_location_equipment add constraint training_location_equipment_location_id_fkey FOREIGN KEY (location_id) REFERENCES training_locations(id) ON DELETE CASCADE;
 alter table public.training_locations add constraint training_locations_person_id_fkey FOREIGN KEY (person_id) REFERENCES people(id) ON DELETE CASCADE;
 alter table public.training_methods add constraint training_methods_person_id_fkey FOREIGN KEY (person_id) REFERENCES people(id) ON DELETE CASCADE;
+
+CREATE TABLE public.programme_session_dates (
+ assignment_id uuid NOT NULL REFERENCES public.program_assignments(id) ON DELETE CASCADE,
+ program_workout_id uuid NOT NULL REFERENCES public.program_workouts(id) ON DELETE CASCADE,
+ scheduled_on date NOT NULL,
+ revision integer NOT NULL DEFAULT 1 CHECK (revision > 0),
+ PRIMARY KEY (assignment_id, program_workout_id)
+);

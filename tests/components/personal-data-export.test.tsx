@@ -61,7 +61,14 @@ it("scopes each child layer to the selected profile and includes assigned templa
         { id: "owned", created_by_person_id: "person" },
         { id: "template", created_by_person_id: null },
       ],
-      program_assignments: [{ id: "a1", person_id: "person", program_id: "template" }],
+      program_assignments: [
+        { id: "a1", person_id: "person", program_id: "template" },
+        { id: "a2", person_id: "other", program_id: "template" },
+      ],
+      programme_session_dates: [
+        { assignment_id: "a1", program_workout_id: "w2", scheduled_on: "2026-10-14", revision: 3 },
+        { assignment_id: "a2", program_workout_id: "w2", scheduled_on: "2026-11-01", revision: 1 },
+      ],
       program_workouts: [
         { id: "w1", program_id: "owned" },
         { id: "w2", program_id: "template" },
@@ -82,6 +89,9 @@ it("scopes each child layer to the selected profile and includes assigned templa
   expect(data.session_method_block_entries).toEqual([{ block_id: "b1", session_entry_id: "e1" }]);
   expect(data.programs.map((row) => row.id)).toEqual(["owned", "template"]);
   expect(data.program_workouts.map((row) => row.id)).toEqual(["w1", "w2"]);
+  expect(data.programme_session_dates).toEqual([
+    { assignment_id: "a1", program_workout_id: "w2", scheduled_on: "2026-10-14", revision: 3 },
+  ]);
   expect(data.suggested_workout_set_segments.map((row) => row.id)).toEqual(["pseg"]);
 });
 it("paginates beyond 1,000 records and batches large parent ID lists", async () => {

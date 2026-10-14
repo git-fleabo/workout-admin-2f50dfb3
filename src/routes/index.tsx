@@ -1,3 +1,5 @@
+import { ProgrammeRescheduleDialog } from "@/components/programme-reschedule-dialog";
+import { programmeSessionScheduledDate } from "@/lib/programme-reschedule";
 import { countLabel } from "@/lib/display-labels";
 import { repLabel } from "@/lib/workout-preview";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -49,7 +51,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { WorkoutLifecycleBadge } from "@/components/workout-lifecycle-badge";
-import { programmeWorkoutScheduledDate } from "@/lib/adaptive-strength";
 import { formatUKDate, todayISO } from "@/lib/date";
 import { getLibraryClient, getRecentLogsClient } from "@/lib/supabase-log.browser";
 import {
@@ -851,14 +852,7 @@ export function TodayPage() {
                     : null;
                 const suggestedDate =
                   nextWorkout && activeProgramme
-                    ? (activeProgramme.personalProgramme?.sessions.find(
-                        (session) => session.workoutId === nextWorkout.id,
-                      )?.scheduledDate ??
-                      programmeWorkoutScheduledDate(
-                        activeProgramme.startedOn,
-                        nextWorkout.weekNumber,
-                        nextWorkout.dayNumber,
-                      ))
+                    ? programmeSessionScheduledDate(activeProgramme, nextWorkout)
                     : null;
                 const completedCount = Math.max(
                   0,
@@ -934,6 +928,15 @@ export function TodayPage() {
             </section>
           ) : null}
         </TodayChoice>
+      ) : null}
+
+      {activeProgramme && activeTemplate && programmeOverview.isSuccess ? (
+        <ProgrammeRescheduleDialog
+          assignment={activeProgramme}
+          template={activeTemplate}
+          lockedWorkoutIds={programmeOverview.data.lockedWorkoutIds ?? []}
+          hasDraft={Boolean(draft)}
+        />
       ) : null}
 
       <TodayChoice

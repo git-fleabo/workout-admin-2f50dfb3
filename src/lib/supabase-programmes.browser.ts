@@ -1,3 +1,5 @@
+import { programmeSessionScheduledDate, type ProgrammeDateOverride } from "./programme-reschedule";
+import { listProgrammeDateOverridesClient } from "./supabase-programme-reschedule.browser";
 import { reviewedPersonalLoad } from "./personal-strength-review";
 import { baseStrengthStartIssues } from "./base-strength-personal";
 import {
@@ -18,7 +20,6 @@ import {
   adjustmentForDecision,
   decideAdaptiveProgression,
   nextCycleTrainingMax,
-  programmeWorkoutScheduledDate,
   programmeWorkoutWindowDate,
   type AdaptiveDecision,
   type TechniqueRating,
@@ -107,6 +108,7 @@ export type ProgrammeExercisePoolItem = {
 };
 
 export type ProgrammeAssignment = {
+  scheduleOverrides?: Record<string, ProgrammeDateOverride>;
   reviewLockedWorkoutIds?: string[];
   personalProgramme?: PersonalProgramme;
   id: string;
@@ -441,8 +443,15 @@ export async function listProgrammeAssignmentsClient(
     status: includeArchived ? undefined : "in.(active,paused,complete)",
     order: "created_at.desc",
   });
-  const personal = await listPersonalProgrammesClient();
-  return rows.map((row) => ({ ...mapAssignment(row), personalProgramme: personal.get(row.id) }));
+  const [personal, dates] = await Promise.all([
+    listPersonalProgrammesClient(),
+    listProgrammeDateOverridesClient(rows.map((row) => row.id)),
+  ]);
+  return rows.map((row) => ({
+    ...mapAssignment(row),
+    personalProgramme: personal.get(row.id),
+    scheduleOverrides: dates.get(row.id),
+  }));
 }
 
 export async function getMyProgrammeOverviewClient(selectedAssignmentId?: string) {
@@ -545,7 +554,7 @@ export async function getUpcomingProgrammeScheduleClient(
       );
       if (personalSession) {
         const windowDate = programmeWorkoutWindowDate({
-          scheduledDate: personalSession.scheduledDate,
+          scheduledDate: programmeSessionScheduledDate(assignment, workout)!,
           startDate,
           endDate,
           isCurrent: workout.sequenceIndex === assignment.currentWorkoutIndex,
@@ -559,7 +568,7 @@ export async function getUpcomingProgrammeScheduleClient(
             programmeName: assignment.personalProgramme!.name,
             workoutName: personalSession.name,
             date: windowDate.date,
-            scheduledDate: personalSession.scheduledDate,
+            scheduledDate: programmeSessionScheduledDate(assignment, workout)!,
             isCatchUp: windowDate.isCatchUp,
             weekNumber: workout.weekNumber,
             sessionNumber: workout.sessionNumber,
@@ -578,11 +587,7 @@ export async function getUpcomingProgrammeScheduleClient(
           });
         continue;
       }
-      const scheduledDate = programmeWorkoutScheduledDate(
-        assignment.startedOn,
-        workout.weekNumber,
-        workout.dayNumber,
-      );
+      const scheduledDate = programmeSessionScheduledDate(assignment, workout);
       const windowDate = programmeWorkoutWindowDate({
         scheduledDate,
         startDate,
@@ -837,7 +842,7 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
         workoutName: personalSession.name,
         workoutNumber: assignment.currentWorkoutIndex + 1,
         totalWorkouts: template.workouts.length,
-        scheduledDate: personalSession.scheduledDate,
+        scheduledDate: programmeSessionScheduledDate(assignment, workout)!,
         weekNumber: workout.weekNumber,
         sessionNumber: workout.sessionNumber,
         methodType: "personal_programme",
@@ -945,11 +950,7 @@ export async function getCurrentProgrammeWorkoutOffersClient(): Promise<Programm
       workoutName: workout.name,
       workoutNumber: assignment.currentWorkoutIndex + 1,
       totalWorkouts: template.workouts.length,
-      scheduledDate: programmeWorkoutScheduledDate(
-        assignment.startedOn,
-        workout.weekNumber,
-        workout.dayNumber,
-      ),
+      scheduledDate: programmeSessionScheduledDate(assignment, workout),
       weekNumber: workout.weekNumber,
       sessionNumber: workout.sessionNumber,
       methodType: template.methodType,
