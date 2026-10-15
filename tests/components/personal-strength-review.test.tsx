@@ -63,3 +63,30 @@ it("closing a personal review saves nothing", async () => {
   await user.keyboard("{Escape}");
   expect(onApply).not.toHaveBeenCalled();
 });
+
+it("keeps the reviewed prescription fixed and blocks approval when its baseline changes", async () => {
+  const onApply = vi.fn(async () => undefined);
+  const props = {
+    assignment,
+    template,
+    recovery,
+    appliedReview: null,
+    saving: false,
+    onApplyReview: onApply,
+  };
+  const { rerender } = render(<ProgrammeRefreshCard {...props} />);
+  await userEvent.click(screen.getByRole("button", { name: "Review exact week" }));
+  const changed = structuredClone(assignment);
+  changed.personalProgramme!.sessions[0].revision++;
+  changed.personalProgramme!.sessions[0].plan.movements[0].setRows[0].weight = "30";
+  rerender(<ProgrammeRefreshCard {...props} assignment={changed} />);
+  expect(screen.getByRole("alert")).toHaveTextContent("Close and reopen this preview");
+  expect(screen.getByRole("button", { name: "Apply reviewed week" })).toBeDisabled();
+  expect(screen.queryByText(/Reviewed: Set 1: 8 reps @ 28.5 kg/)).not.toBeInTheDocument();
+  expect(screen.getAllByText(/Reviewed: Set 1: 8 reps @ 19.57 kg/).length).toBeGreaterThan(0);
+  expect(onApply).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  await userEvent.click(screen.getByRole("button", { name: "Review exact week" }));
+  expect(screen.getByRole("button", { name: "Apply reviewed week" })).toBeEnabled();
+  expect(screen.getByText(/Reviewed: Set 1: 8 reps @ 28.5 kg/)).toBeInTheDocument();
+});

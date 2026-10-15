@@ -39,3 +39,8 @@ Goals. See [goal-review verification](docs/weekly-goal-review-verification-2026-
 Each measured or check-in goal also offers a **Four-week trend** disclosure. Select a week to see
 its own recorded result and source logs. Missing measurements remain gaps, and incomplete weeks
 and session times are labelled. See [trend verification](docs/four-week-goal-trends-verification-2026-10-15.md).
+
+The current Weekly Review also offers **Programme adjustments** using the existing reviewed-week
+approval flow. Base Strength keeps its source-specific base-level and eligible Bullmastiff
+progression previews. Past review weeks stay read-only. See
+[programme-review verification](docs/weekly-programme-adjustments-verification-2026-10-15.md).

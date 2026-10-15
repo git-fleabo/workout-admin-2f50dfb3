@@ -76,7 +76,7 @@ import {
   updateSuggestedWorkoutStatusClient,
   type SavedWorkoutPlan,
 } from "@/lib/supabase-plans.browser";
-import { getSupabaseSession } from "@/lib/supabase-public";
+import { weeklyAdjustmentsStorageKey } from "@/lib/weekly-plan-storage.browser";
 import { listMobilityDataClient } from "@/lib/supabase-mobility.browser";
 import { buildMobilityWorkoutDraft, MOBILITY_SKILLS } from "@/lib/mobility-practice";
 import { getMovementMetricProfile, getTrackingModeValue } from "@/lib/movement-metrics";
@@ -93,12 +93,7 @@ import {
   getUpcomingProgrammeScheduleClient,
   updateProgrammeExerciseSettingsClient,
 } from "@/lib/supabase-programmes.browser";
-import {
-  applyProgrammeStrengthWeekReviewClient,
-  applyPersonalStrengthWeekReviewClient,
-  getLatestProgrammeStrengthWeekReviewClient,
-} from "@/lib/supabase-programme-strength-review.browser";
-import type { StrengthProgrammeReview } from "@/lib/strength-programme-review";
+import { useProgrammeStrengthReview } from "@/hooks/use-programme-strength-review";
 import {
   getProgrammeSkillSupportHistoryClient,
   getProgrammeSupportBlockHistoryClient,
@@ -228,11 +223,6 @@ const DEFAULT_CLIMBING_INPUTS: ClimbingBuilderInputs = {
   wallType: "commercial",
   difficulty: "hard",
 };
-
-function weeklyAdjustmentsStorageKey(startDate: string) {
-  const userId = getSupabaseSession()?.user.id ?? "signed-out";
-  return `weekly-plan-adjustments:${userId}:${startDate}`;
-}
 
 function methodBlockSummary(block: WorkoutPlanMethodBlock) {
   if (block.family === "timed_density") {
@@ -779,12 +769,8 @@ function PlanPage() {
       weeklyPlan,
     ],
   );
-  const programmeStrengthReview = useQuery({
-    queryKey: ["programme-strength-week-review", programmeRefresh.data?.assignment.id],
-    queryFn: () => getLatestProgrammeStrengthWeekReviewClient(programmeRefresh.data!.assignment.id),
-    enabled: Boolean(programmeRefresh.data?.assignment.id),
-    staleTime: 30_000,
-  });
+  const { latest: programmeStrengthReview, apply: programmeStrengthReviewMutation } =
+    useProgrammeStrengthReview(programmeRefresh.data, strengthRecovery);
   const programmeRefreshMutation = useMutation({
     mutationFn: ({
       assignmentId,
@@ -807,52 +793,6 @@ function PlanPage() {
       toast.success("Upcoming programme sessions refreshed");
     },
     onError: (error: Error) => toast.error(error.message),
-  });
-  const programmeStrengthReviewMutation = useMutation({
-    mutationFn: (review: StrengthProgrammeReview) =>
-      review.isPersonal
-        ? applyPersonalStrengthWeekReviewClient(
-            programmeRefresh.data!.assignment.id,
-            review,
-            strengthRecovery.level,
-          )
-        : applyProgrammeStrengthWeekReviewClient({
-            assignmentId: programmeRefresh.data!.assignment.id,
-            programmeWeek: review.programmeWeek,
-            startWorkoutIndex: review.startWorkoutIndex,
-            endWorkoutIndex: review.endWorkoutIndex,
-            workoutIds: review.sessions.map((session) => session.workoutId),
-            recoveryLevel: strengthRecovery.level,
-            recommendationKind: review.recommendationKind,
-            previousReviewId: review.previousReviewId,
-            adjustments: review.exercises.map((exercise) => ({
-              exerciseId: exercise.assignmentExerciseId,
-              manualAdjustmentPercent: exercise.proposedManualAdjustmentPercent,
-              combinedAdjustmentPercent: exercise.proposedCombinedAdjustmentPercent,
-              setAdjustment: exercise.proposedSetAdjustment,
-            })),
-          }),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["programme-strength-week-review"] }),
-        queryClient.invalidateQueries({ queryKey: ["programme-refresh"] }),
-        queryClient.invalidateQueries({ queryKey: ["programme-schedule"] }),
-        queryClient.invalidateQueries({ queryKey: ["programme-workout-offers"] }),
-        queryClient.invalidateQueries({ queryKey: ["programme-assignments"] }),
-        queryClient.invalidateQueries({ queryKey: ["my-programme-overview"] }),
-        queryClient.invalidateQueries({ queryKey: ["programme-exercise-rule"] }),
-      ]);
-      toast.success("Reviewed strength week applied", {
-        description: "The coach will reassess it after the selected programme week is complete.",
-      });
-    },
-    onError: async (error: Error) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["programme-refresh"] }),
-        queryClient.invalidateQueries({ queryKey: ["programme-strength-week-review"] }),
-      ]);
-      toast.error(error.message);
-    },
   });
   const defaultMetricsByExercise = useMemo(
     () =>
@@ -1846,16 +1786,31 @@ function PlanPage() {
               : undefined
           }
           strengthReview={
-            programmeRefresh.error || programmeStrengthReview.error ? (
+            programmeRefresh.error ||
+            programmeStrengthReview.error ||
+            history.error ||
+            weeklyLoad.error ||
+            library.error ? (
               <div className="rounded-lg border border-destructive/35 p-3 text-sm text-destructive">
                 Upcoming programme adjustments could not be loaded.
               </div>
+            ) : programmeRefresh.isPending ||
+              (programmeRefresh.data && programmeStrengthReview.isPending) ||
+              history.isPending ||
+              weeklyLoad.isPending ||
+              library.isPending ? (
+              <p className="text-sm text-muted-foreground">
+                Loading the programme and its review evidence…
+              </p>
             ) : programmeRefresh.data ? (
               <ProgrammeRefreshCard
+                key={programmeRefresh.data.assignment.id}
                 assignment={programmeRefresh.data.assignment}
                 template={programmeRefresh.data.template}
                 recovery={strengthRecovery}
                 appliedReview={programmeStrengthReview.data ?? null}
+                errorMessage={programmeStrengthReviewMutation.error?.message}
+                onPreview={programmeStrengthReviewMutation.reset}
                 saving={
                   programmeRefreshMutation.isPending || programmeStrengthReviewMutation.isPending
                 }

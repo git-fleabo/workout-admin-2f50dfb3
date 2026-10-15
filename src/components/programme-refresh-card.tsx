@@ -32,6 +32,7 @@ import {
 import type { ProgrammeAssignment, ProgrammeTemplate } from "@/lib/supabase-programmes.browser";
 import type { WeeklyRecoveryRecommendation } from "@/lib/weekly-recovery";
 import type { WorkoutPlanMovement } from "@/lib/workout-plan";
+import { useDialogReturnFocus } from "@/hooks/use-dialog-return-focus";
 
 const ADJUSTMENT_OPTIONS = [
   { value: -5, label: "Much lighter", detail: "5 percentage points lower" },
@@ -96,13 +97,15 @@ export function ProgrammeRefreshCard({
   saving,
   onSave,
   onApplyReview,
+  errorMessage,
+  onPreview,
 }: {
   assignment: ProgrammeAssignment;
   template: ProgrammeTemplate;
   recovery: WeeklyRecoveryRecommendation;
   appliedReview: ProgrammeStrengthWeekReview | null;
   saving: boolean;
-  onSave: (
+  onSave?: (
     updates: Array<{
       exerciseId: string;
       trainingMax: number;
@@ -110,6 +113,8 @@ export function ProgrammeRefreshCard({
     }>,
   ) => Promise<void>;
   onApplyReview: (review: StrengthProgrammeReview) => Promise<void>;
+  errorMessage?: string;
+  onPreview?: () => void;
 }) {
   const personal = Boolean(assignment.personalProgramme);
   const sourceProgramme = assignment.personalProgramme?.sessions.find(
@@ -167,6 +172,18 @@ export function ProgrammeRefreshCard({
   const [draftAdjustments, setDraftAdjustments] = useState<Record<string, number>>({});
   const [draftSetAdjustments, setDraftSetAdjustments] = useState<Record<string, number>>({});
   const [draftTrainingMaxes, setDraftTrainingMaxes] = useState<Record<string, string>>({});
+  const [previewContext, setPreviewContext] = useState<{
+    assignment: ProgrammeAssignment;
+    template: ProgrammeTemplate;
+    recovery: WeeklyRecoveryRecommendation;
+    appliedReview: ProgrammeStrengthWeekReview | null;
+  } | null>(null);
+  const returnFocus = useDialogReturnFocus(mode != null);
+  const previewStale =
+    mode === "coach" &&
+    previewContext != null &&
+    JSON.stringify(previewContext) !==
+      JSON.stringify({ assignment, template, recovery, appliedReview });
   const awaitingAppliedWeek =
     appliedReview != null &&
     assignment.currentWorkoutIndex <= appliedReview.endWorkoutIndex &&
@@ -187,18 +204,32 @@ export function ProgrammeRefreshCard({
       proposal: followUpProposal,
     });
   }, [assignment, awaitingAppliedWeek, followUpProposal, recovery, template]);
-  const coachReview = useMemo(
-    () =>
-      buildStrengthProgrammeReview({
-        assignment,
-        template,
-        recovery,
-        manualAdjustments: mode === "coach" ? draftAdjustments : undefined,
-        setAdjustments: mode === "coach" ? draftSetAdjustments : undefined,
-        proposal: followUpProposal,
-      }),
-    [assignment, draftAdjustments, draftSetAdjustments, followUpProposal, mode, recovery, template],
-  );
+  const coachReview = useMemo(() => {
+    const basis =
+      mode === "coach" && previewContext
+        ? previewContext
+        : { assignment, template, recovery, appliedReview };
+    const proposal = basis.appliedReview
+      ? buildStrengthProgrammeFollowUpProposal({ ...basis, appliedReview: basis.appliedReview })
+      : null;
+    return buildStrengthProgrammeReview({
+      assignment: basis.assignment,
+      template: basis.template,
+      recovery: basis.recovery,
+      manualAdjustments: mode === "coach" ? draftAdjustments : undefined,
+      setAdjustments: mode === "coach" ? draftSetAdjustments : undefined,
+      proposal,
+    });
+  }, [
+    assignment,
+    draftAdjustments,
+    draftSetAdjustments,
+    mode,
+    recovery,
+    template,
+    appliedReview,
+    previewContext,
+  ]);
   const activeOverrides = (personal ? (appliedReview?.exercises ?? []) : exercises).filter(
     (exercise) => exercise.manualAdjustmentPercent !== 0,
   );
@@ -234,6 +265,8 @@ export function ProgrammeRefreshCard({
 
   const openCoachReview = () => {
     if (!defaultCoachReview) return;
+    onPreview?.();
+    setPreviewContext(structuredClone({ assignment, template, recovery, appliedReview }));
     resetDrafts(
       Object.fromEntries(
         defaultCoachReview.exercises.map((exercise) => [
@@ -261,9 +294,10 @@ export function ProgrammeRefreshCard({
   };
 
   const save = async () => {
+    if (mode === "coach" && previewStale) return;
     try {
       if (mode === "coach" && coachReview) await onApplyReview(coachReview);
-      else await onSave(changed);
+      else if (onSave) await onSave(changed);
       setMode(null);
     } catch {
       // The parent mutation owns the user-facing error toast; keep the dialog open for correction.
@@ -284,7 +318,7 @@ export function ProgrammeRefreshCard({
                   {awaitingAppliedWeek
                     ? "Strength review applied"
                     : (defaultCoachReview?.title ??
-                      (personal ? fallbackTitle : "Refresh upcoming sessions"))}
+                      (personal || !onSave ? fallbackTitle : "Refresh upcoming sessions"))}
                 </p>
                 {awaitingAppliedWeek ? (
                   <Badge variant="secondary" className="text-[10px]">
@@ -306,7 +340,7 @@ export function ProgrammeRefreshCard({
                     ? "Complete this reviewed week and log the actual sets and effort. Later sessions use your original targets unless you approve another change."
                     : `Complete programme week ${appliedReview?.programmeWeek ?? "review"}. The coach will compare the recorded lift outcomes before drafting the following week.`
                   : (defaultCoachReview?.detail ??
-                    (personal
+                    (personal || !onSave
                       ? fallbackDetail
                       : "Amend a training max or review a lift after a week that felt too hard or too easy. Every unstarted programme session is recalculated from the saved values."))}
               </p>
@@ -331,12 +365,12 @@ export function ProgrammeRefreshCard({
                 <Sparkles className="mr-2 h-4 w-4" /> Review exact week
               </Button>
             ) : null}
-            {personal && !defaultCoachReview && !awaitingAppliedWeek ? (
+            {(personal || !onSave) && !defaultCoachReview && !awaitingAppliedWeek ? (
               <Button asChild variant="outline">
                 <Link to="/plan">Open saved programme</Link>
               </Button>
             ) : null}
-            {!personal ? (
+            {!personal && onSave ? (
               <Button variant="outline" onClick={openManualReview} disabled={!exercises.length}>
                 <SlidersHorizontal className="mr-2 h-4 w-4" /> Adjust manually
               </Button>
@@ -346,7 +380,10 @@ export function ProgrammeRefreshCard({
       </Card>
 
       <Dialog open={mode != null} onOpenChange={(open) => !saving && !open && setMode(null)}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogContent
+          onCloseAutoFocus={returnFocus}
+          className="max-h-[90vh] max-w-2xl overflow-y-auto"
+        >
           <DialogHeader>
             <DialogTitle>
               {mode === "coach"
@@ -585,6 +622,17 @@ export function ProgrammeRefreshCard({
             </div>
           )}
 
+          {previewStale ? (
+            <p role="alert" className="text-sm text-destructive">
+              The programme or its evidence changed. Close and reopen this preview to review the
+              latest targets.
+            </p>
+          ) : null}
+          {errorMessage ? (
+            <p role="alert" className="text-sm text-destructive">
+              {errorMessage}
+            </p>
+          ) : null}
           <DialogFooter>
             <Button variant="ghost" onClick={() => setMode(null)} disabled={saving}>
               Cancel
@@ -593,6 +641,7 @@ export function ProgrammeRefreshCard({
               onClick={save}
               disabled={
                 saving ||
+                previewStale ||
                 hasInvalidTrainingMax ||
                 (mode === "manual" && !changed.length) ||
                 (mode === "coach" && !coachReview)

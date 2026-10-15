@@ -33,6 +33,7 @@ import {
 import { cn } from "@/lib/utils";
 import { getTimelineDataClient } from "@/lib/supabase-timeline.browser";
 import { WeeklyGoalReview } from "@/components/weekly-goal-review";
+import { WeeklyProgrammeReview } from "@/components/weekly-programme-review";
 
 export const Route = createFileRoute("/weekly-review")({
   head: () => ({
@@ -196,7 +197,16 @@ export function WeeklyReviewPage() {
             size="icon"
             onClick={() => {
               refetch();
-              for (const key of ["goals", "goal-activity", "goal-exercise-progress"]) {
+              for (const key of [
+                "goals",
+                "goal-activity",
+                "goal-exercise-progress",
+                "programme-refresh",
+                "programme-strength-week-review",
+                "workout-planner-history",
+                "weekly-load-history",
+                "weekly-plan-adjustments",
+              ]) {
                 queryClient.invalidateQueries({ queryKey: [key] });
               }
             }}
@@ -224,6 +234,10 @@ export function WeeklyReviewPage() {
       ) : null}
 
       <WeeklyGoalReview weekStart={data.weekStart} reviewEnd={data.reviewEnd} />
+      <WeeklyProgrammeReview
+        current={data.weekStart === currentWeekStart}
+        onCurrentWeek={() => setWeekStart(currentWeekStart)}
+      />
 
       <details key={`${weekStart}:${emptyWeek}`} open={!emptyWeek} className="space-y-5">
         <summary className={emptyWeek ? "cursor-pointer text-sm font-medium" : "hidden"}>

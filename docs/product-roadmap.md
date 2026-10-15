@@ -2,6 +2,25 @@
 
 Last updated: 2026-10-15
 
+## Programme approvals in Weekly Review — 15 October 2026
+
+The current review now brings existing programme adjustments onto the same screen as training and
+goal progress. Supported personal/adaptive programmes use the exact reviewed-week dialog and a
+shared approval action with Plan. It loads the current programme, latest approval, training/load
+history and saved Plan choices before showing a proposal. Past weeks offer a return to the current
+week and cannot apply current programme changes.
+
+Base Strength uses its own saved source rules: the existing base-level editor previews future load
+changes before approval, and eligible Bullmastiff sessions expose the completed-plus-set review.
+Those programmes do not receive generic temporary lighter-week overrides.
+
+Open week previews retain their original prescriptions and are blocked when observed programme or
+evidence inputs change. Approval re-reads the programme and prior review before calling the existing
+atomic RPC. Plan shares this path; persistent native training-max editing remains in Plan. Existing
+revision, start-state and ownership checks remain authoritative. No migration or live user-data
+test was needed. Implemented and verified locally; publication remains user-managed.
+See [programme-review verification](./weekly-programme-adjustments-verification-2026-10-15.md).
+
 ## Four-week goal trends — 15 October 2026
 
 Goals in Weekly Review now offer an optional four-week trend. Each week shows its own best measured

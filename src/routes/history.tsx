@@ -222,6 +222,10 @@ export function HistoryPage({ requestedSessionId }: { requestedSessionId?: strin
       qc.invalidateQueries({ queryKey: ["goal-activity"] });
       qc.invalidateQueries({ queryKey: ["goal-exercise-progress"] });
       qc.invalidateQueries({ queryKey: ["weekly-review"] });
+      qc.invalidateQueries({ queryKey: ["workout-planner-history"] });
+      qc.invalidateQueries({ queryKey: ["weekly-load-history"] });
+      qc.invalidateQueries({ queryKey: ["programme-refresh"] });
+      qc.invalidateQueries({ queryKey: ["programme-strength-week-review"] });
       qc.invalidateQueries({ queryKey: ["workout-lifecycle"] });
     },
     onError: (e: Error) => toast.error(e.message),

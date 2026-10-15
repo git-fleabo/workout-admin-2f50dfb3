@@ -1204,6 +1204,10 @@ export function ClimbForm() {
       qc.invalidateQueries({ queryKey: ["goal-activity"] });
       qc.invalidateQueries({ queryKey: ["goal-exercise-progress"] });
       qc.invalidateQueries({ queryKey: ["weekly-review"] });
+      qc.invalidateQueries({ queryKey: ["workout-planner-history"] });
+      qc.invalidateQueries({ queryKey: ["weekly-load-history"] });
+      qc.invalidateQueries({ queryKey: ["programme-refresh"] });
+      qc.invalidateQueries({ queryKey: ["programme-strength-week-review"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -2486,6 +2490,10 @@ export function FullWorkoutForm() {
       qc.invalidateQueries({ queryKey: ["goal-activity"] });
       qc.invalidateQueries({ queryKey: ["goal-exercise-progress"] });
       qc.invalidateQueries({ queryKey: ["weekly-review"] });
+      qc.invalidateQueries({ queryKey: ["workout-planner-history"] });
+      qc.invalidateQueries({ queryKey: ["weekly-load-history"] });
+      qc.invalidateQueries({ queryKey: ["programme-refresh"] });
+      qc.invalidateQueries({ queryKey: ["programme-strength-week-review"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });

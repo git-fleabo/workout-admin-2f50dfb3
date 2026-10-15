@@ -17,6 +17,7 @@ import {
   type BaseLevelContext,
 } from "@/lib/base-strength-levels";
 import { savePersonalProgrammeSessionsClient } from "@/lib/supabase-personal-programmes.browser";
+import { useDialogReturnFocus } from "@/hooks/use-dialog-return-focus";
 
 const phaseNames = { base: "Base phase", build: "Build phase", peak: "Peak phase" };
 const loads = (values: string[]) =>
@@ -26,6 +27,7 @@ function BaseLevelDialog({ context, onClose }: { context: BaseLevelContext; onCl
   // Keep the exact snapshot that the user reviewed. The atomic save checks every
   // session revision and refuses stale or newly locked sessions.
   const [baseline] = useState(() => structuredClone(context));
+  const returnFocus = useDialogReturnFocus(true);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<ReturnType<typeof previewBaseLevels> | null>(null);
   const [error, setError] = useState("");
@@ -60,7 +62,11 @@ function BaseLevelDialog({ context, onClose }: { context: BaseLevelContext; onCl
         setError(
           `${failure.message} Close and reopen Edit base levels to review the latest targets.`,
         );
-        await queryClient.invalidateQueries({ queryKey: ["my-programme-overview"] });
+        await Promise.all(
+          ["my-programme-overview", "programme-refresh"].map((key) =>
+            queryClient.invalidateQueries({ queryKey: [key] }),
+          ),
+        );
       } else setError(failure.message);
     },
   });
@@ -84,7 +90,10 @@ function BaseLevelDialog({ context, onClose }: { context: BaseLevelContext; onCl
         if (!open && !save.isPending) onClose();
       }}
     >
-      <DialogContent className="flex max-h-[85dvh] flex-col sm:max-w-3xl">
+      <DialogContent
+        onCloseAutoFocus={returnFocus}
+        className="flex max-h-[85dvh] flex-col sm:max-w-3xl"
+      >
         <DialogHeader className="shrink-0">
           <DialogTitle>{preview ? "Review base level changes" : "Edit base levels"}</DialogTitle>
           <DialogDescription>

@@ -36,6 +36,7 @@ vi.mock("@/lib/supabase-weekly-review.browser", () => ({
 vi.mock("@/lib/supabase-timeline.browser", () => ({
   getTimelineDataClient: async () => ({ entries: [] }),
 }));
+vi.mock("@/components/weekly-programme-review", () => ({ WeeklyProgrammeReview: () => null }));
 import { WeeklyGoalReview } from "@/components/weekly-goal-review";
 import { WeeklyReviewPage } from "@/routes/weekly-review";
 

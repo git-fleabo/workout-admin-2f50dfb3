@@ -87,6 +87,8 @@ function MovementProgression({
           "programme-workout-offers",
           "programme-exercise-rule",
           "base-strength-progression",
+          "programme-refresh",
+          "weekly-review",
         ].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
       );
     },
