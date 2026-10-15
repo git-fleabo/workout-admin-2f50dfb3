@@ -1201,6 +1201,9 @@ export function ClimbForm() {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["timeline"] });
       qc.invalidateQueries({ queryKey: ["exercise-history"] });
+      qc.invalidateQueries({ queryKey: ["goal-activity"] });
+      qc.invalidateQueries({ queryKey: ["goal-exercise-progress"] });
+      qc.invalidateQueries({ queryKey: ["weekly-review"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -2480,6 +2483,9 @@ export function FullWorkoutForm() {
       qc.invalidateQueries({ queryKey: ["prs"] });
       qc.invalidateQueries({ queryKey: ["timeline"] });
       qc.invalidateQueries({ queryKey: ["exercise-history"] });
+      qc.invalidateQueries({ queryKey: ["goal-activity"] });
+      qc.invalidateQueries({ queryKey: ["goal-exercise-progress"] });
+      qc.invalidateQueries({ queryKey: ["weekly-review"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });

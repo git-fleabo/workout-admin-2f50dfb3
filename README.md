@@ -30,3 +30,8 @@ Profile backup v2 includes programme date overrides; the reader also accepts v1 
 date overrides existed. Today → Plans changed reviews a delayed programme schedule and its clashes
 before saving. Undo reviews the previous dates and is refused if the programme or sessions have
 changed since the save. See [missed-session verification](docs/programme-reschedule-verification-2026-10-14.md).
+
+Weekly Review now brings active goal progress alongside the training review: saved starting point,
+best and latest measured results, target, weekly changes and source logs. Past reviews exclude later
+records and use the current saved goal settings. Manual milestones remain explicitly confirmed in
+Goals. See [goal-review verification](docs/weekly-goal-review-verification-2026-10-15.md).

@@ -1,4 +1,4 @@
-import { todayISO } from "./date";
+import { todayISO } from "./date.ts";
 import type { ExerciseHistory, ExerciseSessionPoint, GoalMetric, GoalRow } from "./training-types";
 
 export type GoalActivitySession = {
@@ -21,27 +21,29 @@ export function calculateGoalProgress({
   goal,
   activitySessions,
   exerciseHistory,
+  asOf = todayISO(),
 }: {
   goal: GoalRow;
   activitySessions?: GoalActivitySession[];
   exerciseHistory?: ExerciseHistory;
+  asOf?: string;
 }): GoalProgress {
   const target = goal.targetValue ?? positiveNumber(goal.target);
   const periodActivity = (activitySessions ?? []).filter((session) =>
-    dateFallsInGoalPeriod(session.date, goal.period),
+    dateFallsInGoalPeriod(session.date, goal.period, asOf),
   );
 
   if (goal.goalType === "consistency") {
     if (goal.goalMetric === "checkins") {
       const checkins = goal.checkins.filter((checkin) =>
-        dateFallsInGoalPeriod(checkin.date, goal.period),
+        dateFallsInGoalPeriod(checkin.date, goal.period, asOf),
       );
       return progressResult({
         goal,
         value: checkins.length,
         target,
         automatic: false,
-        measuredAt: checkins[0]?.date ?? null,
+        measuredAt: latestDate(checkins.map((checkin) => checkin.date)),
         sourceLabel: "Manual check-ins",
       });
     }
@@ -89,9 +91,9 @@ export function calculateGoalProgress({
 
   if ((goal.goalType === "performance" || goal.goalType === "duration") && goal.goalMetric) {
     const points = (exerciseHistory?.points ?? []).filter((point) =>
-      dateFallsInGoalPeriod(point.date, goal.period),
+      dateFallsInGoalPeriod(point.date, goal.period, asOf),
     );
-    const measured = exerciseMeasurement(goal.goalMetric, points);
+    const measured = goalExerciseMeasurement(goal.goalMetric, points);
     return progressResult({
       goal,
       value: measured.value,
@@ -104,14 +106,14 @@ export function calculateGoalProgress({
 
   if (goal.goalType === "legacy") {
     const checkins = goal.checkins.filter((checkin) =>
-      dateFallsInGoalPeriod(checkin.date, goal.period),
+      dateFallsInGoalPeriod(checkin.date, goal.period, asOf),
     );
     return progressResult({
       goal,
       value: checkins.length,
       target,
       automatic: false,
-      measuredAt: checkins[0]?.date ?? null,
+      measuredAt: latestDate(checkins.map((checkin) => checkin.date)),
       sourceLabel: "Manual check-ins",
     });
   }
@@ -126,7 +128,7 @@ export function calculateGoalProgress({
   });
 }
 
-function exerciseMeasurement(metric: GoalMetric, points: ExerciseSessionPoint[]) {
+export function goalExerciseMeasurement(metric: GoalMetric, points: ExerciseSessionPoint[]) {
   let best: { value: number; date: string } | null = null;
   const consider = (value: number | null | undefined, date: string) => {
     if (value == null || !Number.isFinite(value) || value <= 0) return;
@@ -209,8 +211,9 @@ function progressPercentage(value: number | null, target: number | null, startin
   return Math.min(100, Math.max(0, Math.round((value / target) * 100)));
 }
 
-export function dateFallsInGoalPeriod(date: string, period: string) {
-  const current = new Date(`${todayISO()}T00:00:00`);
+export function dateFallsInGoalPeriod(date: string, period: string, asOf = todayISO()) {
+  if (date > asOf) return false;
+  const current = new Date(`${asOf}T00:00:00`);
   const candidate = new Date(`${date}T00:00:00`);
   const normalizedPeriod = period.toLowerCase();
 

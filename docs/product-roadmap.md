@@ -1,6 +1,24 @@
 # train n track Product Roadmap
 
-Last updated: 2026-10-14
+Last updated: 2026-10-15
+
+## Goals in Weekly Review — 15 October 2026
+
+Weekly Review now shows the current active goals using existing goal calculations and reads.
+Performance cards distinguish the saved starting point, best result in the goal period, latest
+measurement and target. The review shows change during the selected week, links directly to
+source sessions in History, and offers exercise progress and goal management. Three cards are
+visible initially; further goals and source records are available through disclosures.
+
+Review dates anchor weekly/monthly/quarterly/yearly periods and exclude records after the review
+end. This is a review of historical records against current saved goal settings, not a snapshot
+of past goal settings or status. Missing measurements, incomplete recorded duration and failed
+evidence reads have distinct states. Manual check-ins and milestones do not imply performance
+achievement. Logging and History deletion invalidate the goal/review caches.
+
+Implemented and verified in the repository. No migration or production data writes; GitHub push
+and Lovable publication remain user-managed.
+See [goal-review verification](./weekly-goal-review-verification-2026-10-15.md).
 
 ## Missed-session dates — 14 October 2026
 

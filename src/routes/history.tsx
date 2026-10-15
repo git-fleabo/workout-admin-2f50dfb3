@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -42,6 +42,10 @@ import { buildTrainingHeatmap } from "@/lib/training-heatmap";
 import { WorkoutHistoryNotes } from "@/components/workout-history-notes";
 
 export const Route = createFileRoute("/history")({
+  validateSearch: (search: Record<string, unknown>): { session?: string } =>
+    typeof search.session === "string" && search.session.length > 0 && search.session.length <= 100
+      ? { session: search.session }
+      : {},
   head: () => ({
     meta: [
       { title: "History · Train & Track" },
@@ -52,8 +56,27 @@ export const Route = createFileRoute("/history")({
       },
     ],
   }),
-  component: HistoryPage,
+  component: HistoryRoutePage,
 });
+
+function HistoryRoutePage() {
+  const { session } = Route.useSearch();
+  return <HistoryPage requestedSessionId={session} />;
+}
+
+function sessionHistoryEntry(members: TimelineEntry[]): TimelineEntry {
+  if (members.length === 1) return members[0];
+  const first = members[0];
+  return {
+    ...first,
+    id: `session-${first.sessionId}`,
+    title: first.subtitle || "Workout",
+    subtitle: `${members.length} movements`,
+    details: members.map((member) => [member.title, ...member.details].filter(Boolean).join(" · ")),
+    notes: [...new Set(members.map((member) => member.notes).filter(Boolean))].join("\n"),
+    isPr: members.some((member) => member.isPr),
+  };
+}
 
 type PeriodMode = "week" | "month" | "quarter" | "year";
 type KindFilter = "all" | TimelineKind;
@@ -154,7 +177,7 @@ function kindMeta(kind: TimelineKind) {
   };
 }
 
-export function HistoryPage() {
+export function HistoryPage({ requestedSessionId }: { requestedSessionId?: string } = {}) {
   const qc = useQueryClient();
   const [mode, setMode] = useState<PeriodMode>("month");
   const [anchor, setAnchor] = useState(() => startOfPeriod(new Date(), "month"));
@@ -162,12 +185,28 @@ export function HistoryPage() {
   const [filter, setFilter] = useState<KindFilter>("all");
   const [selected, setSelected] = useState<TimelineEntry | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const openedSessionId = useRef<string | undefined>(undefined);
 
   const timeline = useQuery({
     queryKey: ["timeline"],
     queryFn: () => getTimelineDataClient(),
     staleTime: 60_000,
   });
+
+  useEffect(() => {
+    if (!requestedSessionId) {
+      openedSessionId.current = undefined;
+      return;
+    }
+    if (openedSessionId.current === requestedSessionId || !timeline.data) return;
+    const members = timeline.data.entries.filter((entry) => entry.sessionId === requestedSessionId);
+    if (!members.length) return;
+    openedSessionId.current = requestedSessionId;
+    setMode("month");
+    setAnchor(startOfPeriod(new Date(`${members[0].date}T00:00:00Z`), "month"));
+    setFilter("all");
+    setSelected(sessionHistoryEntry(members));
+  }, [requestedSessionId, timeline.data]);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteSessionClient(id),
@@ -180,6 +219,9 @@ export function HistoryPage() {
       qc.invalidateQueries({ queryKey: ["recent-workouts"] });
       qc.invalidateQueries({ queryKey: ["recent-climbs"] });
       qc.invalidateQueries({ queryKey: ["exercise-history"] });
+      qc.invalidateQueries({ queryKey: ["goal-activity"] });
+      qc.invalidateQueries({ queryKey: ["goal-exercise-progress"] });
+      qc.invalidateQueries({ queryKey: ["weekly-review"] });
       qc.invalidateQueries({ queryKey: ["workout-lifecycle"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -225,21 +267,7 @@ export function HistoryPage() {
               : `entry:${entry.id}`;
           sessionGroups.set(key, [...(sessionGroups.get(key) ?? []), entry]);
         }
-        const sessions = Array.from(sessionGroups.values()).map((members) => {
-          if (members.length === 1) return members[0];
-          const first = members[0];
-          return {
-            ...first,
-            id: `session-${first.sessionId}`,
-            title: first.subtitle || "Workout",
-            subtitle: `${members.length} movements`,
-            details: members.map((member) =>
-              [member.title, ...member.details].filter(Boolean).join(" · "),
-            ),
-            notes: [...new Set(members.map((member) => member.notes).filter(Boolean))].join("\n"),
-            isPr: members.some((member) => member.isPr),
-          } satisfies TimelineEntry;
-        });
+        const sessions = Array.from(sessionGroups.values()).map(sessionHistoryEntry);
         return [date, sessions] as const;
       })
       .sort((a, b) => b[0].localeCompare(a[0]));
@@ -330,6 +358,14 @@ export function HistoryPage() {
           </Button>
         </div>
       </header>
+
+      {requestedSessionId &&
+      !timeline.data.entries.some((entry) => entry.sessionId === requestedSessionId) ? (
+        <Card className="p-4 text-sm text-muted-foreground">
+          This source session is no longer available in your history. You can still browse the
+          remaining records below.
+        </Card>
+      ) : null}
 
       <details className="rounded-xl border border-border bg-card/40 p-4">
         <summary className="cursor-pointer text-sm font-medium">

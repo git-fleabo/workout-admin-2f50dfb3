@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
@@ -32,6 +32,7 @@ import {
 } from "@/lib/supabase-weekly-review.browser";
 import { cn } from "@/lib/utils";
 import { getTimelineDataClient } from "@/lib/supabase-timeline.browser";
+import { WeeklyGoalReview } from "@/components/weekly-goal-review";
 
 export const Route = createFileRoute("/weekly-review")({
   head: () => ({
@@ -88,7 +89,8 @@ function SignalList({ items, icon: Icon }: { items: WeeklyReviewItem[]; icon: ty
   );
 }
 
-function WeeklyReviewPage() {
+export function WeeklyReviewPage() {
+  const queryClient = useQueryClient();
   const currentWeekStart = weeklyReviewWeekStart();
   const [weekStart, setWeekStart] = useState(currentWeekStart);
   const { data, isLoading, isFetching, error, refetch } = useQuery({
@@ -192,7 +194,12 @@ function WeeklyReviewPage() {
           <Button
             variant="outline"
             size="icon"
-            onClick={() => refetch()}
+            onClick={() => {
+              refetch();
+              for (const key of ["goals", "goal-activity", "goal-exercise-progress"]) {
+                queryClient.invalidateQueries({ queryKey: [key] });
+              }
+            }}
             disabled={isFetching}
             aria-label="Refresh weekly review"
             title="Refresh weekly review"
@@ -215,6 +222,8 @@ function WeeklyReviewPage() {
           </Button>
         </Card>
       ) : null}
+
+      <WeeklyGoalReview weekStart={data.weekStart} reviewEnd={data.reviewEnd} />
 
       <details key={`${weekStart}:${emptyWeek}`} open={!emptyWeek} className="space-y-5">
         <summary className={emptyWeek ? "cursor-pointer text-sm font-medium" : "hidden"}>
