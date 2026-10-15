@@ -16,6 +16,8 @@ import {
 import { getGoalActivityClient, listGoalsClient } from "@/lib/supabase-goals.browser";
 import { getExerciseHistoryClient } from "@/lib/supabase-history.browser";
 import type { GoalReviewEvidence } from "@/lib/goal-review";
+import { GoalTrendDisclosure } from "@/components/goal-trend";
+import type { buildGoalTrend } from "@/lib/goal-trend";
 
 function EvidenceLink({ item, children }: { item: GoalReviewEvidence; children: React.ReactNode }) {
   return item.sessionId ? (
@@ -31,7 +33,13 @@ function EvidenceLink({ item, children }: { item: GoalReviewEvidence; children: 
   );
 }
 
-function GoalReviewCard({ review }: { review: ReturnType<typeof buildGoalReview> }) {
+function GoalReviewCard({
+  review,
+  trendInput,
+}: {
+  review: ReturnType<typeof buildGoalReview>;
+  trendInput: Parameters<typeof buildGoalTrend>[0];
+}) {
   const { goal, progress, measured, manual, latest, best } = review;
   const unit = goal.targetUnit || (manual ? "check-ins" : "");
   const value = (number: number | null) => formatGoalReviewValue(number, unit);
@@ -130,6 +138,7 @@ function GoalReviewCard({ review }: { review: ReturnType<typeof buildGoalReview>
           ) : null}
         </>
       )}
+      <GoalTrendDisclosure input={trendInput} />
       {review.evidence.length ? (
         <details className="border-t border-border pt-2">
           <summary className="cursor-pointer text-xs font-medium">
@@ -223,18 +232,14 @@ export function WeeklyGoalReview({
           <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading evidence for {goal.goal}…
         </p>
       );
-    return (
-      <GoalReviewCard
-        key={goal.id}
-        review={buildGoalReview({
-          goal,
-          weekStart,
-          reviewEnd,
-          activitySessions: activity.data,
-          exerciseHistory: histories[exerciseIds.indexOf(goal.exerciseId)]?.data,
-        })}
-      />
-    );
+    const input = {
+      goal,
+      weekStart,
+      reviewEnd,
+      activitySessions: activity.data,
+      exerciseHistory: histories[exerciseIds.indexOf(goal.exerciseId)]?.data,
+    };
+    return <GoalReviewCard key={goal.id} review={buildGoalReview(input)} trendInput={input} />;
   });
   return (
     <Card className="space-y-4 p-5">
@@ -274,13 +279,13 @@ export function WeeklyGoalReview({
         </p>
       ) : (
         <>
-          <div className="grid gap-3 lg:grid-cols-3">{cards.slice(0, 3)}</div>
+          <div className="grid items-start gap-3 lg:grid-cols-3">{cards.slice(0, 3)}</div>
           {cards.length > 3 ? (
             <details>
               <summary className="cursor-pointer text-sm font-medium">
                 More active goals ({cards.length - 3})
               </summary>
-              <div className="mt-3 grid gap-3 lg:grid-cols-3">{cards.slice(3)}</div>
+              <div className="mt-3 grid items-start gap-3 lg:grid-cols-3">{cards.slice(3)}</div>
             </details>
           ) : null}
         </>

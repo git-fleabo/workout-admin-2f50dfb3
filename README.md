@@ -35,3 +35,7 @@ Weekly Review now brings active goal progress alongside the training review: sav
 best and latest measured results, target, weekly changes and source logs. Past reviews exclude later
 records and use the current saved goal settings. Manual milestones remain explicitly confirmed in
 Goals. See [goal-review verification](docs/weekly-goal-review-verification-2026-10-15.md).
+
+Each measured or check-in goal also offers a **Four-week trend** disclosure. Select a week to see
+its own recorded result and source logs. Missing measurements remain gaps, and incomplete weeks
+and session times are labelled. See [trend verification](docs/four-week-goal-trends-verification-2026-10-15.md).

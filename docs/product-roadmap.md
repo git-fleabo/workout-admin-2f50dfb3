@@ -2,6 +2,20 @@
 
 Last updated: 2026-10-15
 
+## Four-week goal trends — 15 October 2026
+
+Goals in Weekly Review now offer an optional four-week trend. Each week shows its own best measured
+result or recorded consistency total, with selectable weeks and direct links to source sessions.
+The chart ends at the selected review date and labels an unfinished week. Missing measurements stay
+as gaps; old bests are not carried forward. Partial recorded time is labelled separately from zero
+recorded sessions. Monthly/yearly targets remain unchanged in the goal summary.
+
+Trends reuse the existing goal data and require no additional reads or database changes. Manual
+check-ins stay practice counts; manual milestones have no numeric chart. Current goal settings are
+used throughout, without forecasts or automatic changes. Implemented and verified in the repository;
+publication remains user-managed.
+See [trend verification](./four-week-goal-trends-verification-2026-10-15.md).
+
 ## Goals in Weekly Review — 15 October 2026
 
 Weekly Review now shows the current active goals using existing goal calculations and reads.

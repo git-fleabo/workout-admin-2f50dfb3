@@ -96,6 +96,19 @@ it("uses the selected past week without refetching or leaking newer results", as
   expect(mocks.history).toHaveBeenCalledTimes(1);
 });
 
+it("opens a four-week trend from cached goal evidence without extra reads", async () => {
+  renderReview();
+  const card = await screen.findByRole("article");
+  await userEvent.click(within(card).getByText("Four-week trend", { exact: true }));
+  const chart = await within(card).findByRole("group", {
+    name: "Bench press 100 kg weekly results",
+  });
+  expect(within(chart).getAllByRole("button")).toHaveLength(4);
+  expect(within(card).getByRole("region")).toHaveTextContent("Best this week: 80 kg");
+  expect(mocks.history).toHaveBeenCalledTimes(1);
+  expect(mocks.goals).toHaveBeenCalledTimes(1);
+});
+
 it("deduplicates shared exercise reads and excludes paused or completed goals", async () => {
   mocks.goals.mockResolvedValue({
     items: [
