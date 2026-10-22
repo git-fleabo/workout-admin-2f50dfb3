@@ -37,10 +37,7 @@ export function Field({ label, children }: { label: string; children: React.Reac
   const labelId = useId();
   return (
     <div className="space-y-1.5">
-      <Label
-        id={labelId}
-        className="text-xs font-medium uppercase tracking-wider text-muted-foreground"
-      >
+      <Label id={labelId} className="text-sm font-medium text-muted-foreground">
         {label}
       </Label>
       <FieldLabelContext.Provider value={labelId}>{children}</FieldLabelContext.Provider>

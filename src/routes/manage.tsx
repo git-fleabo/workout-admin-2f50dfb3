@@ -11,6 +11,7 @@ import {
   Target,
 } from "lucide-react";
 
+import { APP_BUILD_LABEL } from "@/lib/build-info";
 import { Card } from "@/components/ui/card";
 import { BLOCK_HEIGHT_OPTIONS } from "@/lib/position-measurements";
 import { downloadPersonalData } from "@/lib/supabase-export.browser";
@@ -291,6 +292,7 @@ function SettingsPage() {
           </button>
         </Card>
       </section>
+      <p className="text-xs text-muted-foreground">Build {APP_BUILD_LABEL}</p>
     </div>
   );
 }

@@ -33,14 +33,14 @@ function LogPage() {
   const [mode, setMode] = useState<Mode>(initialMode);
 
   return (
-    <div className="space-y-5">
-      <header className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Log Training</h1>
+    <div className="mx-auto max-w-3xl space-y-6">
+      <header className="flex flex-wrap items-end justify-between gap-3 pb-1">
+        <h1 className="text-3xl font-semibold tracking-tight">Log Training</h1>
       </header>
 
       <ModeSwitch mode={mode} onChange={setMode} />
 
-      <div className="mx-auto max-w-xl space-y-4">
+      <div className="mx-auto max-w-3xl space-y-4">
         {mode === "log" && <FullWorkoutForm key="log-session" />}
         {mode === "climb" && <ClimbForm />}
         {mode === "onerm" && <OneRMForm />}
@@ -50,24 +50,21 @@ function LogPage() {
 }
 
 function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
-  const tabs: { id: Mode; label: string; icon: React.ReactNode; color: string }[] = [
+  const tabs: { id: Mode; label: string; icon: React.ReactNode }[] = [
     {
       id: "log",
       label: "Workout",
       icon: <Dumbbell className="h-4 w-4" />,
-      color: "oklch(0.72 0.14 220)",
     },
     {
       id: "climb",
       label: "Climb",
       icon: <Mountain className="h-4 w-4" />,
-      color: "oklch(0.76 0.14 75)",
     },
     {
       id: "onerm",
       label: "1RM",
       icon: <Trophy className="h-4 w-4" />,
-      color: "oklch(0.72 0.14 25)",
     },
   ];
 
@@ -80,16 +77,11 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
             key={t.id}
             type="button"
             onClick={() => onChange(t.id)}
-            className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium transition sm:text-sm ${
+            className={`flex items-center justify-center gap-1.5 min-h-11 rounded-lg px-2 py-2 text-sm font-medium transition ${
               active
-                ? "bg-card text-foreground shadow ring-1 ring-border"
+                ? "bg-card text-primary shadow-sm ring-1 ring-border"
                 : "text-muted-foreground hover:text-foreground"
             }`}
-            style={
-              active
-                ? { boxShadow: "0 0 0 1px var(--color-border)", color: t.color }
-                : { color: t.color, opacity: 0.55 }
-            }
           >
             {t.icon}
             {t.label}

@@ -1,3 +1,4 @@
+import { CircleCheck } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,10 +41,18 @@ export function CompactHoldAttempts({
   const unchanged = log.prescribed && holdMatchesPrescription(rows, log.plannedRows);
   const ready = holdRowsReady(rows) && !loadIssue;
   return (
-    <div className="space-y-3 rounded-lg border border-border bg-secondary/20 p-3">
+    <div className="training-values space-y-4 border-t border-border/60 pt-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-semibold">{holdSummary(rows)}</p>
-        {log.confirmed ? <Badge variant="secondary">Recorded</Badge> : null}
+        <p className="text-xl font-semibold tabular-nums tracking-tight">{holdSummary(rows)}</p>
+        {log.confirmed ? (
+          <Badge
+            variant="secondary"
+            role="status"
+            className="recorded-feedback gap-1.5 bg-success/10 text-success"
+          >
+            <CircleCheck className="h-3.5 w-3.5" aria-hidden="true" /> Recorded
+          </Badge>
+        ) : null}
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         {resize ? (
@@ -103,7 +112,7 @@ export function CompactHoldAttempts({
         ) : null}
       </div>
       {!sharedTime || !sharedWeight ? (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Different times or loads stay separate. Use Change for individual attempts.
         </p>
       ) : null}
@@ -128,7 +137,7 @@ export function CompactHoldAttempts({
                     )
                   }
                 />
-                <p className="text-xs text-muted-foreground">Target RPE {target.rpe}</p>
+                <p className="text-sm text-muted-foreground">Target RPE {target.rpe}</p>
               </Field>
             );
           })
@@ -160,7 +169,7 @@ export function CompactHoldAttempts({
       </div>
       {editing ? (
         <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Adjust individual attempts, record effort or mark an attempt missed, then confirm the
             values.
           </p>

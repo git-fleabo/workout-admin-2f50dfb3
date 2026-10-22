@@ -1436,7 +1436,7 @@ export function ClimbForm() {
               </span>
             </div>
           </div>
-          <p className="text-[11px] text-muted-foreground">Required · maximum 12 hours.</p>
+          <p className="text-xs text-muted-foreground">Required · maximum 12 hours.</p>
         </Field>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -2759,12 +2759,12 @@ export function FullWorkoutForm() {
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-semibold">{plan.title}</p>
-                      <Badge variant="outline" className="text-[10px] capitalize">
+                      <Badge variant="outline" className="text-xs capitalize">
                         {plan.locationKind}
                       </Badge>
                       <WorkoutLifecycleBadge state={workoutPlanLifecycleState(plan.status)} />
                       {plan.readiness ? (
-                        <Badge variant="outline" className="text-[10px] capitalize">
+                        <Badge variant="outline" className="text-xs capitalize">
                           {plan.readiness}
                         </Badge>
                       ) : null}
@@ -2854,7 +2854,7 @@ export function FullWorkoutForm() {
                     <Calendar className="h-3 w-3" /> {formatUKDate(form.date)}
                   </Badge>
                   {hasDraftContent ? (
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       {draftTime
                         ? `Autosaved ${draftTime} on this device`
                         : "Autosaving on this device…"}
@@ -2925,7 +2925,7 @@ export function FullWorkoutForm() {
                           {countLabel(session.entries.length, "movement")}
                           {session.location?.name ? ` · ${session.location.name}` : ""}
                         </span>
-                        <span className="mt-1 block truncate text-[11px] text-muted-foreground">
+                        <span className="mt-1 block truncate text-xs text-muted-foreground">
                           {session.entries.map((entry) => entry.exercise).join(", ")}
                         </span>
                       </button>
@@ -3086,17 +3086,21 @@ export function FullWorkoutForm() {
               return (
                 <Card
                   key={field.id}
-                  className={`space-y-4 bg-card p-4 ${
-                    methodBlock ? "border-indigo-400/35" : "border-border"
+                  className={`space-y-5 bg-card p-5 sm:p-6 ${
+                    entry.strengthLog?.confirmed || entry.holdLog?.confirmed
+                      ? "border-success/30"
+                      : focusedView
+                        ? "border-primary/35"
+                        : "border-border/60"
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                    <h3 className="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight">
                       {compactMovement ? entry.exercise : `Movement ${index + 1}`}
                       {methodBlock ? (
                         <Badge
                           variant="outline"
-                          className="border-indigo-400/30 text-[10px] text-indigo-300"
+                          className="border-border text-xs text-muted-foreground"
                         >
                           {methodBlock.methodName} · {String.fromCharCode(65 + methodPosition)}
                         </Badge>
@@ -3137,7 +3141,7 @@ export function FullWorkoutForm() {
                     </div>
                   </div>
                   {focusedView && plannedRows.length > 0 ? (
-                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                    <div className="border-l-2 border-primary/50 pl-4 py-1">
                       <p className="text-xs font-medium">Saved target</p>
                       <p className="mt-1 text-sm">
                         {compactHold
@@ -3161,7 +3165,7 @@ export function FullWorkoutForm() {
                     profile === "hold" ||
                     profile === "grip" ||
                     hasPlannedTimedSets) ? (
-                    <div className="rounded-lg border border-border bg-secondary/20 p-3">
+                    <div className="rounded-lg bg-secondary/20 p-3">
                       <p className="text-xs font-medium">
                         Last recorded · {formatUKDate(previousWorkout.date)}
                         {previousWorkout.trainingLocation?.name
@@ -3261,7 +3265,7 @@ export function FullWorkoutForm() {
                   {entry.workoutType && (
                     <Badge
                       variant="outline"
-                      className="w-fit text-[10px] uppercase tracking-wider text-muted-foreground"
+                      className="w-fit text-xs uppercase tracking-wider text-muted-foreground"
                     >
                       {entry.workoutType}
                     </Badge>
@@ -3489,7 +3493,7 @@ export function FullWorkoutForm() {
                         </Field>
                       ) : null}
                       {profile === "reps" || profile === "hold" || isGrip ? (
-                        <div className="grid gap-3 rounded-lg border border-border bg-secondary/20 p-3 sm:grid-cols-3">
+                        <div className="grid gap-3 rounded-lg bg-secondary/20 p-3 sm:grid-cols-3">
                           <Field label={isGrip ? "Grip style" : "Progression"}>
                             {isGrip ? (
                               <SimpleSelect
@@ -3633,7 +3637,7 @@ export function FullWorkoutForm() {
                       </div>
                     </details>
                   ) : null}
-                  <details className="rounded-lg border border-border/70 bg-secondary/10 px-3 py-2">
+                  <details className="border-t border-border/60 pt-3">
                     <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
                       Movement notes {entry.notes ? "· Added" : "· Optional"}
                     </summary>
@@ -3681,7 +3685,7 @@ export function FullWorkoutForm() {
               <Card className="space-y-3 border-border bg-card p-4">
                 <div>
                   <h2 className="flex items-center gap-2 text-base font-semibold">
-                    <Layers3 className="h-4 w-4 text-indigo-300" /> Advanced methods
+                    <Layers3 className="h-4 w-4 text-muted-foreground" /> Advanced methods
                   </h2>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Optional. Choose whether the method joins movements or changes one set.
@@ -3689,7 +3693,7 @@ export function FullWorkoutForm() {
                 </div>
 
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <div className="flex min-h-24 flex-col justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
+                  <div className="flex min-h-24 flex-col justify-between gap-3 rounded-lg bg-secondary/20 p-3">
                     <div>
                       <p className="text-sm font-medium">Across movements</p>
                       <p className="mt-1 text-xs text-muted-foreground">
@@ -3707,14 +3711,14 @@ export function FullWorkoutForm() {
                       <Plus className="mr-1 h-3.5 w-3.5" /> Add grouped or timed method
                     </Button>
                   </div>
-                  <div className="flex min-h-24 flex-col justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
+                  <div className="flex min-h-24 flex-col justify-between gap-3 rounded-lg bg-secondary/20 p-3">
                     <div>
                       <p className="text-sm font-medium">Within a set</p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         Drop sets, clusters, rest-pause, pyramids, eccentrics, negatives and more.
                       </p>
                     </div>
-                    <p className="text-xs font-medium text-fuchsia-200">
+                    <p className="text-xs font-medium text-muted-foreground">
                       Use “Set method” beneath the set it applies to.
                     </p>
                   </div>
@@ -3737,7 +3741,7 @@ export function FullWorkoutForm() {
                       return (
                         <div
                           key={block.id}
-                          className="flex flex-col gap-3 rounded-lg border border-indigo-400/25 bg-indigo-400/[0.05] p-3 sm:flex-row sm:items-center"
+                          className="flex flex-col gap-3 rounded-lg border border-border/60 bg-secondary/20 p-3 sm:flex-row sm:items-center"
                         >
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium">{block.methodName}</p>
@@ -3918,23 +3922,21 @@ export function FullWorkoutForm() {
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Location</p>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Location</p>
               <p className="mt-1 truncate text-sm font-semibold">{selectedLocation?.name ?? "—"}</p>
             </div>
             <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Movements
-              </p>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Movements</p>
               <p className="mt-1 text-sm font-semibold">{workoutEntries.length}</p>
             </div>
             <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">
                 Sets / efforts
               </p>
               <p className="mt-1 text-sm font-semibold">{totalRecordedSets || "—"}</p>
             </div>
             <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Methods</p>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Methods</p>
               <p className="mt-1 text-sm font-semibold">{totalMethods || "—"}</p>
             </div>
           </div>
@@ -3944,14 +3946,14 @@ export function FullWorkoutForm() {
               <div key={entry.clientId} className="rounded-lg border border-border p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="truncate text-sm font-semibold">{entry.exercise}</p>
-                  <Badge variant="outline" className="shrink-0 text-[10px]">
+                  <Badge variant="outline" className="shrink-0 text-xs">
                     {index + 1}
                   </Badge>
                 </div>
                 {form.methodBlocks.find((block) =>
                   block.memberClientIds.includes(entry.clientId),
                 ) ? (
-                  <p className="mt-1 text-[11px] font-medium text-indigo-300">
+                  <p className="mt-1 text-xs font-medium text-muted-foreground">
                     {
                       form.methodBlocks.find((block) =>
                         block.memberClientIds.includes(entry.clientId),

@@ -6,13 +6,11 @@ import {
   Dumbbell,
   LogOut,
   Settings as SettingsIcon,
-  ShieldCheck,
   Sun,
 } from "lucide-react";
 
 import { WorkoutSyncStatus } from "./workout-sync-status";
 import { Button } from "@/components/ui/button";
-import { APP_BUILD_LABEL } from "@/lib/build-info";
 import { signOutOfSupabase } from "@/lib/supabase-public";
 
 type NavItem = {
@@ -99,13 +97,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
             className="flex h-10 w-10 items-center justify-center rounded-xl text-primary-foreground"
             style={{ backgroundImage: "var(--gradient-primary)" }}
           >
-            <ShieldCheck className="h-5 w-5" />
+            <Dumbbell className="h-5 w-5" aria-hidden="true" />
           </div>
           <div className="flex-1">
             <h1 className="text-base font-semibold leading-none sm:text-lg">Train &amp; Track</h1>
-            <p className="mt-1 hidden text-[10px] font-mono uppercase tracking-wider text-muted-foreground/60 sm:block">
-              {APP_BUILD_LABEL}
-            </p>
           </div>
           <Button
             asChild
@@ -152,7 +147,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 aria-current={active ? "page" : undefined}
                 className={`inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-2 py-1.5 text-xs font-medium transition sm:px-3 sm:text-sm ${
                   active
-                    ? "border-primary/40 bg-primary/10 text-primary shadow"
+                    ? "border-primary/25 bg-primary/10 text-primary"
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -191,7 +186,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       </header>
 
       <main
-        className={`mx-auto max-w-6xl ${workspaceRoute ? "lg:max-w-[1560px]" : ""} px-4 pb-28 pt-6 sm:px-6 sm:pb-24`}
+        className={`mx-auto max-w-6xl ${workspaceRoute ? "lg:max-w-[1560px]" : ""} px-4 pb-28 pt-7 sm:px-6 sm:pb-24 sm:pt-10`}
       >
         <WorkoutSyncStatus />
         {children}

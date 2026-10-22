@@ -185,12 +185,12 @@ export function SetRowsEditor({
     onRemove?.(setIndex);
   };
   return (
-    <div className="space-y-3 rounded-lg border border-border bg-secondary/20 p-3">
+    <div className="space-y-4 border-t border-border/60 pt-4">
       {previousWorkout ? (
-        <div className="space-y-2 rounded-md border border-border bg-background/70 p-2.5">
+        <div className="space-y-2 rounded-lg bg-background/40 p-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Previous workout · {formatUKDate(previousWorkout.date)}
               </p>
               <p className="text-xs text-muted-foreground">
@@ -212,7 +212,7 @@ export function SetRowsEditor({
             {previousWorkout.rows.map((set, index) => (
               <span
                 key={index}
-                className="rounded-md bg-secondary px-2 py-1 text-[11px] text-foreground"
+                className="rounded-md bg-secondary px-2 py-1 text-xs text-foreground"
               >
                 {index + 1}. {setSummary(set, usesLoad)}
               </span>
@@ -221,7 +221,7 @@ export function SetRowsEditor({
         </div>
       ) : null}
       <div
-        className={`hidden items-end gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:grid ${
+        className={`hidden items-end gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground sm:grid ${
           usesLoad ? "grid-cols-[32px_1fr_1fr_1fr_32px]" : "grid-cols-[32px_1fr_1fr_32px]"
         }`}
       >
@@ -249,7 +249,7 @@ export function SetRowsEditor({
             </label>
           ) : null}
           <div
-            className={`rounded-md border border-border/70 bg-background p-2 sm:grid sm:items-center sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0 ${
+            className={`rounded-lg bg-background/40 p-3 sm:grid sm:items-center sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0 ${
               usesLoad ? "sm:grid-cols-[32px_1fr_1fr_1fr_32px]" : "sm:grid-cols-[32px_1fr_1fr_32px]"
             }`}
           >
@@ -281,12 +281,12 @@ export function SetRowsEditor({
             >
               {usesLoad && (
                 <label className="space-y-1 sm:space-y-0">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
+                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
                     Weight (kg)
                   </span>
                   <Input
                     inputMode="decimal"
-                    className="h-12 text-lg font-semibold sm:h-10 sm:text-sm sm:font-normal"
+                    className="h-12 text-lg font-semibold tabular-nums md:text-lg"
                     aria-label={`${rowNoun} ${setIndex + 1} weight`}
                     value={set.weight}
                     onChange={(event) => onChange(setIndex, "weight", event.target.value)}
@@ -294,7 +294,7 @@ export function SetRowsEditor({
                 </label>
               )}
               <label className="space-y-1 sm:space-y-0">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
+                <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
                   {valueKind === "duration" ? durationLabel : "Reps"}
                 </span>
                 <Input
@@ -302,7 +302,7 @@ export function SetRowsEditor({
                   inputMode="decimal"
                   min={0}
                   step={valueKind === "duration" ? 0.1 : 1}
-                  className="h-12 text-lg font-semibold sm:h-10 sm:text-sm sm:font-normal"
+                  className="h-12 text-lg font-semibold tabular-nums md:text-lg"
                   aria-label={`${rowNoun} ${setIndex + 1} ${
                     valueKind === "duration" && durationLabel === "Hold (sec)"
                       ? "hold seconds"
@@ -319,12 +319,12 @@ export function SetRowsEditor({
                 />
               </label>
               <label className="space-y-1 sm:space-y-0">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
+                <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
                   RPE
                 </span>
                 <Input
                   inputMode="decimal"
-                  className="h-12 text-base sm:h-10 sm:text-sm"
+                  className="h-12 text-base tabular-nums"
                   aria-label={`${rowNoun} ${setIndex + 1} RPE`}
                   value={set.rpe}
                   onChange={(event) => onChange(setIndex, "rpe", event.target.value)}
@@ -347,13 +347,11 @@ export function SetRowsEditor({
           </div>
 
           {usesLoad && set.method ? (
-            <div className="ml-0 rounded-lg border border-fuchsia-400/25 bg-fuchsia-400/[0.05] p-3 sm:ml-10">
+            <div className="ml-0 rounded-lg border border-border/60 bg-secondary/20 p-3 sm:ml-10">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-xs font-semibold text-fuchsia-200">{set.method.methodName}</p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {setMethodCopy(set.method).intro}
-                  </p>
+                  <p className="text-xs font-semibold text-foreground">{set.method.methodName}</p>
+                  <p className="text-xs text-muted-foreground">{setMethodCopy(set.method).intro}</p>
                 </div>
                 <Button
                   type="button"
@@ -365,7 +363,7 @@ export function SetRowsEditor({
                 </Button>
               </div>
               {setMethodKind(set.method) === "rep-target" ? (
-                <div className="mt-3 rounded-md border border-fuchsia-400/20 bg-background/60 px-3 py-2">
+                <div className="mt-3 rounded-md border border-border/60 bg-background/60 px-3 py-2">
                   {(() => {
                     const target = Number(set.method?.config.target_reps) || 0;
                     const completed =
@@ -380,7 +378,7 @@ export function SetRowsEditor({
                         <span className="text-xs font-medium">
                           {completed} / {target} target reps
                         </span>
-                        <span className="text-[10px] text-muted-foreground">
+                        <span className="text-xs text-muted-foreground">
                           {remaining > 0 ? `${remaining} remaining` : "Target reached"}
                         </span>
                       </div>
@@ -518,7 +516,7 @@ export function SetRowsEditor({
               >
                 <SelectTrigger
                   aria-label={`${rowNoun} ${setIndex + 1} method (optional)`}
-                  className="border-dashed border-fuchsia-400/25 text-fuchsia-200"
+                  className="border-dashed border-fuchsia-400/25 text-foreground"
                 >
                   <Layers3 className="mr-2 h-3.5 w-3.5" />
                   <SelectValue placeholder="Set method (optional)" />

@@ -10,7 +10,7 @@
  * The @theme inline block maps CSS custom properties to Tailwind utility
  * classes (e.g. --color-primary -> bg-primary, text-primary).
  *
- * The :root block defines the Cobalt & Orange palette using oklch.
+ * The :root block defines the Navy & Orange palette using oklch.
  * All colors MUST use oklch format.
  *
  * To add a new semantic color:
@@ -43,6 +43,7 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
@@ -65,25 +66,27 @@
 }
 
 :root {
+  color-scheme: dark;
   --radius: 0.875rem;
-  --background: oklch(0.26912 0.1003 261.255);
-  --foreground: oklch(0.97736 0.01076 256.694);
-  --card: oklch(0.36057 0.11857 259.173);
+  --background: oklch(0.205 0.035 260);
+  --foreground: oklch(0.97 0.008 255);
+  --card: oklch(0.255 0.037 260);
   --card-foreground: var(--foreground);
   --popover: var(--card);
   --popover-foreground: var(--foreground);
-  --primary: oklch(0.81624 0.13283 63.331);
-  --primary-foreground: oklch(0.27161 0.0512 59.161);
-  --secondary: oklch(0.40789 0.12721 258.474);
+  --primary: oklch(0.81 0.14 65);
+  --primary-foreground: oklch(0.24 0.035 55);
+  --secondary: oklch(0.315 0.04 260);
   --secondary-foreground: var(--foreground);
-  --muted: oklch(0.33654 0.10896 259.756);
-  --muted-foreground: oklch(0.83856 0.05444 257.081);
-  --accent: oklch(0.39931 0.05903 45.284);
-  --accent-foreground: oklch(0.85269 0.10285 62.895);
+  --muted: oklch(0.28 0.035 260);
+  --muted-foreground: oklch(0.77 0.025 255);
+  --accent: oklch(0.33 0.04 260);
+  --accent-foreground: oklch(0.97 0.008 255);
+  --success: oklch(0.8 0.12 160);
   --destructive: oklch(0.79589 0.1174 20.002);
   --destructive-foreground: oklch(0.23909 0.07462 16.7);
-  --border: oklch(0.49254 0.11658 257.012);
-  --input: var(--border);
+  --border: oklch(0.36 0.032 260);
+  --input: oklch(0.55 0.035 260);
   --ring: var(--primary);
   --chart-1: var(--primary);
   --chart-2: oklch(0.80232 0.10556 246.87);
@@ -98,7 +101,7 @@
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--primary);
-  --gradient-primary: linear-gradient(135deg, var(--primary), var(--accent-foreground));
+  --gradient-primary: linear-gradient(135deg, var(--primary), oklch(0.74 0.15 55));
 }
 
 @layer base {
@@ -110,6 +113,7 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-body);
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
   }
 
@@ -119,5 +123,47 @@
   h4 {
     font-family: var(--font-display);
     letter-spacing: -0.02em;
+  }
+}
+
+/* These scoped styles deliberately take precedence over shared control utilities. */
+@layer utilities {
+  /* A single focal surface for the next action; supporting cards stay quiet. */
+  .session-spotlight {
+    border-color: color-mix(in oklch, var(--primary) 35%, var(--border));
+    background: linear-gradient(
+      125deg,
+      color-mix(in oklch, var(--card) 92%, var(--primary)),
+      var(--card) 65%
+    );
+    box-shadow: 0 12px 36px oklch(0.12 0.025 260 / 0.18);
+  }
+
+  .training-values input {
+    min-height: 3rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .recorded-feedback {
+    animation: recorded-in 180ms ease-out;
+  }
+}
+
+@keyframes recorded-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recorded-feedback {
+    animation: none;
   }
 }

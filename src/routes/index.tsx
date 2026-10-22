@@ -425,37 +425,37 @@ export function TodayPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
-      <header className="border-b border-border pb-4">
-        <h1 className="text-3xl font-semibold tracking-tight">Your next session</h1>
-        <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+    <div className="mx-auto max-w-4xl space-y-7">
+      <header className="pb-1">
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Your next session</h1>
+        <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
           <CalendarCheck2 className="h-4 w-4" /> {formatUKDate(today)}
         </div>
       </header>
 
       {draft ? (
-        <Card className="border-violet-400/35 bg-violet-400/[0.07]">
+        <Card className="session-spotlight border-primary/30">
           <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex gap-3">
-              <RotateCcw className="mt-0.5 h-5 w-5 shrink-0 text-violet-300" />
+              <RotateCcw className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold">Resume {draft.title || "workout"}</p>
                   <WorkoutLifecycleBadge state="in_progress" />
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 text-sm text-muted-foreground">
                   {draft.loggingMode === "kettlebell_summary"
                     ? "Summary log in progress"
                     : draft.movements.length
                       ? `${countLabel(draft.movements.length, "movement")} · ${draft.movements.join(", ")}`
                       : "Workout details in progress"}
                 </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
+                <p className="mt-1 text-sm text-muted-foreground">
                   Last saved at {formatTime(draft.savedAt)} · on this device
                 </p>
               </div>
             </div>
-            <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
+            <div className="grid shrink-0 grid-cols-1 gap-2 sm:flex">
               <Button asChild>
                 <Link to="/log">
                   Resume workout <ArrowRight className="ml-2 h-4 w-4" />
@@ -473,16 +473,16 @@ export function TodayPage() {
           </CardContent>
         </Card>
       ) : completed ? (
-        <Card className="border-emerald-400/35 bg-emerald-400/[0.07]">
+        <Card className="border-success/30 bg-success/5">
           <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex gap-3">
-              <CircleCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
+              <CircleCheck className="mt-0.5 h-5 w-5 shrink-0 text-success" />
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold">Today&apos;s workout is complete</p>
                   <WorkoutLifecycleBadge state="completed" />
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 text-sm text-muted-foreground">
                   {completed.loggingMode === "kettlebell_summary"
                     ? "Summary log"
                     : countLabel(completed.movements.length, "movement")}{" "}
@@ -503,7 +503,7 @@ export function TodayPage() {
             <section className="space-y-3">
               <div>
                 <h2 className="text-base font-semibold">Your programme</h2>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   Your next programme session could not be loaded.
                 </p>
               </div>
@@ -513,7 +513,7 @@ export function TodayPage() {
             <section className="space-y-3">
               <div>
                 <h2 className="text-base font-semibold">Your programme</h2>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   Follow your saved programme. Suggested dates are guidance, so train when ready.
                 </p>
               </div>
@@ -548,18 +548,20 @@ export function TodayPage() {
                       secondary={offerIndex > 0}
                       label={offer.programmeName}
                     >
-                      <Card className="border-fuchsia-400/30 bg-fuchsia-400/[0.05]">
-                        <CardContent className="p-5">
+                      <Card className="session-spotlight border-primary/30">
+                        <CardContent className="p-5 sm:p-6">
                           <div className="flex items-start justify-between gap-3">
                             <div>
                               <div className="flex flex-wrap items-center gap-2">
-                                <p className="font-semibold">{offer.programmeName}</p>
+                                <p className="text-xl font-semibold tracking-tight sm:text-2xl">
+                                  {offer.programmeName}
+                                </p>
                                 <Badge variant="outline">Next</Badge>
                                 <Badge variant="secondary">
                                   {offer.workoutNumber}/{offer.totalWorkouts}
                                 </Badge>
                               </div>
-                              <p className="mt-1 text-xs text-muted-foreground">
+                              <p className="mt-1 text-sm text-muted-foreground">
                                 {offer.weekNumber &&
                                 (offer.sessionNumber ||
                                   !new RegExp(`\\bWeek ${offer.weekNumber}\\b`, "i").test(
@@ -572,11 +574,11 @@ export function TodayPage() {
                                   : offer.workoutName}
                               </p>
                             </div>
-                            <Layers3 className="h-5 w-5 shrink-0 text-fuchsia-300" />
+                            <Layers3 className="h-5 w-5 shrink-0 text-muted-foreground" />
                           </div>
 
                           {activeProgramme?.id === offer.assignmentId ? (
-                            <p className="mt-2 text-xs text-muted-foreground">
+                            <p className="mt-2 text-sm text-muted-foreground">
                               {activeProgramme.currentWorkoutIndex - skippedProgrammeSessions}{" "}
                               completed
                               {skippedProgrammeSessions
@@ -595,7 +597,7 @@ export function TodayPage() {
                             </div>
                           ) : null}
 
-                          <p className="mt-3 text-sm text-muted-foreground">
+                          <p className="mt-4 text-base leading-relaxed text-muted-foreground">
                             {Array.from(
                               new Set(offer.movements.map((movement) => movement.exercise)),
                             )
@@ -654,7 +656,7 @@ export function TodayPage() {
                                   ))}
                                 </SelectContent>
                               </Select>
-                              <p className="text-[11px] text-muted-foreground">
+                              <p className="text-sm text-muted-foreground">
                                 Main lifts and optional choices use this location’s recorded
                                 equipment.
                               </p>
@@ -715,7 +717,7 @@ export function TodayPage() {
                                       </SelectContent>
                                     </Select>
                                     {!availableOptions.length ? (
-                                      <p className="text-[11px] text-muted-foreground">
+                                      <p className="text-sm text-muted-foreground">
                                         No pool choices are available at{" "}
                                         {selectedLocation?.name ?? "this location"}.
                                       </p>
@@ -760,6 +762,7 @@ export function TodayPage() {
                           ) : (
                             <div className="mt-3 space-y-2">
                               <Button
+                                size="lg"
                                 className="w-full"
                                 onClick={() =>
                                   selectedLocation && startProgramme(offer, selectedLocation.id)
@@ -796,13 +799,13 @@ export function TodayPage() {
                                   <Link to="/plan">Skip ahead</Link>
                                 </Button>
                               </div>
-                              <p className="text-[11px] text-muted-foreground">
+                              <p className="text-sm text-muted-foreground">
                                 Ease back in suggests one fewer set where possible and lighter
                                 loads. Edit every target in the log.
                               </p>
                             </div>
                           )}
-                          <details className="mt-4 rounded-lg border border-border bg-background/30 p-3">
+                          <details className="mt-5 border-t border-border/60 pt-4">
                             <summary className="cursor-pointer text-sm font-medium">
                               Workout movements and targets
                             </summary>
@@ -815,12 +818,12 @@ export function TodayPage() {
                                   <div>
                                     <p className="text-sm font-medium">{movement.exercise}</p>
                                     {movement.progression ? (
-                                      <p className="mt-1 text-[11px] text-muted-foreground">
+                                      <p className="mt-1 text-sm text-muted-foreground">
                                         {progressionSummary(movement.progression)}
                                       </p>
                                     ) : null}
                                   </div>
-                                  <p className="text-right text-[11px] text-foreground/75">
+                                  <p className="text-right text-xs text-foreground/75">
                                     {targetSummary(movement)}
                                   </p>
                                 </div>
@@ -840,7 +843,7 @@ export function TodayPage() {
             <section className="space-y-3">
               <div>
                 <h2 className="text-base font-semibold">Your programme</h2>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   Your next session stays available. Suggested dates are guidance.
                 </p>
               </div>
@@ -864,21 +867,21 @@ export function TodayPage() {
                     secondary={planIndex > 0}
                     label={plan.title}
                   >
-                    <Card className="border-fuchsia-400/30 p-4">
+                    <Card className="session-spotlight border-primary/30 p-5 sm:p-6">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold">{plan.title}</p>
+                        <p className="text-xl font-semibold tracking-tight">{plan.title}</p>
                         <Badge variant="secondary">
                           {plan.status === "accepted" ? "Started" : "Ready"}
                         </Badge>
                       </div>
                       {isCurrentRun && activeProgramme && activeTemplate ? (
-                        <p className="mt-2 text-xs text-muted-foreground">
+                        <p className="mt-2 text-sm text-muted-foreground">
                           {completedCount} completed
                           {skippedProgrammeSessions ? ` · ${skippedProgrammeSessions} skipped` : ""}
                           {` · Session ${activeProgramme.currentWorkoutIndex + 1} of ${activeTemplate.workouts.length}`}
                         </p>
                       ) : null}
-                      <p className="mt-2 text-xs text-muted-foreground">
+                      <p className="mt-2 text-sm text-muted-foreground">
                         {plan.movements.length}{" "}
                         {plan.movements.length === 1 ? "movement" : "movements"} ·{" "}
                         {plan.movements.map((movement) => movement.exercise).join(", ")}
@@ -916,7 +919,7 @@ export function TodayPage() {
                           <Link to="/plan">Skip ahead</Link>
                         </Button>
                       </div>
-                      <p className="mt-2 text-[11px] text-muted-foreground">
+                      <p className="mt-2 text-sm text-muted-foreground">
                         {draft
                           ? "Finish or cancel your current draft before loading another version."
                           : "Ease back in copies this workout with lighter numeric targets. For open-ended targets, choose a lighter load in Log."}
@@ -949,7 +952,7 @@ export function TodayPage() {
               <h2 className="text-base font-semibold">
                 {scheduledTrainingPlans.length ? "Your planned sessions" : "Next workout"}
               </h2>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {scheduledTrainingPlans.length
                   ? "Open the session planned for today, or start another one early."
                   : "Saved plans appear first; otherwise recent history provides a starting point."}
@@ -991,12 +994,12 @@ export function TodayPage() {
                   secondary={planIndex > 0}
                   label={plan.title}
                 >
-                  <Card className="border-cyan-400/25">
+                  <Card className="border-border/60">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-semibold">{plan.title}</p>
+                            <p className="text-xl font-semibold tracking-tight">{plan.title}</p>
                             <Badge variant="secondary" className="capitalize">
                               {plan.planKind}
                             </Badge>
@@ -1018,13 +1021,13 @@ export function TodayPage() {
                               )}
                             />
                           </div>
-                          <p className="mt-2 text-xs text-muted-foreground">
+                          <p className="mt-2 text-sm text-muted-foreground">
                             {plan.movements.length}{" "}
                             {plan.movements.length === 1 ? "movement" : "movements"} ·{" "}
                             {plan.movements.map((movement) => movement.exercise).join(", ")}
                           </p>
                         </div>
-                        <Dumbbell className="h-5 w-5 shrink-0 text-cyan-300" />
+                        <Dumbbell className="h-5 w-5 shrink-0 text-muted-foreground" />
                       </div>
                       <Button
                         className="mt-4 w-full"
@@ -1048,8 +1051,8 @@ export function TodayPage() {
               ))}
             </div>
           ) : recommendation ? (
-            <Card className="border-violet-400/30 bg-violet-400/[0.05]">
-              <CardContent className="p-5">
+            <Card className="border-border/60">
+              <CardContent className="p-5 sm:p-6">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -1060,7 +1063,7 @@ export function TodayPage() {
                       {recommendation.basis}
                     </p>
                   </div>
-                  <Sparkles className="h-5 w-5 shrink-0 text-violet-300" />
+                  <Sparkles className="h-5 w-5 shrink-0 text-primary" />
                 </div>
 
                 <div className="mt-4 divide-y divide-border rounded-lg border border-border bg-background/30">
@@ -1068,15 +1071,15 @@ export function TodayPage() {
                     <div key={`${movement.exercise}:${movementIndex}`} className="p-3">
                       <div className="flex flex-wrap items-baseline justify-between gap-1">
                         <p className="text-sm font-medium">{movement.exercise}</p>
-                        <p className="text-[11px] text-foreground/75">{targetSummary(movement)}</p>
+                        <p className="text-xs text-foreground/75">{targetSummary(movement)}</p>
                       </div>
-                      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                         {movement.reason}
                       </p>
                     </div>
                   ))}
                   {recommendation.movements.length > 2 ? (
-                    <p className="p-3 text-xs text-muted-foreground">
+                    <p className="p-3 text-sm text-muted-foreground">
                       +{recommendation.movements.length - 2} more movements in Plan
                     </p>
                   ) : null}
@@ -1115,7 +1118,7 @@ export function TodayPage() {
         </section>
       </TodayChoice>
 
-      <details className="rounded-xl border border-border bg-card/30 p-4">
+      <details className="rounded-xl bg-card/60 p-4 sm:p-5">
         <summary className="cursor-pointer text-sm font-semibold">Supporting work</summary>
         <div className="mt-4 space-y-5">
           <MobilityPracticeOverview compact />
@@ -1123,7 +1126,7 @@ export function TodayPage() {
           <section className="space-y-3">
             <div>
               <h2 className="text-base font-semibold">Daily practice reminder</h2>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 One small movement selected from your rotation for today.
               </p>
             </div>
@@ -1135,26 +1138,23 @@ export function TodayPage() {
               <Card
                 className={
                   dailyRotation.data.rotation.completedAt
-                    ? "border-emerald-400/35 bg-emerald-400/[0.06]"
-                    : "border-violet-400/35 bg-violet-400/[0.06]"
+                    ? "border-success/30 bg-success/5"
+                    : "border-border/60"
                 }
               >
-                <CardContent className="p-5">
+                <CardContent className="p-5 sm:p-6">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 gap-3">
                       {dailyRotation.data.rotation.completedAt ? (
-                        <CircleCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
+                        <CircleCheck className="mt-0.5 h-5 w-5 shrink-0 text-success" />
                       ) : (
-                        <Shuffle className="mt-0.5 h-5 w-5 shrink-0 text-violet-300" />
+                        <Shuffle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                       )}
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-semibold">{dailyRotation.data.rotation.item.name}</p>
                           {dailyRotation.data.rotation.item.target ? (
-                            <Badge
-                              variant="outline"
-                              className="border-violet-400/30 text-violet-100"
-                            >
+                            <Badge variant="outline" className="border-border text-foreground">
                               {dailyRotation.data.rotation.item.target}
                             </Badge>
                           ) : null}
@@ -1165,13 +1165,11 @@ export function TodayPage() {
                           </p>
                         ) : null}
                         {dailyRotation.data.rotation.completedAt ? (
-                          <p className="mt-2 text-[11px] font-medium text-emerald-300">
-                            Done today
-                          </p>
+                          <p className="mt-2 text-xs font-medium text-success">Done today</p>
                         ) : null}
                       </div>
                     </div>
-                    <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
+                    <div className="grid shrink-0 grid-cols-1 gap-2 sm:flex">
                       <Button
                         variant={dailyRotation.data.rotation.completedAt ? "outline" : "default"}
                         onClick={() =>
@@ -1207,7 +1205,7 @@ export function TodayPage() {
                         ? "No daily practice scheduled today"
                         : "Set up your daily rotation"}
                     </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-1 text-sm text-muted-foreground">
                       {dailyRotation.data?.hasConfiguredItems
                         ? "Your active items are paused or set for other days."
                         : "Add movements such as one-arm hangs, handstands or mobility drills."}
@@ -1225,13 +1223,13 @@ export function TodayPage() {
         </div>
       </details>
 
-      <details className="rounded-xl border border-border bg-card/30 p-4">
+      <details className="rounded-xl bg-card/60 p-4 sm:p-5">
         <summary className="cursor-pointer text-sm font-semibold">Do something else</summary>
         <div className="mt-4 space-y-5">
           <section className="space-y-3">
             <div>
               <h2 className="text-base font-semibold">Repeat a recent workout</h2>
-              <p className="text-xs text-muted-foreground">The latest Home and Gym sessions.</p>
+              <p className="text-sm text-muted-foreground">The latest Home and Gym sessions.</p>
             </div>
             {recent.isLoading ? (
               <LoadingRow label="Loading recent workouts…" />
@@ -1243,7 +1241,7 @@ export function TodayPage() {
                   <Card key={session.id}>
                     <CardContent className="p-4">
                       <div className="flex items-start gap-3">
-                        <History className="mt-0.5 h-5 w-5 shrink-0 text-rose-300" />
+                        <History className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="font-semibold">{session.title}</p>
@@ -1251,7 +1249,7 @@ export function TodayPage() {
                               {session.locationKind}
                             </Badge>
                           </div>
-                          <p className="mt-1 text-xs text-muted-foreground">
+                          <p className="mt-1 text-sm text-muted-foreground">
                             {formatUKDate(session.date)} · {session.movements.join(", ")}
                           </p>
                         </div>
@@ -1341,7 +1339,7 @@ function TodayChoice({
 }) {
   if (!secondary) return <>{children}</>;
   return (
-    <details className="min-w-0 rounded-xl border border-border bg-card/30 p-4">
+    <details className="min-w-0 rounded-xl bg-card/60 p-4 sm:p-5">
       <summary className="cursor-pointer text-sm font-semibold">{label}</summary>
       <div className="mt-4 min-w-0 space-y-4">{children}</div>
     </details>
