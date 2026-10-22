@@ -51,9 +51,10 @@ const plan = {
 };
 
 it("hides a dismissed plan only on that date while retaining its schedule and status", async () => {
-  mocks.select.mockImplementation(async (_table, query) =>
-    query.or?.includes("neq.2026-10-14") ? [] : [plan],
-  );
+  mocks.select.mockResolvedValue([
+    { ...plan, dismissed_for_date: "2026-10-14" },
+    { ...plan, id: "older-duplicate" },
+  ]);
   expect(await getNextSuggestedWorkoutsClient("2026-10-14")).toEqual([]);
   const tomorrow = await getNextSuggestedWorkoutsClient("2026-10-15");
   expect(tomorrow[0]).toMatchObject({
@@ -66,7 +67,7 @@ it("hides a dismissed plan only on that date while retaining its schedule and st
     expect.objectContaining({
       person_id: "eq.person",
       status: "in.(pending,accepted)",
-      or: "(dismissed_for_date.is.null,dismissed_for_date.neq.2026-10-14)",
+      select: expect.stringContaining("dismissed_for_date"),
     }),
   );
 });

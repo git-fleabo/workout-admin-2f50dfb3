@@ -73,6 +73,7 @@ type SuggestedWorkoutRow = {
   status: SuggestedWorkoutStatus;
   created_at: string;
   updated_at?: string;
+  dismissed_for_date?: string | null;
   suggested_for?: string | null;
   plan_kind?: WorkoutPlanKind | null;
   goal_id?: string | null;
@@ -577,14 +578,16 @@ export async function getSavedWorkoutPlanClient(id: string) {
 export async function getNextSuggestedWorkoutsClient(date = todayISO()) {
   const person = await requirePerson();
   const rows = await supabasePublicSelect<SuggestedWorkoutRow>("suggested_workouts", {
-    select: `${SAVED_WORKOUT_SELECT},kettlebell_workout_id,kettlebell_snapshot`,
+    select: `${SAVED_WORKOUT_SELECT},kettlebell_workout_id,kettlebell_snapshot,dismissed_for_date`,
     status: "in.(pending,accepted)",
-    or: `(dismissed_for_date.is.null,dismissed_for_date.neq.${date})`,
     person_id: `eq.${person.id}`,
     order: "suggested_for.asc,created_at.desc",
     limit: 30,
   });
   const plans = rows.map(planFromRow).filter((plan): plan is SavedWorkoutPlan => plan != null);
+  const dismissedIds = new Set(
+    rows.filter((row) => row.dismissed_for_date === date).map((row) => row.id),
+  );
   const seen = new Set<string>();
   return plans.filter((plan) => {
     const key =
@@ -597,7 +600,8 @@ export async function getNextSuggestedWorkoutsClient(date = todayISO()) {
             : `${plan.suggestedFor ?? "undated"}:${plan.planKind}`;
     if (seen.has(key)) return false;
     seen.add(key);
-    return true;
+    // Reserve the slot before hiding it so an older duplicate cannot replace it.
+    return !dismissedIds.has(plan.suggestedWorkoutId);
   });
 }
 
