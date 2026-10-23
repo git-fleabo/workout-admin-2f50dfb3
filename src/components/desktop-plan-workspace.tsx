@@ -169,7 +169,9 @@ export function DesktopPlanWorkspace({
               </span>
             </div>
           ) : (
-            <span className="text-sm text-muted-foreground">No active programme session</span>
+            <span className="text-sm text-muted-foreground">
+              No current programme session in this week
+            </span>
           )}
         </div>
         <div className="flex gap-2">
@@ -490,10 +492,13 @@ function ItemChip({ item, done = false }: { item: keyof typeof ITEM_STYLE; done?
   const style = ITEM_STYLE[item];
   const Icon = style.icon;
   return (
-    <span className="flex items-center gap-1">
+    <span className="flex min-w-0 max-w-full items-center gap-1" title={style.shortLabel}>
       {done ? <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-300" /> : null}
-      <Badge variant="outline" className={cn("text-xs", style.badge)}>
-        <Icon className="mr-1 h-3 w-3" /> {style.shortLabel}
+      <Badge
+        variant="outline"
+        className={cn("min-w-0 max-w-full gap-1 px-1.5 text-xs", style.badge)}
+      >
+        <Icon className="h-3 w-3 shrink-0" /> <span className="truncate">{style.shortLabel}</span>
       </Badge>
     </span>
   );
@@ -765,7 +770,7 @@ function DayInspector({
       {!isPast ? (
         <div className="space-y-2 border-t border-border pt-3">
           <p className="text-sm font-semibold">Add to this day</p>
-          <div className="grid gap-2 xl:grid-cols-3">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => onOpenBuilder("strength", date)}>
               <Dumbbell className="mr-1 h-3.5 w-3.5" /> Strength
             </Button>
@@ -811,9 +816,9 @@ function DayInspector({
             Plan yoga
           </Button>
           {mobilityRuns.length ? (
-            <div className="flex gap-2">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2">
               <Select value={runId} onValueChange={setRunId}>
-                <SelectTrigger className="h-8">
+                <SelectTrigger className="h-8 min-w-0">
                   <SelectValue placeholder="Mobility practice" />
                 </SelectTrigger>
                 <SelectContent>

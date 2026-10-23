@@ -141,7 +141,11 @@ export function DesktopHistoryWorkspace({
                               : "Workout"}
                       </TableCell>
                       <TableCell className="whitespace-nowrap pr-4 text-right text-xs tabular-nums">
-                        {entry.minutes != null && entry.minutes > 0 ? `${entry.minutes} min` : "—"}
+                        {entry.minutes != null && entry.minutes > 0
+                          ? entry.minutes < 1
+                            ? `${Math.round(entry.minutes * 60)} sec`
+                            : `${Number(entry.minutes.toFixed(1))} min`
+                          : "—"}
                       </TableCell>
                     </TableRow>
                   ))}

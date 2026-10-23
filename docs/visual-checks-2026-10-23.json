@@ -1,0 +1,92 @@
+[
+  {
+    "name": "progress-desktop-1440",
+    "contentWidth": 1440,
+    "overflow": false,
+    "width": 1440
+  },
+  {
+    "name": "progress-desktop-1024",
+    "contentWidth": 1024,
+    "overflow": false,
+    "width": 1024
+  },
+  {
+    "name": "progress-tablet-768",
+    "contentWidth": 768,
+    "overflow": false,
+    "width": 768
+  },
+  {
+    "name": "progress-tablet-768",
+    "contentWidth": 768,
+    "overflow": false,
+    "width": 768
+  },
+  {
+    "name": "progress-mobile-390",
+    "contentWidth": 390,
+    "overflow": false,
+    "width": 390
+  },
+  {
+    "name": "progress-session-mobile-390",
+    "contentWidth": 390,
+    "overflow": false,
+    "width": 390
+  },
+  {
+    "name": "history-desktop-1440",
+    "contentWidth": 1440,
+    "overflow": false,
+    "width": 1440
+  },
+  {
+    "name": "history-empty-search-1440",
+    "contentWidth": 1440,
+    "overflow": false,
+    "width": 1440
+  },
+  {
+    "name": "history-source-link-1440",
+    "contentWidth": 1440,
+    "overflow": false,
+    "width": 1440
+  },
+  {
+    "name": "history-desktop-1024",
+    "contentWidth": 1024,
+    "overflow": false,
+    "width": 1024
+  },
+  {
+    "name": "history-tablet-768",
+    "contentWidth": 768,
+    "overflow": false,
+    "width": 768
+  },
+  {
+    "name": "history-mobile-390",
+    "contentWidth": 390,
+    "overflow": false,
+    "width": 390
+  },
+  {
+    "name": "history-session-mobile-390",
+    "contentWidth": 390,
+    "overflow": false,
+    "width": 390
+  },
+  {
+    "name": "history-desktop-1440",
+    "contentWidth": 1440,
+    "overflow": false,
+    "width": 1440
+  },
+  {
+    "name": "progress-desktop-1440",
+    "contentWidth": 1440,
+    "overflow": false,
+    "width": 1440
+  }
+]
