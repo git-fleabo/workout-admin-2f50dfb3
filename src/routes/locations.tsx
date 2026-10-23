@@ -263,7 +263,7 @@ function TrainingLocationsPage() {
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-emerald-300">
             <MapPin className="h-4 w-4" /> Training setup
           </div>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Training locations</h1>
+          <h1 className="page-title mt-2">Training locations</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Control the places available in the workout logger, their planning context, and the
             equipment you can use at each one.

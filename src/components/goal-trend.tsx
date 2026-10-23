@@ -69,7 +69,7 @@ export function GoalTrend({ trend }: { trend: GoalTrendData }) {
             aria-label={`${formatUKDate(week.start)} to ${formatUKDate(week.end)}: ${weekValue(week)}${week.partialWeek ? ", week so far" : ""}`}
             onClick={() => setSelectedStart(week.start)}
             className={cn(
-              "min-w-0 cursor-pointer rounded-lg border border-transparent px-1 py-2 text-center text-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "min-w-0 cursor-pointer rounded-lg border border-transparent px-1 py-2 text-center text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               week.start === selected.start
                 ? "border-primary/50 bg-primary/10"
                 : "hover:bg-muted/40",
@@ -107,7 +107,7 @@ export function GoalTrend({ trend }: { trend: GoalTrendData }) {
           </button>
         ))}
       </div>
-      <p className="text-[10px] leading-relaxed text-muted-foreground">
+      <p className="text-xs leading-relaxed text-muted-foreground">
         Select a week to inspect its records. Bars compare weekly values; target progress stays in
         the goal summary. An incomplete week is not directly comparable with a full week.
       </p>

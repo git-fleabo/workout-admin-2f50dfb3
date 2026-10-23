@@ -13,3 +13,13 @@ The logger uses a consistent desktop content width, larger exercise names and ta
 - Browser verification was attempted but blocked: local server binding returned EPERM and Chromium could not register its macOS Mach port. Mobile and desktop screenshots have therefore not been verified for this change.
 
 Before release, visually check Today (programme, draft and completed states), Log (all movements, focused view, per-set editing and finish review), and Plan at phone and desktop widths. Shared control sizing also affects other routes.
+
+## Remaining visual refresh
+
+Progress now leads with the selected exercise's primary measured result, followed by supporting statistics and a full-width lead chart. Period, location and method filters remain visible and are repeated in the highlight context. Working-weight comparisons use the same filtered current/prior periods; an absent estimated 1RM is no longer replaced with the working weight. Missing primary measurements say “Not measured”, with no invented change. Climbing's separate all-history overview is explicitly labelled and collapsible below exercise results.
+
+Charts use larger labels, clearer selected points, keyboard accessibility support and straight lines between observations. Null measurements remain gaps. Goal figures are more prominent, planner accents use orange and informational blue, and settings navigation uses quieter icons. Page headings share one responsive scale; tabs and text areas now match the other controls.
+
+A barbell-and-trend mark replaces the generic header icon, with matching SVG browser icon, PNG app/Apple icons and a separate maskable icon. Browser chrome and launch colours match the navy theme. The header mark is included in the existing offline shell cache.
+
+Validation: 263 component tests passed across 50 files, excluding the known environment-blocked PostgreSQL reconstruction test. Two new regressions cover location/period filtering, missing primary measurements and missing estimates. TypeScript passed. The new raster icon was visually inspected; full-screen browser layout verification remains outstanding under this session's restrictions.

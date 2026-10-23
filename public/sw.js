@@ -3,7 +3,9 @@ const LEGACY_SHELL_CACHE_PREFIX = "training-tracker-shell-";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(SHELL_CACHE).then((cache) => cache.addAll(["/", "/manifest.webmanifest"])),
+    caches
+      .open(SHELL_CACHE)
+      .then((cache) => cache.addAll(["/", "/manifest.webmanifest", "/training-mark.svg"])),
   );
   self.skipWaiting();
 });
@@ -31,7 +33,10 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   const isLoggerShell = url.pathname === "/" || url.pathname === "/log" || url.pathname === "/log/";
-  const isAsset = url.pathname.startsWith("/assets/") || url.pathname === "/manifest.webmanifest";
+  const isAsset =
+    url.pathname.startsWith("/assets/") ||
+    url.pathname === "/manifest.webmanifest" ||
+    url.pathname === "/training-mark.svg";
   if (
     event.request.method !== "GET" ||
     url.origin !== self.location.origin ||

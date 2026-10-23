@@ -165,9 +165,9 @@ export function WeeklyReviewPage() {
 
   return (
     <div className="space-y-5">
-      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
+      <header className="flex flex-wrap items-end justify-between gap-4 pb-2">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">What happened, and what next?</h1>
+          <h1 className="page-title">What happened, and what next?</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {data.isCurrentWeek ? "This week so far" : "Completed week"} · {rangeLabel}
           </p>
@@ -251,10 +251,10 @@ export function WeeklyReviewPage() {
                   <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
                   <stat.icon className="h-4 w-4 text-primary" />
                 </div>
-                <p className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">
+                <p className="mt-3 text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl">
                   {stat.value}
                 </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">{stat.change}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{stat.change}</p>
               </Card>
             ))}
           </div>
@@ -293,7 +293,7 @@ export function WeeklyReviewPage() {
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-lg bg-muted/40 px-2 py-2">
                     <p className="text-base font-semibold">{value}</p>
-                    <p className="text-[10px] text-muted-foreground">{label}</p>
+                    <p className="text-xs text-muted-foreground">{label}</p>
                   </div>
                 ))}
               </div>
@@ -309,7 +309,7 @@ export function WeeklyReviewPage() {
                     {data.programmeCompletedThisWeek} completed this week
                   </h2>
                 </div>
-                <Target className="h-5 w-5 text-fuchsia-300" />
+                <Target className="h-5 w-5 text-muted-foreground" />
               </div>
               <p className="mt-4 text-sm text-muted-foreground">
                 {data.supportCompletedThisWeek} supporting session
@@ -393,7 +393,7 @@ export function WeeklyReviewPage() {
                       <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                         {action.detail}
                       </p>
-                      <p className="mt-3 text-[11px] font-medium text-primary">
+                      <p className="mt-3 text-xs font-medium text-primary">
                         Because: {action.evidence}
                       </p>
                     </div>

@@ -46,9 +46,9 @@ function GoalReviewCard({
   const milestone = goal.goalType === "milestone";
   const legacy = goal.goalType === "legacy";
   return (
-    <article className="min-w-0 space-y-3 rounded-xl border border-border bg-muted/10 p-4">
+    <article className="min-w-0 space-y-4 rounded-xl bg-background/30 p-4 sm:p-5">
       <div>
-        <h3 className="break-words text-sm font-semibold">{goal.goal}</h3>
+        <h3 className="break-words text-base font-semibold">{goal.goal}</h3>
         <p className="mt-1 text-xs text-muted-foreground">
           {GOAL_REVIEW_PERIOD_LABELS[goal.period.toLowerCase()] ?? "Goal"}
           {goal.deadline ? ` · Due ${formatUKDateShort(goal.deadline)}` : ""}
@@ -82,9 +82,11 @@ function GoalReviewCard({
               [measured ? "Best recorded" : "Recorded so far", value(progress.value)],
               ["Target", value(progress.target)],
             ].map(([label, number]) => (
-              <div key={label} className="min-w-0 rounded-lg bg-muted/40 p-2">
+              <div key={label} className="min-w-0 border-l border-border/60 pl-2">
                 <dt className="text-muted-foreground">{label}</dt>
-                <dd className="mt-1 break-words font-semibold">{number}</dd>
+                <dd className="mt-2 break-words text-base font-semibold tabular-nums sm:text-lg">
+                  {number}
+                </dd>
               </div>
             ))}
           </dl>
@@ -95,7 +97,7 @@ function GoalReviewCard({
                 className="h-1.5"
                 aria-label={`${goal.goal} target progress`}
               />
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {progress.percentage}% of target progress · {progress.sourceLabel.toLowerCase()}
               </p>
             </div>

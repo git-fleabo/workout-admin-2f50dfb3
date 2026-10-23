@@ -2289,8 +2289,8 @@ function PlanPage() {
 
   return (
     <div className="space-y-6">
-      <header className="border-b border-border pb-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Plan</h1>
+      <header className="pb-2">
+        <h1 className="page-title">Plan</h1>
       </header>
 
       <MyProgrammeOverview

@@ -93,12 +93,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
         <div
           className={`mx-auto flex max-w-6xl ${workspaceRoute ? "lg:max-w-[1560px]" : ""} items-center gap-3 px-4 py-3 sm:px-6`}
         >
-          <div
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-primary-foreground"
-            style={{ backgroundImage: "var(--gradient-primary)" }}
-          >
-            <Dumbbell className="h-5 w-5" aria-hidden="true" />
-          </div>
+          <img
+            src="/training-mark.svg"
+            alt=""
+            width={40}
+            height={40}
+            className="h-10 w-10 shrink-0"
+          />
           <div className="flex-1">
             <h1 className="text-base font-semibold leading-none sm:text-lg">Train &amp; Track</h1>
           </div>

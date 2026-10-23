@@ -138,7 +138,7 @@ function DataQualityPage() {
             <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-cyan-300">
               <DatabaseZap className="h-4 w-4" /> Supabase audit
             </div>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">Data Quality</h1>
+            <h1 className="page-title mt-2">Data Quality</h1>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
               Check older records only when you want to. Suggested repairs require your review;
               nothing changes automatically.

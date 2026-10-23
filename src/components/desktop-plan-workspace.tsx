@@ -112,7 +112,7 @@ export function DesktopPlanWorkspace({
         </header>
         <div className="grid grid-cols-[400px_minmax(0,1fr)] items-start gap-4 xl:grid-cols-[320px_minmax(0,1fr)_300px] xl:gap-5">
           <aside className="sticky top-24 col-start-1 row-span-2 max-h-[calc(100vh-7rem)] space-y-4 overflow-y-auto rounded-xl border border-border bg-card/30 p-4 xl:row-span-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Session brief
             </p>
             {builderBrief}
@@ -150,10 +150,10 @@ export function DesktopPlanWorkspace({
 
   return (
     <div className="space-y-4">
-      <header className="flex flex-wrap items-center gap-4 border-b border-border pb-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Plan</h1>
-        <div className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-fuchsia-400/25 bg-fuchsia-400/[0.05] px-3 py-2">
-          <Layers3 className="h-4 w-4 shrink-0 text-fuchsia-300" />
+      <header className="flex flex-wrap items-center gap-4 pb-2">
+        <h1 className="page-title">Plan</h1>
+        <div className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-primary/25 bg-primary/[0.05] px-3 py-2">
+          <Layers3 className="h-4 w-4 shrink-0 text-primary" />
           {current ? (
             <div className="min-w-0 text-sm">
               <span className="font-medium">{current.programmeName}</span>
@@ -268,7 +268,7 @@ function WeekWorkspace({
       <section aria-labelledby="desktop-week-heading" className="min-w-0 space-y-3">
         <div className="flex items-center justify-between gap-3">
           <h2 id="desktop-week-heading" className="flex items-center gap-2 text-base font-semibold">
-            <CalendarRange className="h-4 w-4 text-fuchsia-300" />
+            <CalendarRange className="h-4 w-4 text-primary" />
             {formatUKDateShort(dates[0])} – {formatUKDateShort(dates[6])}
           </h2>
           <div className="flex items-center gap-1">
@@ -341,18 +341,18 @@ function WeekWorkspace({
                   setDropDate(null);
                 }}
                 className={cn(
-                  "flex min-h-[280px] cursor-pointer flex-col rounded-xl border p-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300",
+                  "flex min-h-[280px] cursor-pointer flex-col rounded-xl border p-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                   isSelected
                     ? "border-primary/50 bg-primary/[0.06]"
                     : isToday
-                      ? "border-fuchsia-400/35 bg-fuchsia-400/[0.05]"
+                      ? "border-primary/35 bg-primary/[0.05]"
                       : "border-border hover:border-border/80 hover:bg-secondary/20",
                   isPast && "opacity-75",
-                  dropDate === date && "border-cyan-300 bg-cyan-400/10",
+                  dropDate === date && "border-info bg-info/10",
                 )}
               >
                 <div className="flex flex-col gap-0.5 xl:flex-row xl:items-baseline xl:justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     {isToday ? "Today" : dayLabel(date)}
                   </span>
                   <span className="text-xs font-medium">{formatUKDateShort(date)}</span>
@@ -367,13 +367,13 @@ function WeekWorkspace({
                         setSelection({ type: "programme", key: programmeKey(session) });
                       }}
                       className={cn(
-                        "rounded-lg border border-fuchsia-400/25 bg-fuchsia-400/[0.08] p-2 text-left text-xs transition hover:border-fuchsia-300/50",
+                        "rounded-lg border border-primary/25 bg-primary/[0.08] p-2 text-left text-xs transition hover:border-primary/50",
                         selection.type === "programme" &&
                           selection.key === programmeKey(session) &&
-                          "ring-2 ring-fuchsia-300",
+                          "ring-2 ring-primary",
                       )}
                     >
-                      <span className="flex items-center gap-1 font-medium text-fuchsia-200">
+                      <span className="flex items-center gap-1 font-medium text-primary">
                         {session.status === "completed" ? (
                           <CheckCircle2 className="h-3 w-3 text-emerald-300" />
                         ) : (
@@ -384,7 +384,7 @@ function WeekWorkspace({
                           ? `Session ${session.sessionNumber}`
                           : `Workout ${session.workoutNumber}`}
                       </span>
-                      <span className="mt-1 block line-clamp-2 text-[11px] text-foreground/75">
+                      <span className="mt-1 block line-clamp-2 text-xs text-foreground/75">
                         {session.movementNames.join(" · ")}
                       </span>
                     </button>
@@ -409,15 +409,15 @@ function WeekWorkspace({
                           setSelection({ type: "scheduled", id: item.suggestedWorkoutId });
                         }}
                         className={cn(
-                          "rounded-lg border border-cyan-400/25 bg-cyan-400/[0.07] p-2 text-left text-xs transition hover:border-cyan-300/50",
+                          "rounded-lg border border-info/25 bg-info/[0.07] p-2 text-left text-xs transition hover:border-info/50",
                           movable && "cursor-grab active:cursor-grabbing",
                           selection.type === "scheduled" &&
                             selection.id === item.suggestedWorkoutId &&
-                            "ring-2 ring-cyan-300",
+                            "ring-2 ring-info",
                         )}
                         title={movable ? "Drag to another day to move" : undefined}
                       >
-                        <span className="flex items-center gap-1 font-medium capitalize text-cyan-200">
+                        <span className="flex items-center gap-1 font-medium capitalize text-info">
                           {item.status === "completed" ? (
                             <CheckCircle2 className="h-3 w-3 text-emerald-300" />
                           ) : item.planKind === "climbing" ? (
@@ -429,7 +429,7 @@ function WeekWorkspace({
                           )}
                           {item.planKind}
                         </span>
-                        <span className="mt-1 block line-clamp-2 text-[11px] text-foreground/80">
+                        <span className="mt-1 block line-clamp-2 text-xs text-foreground/80">
                           {item.title}
                         </span>
                       </button>
@@ -442,14 +442,14 @@ function WeekWorkspace({
                     <ItemChip key={item} item={item} />
                   ))}
                   {!sessions.length && !saved.length && !completed.length && !planned.length ? (
-                    <span className="text-[11px] text-muted-foreground/60">Open</span>
+                    <span className="text-xs text-muted-foreground/60">Open</span>
                   ) : null}
                 </div>
               </div>
             );
           })}
         </div>
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Drag a scheduled session to another day to move it. Programme sessions follow your
           programme order.
         </p>
@@ -492,7 +492,7 @@ function ItemChip({ item, done = false }: { item: keyof typeof ITEM_STYLE; done?
   return (
     <span className="flex items-center gap-1">
       {done ? <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-300" /> : null}
-      <Badge variant="outline" className={cn("text-[10px]", style.badge)}>
+      <Badge variant="outline" className={cn("text-xs", style.badge)}>
         <Icon className="mr-1 h-3 w-3" /> {style.shortLabel}
       </Badge>
     </span>
@@ -506,7 +506,7 @@ function MovementTable({ movement }: { movement: WorkoutPlanMovement }) {
       <div className="flex items-center justify-between gap-2 px-3 py-2">
         <span className="text-sm font-medium">{movement.exercise}</span>
         {movement.restTime ? (
-          <Badge variant="outline" className="text-[10px]">
+          <Badge variant="outline" className="text-xs">
             Rest {movement.restTime}
           </Badge>
         ) : null}
@@ -532,9 +532,7 @@ function MovementTable({ movement }: { movement: WorkoutPlanMovement }) {
         </div>
       ) : null}
       {guidance ? (
-        <p className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-          {guidance}
-        </p>
+        <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">{guidance}</p>
       ) : null}
     </div>
   );
@@ -550,9 +548,7 @@ function ProgrammeInspector({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1.5">
-        <Badge className="border-fuchsia-400/25 bg-fuchsia-400/10 text-fuchsia-200">
-          Programme
-        </Badge>
+        <Badge className="border-primary/25 bg-primary/10 text-primary">Programme</Badge>
         <Badge variant="outline" className="capitalize">
           {session.status}
         </Badge>
@@ -625,9 +621,7 @@ function ScheduledInspector({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1.5">
-        <Badge className="border-cyan-400/25 bg-cyan-400/10 capitalize text-cyan-200">
-          {saved.planKind}
-        </Badge>
+        <Badge className="border-info/25 bg-info/10 capitalize text-info">{saved.planKind}</Badge>
         <Badge variant="outline" className="capitalize">
           {saved.status}
         </Badge>
@@ -730,7 +724,7 @@ function DayInspector({
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {date === today ? "Today" : "Selected day"}
         </p>
         <h3 className="text-base font-semibold">
@@ -744,7 +738,7 @@ function DayInspector({
             key={programmeKey(session)}
             type="button"
             onClick={() => onSelect({ type: "programme", key: programmeKey(session) })}
-            className="block w-full rounded-lg border border-fuchsia-400/25 bg-fuchsia-400/[0.06] px-3 py-2 text-left text-sm hover:border-fuchsia-300/50"
+            className="block w-full rounded-lg border border-primary/25 bg-primary/[0.06] px-3 py-2 text-left text-sm hover:border-primary/50"
           >
             {session.workoutName}
             <span className="ml-1 text-xs capitalize text-muted-foreground">
@@ -757,7 +751,7 @@ function DayInspector({
             key={item.suggestedWorkoutId}
             type="button"
             onClick={() => onSelect({ type: "scheduled", id: item.suggestedWorkoutId })}
-            className="block w-full rounded-lg border border-cyan-400/25 bg-cyan-400/[0.06] px-3 py-2 text-left text-sm hover:border-cyan-300/50"
+            className="block w-full rounded-lg border border-info/25 bg-info/[0.06] px-3 py-2 text-left text-sm hover:border-info/50"
           >
             {item.title}
             <span className="ml-1 text-xs capitalize text-muted-foreground">· {item.status}</span>
@@ -929,7 +923,7 @@ export function DesktopBuilderSummary({
   ];
   return (
     <div className="space-y-3 rounded-xl border border-border bg-card/30 p-4">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Session summary
       </p>
       <dl className="space-y-1.5 text-sm">
@@ -943,7 +937,7 @@ export function DesktopBuilderSummary({
       {methodNames.length ? (
         <div className="flex flex-wrap gap-1">
           {methodNames.map((name, index) => (
-            <Badge key={`${name}-${index}`} variant="outline" className="text-[10px]">
+            <Badge key={`${name}-${index}`} variant="outline" className="text-xs">
               {name}
             </Badge>
           ))}

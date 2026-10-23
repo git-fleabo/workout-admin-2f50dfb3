@@ -68,7 +68,7 @@ function MobilityPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <header className="border-b border-border pb-4">
-        <h1 className="text-2xl font-semibold">Mobility practice</h1>
+        <h1 className="page-title">Mobility practice</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Build your own series of toolkit drills, set your targets, and log your practice.
         </p>

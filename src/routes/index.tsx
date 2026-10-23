@@ -427,7 +427,7 @@ export function TodayPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-7">
       <header className="pb-1">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Your next session</h1>
+        <h1 className="page-title">Your next session</h1>
         <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
           <CalendarCheck2 className="h-4 w-4" /> {formatUKDate(today)}
         </div>

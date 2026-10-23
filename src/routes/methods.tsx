@@ -256,7 +256,7 @@ function MethodsPage() {
       <SettingsBackLink />
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
+          <h1 className="page-title flex items-center gap-2">
             <Settings2 className="h-6 w-6" /> Training methods
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">

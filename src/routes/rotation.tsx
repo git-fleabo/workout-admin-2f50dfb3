@@ -181,7 +181,7 @@ function DailyRotationPage() {
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-violet-300">
             <Repeat2 className="h-4 w-4" /> Daily practice
           </div>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Daily rotation</h1>
+          <h1 className="page-title mt-2">Daily rotation</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Build a pool of small practices. Today picks one eligible item and keeps that choice
             fixed for the day.

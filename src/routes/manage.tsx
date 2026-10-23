@@ -45,7 +45,6 @@ type ManageLink = {
     | "/programmes"
     | "/data-quality";
   icon: typeof BookOpen;
-  accent: string;
 };
 
 const TRAINING_SETUP: ManageLink[] = [
@@ -54,14 +53,12 @@ const TRAINING_SETUP: ManageLink[] = [
     description: "See your current plan, progress and next session.",
     to: "/plan",
     icon: Dumbbell,
-    accent: "text-fuchsia-300 bg-fuchsia-400/10 border-fuchsia-400/20",
   },
   {
     title: "Programme library",
     description: "Browse other plans or start a different programme.",
     to: "/programmes",
     icon: Layers3,
-    accent: "text-fuchsia-300 bg-fuchsia-400/10 border-fuchsia-400/20",
   },
 ];
 
@@ -71,14 +68,12 @@ const OPTIONAL_FEATURES: ManageLink[] = [
     description: "Track a goal alongside your programme when it is useful.",
     to: "/goals",
     icon: Target,
-    accent: "text-amber-300 bg-amber-400/10 border-amber-400/20",
   },
   {
     title: "Daily Rotation",
     description: "Choose small practices to remind yourself about on Today.",
     to: "/rotation",
     icon: Repeat2,
-    accent: "text-violet-300 bg-violet-400/10 border-violet-400/20",
   },
 ];
 
@@ -88,28 +83,24 @@ const ADVANCED_SETTINGS: ManageLink[] = [
     description: "Manage training places and the equipment available at each one.",
     to: "/locations",
     icon: MapPin,
-    accent: "text-sky-300 bg-sky-400/10 border-sky-400/20",
   },
   {
     title: "Exercise Library",
     description: "Movements, tracking types, availability and training locations.",
     to: "/library",
     icon: BookOpen,
-    accent: "text-emerald-300 bg-emerald-400/10 border-emerald-400/20",
   },
   {
     title: "Training Methods",
     description: "Control system and custom methods used while planning and logging.",
     to: "/methods",
     icon: Layers3,
-    accent: "text-indigo-300 bg-indigo-400/10 border-indigo-400/20",
   },
   {
     title: "Data Quality",
     description: "Review historical ambiguity, provenance and calculation safety.",
     to: "/data-quality",
     icon: DatabaseZap,
-    accent: "text-cyan-300 bg-cyan-400/10 border-cyan-400/20",
   },
 ];
 
@@ -129,7 +120,7 @@ function SettingsPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <header className="border-b border-border pb-5">
-        <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
+        <h1 className="page-title">Settings</h1>
       </header>
 
       <section className="space-y-3" aria-labelledby="training-setup-heading">
@@ -144,9 +135,7 @@ function SettingsPage() {
             return (
               <Link key={item.to} to={item.to} className="group rounded-xl focus:outline-none">
                 <Card className="flex h-full items-start gap-4 p-4 transition-colors group-hover:border-foreground/25 group-hover:bg-accent/35 group-focus-visible:ring-2 group-focus-visible:ring-ring">
-                  <span
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${item.accent}`}
-                  >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary/50 text-muted-foreground">
                     <Icon className="h-5 w-5" />
                   </span>
                   <span className="min-w-0 flex-1">
@@ -174,9 +163,7 @@ function SettingsPage() {
             return (
               <Link key={item.to} to={item.to} className="group rounded-xl focus:outline-none">
                 <Card className="flex h-full items-start gap-4 p-4 transition-colors group-hover:border-foreground/25 group-hover:bg-accent/35">
-                  <span
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${item.accent}`}
-                  >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary/50 text-muted-foreground">
                     <Icon className="h-5 w-5" />
                   </span>
                   <span className="min-w-0 flex-1">
@@ -241,9 +228,7 @@ function SettingsPage() {
             return (
               <Link key={item.to} to={item.to} className="group rounded-xl focus:outline-none">
                 <Card className="flex h-full items-start gap-4 p-4 transition-colors group-hover:border-foreground/25 group-hover:bg-accent/35">
-                  <span
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${item.accent}`}
-                  >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary/50 text-muted-foreground">
                     <Icon className="h-5 w-5" />
                   </span>
                   <span className="min-w-0 flex-1">

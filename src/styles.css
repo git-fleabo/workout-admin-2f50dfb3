@@ -43,6 +43,7 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-info: var(--info);
   --color-success: var(--success);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
@@ -82,6 +83,7 @@
   --muted-foreground: oklch(0.77 0.025 255);
   --accent: oklch(0.33 0.04 260);
   --accent-foreground: oklch(0.97 0.008 255);
+  --info: oklch(0.80232 0.10556 246.87);
   --success: oklch(0.8 0.12 160);
   --destructive: oklch(0.79589 0.1174 20.002);
   --destructive-foreground: oklch(0.23909 0.07462 16.7);
@@ -128,6 +130,14 @@
 
 /* These scoped styles deliberately take precedence over shared control utilities. */
 @layer utilities {
+  .page-title {
+    font-size: clamp(1.75rem, 2.5vw, 2.25rem);
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -0.035em;
+    text-wrap: balance;
+  }
+
   /* A single focal surface for the next action; supporting cards stay quiet. */
   .session-spotlight {
     border-color: color-mix(in oklch, var(--primary) 35%, var(--border));

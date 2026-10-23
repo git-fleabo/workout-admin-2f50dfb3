@@ -35,7 +35,7 @@ function LogPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3 pb-1">
-        <h1 className="text-3xl font-semibold tracking-tight">Log Training</h1>
+        <h1 className="page-title">Log Training</h1>
       </header>
 
       <ModeSwitch mode={mode} onChange={setMode} />

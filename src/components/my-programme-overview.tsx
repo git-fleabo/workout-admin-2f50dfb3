@@ -382,7 +382,7 @@ export function MyProgrammeOverview({
             {active.personalProgramme ? (
               <div className="space-y-4">
                 {active.status === "paused" ? (
-                  <div className="rounded-lg border border-cyan-400/30 bg-cyan-400/[0.07] p-4">
+                  <div className="rounded-lg border border-info/30 bg-info/[0.07] p-4">
                     <p className="font-medium">Review everything before you start</p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       Open each session below to see its saved targets. Use Edit to change

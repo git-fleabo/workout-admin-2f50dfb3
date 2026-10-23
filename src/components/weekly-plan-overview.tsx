@@ -59,7 +59,7 @@ const LOCATION_STYLE = {
   gym: {
     label: "Gym",
     icon: Building2,
-    badge: "border-violet-400/30 bg-violet-400/10 text-violet-300",
+    badge: "border-info/30 bg-info/10 text-info",
   },
 } as const;
 
@@ -115,7 +115,7 @@ function ItemBadge({ item }: { item: WeeklyPlanItemKind }) {
   const style = ITEM_STYLE[item];
   const Icon = style.icon;
   return (
-    <Badge variant="outline" className={cn("text-[10px]", style.badge)}>
+    <Badge variant="outline" className={cn("text-xs", style.badge)}>
       <Icon className="mr-1 h-3 w-3" /> {style.shortLabel}
     </Badge>
   );
@@ -184,7 +184,7 @@ export function WeeklyPlanOverview({
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 id="weekly-plan-heading" className="flex items-center gap-2 text-base font-semibold">
-            <CalendarRange className="h-4 w-4 text-fuchsia-300" /> Your week at a glance
+            <CalendarRange className="h-4 w-4 text-primary" /> Your week at a glance
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
             {currentProgrammeSession
@@ -192,7 +192,7 @@ export function WeeklyPlanOverview({
               : "Use suggested dates to plan other training around your week."}
           </p>
         </div>
-        <Badge variant="outline" className="text-[10px]">
+        <Badge variant="outline" className="text-xs">
           {formatUKDateShort(plan.startDate)}–{formatUKDateShort(plan.endDate)}
         </Badge>
       </div>
@@ -201,18 +201,16 @@ export function WeeklyPlanOverview({
         <button
           type="button"
           onClick={() => setSelectedProgrammeSession(currentProgrammeSession)}
-          className="w-full rounded-xl border border-fuchsia-400/25 bg-fuchsia-400/[0.06] p-4 text-left transition hover:border-fuchsia-300/50 hover:bg-fuchsia-400/[0.1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300"
+          className="w-full rounded-xl border border-primary/25 bg-primary/[0.06] p-4 text-left transition hover:border-primary/50 hover:bg-primary/[0.1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
-          <span className="text-xs font-medium text-fuchsia-200">Next programme session</span>
+          <span className="text-xs font-medium text-primary">Next programme session</span>
           <span className="mt-1 block text-sm font-semibold">
             {currentProgrammeSession.programmeName} · {currentProgrammeSession.workoutName}
           </span>
           <span className="mt-1 block text-xs text-muted-foreground">
             Suggested {formatUKDateShort(currentProgrammeSession.scheduledDate)} · Train when ready
           </span>
-          <span className="mt-2 block text-xs font-medium text-fuchsia-200">
-            View session details
-          </span>
+          <span className="mt-2 block text-xs font-medium text-primary">View session details</span>
         </button>
       ) : null}
 
@@ -234,10 +232,10 @@ export function WeeklyPlanOverview({
                   key={day.date}
                   className={cn(
                     "min-h-0 w-full rounded-xl border p-3 sm:min-h-[142px]",
-                    index === 0 ? "border-fuchsia-400/30 bg-fuchsia-400/[0.06]" : "border-border",
+                    index === 0 ? "border-primary/30 bg-primary/[0.06]" : "border-border",
                   )}
                 >
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     {index === 0 ? "Today" : dayName(day.date)}
                   </p>
                   <p className="mt-0.5 text-sm font-medium">{formatUKDateShort(day.date)}</p>
@@ -247,9 +245,9 @@ export function WeeklyPlanOverview({
                         type="button"
                         key={`${session.assignmentId}:${session.programWorkoutId}`}
                         onClick={() => setSelectedProgrammeSession(session)}
-                        className="w-full rounded-lg border border-fuchsia-400/25 bg-fuchsia-400/[0.08] p-2 text-left transition hover:border-fuchsia-300/50 hover:bg-fuchsia-400/[0.13] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300"
+                        className="w-full rounded-lg border border-primary/25 bg-primary/[0.08] p-2 text-left transition hover:border-primary/50 hover:bg-primary/[0.13] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                       >
-                        <div className="flex items-center gap-1 text-[10px] font-medium text-fuchsia-200">
+                        <div className="flex items-center gap-1 text-xs font-medium text-primary">
                           {session.status === "completed" ? (
                             <CheckCircle2 className="h-3 w-3 text-emerald-300" />
                           ) : (
@@ -261,10 +259,10 @@ export function WeeklyPlanOverview({
                             ? `Session ${session.sessionNumber}`
                             : `Workout ${session.workoutNumber}`}
                         </div>
-                        <p className="mt-1 line-clamp-3 text-[10px] leading-snug text-foreground/75">
+                        <p className="mt-1 line-clamp-3 text-xs leading-snug text-foreground/75">
                           {session.movementNames.join(" · ")}
                         </p>
-                        <p className="mt-1.5 text-[10px] font-medium text-fuchsia-200">
+                        <p className="mt-1.5 text-xs font-medium text-primary">
                           View workout details
                         </p>
                       </button>
@@ -277,9 +275,9 @@ export function WeeklyPlanOverview({
                           setSelectedScheduledPlan(saved);
                           setMoveDate(saved.suggestedFor ?? day.date);
                         }}
-                        className="w-full rounded-lg border border-cyan-400/25 bg-cyan-400/[0.07] p-2 text-left transition hover:border-cyan-300/50 hover:bg-cyan-400/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                        className="w-full rounded-lg border border-info/25 bg-info/[0.07] p-2 text-left transition hover:border-info/50 hover:bg-info/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info"
                       >
-                        <span className="flex items-center gap-1 text-[10px] font-medium capitalize text-cyan-200">
+                        <span className="flex items-center gap-1 text-xs font-medium capitalize text-info">
                           {saved.status === "completed" ? (
                             <CheckCircle2 className="h-3 w-3 text-emerald-300" />
                           ) : saved.planKind === "climbing" ? (
@@ -291,7 +289,7 @@ export function WeeklyPlanOverview({
                           )}
                           {saved.planKind}
                         </span>
-                        <span className="mt-1 block line-clamp-2 text-[10px] leading-snug text-foreground/80">
+                        <span className="mt-1 block line-clamp-2 text-xs leading-snug text-foreground/80">
                           {saved.title}
                         </span>
                       </button>
@@ -309,13 +307,13 @@ export function WeeklyPlanOverview({
                     plannedItems.length === 0 &&
                     scheduledProgrammeSessions.length === 0 &&
                     dayPlans.length === 0 ? (
-                      <span className="text-[10px] text-muted-foreground/70">Open</span>
+                      <span className="text-xs text-muted-foreground/70">Open</span>
                     ) : null}
                   </div>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="mt-2 h-auto min-h-7 w-full min-w-0 justify-start whitespace-normal px-1.5 py-1 text-left text-[10px] leading-tight text-muted-foreground"
+                    className="mt-2 h-auto min-h-7 w-full min-w-0 justify-start whitespace-normal px-1.5 py-1 text-left text-xs leading-tight text-muted-foreground"
                     onClick={() => setEditingDate(day.date)}
                   >
                     <Pencil className="mr-1 h-3 w-3 shrink-0" />
@@ -342,7 +340,7 @@ export function WeeklyPlanOverview({
                 plan.loadPatterns.map((pattern) => (
                   <div key={pattern.kind} className="flex items-center gap-1.5">
                     <ItemBadge item={pattern.kind} />
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       {pattern.frequency > 0
                         ? `${pattern.frequency}/week · ${pattern.confidence}`
                         : `${pattern.sourceDays} recent · not scheduled`}
@@ -394,7 +392,7 @@ export function WeeklyPlanOverview({
                 >
                   <Icon className="h-4 w-4" /> {style.label}
                   {completed ? (
-                    <span className="ml-auto text-[10px] text-muted-foreground">Completed</span>
+                    <span className="ml-auto text-xs text-muted-foreground">Completed</span>
                   ) : null}
                 </button>
               );
@@ -598,9 +596,7 @@ export function WeeklyPlanOverview({
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge className="border-fuchsia-400/25 bg-fuchsia-400/10 text-fuchsia-200">
-                Programme
-              </Badge>
+              <Badge className="border-primary/25 bg-primary/10 text-primary">Programme</Badge>
               {selectedProgrammeSession?.status === "upcoming" &&
               !selectedProgrammeSession.isPersonal ? (
                 <Badge variant="outline">Provisional</Badge>
@@ -621,7 +617,7 @@ export function WeeklyPlanOverview({
 
           {selectedProgrammeSession ? (
             <div className="space-y-4">
-              <div className="rounded-lg border border-fuchsia-400/20 bg-fuchsia-400/[0.05] p-3 text-xs text-muted-foreground">
+              <div className="rounded-lg border border-primary/20 bg-primary/[0.05] p-3 text-xs text-muted-foreground">
                 {selectedProgrammeSession.isCatchUp
                   ? `This is your next unfinished session. It was originally planned for ${formatUKDateShort(
                       selectedProgrammeSession.scheduledDate,
@@ -647,7 +643,7 @@ export function WeeklyPlanOverview({
                         </CardHeader>
                         <CardContent className="space-y-3 p-4 pt-1">
                           <div className="overflow-hidden rounded-lg border border-border">
-                            <div className="grid grid-cols-[3rem_1fr_1fr] bg-secondary/30 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            <div className="grid grid-cols-[3rem_1fr_1fr] bg-secondary/30 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                               <span>Set</span>
                               <span>Weight</span>
                               <span>Reps</span>

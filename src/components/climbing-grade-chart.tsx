@@ -15,7 +15,7 @@ export function ClimbingGradeChart({ entries }: { entries: ClimbingProgressEntry
   return (
     <Card>
       <CardHeader className="p-4 pb-2">
-        <CardTitle className="text-sm">Climbing grade progress</CardTitle>
+        <CardTitle className="text-base">Climbing grade progress</CardTitle>
         <p className="text-xs text-muted-foreground">
           Highest recorded grade each month, including attempts. Each grading system is shown
           separately.
@@ -43,17 +43,38 @@ export function ClimbingGradeChart({ entries }: { entries: ClimbingProgressEntry
                   data={data}
                   margin={{ left: 0, right: 8, top: 8, bottom: 0 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <CartesianGrid
+                    stroke="var(--color-border)"
+                    strokeDasharray="2 6"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="month"
+                    stroke="var(--color-muted-foreground)"
+                    tick={{ fontSize: 12 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
                   <YAxis
                     width={48}
+                    stroke="var(--color-muted-foreground)"
+                    tickLine={false}
+                    axisLine={false}
                     ticks={ticks}
                     domain={[0, "dataMax"]}
                     tickFormatter={label}
-                    tick={{ fontSize: 11 }}
+                    tick={{ fontSize: 12 }}
                     allowDecimals={false}
                   />
                   <Tooltip<number, string>
+                    contentStyle={{
+                      background: "var(--color-popover)",
+                      color: "var(--color-foreground)",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: 12,
+                    }}
+                    labelStyle={{ color: "var(--color-muted-foreground)" }}
+                    cursor={{ fill: "var(--color-secondary)", opacity: 0.4 }}
                     formatter={(_value, _name, item) => [
                       String(item.payload?.highestGrade ?? ""),
                       "Highest recorded grade",

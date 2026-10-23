@@ -547,7 +547,7 @@ function LibraryPage() {
     <div className="space-y-5">
       <SettingsBackLink />
       <header className="flex items-end justify-between border-b border-border pb-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Exercise Library</h1>
+        <h1 className="page-title">Exercise Library</h1>
         <span className="text-sm text-muted-foreground">{filtered.length} movements</span>
       </header>
       <div className="flex flex-wrap items-end gap-3">
@@ -1037,7 +1037,7 @@ function DesktopLibraryWorkspace({
       <SettingsBackLink />
       <header className="flex items-end justify-between border-b border-border pb-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Exercise Library</h1>
+          <h1 className="page-title">Exercise Library</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Select a movement to inspect its history or edit its complete setup alongside the list.
           </p>

@@ -261,7 +261,7 @@ function ProgrammeTemplatesPage() {
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-fuchsia-300">
           <Layers3 className="h-4 w-4" /> Training setup
         </div>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Programme library</h1>
+        <h1 className="page-title mt-2">Programme library</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
           Browse plans when you want to change programme. Your current run and progress are on Plan.
         </p>

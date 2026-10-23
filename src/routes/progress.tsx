@@ -32,6 +32,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 
+import { ProgressHighlight } from "@/components/progress-highlight";
 import { ClimbingGradeChart } from "@/components/climbing-grade-chart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -355,20 +356,34 @@ function buildProfileStats(
   const latest = current[current.length - 1];
 
   if (profile === "weighted") {
-    const best = bestPerformance(current);
+    const best = maxValue(current, (point) => point.est1RM);
+    const topWeight = maxValue(current, (point) => point.maxWeight);
+    const weightChange = change(
+      topWeight,
+      maxValue(previous, (point) => point.maxWeight),
+    );
     return [
       {
         icon: "scale",
         label: "Top weight",
-        value: formatKg(maxValue(current, (p) => p.maxWeight)),
+        value: formatKg(topWeight),
         detail: "Heaviest working set",
+        change: weightChange,
       },
       {
         icon: "gauge",
         label: "Best est. 1RM",
         value: formatKg(best, 1),
-        detail: formatChange(change(best, bestPerformance(previous))),
-        change: change(best, bestPerformance(previous)),
+        detail: formatChange(
+          change(
+            best,
+            maxValue(previous, (point) => point.est1RM),
+          ),
+        ),
+        change: change(
+          best,
+          maxValue(previous, (point) => point.est1RM),
+        ),
       },
       {
         icon: "trend",
@@ -919,9 +934,9 @@ function ProgressPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-4 border-b border-border pb-4 lg:flex-row lg:items-end lg:justify-between">
+      <header className="flex flex-col gap-4 pb-2 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Exercise Progress</h1>
+          <h1 className="page-title">Exercise Progress</h1>
           {lastLogged ? (
             <p className="mt-1 text-sm text-muted-foreground">
               Last logged {formatUKDate(lastLogged)}
@@ -931,41 +946,18 @@ function ProgressPage() {
         <ExercisePicker exercises={locationExercises} value={exerciseId} onChange={setExerciseId} />
       </header>
 
-      {climbingProgress.isSuccess || projects.length ? (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.5fr)]">
-          <ClimbingGradeChart entries={climbingProgress.data ?? []} />
-          {projects.length ? (
-            <Card>
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-sm">Open climbing projects</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 p-4 pt-2 text-sm">
-                {projects.map((project) => (
-                  <div
-                    key={`${project.gradeSystem ?? ""}-${project.grade}`}
-                    className="flex justify-between gap-3"
-                  >
-                    <span className="font-medium">{project.grade}</span>
-                    <span className="text-muted-foreground">{project.gradeSystem ?? "Grade"}</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          ) : null}
-        </div>
-      ) : null}
-
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-secondary/40 p-1">
+        <div className="flex gap-1 overflow-x-auto rounded-xl bg-secondary/30 p-1">
           {PERIODS.map((item) => (
             <button
               key={item.value}
               type="button"
               onClick={() => setPeriod(item.value)}
+              aria-pressed={period === item.value}
               className={cn(
-                "whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition",
+                "whitespace-nowrap min-h-11 rounded-lg px-3 py-2 text-sm font-medium transition",
                 period === item.value
-                  ? "bg-card text-foreground shadow"
+                  ? "bg-card text-primary shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -973,16 +965,17 @@ function ProgressPage() {
             </button>
           ))}
         </div>
-        <div className="flex gap-1 rounded-xl border border-border bg-secondary/40 p-1">
+        <div className="flex gap-1 rounded-xl bg-secondary/30 p-1">
           {(["all", "home", "gym"] as LocationFilter[]).map((item) => (
             <button
               key={item}
               type="button"
               onClick={() => setLocation(item)}
+              aria-pressed={location === item}
               className={cn(
-                "flex flex-1 items-center justify-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition sm:flex-none",
+                "flex flex-1 items-center justify-center gap-1 min-h-11 rounded-lg px-3 py-2 text-sm font-medium capitalize transition sm:flex-none",
                 location === item
-                  ? "bg-card text-foreground shadow"
+                  ? "bg-card text-primary shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -999,7 +992,7 @@ function ProgressPage() {
             <Layers3 className="h-3.5 w-3.5" />
             Training method
           </div>
-          <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-secondary/40 p-1">
+          <div className="flex gap-1 overflow-x-auto rounded-xl bg-secondary/30 p-1">
             {[
               { key: "all", label: "All methods" },
               { key: "straight", label: "Straight sets" },
@@ -1009,10 +1002,11 @@ function ProgressPage() {
                 key={method.key}
                 type="button"
                 onClick={() => setMethodFilter(method.key)}
+                aria-pressed={methodFilter === method.key}
                 className={cn(
-                  "whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition",
+                  "whitespace-nowrap min-h-11 rounded-lg px-3 py-2 text-sm font-medium transition",
                   methodFilter === method.key
-                    ? "bg-card text-foreground shadow"
+                    ? "bg-card text-primary shadow-sm"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -1056,6 +1050,60 @@ function ProgressPage() {
         </Card>
       ) : (
         <>
+          <ProgressHighlight
+            exerciseName={exercise?.name ?? "This exercise"}
+            stat={profileStats[0]}
+            periodLabel={period === "all" ? "All recorded history" : `Last ${period} weeks`}
+            locationLabel={
+              location === "all" ? "All locations" : location === "home" ? "Home" : "Gym"
+            }
+            methodLabel={
+              activeMethodFilter === "all"
+                ? "All methods"
+                : activeMethodFilter === "straight"
+                  ? "Straight sets"
+                  : (methodOptions.find((method) => method.key === activeMethodFilter)?.label ??
+                    "Selected method")
+            }
+          />
+          <section className="grid gap-3 sm:grid-cols-3">
+            <StatCard
+              icon={<Dumbbell className="h-4 w-4" />}
+              label="Sessions"
+              value={String(analysis.current.length)}
+              detail={location === "all" ? "All locations" : location}
+            />
+            {profileStats.slice(1).map((stat) => (
+              <StatCard
+                key={stat.label}
+                icon={
+                  stat.icon === "scale" ? (
+                    <Scale className="h-4 w-4" />
+                  ) : stat.icon === "trend" ? (
+                    <TrendingUp className="h-4 w-4" />
+                  ) : (
+                    <Gauge className="h-4 w-4" />
+                  )
+                }
+                label={stat.label}
+                value={stat.value}
+                detail={stat.detail}
+                change={stat.change}
+                changeDirection={stat.changeDirection}
+              />
+            ))}
+          </section>
+
+          <ProfileCharts
+            profile={metricProfile}
+            points={analysis.current}
+            weeklyVolume={analysis.weeklyVolume}
+            weeklyHold={analysis.weeklyHold}
+            positionMeasurementLabel={exercise?.positionMeasurementLabel ?? ""}
+            positionMeasurementDirection={exercise?.positionMeasurementDirection ?? ""}
+            onSelectSession={setSelectedSessionId}
+          />
+
           {needsFreshBaseline ? (
             <Card className="border-amber-400/25 bg-amber-400/[0.05] p-4 text-sm">
               <p className="font-medium">Start with a fresh baseline</p>
@@ -1091,44 +1139,6 @@ function ProgressPage() {
             </>
           ) : null}
 
-          <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard
-              icon={<Dumbbell className="h-4 w-4" />}
-              label="Sessions"
-              value={String(analysis.current.length)}
-              detail={location === "all" ? "All locations" : location}
-            />
-            {profileStats.map((stat) => (
-              <StatCard
-                key={stat.label}
-                icon={
-                  stat.icon === "scale" ? (
-                    <Scale className="h-4 w-4" />
-                  ) : stat.icon === "trend" ? (
-                    <TrendingUp className="h-4 w-4" />
-                  ) : (
-                    <Gauge className="h-4 w-4" />
-                  )
-                }
-                label={stat.label}
-                value={stat.value}
-                detail={stat.detail}
-                change={stat.change}
-                changeDirection={stat.changeDirection}
-              />
-            ))}
-          </section>
-
-          <ProfileCharts
-            profile={metricProfile}
-            points={analysis.current}
-            weeklyVolume={analysis.weeklyVolume}
-            weeklyHold={analysis.weeklyHold}
-            positionMeasurementLabel={exercise?.positionMeasurementLabel ?? ""}
-            positionMeasurementDirection={exercise?.positionMeasurementDirection ?? ""}
-            onSelectSession={setSelectedSessionId}
-          />
-
           {metricProfile === "weighted" || metricProfile === "reps" ? (
             <details className="rounded-xl border border-border bg-card/40 p-3">
               <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
@@ -1153,6 +1163,40 @@ function ProgressPage() {
           />
         </>
       )}
+      {climbingProgress.isSuccess || projects.length ? (
+        <details className="rounded-xl bg-card/60 p-5">
+          <summary className="cursor-pointer text-base font-semibold">
+            Climbing overview · all recorded history
+          </summary>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Independent of the exercise, period and location filters above.
+          </p>
+          <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.5fr)]">
+            <ClimbingGradeChart entries={climbingProgress.data ?? []} />
+            {projects.length ? (
+              <Card>
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-sm">Open climbing projects</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 p-4 pt-2 text-sm">
+                  {projects.map((project) => (
+                    <div
+                      key={`${project.gradeSystem ?? ""}-${project.grade}`}
+                      className="flex justify-between gap-3"
+                    >
+                      <span className="font-medium">{project.grade}</span>
+                      <span className="text-muted-foreground">
+                        {project.gradeSystem ?? "Grade"}
+                      </span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ) : null}
+          </div>
+        </details>
+      ) : null}
+
       <details className="rounded-xl border border-border bg-card/40 p-4">
         <summary className="cursor-pointer text-sm font-medium">Personal bests</summary>
         <div className="mt-4 border-t border-border pt-4">
@@ -1185,7 +1229,7 @@ const METHOD_STATUS: Record<PlannedActualMethodStatus, { label: string; classNam
 function MethodBadges({ methods }: { methods: ExerciseMethodUse[] }) {
   if (!methods.length) {
     return (
-      <span className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
+      <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
         Straight sets
       </span>
     );
@@ -1195,7 +1239,7 @@ function MethodBadges({ methods }: { methods: ExerciseMethodUse[] }) {
       {methods.map((method) => (
         <span
           key={method.key}
-          className="rounded-full border border-violet-400/30 bg-violet-400/[0.08] px-2 py-0.5 text-[10px] font-medium text-violet-200"
+          className="rounded-full border border-violet-400/30 bg-violet-400/[0.08] px-2 py-0.5 text-xs font-medium text-violet-200"
         >
           {methodName(method)}
         </span>
@@ -1237,19 +1281,19 @@ function MethodComparison({
               >
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-medium">{summary.label}</p>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     {summary.sessions} {summary.sessions === 1 ? "session" : "sessions"}
                   </span>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-3">
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground">
                       Avg volume
                     </p>
                     <p className="mt-1 text-sm font-semibold">{formatKg(summary.averageVolume)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground">
                       Best performance
                     </p>
                     <p className="mt-1 text-sm font-semibold">
@@ -1348,7 +1392,7 @@ function PlannedActualHistory({
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="text-sm font-medium">{formatUKDate(comparison.date)}</p>
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {comparison.planTitle}
                         {comparison.locationKind ? ` · ${comparison.locationKind}` : ""}
                       </p>
@@ -1356,7 +1400,7 @@ function PlannedActualHistory({
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span
                         className={cn(
-                          "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                          "rounded-full border px-2 py-0.5 text-xs font-semibold uppercase tracking-wide",
                           status.className,
                         )}
                       >
@@ -1364,7 +1408,7 @@ function PlannedActualHistory({
                       </span>
                       <span
                         className={cn(
-                          "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                          "rounded-full border px-2 py-0.5 text-xs font-semibold uppercase tracking-wide",
                           methodStatus.className,
                         )}
                       >
@@ -1375,7 +1419,7 @@ function PlannedActualHistory({
                   </div>
                   <div className="mt-3 grid gap-3 lg:grid-cols-2">
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                         Planned
                       </p>
                       <p className="mt-1 text-xs leading-relaxed">
@@ -1383,7 +1427,7 @@ function PlannedActualHistory({
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                         Actual
                       </p>
                       <p className="mt-1 text-xs leading-relaxed">
@@ -1392,7 +1436,7 @@ function PlannedActualHistory({
                     </div>
                   </div>
                   {comparison.methodStatus !== "none" ? (
-                    <div className="mt-2 rounded-lg border border-border/70 bg-background/25 p-2.5 text-[11px] text-muted-foreground">
+                    <div className="mt-2 rounded-lg border border-border/70 bg-background/25 p-2.5 text-xs text-muted-foreground">
                       <span className="font-semibold text-foreground/80">Method: </span>
                       {comparison.plannedMethods.length
                         ? comparison.plannedMethods.map((method) => method.name).join(" + ")
@@ -1404,7 +1448,7 @@ function PlannedActualHistory({
                     </div>
                   ) : null}
                   {delta != null ? (
-                    <p className="mt-2 text-[11px] text-muted-foreground">
+                    <p className="mt-2 text-xs text-muted-foreground">
                       Volume: {comparison.plannedVolume.toLocaleString()} kg planned ·{" "}
                       {comparison.actualVolume.toLocaleString()} kg actual · {delta > 0 ? "+" : ""}
                       {delta}%
@@ -1426,17 +1470,17 @@ const DECISION_STYLE: Record<
 > = {
   progress: {
     icon: <ArrowUpRight className="h-5 w-5" />,
-    className: "border-emerald-400/30 bg-emerald-400/[0.07] text-emerald-200",
+    className: "border-success/30 bg-success/5 text-success",
     eyebrow: "Progression supported",
   },
   continue: {
     icon: <Repeat2 className="h-5 w-5" />,
-    className: "border-sky-400/30 bg-sky-400/[0.07] text-sky-200",
+    className: "border-border/60 text-foreground",
     eyebrow: "Next decision",
   },
   hold: {
     icon: <Pause className="h-5 w-5" />,
-    className: "border-violet-400/30 bg-violet-400/[0.07] text-violet-200",
+    className: "border-border/60 text-muted-foreground",
     eyebrow: "Progression not confirmed",
   },
   lighter: {
@@ -1465,7 +1509,7 @@ function DecisionCard({
         <div className="flex items-start gap-3">
           <div className="mt-0.5 shrink-0">{style.icon}</div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-80">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] opacity-80">
               {style.eyebrow} · {exerciseName}
             </p>
             <h2 className="mt-1 text-xl font-semibold tracking-tight text-foreground">
@@ -1474,8 +1518,8 @@ function DecisionCard({
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{decision.detail}</p>
           </div>
         </div>
-        <div className="space-y-2 rounded-lg border border-border/70 bg-background/35 p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="space-y-2 border-l-2 border-border pl-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Why this recommendation
           </p>
           {decision.evidence.map((item) => (
@@ -1570,16 +1614,18 @@ function StatCard({
           {icon}
           <span>{label}</span>
         </div>
-        <p className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl">{value}</p>
+        <p className="mt-3 break-words text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl">
+          {value}
+        </p>
         <p
           className={cn(
-            "mt-1 truncate text-[11px] text-muted-foreground",
-            label !== "Volume" &&
+            "mt-2 text-sm leading-relaxed text-muted-foreground",
+            !label.toLowerCase().includes("volume") &&
               change != null &&
               ((changeDirection === "up" && change > 0) ||
                 (changeDirection === "down" && change < 0)) &&
-              "text-emerald-400",
-            label !== "Volume" &&
+              "text-success",
+            !label.toLowerCase().includes("volume") &&
               change != null &&
               ((changeDirection === "up" && change < 0) ||
                 (changeDirection === "down" && change > 0)) &&
@@ -1605,8 +1651,8 @@ function ChartCard({
   return (
     <Card>
       <CardHeader className="p-4 pb-2">
-        <CardTitle className="text-sm">{title}</CardTitle>
-        <p className="text-xs text-muted-foreground">{subtitle}</p>
+        <CardTitle className="text-base">{title}</CardTitle>
+        <p className="text-sm leading-relaxed text-muted-foreground">{subtitle}</p>
       </CardHeader>
       <CardContent className="p-2 pt-0 sm:p-4 sm:pt-0">{children}</CardContent>
     </Card>
@@ -1617,7 +1663,7 @@ const tooltipStyle = {
   backgroundColor: "var(--color-popover)",
   border: "1px solid var(--color-border)",
   borderRadius: 8,
-  fontSize: 12,
+  fontSize: 14,
   color: "var(--color-popover-foreground)",
 };
 
@@ -1638,6 +1684,7 @@ function PerformanceChart({
     <ChartCard title="Performance" subtitle="Top working weight and estimated 1RM · select a point">
       <ResponsiveContainer width="100%" height={260}>
         <LineChart
+          accessibilityLayer
           data={data}
           margin={{ top: 12, right: 12, left: -12, bottom: 0 }}
           onClick={(state) => {
@@ -1648,18 +1695,23 @@ function PerformanceChart({
           }}
           className="cursor-pointer"
         >
-          <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
+          <CartesianGrid
+            stroke="var(--color-border)"
+            strokeDasharray="2 6"
+            strokeOpacity={0.5}
+            vertical={false}
+          />
           <XAxis
             dataKey="label"
             stroke="var(--color-muted-foreground)"
-            fontSize={10}
+            fontSize={12}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
             unit="kg"
             stroke="var(--color-muted-foreground)"
-            fontSize={10}
+            fontSize={12}
             tickLine={false}
             axisLine={false}
           />
@@ -1667,24 +1719,26 @@ function PerformanceChart({
             contentStyle={tooltipStyle}
             formatter={(value: number) => [`${value.toFixed(1)} kg`]}
           />
-          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
           <Line
-            type="monotone"
+            type="linear"
             dataKey="weight"
             name="Top weight"
             stroke="var(--color-chart-1)"
-            strokeWidth={2}
-            dot={{ r: 3 }}
-            connectNulls
+            strokeWidth={2.5}
+            dot={{ r: 3, strokeWidth: 2 }}
+            activeDot={{ r: 6 }}
+            connectNulls={false}
           />
           <Line
-            type="monotone"
+            type="linear"
             dataKey="estimated"
             name="Est. 1RM"
             stroke="var(--color-chart-2)"
-            strokeWidth={2}
-            dot={{ r: 3 }}
-            connectNulls
+            strokeWidth={2.5}
+            dot={{ r: 3, strokeWidth: 2 }}
+            activeDot={{ r: 6 }}
+            connectNulls={false}
           />
         </LineChart>
       </ResponsiveContainer>
@@ -1708,6 +1762,7 @@ function HoldPerformanceChart({
     <ChartCard title="Best hold" subtitle="Longest completed set in each session · select a point">
       <ResponsiveContainer width="100%" height={260}>
         <LineChart
+          accessibilityLayer
           data={data}
           margin={{ top: 12, right: 12, left: -12, bottom: 0 }}
           onClick={(state) => {
@@ -1718,18 +1773,23 @@ function HoldPerformanceChart({
           }}
           className="cursor-pointer"
         >
-          <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
+          <CartesianGrid
+            stroke="var(--color-border)"
+            strokeDasharray="2 6"
+            strokeOpacity={0.5}
+            vertical={false}
+          />
           <XAxis
             dataKey="label"
             stroke="var(--color-muted-foreground)"
-            fontSize={10}
+            fontSize={12}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
             unit="s"
             stroke="var(--color-muted-foreground)"
-            fontSize={10}
+            fontSize={12}
             tickLine={false}
             axisLine={false}
           />
@@ -1738,13 +1798,14 @@ function HoldPerformanceChart({
             formatter={(value: number) => [`${value}s`, "Best hold"]}
           />
           <Line
-            type="monotone"
+            type="linear"
             dataKey="best"
             name="Best hold"
             stroke="var(--color-chart-2)"
-            strokeWidth={2}
-            dot={{ r: 3 }}
-            connectNulls
+            strokeWidth={2.5}
+            dot={{ r: 3, strokeWidth: 2 }}
+            activeDot={{ r: 6 }}
+            connectNulls={false}
           />
         </LineChart>
       </ResponsiveContainer>
@@ -1761,18 +1822,27 @@ function VolumeChart({ data }: { data: { week: string; label: string; volume: nu
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={data} margin={{ top: 12, right: 12, left: -6, bottom: 0 }}>
-            <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
+          <BarChart
+            accessibilityLayer
+            data={data}
+            margin={{ top: 12, right: 12, left: -6, bottom: 0 }}
+          >
+            <CartesianGrid
+              stroke="var(--color-border)"
+              strokeDasharray="2 6"
+              strokeOpacity={0.5}
+              vertical={false}
+            />
             <XAxis
               dataKey="label"
               stroke="var(--color-muted-foreground)"
-              fontSize={10}
+              fontSize={12}
               tickLine={false}
               axisLine={false}
             />
             <YAxis
               stroke="var(--color-muted-foreground)"
-              fontSize={10}
+              fontSize={12}
               tickLine={false}
               axisLine={false}
             />
@@ -1792,19 +1862,28 @@ function HoldVolumeChart({ data }: { data: { week: string; label: string; second
   return (
     <ChartCard title="Weekly hold time" subtitle="Total seconds accumulated across completed sets">
       <ResponsiveContainer width="100%" height={260}>
-        <BarChart data={data} margin={{ top: 12, right: 12, left: -6, bottom: 0 }}>
-          <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
+        <BarChart
+          accessibilityLayer
+          data={data}
+          margin={{ top: 12, right: 12, left: -6, bottom: 0 }}
+        >
+          <CartesianGrid
+            stroke="var(--color-border)"
+            strokeDasharray="2 6"
+            strokeOpacity={0.5}
+            vertical={false}
+          />
           <XAxis
             dataKey="label"
             stroke="var(--color-muted-foreground)"
-            fontSize={10}
+            fontSize={12}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
             unit="s"
             stroke="var(--color-muted-foreground)"
-            fontSize={10}
+            fontSize={12}
             tickLine={false}
             axisLine={false}
           />
@@ -1852,6 +1931,7 @@ function MetricTrendChart({
     <ChartCard title={title} subtitle={subtitle}>
       <ResponsiveContainer width="100%" height={260}>
         <LineChart
+          accessibilityLayer
           data={data}
           margin={{ top: 12, right: 12, left: -12, bottom: 0 }}
           onClick={(state) => {
@@ -1862,18 +1942,23 @@ function MetricTrendChart({
           }}
           className="cursor-pointer"
         >
-          <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
+          <CartesianGrid
+            stroke="var(--color-border)"
+            strokeDasharray="2 6"
+            strokeOpacity={0.5}
+            vertical={false}
+          />
           <XAxis
             dataKey="label"
             stroke="var(--color-muted-foreground)"
-            fontSize={10}
+            fontSize={12}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
             unit={unit}
             stroke="var(--color-muted-foreground)"
-            fontSize={10}
+            fontSize={12}
             tickLine={false}
             axisLine={false}
           />
@@ -1882,13 +1967,14 @@ function MetricTrendChart({
             formatter={(value: number) => [format ? format(value) : `${value}${unit ?? ""}`, name]}
           />
           <Line
-            type="monotone"
+            type="linear"
             dataKey="value"
             name={name}
             stroke="var(--color-chart-2)"
-            strokeWidth={2}
-            dot={{ r: 3 }}
-            connectNulls
+            strokeWidth={2.5}
+            dot={{ r: 3, strokeWidth: 2 }}
+            activeDot={{ r: 6 }}
+            connectNulls={false}
           />
         </LineChart>
       </ResponsiveContainer>
@@ -1926,19 +2012,28 @@ function WeeklyMetricChart({
   return (
     <ChartCard title={title} subtitle={subtitle}>
       <ResponsiveContainer width="100%" height={260}>
-        <BarChart data={data} margin={{ top: 12, right: 12, left: -6, bottom: 0 }}>
-          <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" vertical={false} />
+        <BarChart
+          accessibilityLayer
+          data={data}
+          margin={{ top: 12, right: 12, left: -6, bottom: 0 }}
+        >
+          <CartesianGrid
+            stroke="var(--color-border)"
+            strokeDasharray="2 6"
+            strokeOpacity={0.5}
+            vertical={false}
+          />
           <XAxis
             dataKey="label"
             stroke="var(--color-muted-foreground)"
-            fontSize={10}
+            fontSize={12}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
             unit={unit}
             stroke="var(--color-muted-foreground)"
-            fontSize={10}
+            fontSize={12}
             tickLine={false}
             axisLine={false}
           />
@@ -1977,14 +2072,14 @@ function LoadRelationshipChart({
       {data.length ? (
         <ResponsiveContainer width="100%" height={260}>
           <ScatterChart margin={{ top: 12, right: 12, left: -6, bottom: 0 }}>
-            <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
+            <CartesianGrid stroke="var(--color-border)" strokeDasharray="2 6" strokeOpacity={0.5} />
             <XAxis
               type="number"
               dataKey="load"
               name="Load"
               unit="kg"
               stroke="var(--color-muted-foreground)"
-              fontSize={10}
+              fontSize={12}
               tickLine={false}
             />
             <YAxis
@@ -1993,7 +2088,7 @@ function LoadRelationshipChart({
               name={outcomeLabel}
               unit={mode === "hold" ? "s" : undefined}
               stroke="var(--color-muted-foreground)"
-              fontSize={10}
+              fontSize={12}
               tickLine={false}
             />
             <Tooltip contentStyle={tooltipStyle} cursor={{ strokeDasharray: "3 3" }} />
@@ -2289,7 +2384,10 @@ function ProfileCharts({
     : null;
 
   return (
-    <section className="grid gap-4 xl:grid-cols-2">
+    <section
+      aria-label="Exercise trends"
+      className="grid min-w-0 gap-4 xl:grid-cols-2 [&>div:first-child]:xl:col-span-2 [&>div:last-child:nth-child(even)]:xl:col-span-2"
+    >
       {positionMeasurementChart}
       {charts}
     </section>

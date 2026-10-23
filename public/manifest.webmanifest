@@ -4,8 +4,8 @@
   "description": "Log and track your regular and calisthenics workouts.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#062256",
-  "theme_color": "#062256",
+  "background_color": "#0e1727",
+  "theme_color": "#0e1727",
   "icons": [
     {
       "src": "/app-icon-192.png",
@@ -20,7 +20,7 @@
       "purpose": "any"
     },
     {
-      "src": "/app-icon-512.png",
+      "src": "/app-icon-maskable.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

@@ -329,9 +329,9 @@ export function HistoryPage({ requestedSessionId }: { requestedSessionId?: strin
 
   return (
     <div className="min-w-0 space-y-5">
-      <header className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-3">
+      <header className="flex flex-wrap items-end justify-between gap-3 pb-2">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">History</h1>
+          <h1 className="page-title">History</h1>
           <p className="text-sm text-muted-foreground">
             {periodLabel(start, mode)} · {summary.activeDays} training{" "}
             {summary.activeDays === 1 ? "day" : "days"} · {summary.measurements}{" "}
@@ -618,13 +618,13 @@ function StatTile({ label, value }: { label: string; value: string }) {
 
 function TrainingStoryCard({ story, title }: { story: TrainingStory; title: string }) {
   return (
-    <Card className="border-violet-400/25 bg-gradient-to-br from-violet-400/[0.08] to-transparent p-4">
+    <Card className="border-border/60 bg-card p-4">
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 rounded-lg border border-violet-400/20 bg-violet-400/10 p-2 text-violet-300">
+        <span className="mt-0.5 rounded-lg border border-border/60 bg-secondary/40 p-2 text-muted-foreground">
           <BookOpenText className="h-4 w-4" />
         </span>
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-violet-100">{title}</h2>
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
           <p className="mt-1 text-sm leading-relaxed text-foreground/90">{story.lead}</p>
           {story.highlights.length ? (
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
