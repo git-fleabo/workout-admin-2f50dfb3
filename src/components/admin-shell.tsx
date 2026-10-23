@@ -85,7 +85,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const settingsActive = SETTINGS_PATHS.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   );
-  const workspaceRoute = pathname === "/plan" || pathname === "/library";
+  const workspaceRoute =
+    pathname === "/plan" || pathname === "/library" || pathname === "/weekly-review";
 
   return (
     <div className="min-h-screen bg-background text-foreground">

@@ -34,6 +34,8 @@ import { cn } from "@/lib/utils";
 import { getTimelineDataClient } from "@/lib/supabase-timeline.browser";
 import { WeeklyGoalReview } from "@/components/weekly-goal-review";
 import { WeeklyProgrammeReview } from "@/components/weekly-programme-review";
+import { DesktopReviewWorkspace, type ReviewSection } from "@/components/desktop-review-workspace";
+import { useIsDesktop } from "@/hooks/use-desktop";
 
 export const Route = createFileRoute("/weekly-review")({
   head: () => ({
@@ -92,6 +94,8 @@ function SignalList({ items, icon: Icon }: { items: WeeklyReviewItem[]; icon: ty
 
 export function WeeklyReviewPage() {
   const queryClient = useQueryClient();
+  const isDesktop = useIsDesktop();
+  const [reviewSection, setReviewSection] = useState<ReviewSection>("overview");
   const currentWeekStart = weeklyReviewWeekStart();
   const [weekStart, setWeekStart] = useState(currentWeekStart);
   const { data, isLoading, isFetching, error, refetch } = useQuery({
@@ -163,75 +167,116 @@ export function WeeklyReviewPage() {
     },
   ];
 
+  const header = (
+    <header className="flex flex-wrap items-end justify-between gap-4 pb-2">
+      <div>
+        <h1 className="page-title">What happened, and what next?</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {data.isCurrentWeek ? "This week so far" : "Completed week"} · {rangeLabel}
+        </p>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setWeekStart(moveWeeklyReviewWeek(data.weekStart, -1))}
+          aria-label="Previous week"
+          title="Previous week"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setWeekStart(moveWeeklyReviewWeek(data.weekStart, 1))}
+          disabled={!canMoveForward}
+          aria-label="Next week"
+          title="Next week"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => {
+            refetch();
+            for (const key of [
+              "goals",
+              "goal-activity",
+              "goal-exercise-progress",
+              "programme-refresh",
+              "programme-strength-week-review",
+              "workout-planner-history",
+              "weekly-load-history",
+              "weekly-plan-adjustments",
+            ]) {
+              queryClient.invalidateQueries({ queryKey: [key] });
+            }
+          }}
+          disabled={isFetching}
+          aria-label="Refresh weekly review"
+          title="Refresh weekly review"
+        >
+          <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+        </Button>
+      </div>
+    </header>
+  );
+  const emptyState = emptyWeek ? (
+    <Card className="space-y-3 p-5">
+      <h2 className="text-lg font-semibold">No training recorded for this week</h2>
+      <p className="text-sm text-muted-foreground">
+        {lastSession
+          ? `Your last training was ${formatUKDate(lastSession.date)}: ${lastSession.subtitle || lastSession.title}. You can pick up your programme when you are ready.`
+          : "Your programme is ready whenever you want to continue."}
+      </p>
+      <Button asChild size="sm">
+        <Link to="/">Continue my programme</Link>
+      </Button>
+    </Card>
+  ) : null;
+  const summaryStats = (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {stats.map((stat) => (
+        <Card key={stat.label} className="p-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
+            <stat.icon className="h-4 w-4 text-primary" />
+          </div>
+          <p className="mt-3 text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl">
+            {stat.value}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{stat.change}</p>
+        </Card>
+      ))}
+    </div>
+  );
+
+  if (isDesktop) {
+    return (
+      <DesktopReviewWorkspace
+        data={data}
+        section={reviewSection}
+        onSectionChange={setReviewSection}
+        header={header}
+        summaryStats={summaryStats}
+        emptyState={emptyState}
+        goals={<WeeklyGoalReview weekStart={data.weekStart} reviewEnd={data.reviewEnd} />}
+        programme={
+          <WeeklyProgrammeReview
+            current={data.weekStart === currentWeekStart}
+            onCurrentWeek={() => setWeekStart(currentWeekStart)}
+          />
+        }
+        onCurrentWeek={() => setWeekStart(currentWeekStart)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-5">
-      <header className="flex flex-wrap items-end justify-between gap-4 pb-2">
-        <div>
-          <h1 className="page-title">What happened, and what next?</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {data.isCurrentWeek ? "This week so far" : "Completed week"} · {rangeLabel}
-          </p>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setWeekStart(moveWeeklyReviewWeek(data.weekStart, -1))}
-            aria-label="Previous week"
-            title="Previous week"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setWeekStart(moveWeeklyReviewWeek(data.weekStart, 1))}
-            disabled={!canMoveForward}
-            aria-label="Next week"
-            title="Next week"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => {
-              refetch();
-              for (const key of [
-                "goals",
-                "goal-activity",
-                "goal-exercise-progress",
-                "programme-refresh",
-                "programme-strength-week-review",
-                "workout-planner-history",
-                "weekly-load-history",
-                "weekly-plan-adjustments",
-              ]) {
-                queryClient.invalidateQueries({ queryKey: [key] });
-              }
-            }}
-            disabled={isFetching}
-            aria-label="Refresh weekly review"
-            title="Refresh weekly review"
-          >
-            <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
-          </Button>
-        </div>
-      </header>
-
-      {emptyWeek ? (
-        <Card className="space-y-3 p-5">
-          <h2 className="text-lg font-semibold">No training recorded for this week</h2>
-          <p className="text-sm text-muted-foreground">
-            {lastSession
-              ? `Your last training was ${formatUKDate(lastSession.date)}: ${lastSession.subtitle || lastSession.title}. You can pick up your programme when you are ready.`
-              : "Your programme is ready whenever you want to continue."}
-          </p>
-          <Button asChild size="sm">
-            <Link to="/">Continue my programme</Link>
-          </Button>
-        </Card>
-      ) : null}
+      {header}
+      {emptyState}
 
       <WeeklyGoalReview weekStart={data.weekStart} reviewEnd={data.reviewEnd} />
       <WeeklyProgrammeReview
@@ -244,20 +289,7 @@ export function WeeklyReviewPage() {
           Show detailed weekly review
         </summary>
         <div className="mt-4 space-y-5">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {stats.map((stat) => (
-              <Card key={stat.label} className="p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
-                  <stat.icon className="h-4 w-4 text-primary" />
-                </div>
-                <p className="mt-3 text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl">
-                  {stat.value}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">{stat.change}</p>
-              </Card>
-            ))}
-          </div>
+          {summaryStats}
 
           <p className="text-xs text-muted-foreground">
             {data.comparisonLabel}. Current weeks use the same number of elapsed days.

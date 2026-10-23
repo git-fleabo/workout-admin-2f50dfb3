@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   activity: vi.fn(),
   review: vi.fn(),
 }));
+vi.mock("@/hooks/use-desktop", () => ({ useIsDesktop: () => false }));
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (config: unknown) => config,
   Link: ({
