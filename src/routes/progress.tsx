@@ -32,6 +32,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 
+import { DesktopProgressWorkspace } from "@/components/desktop-progress-workspace";
+import { useIsDesktop } from "@/hooks/use-desktop";
 import { ProgressHighlight } from "@/components/progress-highlight";
 import { ClimbingGradeChart } from "@/components/climbing-grade-chart";
 import { Button } from "@/components/ui/button";
@@ -662,6 +664,7 @@ function buildProfileStats(
 
 function ProgressPage() {
   const search = Route.useSearch();
+  const isDesktop = useIsDesktop();
   const library = useQuery({
     queryKey: ["progress-library"],
     queryFn: getLibraryClient,
@@ -932,218 +935,305 @@ function ProgressPage() {
     });
   }, [activeMethodFilter, history.data?.points, location, period, plannedActual.data]);
 
-  return (
-    <div className="space-y-6">
-      <header className="flex flex-col gap-4 pb-2 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="page-title">Exercise Progress</h1>
-          {lastLogged ? (
-            <p className="mt-1 text-sm text-muted-foreground">
-              Last logged {formatUKDate(lastLogged)}
-            </p>
-          ) : null}
-        </div>
+  const header = (
+    <header className="flex flex-col gap-4 pb-2 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <h1 className="page-title">Exercise Progress</h1>
+        {lastLogged ? (
+          <p className="mt-1 text-sm text-muted-foreground">
+            Last logged {formatUKDate(lastLogged)}
+          </p>
+        ) : null}
+      </div>
+      {isDesktop ? (
+        <p className="text-xl font-semibold">{exercise?.name ?? "Choose an exercise"}</p>
+      ) : (
         <ExercisePicker exercises={locationExercises} value={exerciseId} onChange={setExerciseId} />
-      </header>
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      )}
+    </header>
+  );
+  const filters = (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex gap-1 overflow-x-auto rounded-xl bg-secondary/30 p-1">
+        {PERIODS.map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => setPeriod(item.value)}
+            aria-pressed={period === item.value}
+            className={cn(
+              "whitespace-nowrap min-h-11 rounded-lg px-3 py-2 text-sm font-medium transition",
+              period === item.value
+                ? "bg-card text-primary shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-1 rounded-xl bg-secondary/30 p-1">
+        {(["all", "home", "gym"] as LocationFilter[]).map((item) => (
+          <button
+            key={item}
+            type="button"
+            onClick={() => setLocation(item)}
+            aria-pressed={location === item}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1 min-h-11 rounded-lg px-3 py-2 text-sm font-medium capitalize transition sm:flex-none",
+              location === item
+                ? "bg-card text-primary shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {item !== "all" && <MapPin className="h-3 w-3" />}
+            {item}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+  const methods =
+    metricProfile === "weighted" || metricProfile === "reps" ? (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Layers3 className="h-3.5 w-3.5" />
+          Training method
+        </div>
         <div className="flex gap-1 overflow-x-auto rounded-xl bg-secondary/30 p-1">
-          {PERIODS.map((item) => (
+          {[
+            { key: "all", label: "All methods" },
+            { key: "straight", label: "Straight sets" },
+            ...methodOptions,
+          ].map((method) => (
             <button
-              key={item.value}
+              key={method.key}
               type="button"
-              onClick={() => setPeriod(item.value)}
-              aria-pressed={period === item.value}
+              onClick={() => setMethodFilter(method.key)}
+              aria-pressed={methodFilter === method.key}
               className={cn(
                 "whitespace-nowrap min-h-11 rounded-lg px-3 py-2 text-sm font-medium transition",
-                period === item.value
+                methodFilter === method.key
                   ? "bg-card text-primary shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-1 rounded-xl bg-secondary/30 p-1">
-          {(["all", "home", "gym"] as LocationFilter[]).map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setLocation(item)}
-              aria-pressed={location === item}
-              className={cn(
-                "flex flex-1 items-center justify-center gap-1 min-h-11 rounded-lg px-3 py-2 text-sm font-medium capitalize transition sm:flex-none",
-                location === item
-                  ? "bg-card text-primary shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {item !== "all" && <MapPin className="h-3 w-3" />}
-              {item}
+              {method.label}
             </button>
           ))}
         </div>
       </div>
-
-      {metricProfile === "weighted" || metricProfile === "reps" ? (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <Layers3 className="h-3.5 w-3.5" />
-            Training method
-          </div>
-          <div className="flex gap-1 overflow-x-auto rounded-xl bg-secondary/30 p-1">
-            {[
-              { key: "all", label: "All methods" },
-              { key: "straight", label: "Straight sets" },
-              ...methodOptions,
-            ].map((method) => (
-              <button
-                key={method.key}
-                type="button"
-                onClick={() => setMethodFilter(method.key)}
-                aria-pressed={methodFilter === method.key}
-                className={cn(
-                  "whitespace-nowrap min-h-11 rounded-lg px-3 py-2 text-sm font-medium transition",
-                  methodFilter === method.key
-                    ? "bg-card text-primary shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {method.label}
-              </button>
-            ))}
-          </div>
+    ) : null;
+  const contentState =
+    library.isLoading ||
+    loggedExercises.isLoading ||
+    history.isLoading ||
+    (!exercise && exercises.length > 0) ? (
+      <div className="flex items-center justify-center py-24 text-sm text-muted-foreground">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading progress…
+      </div>
+    ) : library.error || loggedExercises.error || history.error ? (
+      <Card className="border-destructive/40">
+        <CardContent className="p-6 text-sm text-destructive">
+          Progress could not be loaded. Please refresh and try again.
+        </CardContent>
+      </Card>
+    ) : exercises.length === 0 ? (
+      <Card>
+        <CardContent className="p-6 text-sm text-muted-foreground">
+          No completed exercise logs yet. Finish a workout to start tracking progress.
+        </CardContent>
+      </Card>
+    ) : analysis.current.length === 0 ? (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <Dumbbell className="mx-auto mb-3 h-6 w-6 text-muted-foreground" />
+          <p className="font-medium">No matching sessions</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {needsFreshBaseline
+              ? `Your last ${exercise?.name ?? "exercise"} log was ${formatUKDate(lastLogged!)}. Use a comfortable starting point when you return, or choose a longer period to review older sessions.`
+              : "Try a longer period or switch the location filter."}
+          </p>
+        </CardContent>
+      </Card>
+    ) : null;
+  const highlight = (
+    <ProgressHighlight
+      exerciseName={exercise?.name ?? "This exercise"}
+      stat={profileStats[0]}
+      periodLabel={period === "all" ? "All recorded history" : `Last ${period} weeks`}
+      locationLabel={location === "all" ? "All locations" : location === "home" ? "Home" : "Gym"}
+      methodLabel={
+        activeMethodFilter === "all"
+          ? "All methods"
+          : activeMethodFilter === "straight"
+            ? "Straight sets"
+            : (methodOptions.find((method) => method.key === activeMethodFilter)?.label ??
+              "Selected method")
+      }
+    />
+  );
+  const stats = (
+    <section className="grid gap-3 sm:grid-cols-3">
+      <StatCard
+        icon={<Dumbbell className="h-4 w-4" />}
+        label="Sessions"
+        value={String(analysis.current.length)}
+        detail={location === "all" ? "All locations" : location}
+      />
+      {profileStats.slice(1).map((stat) => (
+        <StatCard
+          key={stat.label}
+          icon={
+            stat.icon === "scale" ? (
+              <Scale className="h-4 w-4" />
+            ) : stat.icon === "trend" ? (
+              <TrendingUp className="h-4 w-4" />
+            ) : (
+              <Gauge className="h-4 w-4" />
+            )
+          }
+          label={stat.label}
+          value={stat.value}
+          detail={stat.detail}
+          change={stat.change}
+          changeDirection={stat.changeDirection}
+        />
+      ))}
+    </section>
+  );
+  const charts = (
+    <ProfileCharts
+      profile={metricProfile}
+      points={analysis.current}
+      weeklyVolume={analysis.weeklyVolume}
+      weeklyHold={analysis.weeklyHold}
+      positionMeasurementLabel={exercise?.positionMeasurementLabel ?? ""}
+      positionMeasurementDirection={exercise?.positionMeasurementDirection ?? ""}
+      onSelectSession={setSelectedSessionId}
+    />
+  );
+  const recommendation = needsFreshBaseline ? (
+    <Card className="border-amber-400/25 bg-amber-400/[0.05] p-4 text-sm">
+      <p className="font-medium">Start with a fresh baseline</p>
+      <p className="mt-1 text-muted-foreground">
+        The last {exercise?.name ?? "exercise"} log was {formatUKDate(lastLogged!)}. Use the history
+        below as a reference and choose a comfortable starting point when you return.
+      </p>
+    </Card>
+  ) : metricProfile === "weighted" ? (
+    <>
+      <DecisionCard decision={decision} exerciseName={exercise?.name ?? "This exercise"} />
+      {programmeRule.data ? (
+        <div className="rounded-lg border border-primary/20 p-3 text-sm">
+          <p>
+            Progression from {programmeRule.data.programmeName} · next:{" "}
+            {programmeRule.data.session.name}
+          </p>
+          <Button asChild variant="outline" size="sm" className="mt-2">
+            <Link to="/plan">Review future programme targets</Link>
+          </Button>
         </div>
+      ) : programmeRule.isLoading ? (
+        <p className="text-xs text-muted-foreground">Checking your programme’s progression rule…</p>
+      ) : programmeRule.error ? (
+        <p role="alert" className="text-sm text-destructive">
+          Your programme rule could not be loaded. Check My Programme before changing targets.
+        </p>
       ) : null}
-
-      {library.isLoading ||
-      loggedExercises.isLoading ||
-      history.isLoading ||
-      (!exercise && exercises.length > 0) ? (
-        <div className="flex items-center justify-center py-24 text-sm text-muted-foreground">
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading progress…
-        </div>
-      ) : library.error || loggedExercises.error || history.error ? (
-        <Card className="border-destructive/40">
-          <CardContent className="p-6 text-sm text-destructive">
-            Progress could not be loaded. Please refresh and try again.
-          </CardContent>
-        </Card>
-      ) : exercises.length === 0 ? (
-        <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground">
-            No completed exercise logs yet. Finish a workout to start tracking progress.
-          </CardContent>
-        </Card>
-      ) : analysis.current.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <Dumbbell className="mx-auto mb-3 h-6 w-6 text-muted-foreground" />
-            <p className="font-medium">No matching sessions</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {needsFreshBaseline
-                ? `Your last ${exercise?.name ?? "exercise"} log was ${formatUKDate(lastLogged!)}. Use a comfortable starting point when you return, or choose a longer period to review older sessions.`
-                : "Try a longer period or switch the location filter."}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          <ProgressHighlight
-            exerciseName={exercise?.name ?? "This exercise"}
-            stat={profileStats[0]}
-            periodLabel={period === "all" ? "All recorded history" : `Last ${period} weeks`}
-            locationLabel={
-              location === "all" ? "All locations" : location === "home" ? "Home" : "Gym"
-            }
-            methodLabel={
-              activeMethodFilter === "all"
-                ? "All methods"
-                : activeMethodFilter === "straight"
-                  ? "Straight sets"
-                  : (methodOptions.find((method) => method.key === activeMethodFilter)?.label ??
-                    "Selected method")
-            }
-          />
-          <section className="grid gap-3 sm:grid-cols-3">
-            <StatCard
-              icon={<Dumbbell className="h-4 w-4" />}
-              label="Sessions"
-              value={String(analysis.current.length)}
-              detail={location === "all" ? "All locations" : location}
-            />
-            {profileStats.slice(1).map((stat) => (
-              <StatCard
-                key={stat.label}
-                icon={
-                  stat.icon === "scale" ? (
-                    <Scale className="h-4 w-4" />
-                  ) : stat.icon === "trend" ? (
-                    <TrendingUp className="h-4 w-4" />
-                  ) : (
-                    <Gauge className="h-4 w-4" />
-                  )
-                }
-                label={stat.label}
-                value={stat.value}
-                detail={stat.detail}
-                change={stat.change}
-                changeDirection={stat.changeDirection}
-              />
-            ))}
-          </section>
-
-          <ProfileCharts
-            profile={metricProfile}
-            points={analysis.current}
-            weeklyVolume={analysis.weeklyVolume}
-            weeklyHold={analysis.weeklyHold}
-            positionMeasurementLabel={exercise?.positionMeasurementLabel ?? ""}
-            positionMeasurementDirection={exercise?.positionMeasurementDirection ?? ""}
+    </>
+  ) : null;
+  const deeperAnalysis =
+    metricProfile === "weighted" || metricProfile === "reps" ? (
+      <details className="rounded-xl border border-border bg-card/40 p-3">
+        <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
+          Deeper analysis: methods and plan comparison
+        </summary>
+        <div className="mt-4 space-y-4">
+          <MethodComparison summaries={analysis.methodBreakdown} />
+          <PlannedActualHistory
+            comparisons={visibleComparisons}
+            isLoading={plannedActual.isLoading}
+            hasError={Boolean(plannedActual.error)}
             onSelectSession={setSelectedSessionId}
           />
-
-          {needsFreshBaseline ? (
-            <Card className="border-amber-400/25 bg-amber-400/[0.05] p-4 text-sm">
-              <p className="font-medium">Start with a fresh baseline</p>
-              <p className="mt-1 text-muted-foreground">
-                The last {exercise?.name ?? "exercise"} log was {formatUKDate(lastLogged!)}. Use the
-                history below as a reference and choose a comfortable starting point when you
-                return.
-              </p>
+        </div>
+      </details>
+    ) : null;
+  const sessionHistory = (
+    <SetHistory
+      points={analysis.current}
+      onSelectSession={setSelectedSessionId}
+      profile={metricProfile}
+    />
+  );
+  const climbing =
+    climbingProgress.isSuccess || projects.length ? (
+      <details open={isDesktop ? true : undefined} className="rounded-xl bg-card/60 p-5">
+        <summary className="cursor-pointer text-base font-semibold">
+          Climbing overview · all recorded history
+        </summary>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Independent of the exercise, period and location filters above.
+        </p>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.5fr)]">
+          <ClimbingGradeChart entries={climbingProgress.data ?? []} />
+          {projects.length ? (
+            <Card>
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="text-sm">Open climbing projects</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 p-4 pt-2 text-sm">
+                {projects.map((project) => (
+                  <div
+                    key={`${project.gradeSystem ?? ""}-${project.grade}`}
+                    className="flex justify-between gap-3"
+                  >
+                    <span className="font-medium">{project.grade}</span>
+                    <span className="text-muted-foreground">{project.gradeSystem ?? "Grade"}</span>
+                  </div>
+                ))}
+              </CardContent>
             </Card>
-          ) : metricProfile === "weighted" ? (
-            <>
-              <DecisionCard decision={decision} exerciseName={exercise?.name ?? "This exercise"} />
-              {programmeRule.data ? (
-                <div className="rounded-lg border border-primary/20 p-3 text-sm">
-                  <p>
-                    Progression from {programmeRule.data.programmeName} · next:{" "}
-                    {programmeRule.data.session.name}
-                  </p>
-                  <Button asChild variant="outline" size="sm" className="mt-2">
-                    <Link to="/plan">Review future programme targets</Link>
-                  </Button>
-                </div>
-              ) : programmeRule.isLoading ? (
-                <p className="text-xs text-muted-foreground">
-                  Checking your programme’s progression rule…
-                </p>
-              ) : programmeRule.error ? (
-                <p role="alert" className="text-sm text-destructive">
-                  Your programme rule could not be loaded. Check My Programme before changing
-                  targets.
-                </p>
-              ) : null}
-            </>
           ) : null}
+        </div>
+      </details>
+    ) : null;
+  const personalBests = (
+    <details
+      open={isDesktop ? true : undefined}
+      className="rounded-xl border border-border bg-card/40 p-4"
+    >
+      <summary className="cursor-pointer text-sm font-medium">Personal bests</summary>
+      <div className="mt-4 border-t border-border pt-4">
+        <PRsView />
+      </div>
+    </details>
+  );
+  const sessionDialog = (
+    <SessionDetailDialog
+      sessionId={selectedSessionId}
+      onOpenChange={(open) => !open && setSelectedSessionId(null)}
+    />
+  );
 
-          {metricProfile === "weighted" || metricProfile === "reps" ? (
-            <details className="rounded-xl border border-border bg-card/40 p-3">
-              <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
-                Deeper analysis: methods and plan comparison
-              </summary>
+  if (isDesktop) {
+    return (
+      <>
+        <DesktopProgressWorkspace
+          exercises={locationExercises}
+          exerciseId={exerciseId}
+          onExerciseChange={setExerciseId}
+          header={header}
+          filters={filters}
+          methods={methods}
+          contentState={contentState}
+          highlight={highlight}
+          stats={stats}
+          charts={charts}
+          recommendation={recommendation}
+          comparisons={
+            metricProfile === "weighted" || metricProfile === "reps" ? (
               <div className="mt-4 space-y-4">
                 <MethodComparison summaries={analysis.methodBreakdown} />
                 <PlannedActualHistory
@@ -1153,60 +1243,34 @@ function ProgressPage() {
                   onSelectSession={setSelectedSessionId}
                 />
               </div>
-            </details>
-          ) : null}
-
-          <SetHistory
-            points={analysis.current}
-            onSelectSession={setSelectedSessionId}
-            profile={metricProfile}
-          />
+            ) : null
+          }
+          history={sessionHistory}
+          climbing={climbing}
+          personalBests={personalBests}
+        />
+        {sessionDialog}
+      </>
+    );
+  }
+  return (
+    <div className="space-y-6">
+      {header}
+      {filters}
+      {methods}
+      {contentState || (
+        <>
+          {highlight}
+          {stats}
+          {charts}
+          {recommendation}
+          {deeperAnalysis}
+          {sessionHistory}
         </>
       )}
-      {climbingProgress.isSuccess || projects.length ? (
-        <details className="rounded-xl bg-card/60 p-5">
-          <summary className="cursor-pointer text-base font-semibold">
-            Climbing overview · all recorded history
-          </summary>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Independent of the exercise, period and location filters above.
-          </p>
-          <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.5fr)]">
-            <ClimbingGradeChart entries={climbingProgress.data ?? []} />
-            {projects.length ? (
-              <Card>
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-sm">Open climbing projects</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2 p-4 pt-2 text-sm">
-                  {projects.map((project) => (
-                    <div
-                      key={`${project.gradeSystem ?? ""}-${project.grade}`}
-                      className="flex justify-between gap-3"
-                    >
-                      <span className="font-medium">{project.grade}</span>
-                      <span className="text-muted-foreground">
-                        {project.gradeSystem ?? "Grade"}
-                      </span>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            ) : null}
-          </div>
-        </details>
-      ) : null}
-
-      <details className="rounded-xl border border-border bg-card/40 p-4">
-        <summary className="cursor-pointer text-sm font-medium">Personal bests</summary>
-        <div className="mt-4 border-t border-border pt-4">
-          <PRsView />
-        </div>
-      </details>
-      <SessionDetailDialog
-        sessionId={selectedSessionId}
-        onOpenChange={(open) => !open && setSelectedSessionId(null)}
-      />
+      {climbing}
+      {personalBests}
+      {sessionDialog}
     </div>
   );
 }

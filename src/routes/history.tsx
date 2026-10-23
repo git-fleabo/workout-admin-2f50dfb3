@@ -16,6 +16,8 @@ import {
   Trash2,
 } from "lucide-react";
 
+import { DesktopHistoryWorkspace } from "@/components/desktop-history-workspace";
+import { useIsDesktop } from "@/hooks/use-desktop";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -179,6 +181,9 @@ function kindMeta(kind: TimelineKind) {
 
 export function HistoryPage({ requestedSessionId }: { requestedSessionId?: string } = {}) {
   const qc = useQueryClient();
+  const isDesktop = useIsDesktop();
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [mode, setMode] = useState<PeriodMode>("month");
   const [anchor, setAnchor] = useState(() => startOfPeriod(new Date(), "month"));
   const [visibleDates, setVisibleDates] = useState(30);
@@ -205,6 +210,7 @@ export function HistoryPage({ requestedSessionId }: { requestedSessionId?: strin
     setMode("month");
     setAnchor(startOfPeriod(new Date(`${members[0].date}T00:00:00Z`), "month"));
     setFilter("all");
+    setSearch("");
     setSelected(sessionHistoryEntry(members));
   }, [requestedSessionId, timeline.data]);
 
@@ -237,7 +243,7 @@ export function HistoryPage({ requestedSessionId }: { requestedSessionId?: strin
   const endISO = toISODate(end);
   useEffect(() => {
     setVisibleDates(30);
-  }, [startISO, endISO, filter]);
+  }, [startISO, endISO, filter, search, sort]);
 
   const allPeriodEntries = useMemo(() => {
     const rows = timeline.data?.entries ?? [];
@@ -274,8 +280,26 @@ export function HistoryPage({ requestedSessionId }: { requestedSessionId?: strin
         const sessions = Array.from(sessionGroups.values()).map(sessionHistoryEntry);
         return [date, sessions] as const;
       })
-      .sort((a, b) => b[0].localeCompare(a[0]));
-  }, [periodEntries]);
+      .map(
+        ([date, entries]) =>
+          [
+            date,
+            entries.filter(
+              (entry) =>
+                !isDesktop ||
+                !search.trim() ||
+                [entry.title, entry.subtitle, ...entry.details, entry.notes]
+                  .join(" ")
+                  .toLowerCase()
+                  .includes(search.trim().toLowerCase()),
+            ),
+          ] as const,
+      )
+      .filter(([, entries]) => entries.length > 0)
+      .sort((a, b) =>
+        isDesktop && sort === "oldest" ? a[0].localeCompare(b[0]) : b[0].localeCompare(a[0]),
+      );
+  }, [periodEntries, isDesktop, search, sort]);
 
   const summary = useMemo(() => {
     const activeDays = new Set(
@@ -327,50 +351,316 @@ export function HistoryPage({ requestedSessionId }: { requestedSessionId?: strin
     return <Card className="p-6 text-sm text-destructive">Couldn’t load history. {message}</Card>;
   }
 
+  const desktopEntries = grouped.slice(0, visibleDates).flatMap(([, entries]) => entries);
+  const displayedSelection = isDesktop
+    ? (grouped.flatMap(([, entries]) => entries).find((entry) => entry.id === selected?.id) ??
+      desktopEntries[0] ??
+      null)
+    : selected;
+  const header = (
+    <header className="flex flex-wrap items-end justify-between gap-3 pb-2">
+      <div>
+        <h1 className="page-title">History</h1>
+        <p className="text-sm text-muted-foreground">
+          {periodLabel(start, mode)} · {summary.activeDays} training{" "}
+          {summary.activeDays === 1 ? "day" : "days"} · {summary.measurements}{" "}
+          {summary.measurements === 1 ? "measurement" : "measurements"}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setAnchor((current) => addPeriod(current, mode, -1))}
+          aria-label="Previous period"
+          title="Previous period"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <div className="min-w-[150px] text-center text-sm font-medium">
+          {periodLabel(start, mode)}
+        </div>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setAnchor((current) => addPeriod(current, mode, 1))}
+          aria-label="Next period"
+          title="Next period"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </header>
+  );
+  const sourceNotice =
+    requestedSessionId &&
+    !timeline.data.entries.some((entry) => entry.sessionId === requestedSessionId) ? (
+      <Card className="p-4 text-sm text-muted-foreground">
+        This source session is no longer available in your history. You can still browse the
+        remaining records below.
+      </Card>
+    ) : null;
+  const filters = (
+    <section className="flex flex-wrap items-center justify-between gap-3">
+      <div className="inline-flex rounded-lg border border-border p-1">
+        {PERIODS.map((period) => (
+          <Button
+            key={period.value}
+            type="button"
+            aria-pressed={mode === period.value}
+            variant={mode === period.value ? "secondary" : "ghost"}
+            size="sm"
+            className="h-8"
+            onClick={() => changeMode(period.value)}
+          >
+            {period.label}
+          </Button>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {FILTERS.map((item) => (
+          <Button
+            key={item.value}
+            type="button"
+            aria-pressed={filter === item.value}
+            variant={filter === item.value ? "secondary" : "outline"}
+            size="sm"
+            className="h-8"
+            onClick={() => setFilter(item.value)}
+          >
+            {item.label}
+          </Button>
+        ))}
+      </div>
+    </section>
+  );
+  const stats = (
+    <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <StatTile label="Entries" value={summary.entries.toString()} />
+      <StatTile label="Training days" value={summary.activeDays.toString()} />
+      <StatTile label="Workouts" value={summary.workouts.toString()} />
+      <StatTile label="Climbing" value={`${summary.climbHours}h`} />
+      <StatTile label="PRs" value={summary.prs.toString()} />
+    </section>
+  );
+  const consistency = (
+    <div className="rounded-lg border border-border bg-background/40 p-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">Training consistency</h2>
+          <p className="text-xs text-muted-foreground">Sessions logged in the last 12 months</p>
+        </div>
+        <span className="text-xs text-muted-foreground">Less · More</span>
+      </div>
+      <div
+        className="mt-3 grid max-w-full grid-flow-col grid-rows-7 gap-1 overflow-x-auto pb-1"
+        aria-label="Training activity over the last 12 months"
+      >
+        {heatmap.map((day) => (
+          <span
+            key={day.date}
+            title={`${day.date}: ${day.sessions} session${day.sessions === 1 ? "" : "s"}`}
+            className={cn(
+              "h-3 w-3 rounded-sm border border-border/40",
+              day.sessions === 0
+                ? "bg-muted/40"
+                : day.sessions === 1
+                  ? "bg-emerald-400/40"
+                  : day.sessions === 2
+                    ? "bg-emerald-400/65"
+                    : "bg-emerald-400",
+            )}
+          />
+        ))}
+      </div>
+    </div>
+  );
+  const trainingStory = story ? (
+    <TrainingStoryCard
+      story={story}
+      title={
+        mode === "year"
+          ? `${start.getUTCFullYear()} in training`
+          : `${periodLabel(start, mode)} story`
+      }
+    />
+  ) : null;
+  const pagination =
+    grouped.length > visibleDates ? (
+      <Button
+        variant="outline"
+        className="w-full"
+        onClick={() => setVisibleDates((count) => count + 30)}
+      >
+        Show more history ({grouped.length - visibleDates} dates remaining)
+      </Button>
+    ) : null;
+  const recordList =
+    grouped.length === 0 ? (
+      <Card className="flex flex-col items-center justify-center gap-2 p-10 text-center text-sm text-muted-foreground">
+        <Search className="h-5 w-5" />
+        No history for this view.
+      </Card>
+    ) : (
+      <section className="space-y-4">
+        {grouped.slice(0, visibleDates).map(([date, entries]) => (
+          <div key={date} className="space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <CalendarDays className="h-4 w-4" />
+              <span>{formatUKDate(date)}</span>
+              <span className="h-px flex-1 bg-border" />
+              <span>
+                {entries.length}{" "}
+                {entries.every((entry) => entry.kind === "bodyweight" || entry.kind === "one_rm")
+                  ? `measurement${entries.length === 1 ? "" : "s"}`
+                  : entries.length === 1
+                    ? "entry"
+                    : "entries"}
+              </span>
+            </div>
+            <div className="grid min-w-0 grid-cols-1 gap-2">
+              {entries.map((entry) => {
+                const meta = kindMeta(entry.kind);
+                return (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => setSelected(entry)}
+                    className={cn(
+                      "min-w-0 rounded-lg border p-3 text-left transition hover:border-foreground/25",
+                      meta.className,
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5">{meta.icon}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 className="max-w-full truncate text-sm font-semibold text-foreground">
+                            {entry.title}
+                          </h2>
+                          {entry.isPr && <Badge className="h-5 bg-amber-500 text-black">PR</Badge>}
+                          {entry.kind === "workout" ? (
+                            <WorkoutLifecycleBadge state="completed" />
+                          ) : null}
+                        </div>
+                        <p className="mt-0.5 text-xs text-muted-foreground">{entry.subtitle}</p>
+                        {entry.details.length > 0 && (
+                          <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
+                            {entry.details.join(" · ")}
+                          </p>
+                        )}
+                      </div>
+                      <Badge variant="outline" className="shrink-0">
+                        {meta.label}
+                      </Badge>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+        {pagination}
+      </section>
+    );
+  const recordDetails = displayedSelection ? (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        {displayedSelection.details.map((detail) => (
+          <Badge key={detail} variant="secondary">
+            {detail}
+          </Badge>
+        ))}
+      </div>
+      {displayedSelection.notes && (
+        <WorkoutHistoryNotes
+          notes={displayedSelection.notes}
+          summaryLog={displayedSelection.details.includes("Summary log")}
+        />
+      )}
+      {displayedSelection.sessionId && (
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={deleteMutation.isPending}
+            onClick={() =>
+              setDeleteTarget({
+                id: displayedSelection.sessionId ?? "",
+                title: displayedSelection.title,
+                description: `${displayedSelection.title} from ${formatUKDate(
+                  displayedSelection.date,
+                )} will be permanently removed from your log. If this was a multi-exercise session, the whole session will be removed.`,
+              })
+            }
+            className="border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+          >
+            {deleteMutation.isPending ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="mr-1 h-4 w-4" />
+            )}
+            Delete session
+          </Button>
+        </DialogFooter>
+      )}
+    </div>
+  ) : null;
+  const mobileDialog = (
+    <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        {selected && (
+          <>
+            <DialogHeader>
+              <DialogTitle>{selected.title}</DialogTitle>
+              <DialogDescription>
+                {formatUKDate(selected.date)} · {selected.subtitle}
+              </DialogDescription>
+            </DialogHeader>
+            {recordDetails}
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+  const deleteConfirmation = (
+    <DeleteConfirmDialog
+      target={deleteTarget}
+      busy={deleteMutation.isPending}
+      onCancel={() => setDeleteTarget(null)}
+      onConfirm={(id) => deleteMutation.mutate(id)}
+    />
+  );
+
+  if (isDesktop) {
+    return (
+      <>
+        <DesktopHistoryWorkspace
+          header={header}
+          sourceNotice={sourceNotice}
+          filters={filters}
+          stats={stats}
+          consistency={consistency}
+          story={trainingStory}
+          entries={desktopEntries}
+          totalRecords={grouped.reduce((count, [, entries]) => count + entries.length, 0)}
+          selected={displayedSelection}
+          onSelect={setSelected}
+          search={search}
+          onSearchChange={setSearch}
+          sort={sort}
+          onSortChange={setSort}
+          details={recordDetails}
+          pagination={pagination}
+        />
+        {deleteConfirmation}
+      </>
+    );
+  }
   return (
     <div className="min-w-0 space-y-5">
-      <header className="flex flex-wrap items-end justify-between gap-3 pb-2">
-        <div>
-          <h1 className="page-title">History</h1>
-          <p className="text-sm text-muted-foreground">
-            {periodLabel(start, mode)} · {summary.activeDays} training{" "}
-            {summary.activeDays === 1 ? "day" : "days"} · {summary.measurements}{" "}
-            {summary.measurements === 1 ? "measurement" : "measurements"}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setAnchor((current) => addPeriod(current, mode, -1))}
-            aria-label="Previous period"
-            title="Previous period"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <div className="min-w-[150px] text-center text-sm font-medium">
-            {periodLabel(start, mode)}
-          </div>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setAnchor((current) => addPeriod(current, mode, 1))}
-            aria-label="Next period"
-            title="Next period"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </header>
-
-      {requestedSessionId &&
-      !timeline.data.entries.some((entry) => entry.sessionId === requestedSessionId) ? (
-        <Card className="p-4 text-sm text-muted-foreground">
-          This source session is no longer available in your history. You can still browse the
-          remaining records below.
-        </Card>
-      ) : null}
-
+      {header}
+      {sourceNotice}
       <details className="rounded-xl border border-border bg-card/40 p-4">
         <summary className="cursor-pointer text-sm font-medium">
           Summary and filters
@@ -379,230 +669,15 @@ export function HistoryPage({ requestedSessionId }: { requestedSessionId?: strin
           ) : null}
         </summary>
         <div className="mt-4 space-y-4 border-t border-border pt-4">
-          <section className="flex flex-wrap items-center justify-between gap-3">
-            <div className="inline-flex rounded-lg border border-border p-1">
-              {PERIODS.map((period) => (
-                <Button
-                  key={period.value}
-                  type="button"
-                  variant={mode === period.value ? "secondary" : "ghost"}
-                  size="sm"
-                  className="h-8"
-                  onClick={() => changeMode(period.value)}
-                >
-                  {period.label}
-                </Button>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {FILTERS.map((item) => (
-                <Button
-                  key={item.value}
-                  type="button"
-                  variant={filter === item.value ? "secondary" : "outline"}
-                  size="sm"
-                  className="h-8"
-                  onClick={() => setFilter(item.value)}
-                >
-                  {item.label}
-                </Button>
-              ))}
-            </div>
-          </section>
-
-          <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
-            <StatTile label="Entries" value={summary.entries.toString()} />
-            <StatTile label="Training days" value={summary.activeDays.toString()} />
-            <StatTile label="Workouts" value={summary.workouts.toString()} />
-            <StatTile label="Climbing" value={`${summary.climbHours}h`} />
-            <StatTile label="PRs" value={summary.prs.toString()} />
-          </section>
-
-          <div className="rounded-lg border border-border bg-background/40 p-4">
-            <div className="flex items-baseline justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold">Training consistency</h2>
-                <p className="text-xs text-muted-foreground">
-                  Sessions logged in the last 12 months
-                </p>
-              </div>
-              <span className="text-xs text-muted-foreground">Less · More</span>
-            </div>
-            <div
-              className="mt-3 grid max-w-full grid-flow-col grid-rows-7 gap-1 overflow-x-auto pb-1"
-              aria-label="Training activity over the last 12 months"
-            >
-              {heatmap.map((day) => (
-                <span
-                  key={day.date}
-                  title={`${day.date}: ${day.sessions} session${day.sessions === 1 ? "" : "s"}`}
-                  className={cn(
-                    "h-3 w-3 rounded-sm border border-border/40",
-                    day.sessions === 0
-                      ? "bg-muted/40"
-                      : day.sessions === 1
-                        ? "bg-emerald-400/40"
-                        : day.sessions === 2
-                          ? "bg-emerald-400/65"
-                          : "bg-emerald-400",
-                  )}
-                />
-              ))}
-            </div>
-          </div>
+          {filters}
+          {stats}
+          {consistency}
         </div>
       </details>
-
-      {story ? (
-        <TrainingStoryCard
-          story={story}
-          title={
-            mode === "year"
-              ? `${start.getUTCFullYear()} in training`
-              : `${periodLabel(start, mode)} story`
-          }
-        />
-      ) : null}
-
-      {grouped.length === 0 ? (
-        <Card className="flex flex-col items-center justify-center gap-2 p-10 text-center text-sm text-muted-foreground">
-          <Search className="h-5 w-5" />
-          No history for this view.
-        </Card>
-      ) : (
-        <section className="space-y-4">
-          {grouped.slice(0, visibleDates).map(([date, entries]) => (
-            <div key={date} className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <CalendarDays className="h-4 w-4" />
-                <span>{formatUKDate(date)}</span>
-                <span className="h-px flex-1 bg-border" />
-                <span>
-                  {entries.length}{" "}
-                  {entries.every((entry) => entry.kind === "bodyweight" || entry.kind === "one_rm")
-                    ? `measurement${entries.length === 1 ? "" : "s"}`
-                    : entries.length === 1
-                      ? "entry"
-                      : "entries"}
-                </span>
-              </div>
-              <div className="grid min-w-0 grid-cols-1 gap-2">
-                {entries.map((entry) => {
-                  const meta = kindMeta(entry.kind);
-                  return (
-                    <button
-                      key={entry.id}
-                      type="button"
-                      onClick={() => setSelected(entry)}
-                      className={cn(
-                        "min-w-0 rounded-lg border p-3 text-left transition hover:border-foreground/25",
-                        meta.className,
-                      )}
-                    >
-                      <div className="flex items-start gap-3">
-                        <span className="mt-0.5">{meta.icon}</span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h2 className="max-w-full truncate text-sm font-semibold text-foreground">
-                              {entry.title}
-                            </h2>
-                            {entry.isPr && (
-                              <Badge className="h-5 bg-amber-500 text-black">PR</Badge>
-                            )}
-                            {entry.kind === "workout" ? (
-                              <WorkoutLifecycleBadge state="completed" />
-                            ) : null}
-                          </div>
-                          <p className="mt-0.5 text-xs text-muted-foreground">{entry.subtitle}</p>
-                          {entry.details.length > 0 && (
-                            <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
-                              {entry.details.join(" · ")}
-                            </p>
-                          )}
-                        </div>
-                        <Badge variant="outline" className="shrink-0">
-                          {meta.label}
-                        </Badge>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-          {grouped.length > visibleDates ? (
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => setVisibleDates((count) => count + 30)}
-            >
-              Show more history ({grouped.length - visibleDates} dates remaining)
-            </Button>
-          ) : null}
-        </section>
-      )}
-
-      <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
-          {selected && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{selected.title}</DialogTitle>
-                <DialogDescription>
-                  {formatUKDate(selected.date)} · {selected.subtitle}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  {selected.details.map((detail) => (
-                    <Badge key={detail} variant="secondary">
-                      {detail}
-                    </Badge>
-                  ))}
-                </div>
-                {selected.notes && (
-                  <WorkoutHistoryNotes
-                    notes={selected.notes}
-                    summaryLog={selected.details.includes("Summary log")}
-                  />
-                )}
-                {selected.sessionId && (
-                  <DialogFooter>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={deleteMutation.isPending}
-                      onClick={() =>
-                        setDeleteTarget({
-                          id: selected.sessionId ?? "",
-                          title: selected.title,
-                          description: `${selected.title} from ${formatUKDate(
-                            selected.date,
-                          )} will be permanently removed from your log. If this was a multi-exercise session, the whole session will be removed.`,
-                        })
-                      }
-                      className="border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                    >
-                      {deleteMutation.isPending ? (
-                        <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="mr-1 h-4 w-4" />
-                      )}
-                      Delete session
-                    </Button>
-                  </DialogFooter>
-                )}
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-      <DeleteConfirmDialog
-        target={deleteTarget}
-        busy={deleteMutation.isPending}
-        onCancel={() => setDeleteTarget(null)}
-        onConfirm={(id) => deleteMutation.mutate(id)}
-      />
+      {trainingStory}
+      {recordList}
+      {mobileDialog}
+      {deleteConfirmation}
     </div>
   );
 }

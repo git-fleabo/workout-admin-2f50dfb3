@@ -5,7 +5,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ExerciseSessionPoint } from "@/lib/training-types";
 
-const mocks = vi.hoisted(() => ({ points: [] as ExerciseSessionPoint[] }));
+const mocks = vi.hoisted(() => ({ points: [] as ExerciseSessionPoint[], desktop: false }));
+vi.mock("@/hooks/use-desktop", () => ({ useIsDesktop: () => mocks.desktop }));
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (config: object) => ({
     ...config,
@@ -13,7 +14,10 @@ vi.mock("@tanstack/react-router", () => ({
   }),
   Link: ({ children }: { children: ReactNode }) => <span>{children}</span>,
 }));
-vi.mock("@/components/session-detail-dialog", () => ({ SessionDetailDialog: () => null }));
+vi.mock("@/components/session-detail-dialog", () => ({
+  SessionDetailDialog: ({ sessionId }: { sessionId: string | null }) =>
+    sessionId ? <div role="dialog">Session {sessionId}</div> : null,
+}));
 vi.mock("@/components/workout-logger/prs-view", () => ({ PRsView: () => null }));
 vi.mock("recharts", async (original) => ({
   ...(await original<object>()),
@@ -29,11 +33,29 @@ vi.mock("@/lib/supabase-log.browser", () => ({
         metric: "weight_reps",
         locationScope: "both",
       },
+      {
+        id: "deadlift",
+        name: "Deadlift",
+        workoutType: "Strength",
+        metric: "weight_reps",
+        locationScope: "gym",
+      },
+      {
+        id: "run",
+        name: "Treadmill Run",
+        workoutType: "Cardio",
+        metric: "distance",
+        locationScope: "home",
+      },
     ],
   }),
 }));
 vi.mock("@/lib/supabase-history.browser", () => ({
-  getLoggedExerciseKeysClient: async () => ({ ids: ["bench"], names: ["bench press"], recent: [] }),
+  getLoggedExerciseKeysClient: async () => ({
+    ids: ["bench", "deadlift", "run"],
+    names: ["bench press", "deadlift", "treadmill run"],
+    recent: [],
+  }),
   getExerciseHistoryClient: async () => ({ points: mocks.points }),
   getPlannedActualComparisonsClient: async () => [],
 }));
@@ -90,6 +112,7 @@ function showProgress() {
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-22T12:00:00Z"));
+  mocks.desktop = false;
   mocks.points = [
     point("2026-07-20", 50),
     point("2026-10-10", 55, "home"),
@@ -127,4 +150,41 @@ it("shows an unmeasured result without inventing zero or a percentage", async ()
   expect(within(highlight).getByText("Not measured")).toBeInTheDocument();
   expect(highlight).not.toHaveTextContent("0 kg");
   expect(highlight).not.toHaveTextContent("%");
+});
+
+it("uses the desktop exercise list, filters the selected exercise, and opens exact sessions from its history", async () => {
+  mocks.desktop = true;
+  const user = userEvent.setup();
+  showProgress();
+  await screen.findByTestId("desktop-progress-workspace");
+  await screen.findByLabelText("Progress highlight");
+  const search = screen.getByRole("textbox", { name: "Search logged exercises" });
+  await user.type(search, "dead");
+  expect(screen.queryByRole("button", { name: /Bench Press/ })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /Deadlift/ }));
+  expect(await screen.findByLabelText("Progress highlight")).toHaveTextContent("Deadlift");
+  await user.clear(search);
+  await user.click(screen.getByRole("button", { name: "home", exact: true }));
+  expect(screen.queryByRole("button", { name: /Deadlift/ })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /Bench Press/ }));
+  expect(await screen.findByLabelText("Progress highlight")).toHaveTextContent("55 kg");
+  await user.click(screen.getByRole("tab", { name: "Session history" }));
+  expect(screen.getByText("Exact session history")).toBeVisible();
+  const sessionTable = screen.getByRole("table");
+  await user.click(within(sessionTable).getByRole("button", { name: /10 Oct 2026/ }));
+  expect(screen.getByRole("dialog")).toHaveTextContent("2026-10-10");
+});
+
+it("returns to trends if an exercise does not support the selected analysis tab", async () => {
+  mocks.desktop = true;
+  const user = userEvent.setup();
+  showProgress();
+  await screen.findByLabelText("Progress highlight");
+  await user.click(screen.getByRole("tab", { name: "Methods & plan" }));
+  expect(screen.getByText("Method comparison")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: /Treadmill Run/ }));
+  expect(screen.getByRole("tab", { name: "Trends" })).toHaveAttribute("aria-selected", "true");
+  expect(screen.queryByRole("tab", { name: "Methods & plan" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("tab", { name: "Personal bests" }));
+  expect(screen.getByRole("tabpanel")).toHaveTextContent("Personal bests");
 });
