@@ -2839,7 +2839,7 @@ export function FullWorkoutForm() {
               {draftTime ? ` · Autosaved ${draftTime}` : ""}
             </summary>
             <Card className="space-y-4 border-border bg-card p-4 sm:p-5">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="text-base font-semibold">Your workout</h2>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -2908,12 +2908,12 @@ export function FullWorkoutForm() {
                   <summary className="cursor-pointer text-sm font-medium">
                     Repeat a recent workout
                   </summary>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {recentSessionTemplates.map((session) => (
                       <button
                         key={session.id}
                         type="button"
-                        className="rounded-md border border-border bg-background p-3 text-left transition-colors hover:bg-secondary/60"
+                        className="min-w-0 rounded-md border border-border bg-background p-3 text-left transition-colors hover:bg-secondary/60"
                         onClick={() => requestRecentSession(session)}
                       >
                         <span className="flex items-center justify-between gap-2">
@@ -3094,8 +3094,8 @@ export function FullWorkoutForm() {
                         : "border-border/60"
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 className="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="min-w-0 break-words flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight">
                       {compactMovement ? entry.exercise : `Movement ${index + 1}`}
                       {methodBlock ? (
                         <Badge
@@ -3106,7 +3106,7 @@ export function FullWorkoutForm() {
                         </Badge>
                       ) : null}
                     </h3>
-                    <div className="flex items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-1">
                       <Button
                         type="button"
                         variant="ghost"
@@ -3215,7 +3215,7 @@ export function FullWorkoutForm() {
                       Change movement
                     </summary>
                     <Field label="Movement">
-                      <div className="flex gap-2">
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
                         <MovementPicker
                           value={entry.exercise}
                           exercises={workoutLibraryExercises}
@@ -3818,7 +3818,7 @@ export function FullWorkoutForm() {
             <Button
               type="button"
               variant="outline"
-              className="min-h-11"
+              className="h-auto min-h-11 whitespace-normal"
               disabled={focusedIndex === 0}
               onClick={() => setFocusedMovementId(form.entries[focusedIndex - 1]?.clientId ?? null)}
             >
@@ -3827,7 +3827,7 @@ export function FullWorkoutForm() {
             <Button
               type="button"
               variant="outline"
-              className="min-h-11"
+              className="h-auto min-h-11 whitespace-normal"
               disabled={focusedIndex >= form.entries.length - 1}
               onClick={() => setFocusedMovementId(form.entries[focusedIndex + 1]?.clientId ?? null)}
             >

@@ -4,6 +4,21 @@ Last updated: 2026-10-25
 
 This file is the handoff document for the train n track workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
 
+## 2026-10-25 Mobile Logger Sizing Fix
+
+- Recent-workout cards use a bounded single-column grid on phones and allow long labels
+  to shrink. The movement picker reserves a separate column for the favourite button,
+  keeping both controls inside the card even with long exercise names.
+- Session and movement headers wrap when space is tight; focused previous/next movement
+  buttons can wrap their labels at narrow widths.
+- Verification: 35 logging/accessibility component tests, TypeScript, focused ESLint,
+  formatting and the production build pass. A local browser fixture using the real form
+  and production CSS verified expanded recent workouts, repeating a workout, favouriting,
+  movement search/selection and focused mode at 320/390/430/768/1440px with no document
+  horizontal overflow. Picker/favourite alignment was checked at every width.
+- This was synthetic local UI verification; no live training records or database schema
+  changed. Commit/push and Lovable sync/publish remain separate from the live release.
+
 ## 2026-10-25 Rest-Day History Query Fix
 
 - The shared pagination reader now uses `(person_id, rest_date)` for `training_rest_days`.

@@ -96,7 +96,7 @@ export function MovementPicker({
           role="combobox"
           {...fieldControl}
           aria-expanded={open}
-          className="w-full justify-between font-normal"
+          className="min-w-0 w-full justify-between font-normal"
         >
           <span className={value ? "truncate" : "truncate text-muted-foreground"}>
             {value || "Search movements"}
