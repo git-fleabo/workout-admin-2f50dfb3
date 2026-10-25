@@ -88,9 +88,14 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const settingsActive = SETTINGS_PATHS.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   );
-  const workspaceRoute = ["/plan", "/library", "/weekly-review", "/progress", "/history"].includes(
-    pathname,
-  );
+  const workspaceRoute = [
+    "/plan",
+    "/library",
+    "/dashboard",
+    "/weekly-review",
+    "/progress",
+    "/history",
+  ].includes(pathname);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -167,7 +172,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <div className="border-t border-border/70 bg-muted/15">
             <nav
               aria-label="Review sections"
-              className="mx-auto grid max-w-6xl grid-cols-4 gap-1 px-3 py-2 sm:flex sm:px-5"
+              className={`mx-auto grid max-w-6xl ${workspaceRoute ? "lg:max-w-[1560px]" : ""} grid-cols-4 gap-1 px-3 py-2 sm:flex sm:px-5`}
             >
               {REVIEW_NAV.map((item) => {
                 const active = pathMatches(pathname, item);

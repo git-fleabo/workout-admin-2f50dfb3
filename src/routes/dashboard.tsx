@@ -46,6 +46,9 @@ import {
 } from "@/components/ui/table";
 import { formatUKDate, formatUKDateShort, todayISO } from "@/lib/date";
 import { getDashboardDataClient, type DashboardData } from "@/lib/supabase-dashboard.browser";
+import { dashboardDaySummary } from "@/lib/dashboard-day";
+import { useIsDesktop } from "@/hooks/use-desktop";
+import { DashboardDayEntries, DesktopDashboardWeek } from "@/components/desktop-dashboard-week";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -69,7 +72,8 @@ const DEFAULT_MINUTE_GOAL = 180;
 const fmt = (v: number | null | undefined, suffix = "") =>
   v == null || (typeof v === "number" && !Number.isFinite(v)) ? "—" : `${v}${suffix}`;
 
-function DashboardPage() {
+export function DashboardPage() {
+  const isDesktop = useIsDesktop();
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => getDashboardDataClient(),
@@ -102,7 +106,7 @@ function DashboardPage() {
   const hasUnrecordedMinutes = data.kpis.workoutsThisWeek > 0 && data.kpis.minutesThisWeek <= 0;
 
   return (
-    <div className="space-y-4">
+    <div className={isDesktop ? "space-y-5" : "space-y-4"}>
       {/* Header */}
       <header className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-3">
         <div>
@@ -148,8 +152,11 @@ function DashboardPage() {
       <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatusTile
           icon={<CalendarRange className="h-3.5 w-3.5" />}
-          label="Week starting"
-          value={formatUKDateShort(data.thisWeekStart)}
+          label={isDesktop ? "Active days this week" : "Week starting"}
+          value={
+            isDesktop ? `${data.kpis.activeDaysThisWeek}` : formatUKDateShort(data.thisWeekStart)
+          }
+          hint={isDesktop ? "of 7 days" : undefined}
           accent="primary"
         />
         <StatusTile
@@ -181,32 +188,53 @@ function DashboardPage() {
         />
       </section>
 
-      {/* Calendar */}
-      <section>
-        <WeekCalendar data={data} />
-      </section>
-
-      {/* Climbing + Strength */}
-      <section className="grid gap-4 lg:grid-cols-2">
-        <ClimbingSummary data={data} />
-        <StrengthSnapshot data={data} />
-      </section>
-
-      {/* Monthly summary + Recent PRs */}
-      <section className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <MonthlySummary data={data} />
+      {isDesktop ? (
+        <div
+          className="grid grid-cols-[minmax(0,1fr)_300px] items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]"
+          data-testid="desktop-dashboard-workspace"
+        >
+          <div className="min-w-0 space-y-5">
+            <DesktopDashboardWeek days={data.weekDays} />
+            <TrendChart data={data} desktop />
+            <MonthlySummary data={data} />
+          </div>
+          <aside aria-label="Training snapshot" className="min-w-0 space-y-4">
+            <StrengthSnapshot data={data} compact />
+            <ClimbingSummary data={data} compact />
+            <RecentPRs data={data} />
+            <TrendSummary data={data} />
+          </aside>
         </div>
-        <RecentPRs data={data} />
-      </section>
+      ) : (
+        <>
+          {/* Calendar */}
+          <section>
+            <WeekCalendar data={data} />
+          </section>
 
-      {/* Trend since start */}
-      <section className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <TrendChart data={data} />
-        </div>
-        <TrendSummary data={data} />
-      </section>
+          {/* Climbing + Strength */}
+          <section className="grid gap-4 lg:grid-cols-2">
+            <ClimbingSummary data={data} />
+            <StrengthSnapshot data={data} />
+          </section>
+
+          {/* Monthly summary + Recent PRs */}
+          <section className="grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <MonthlySummary data={data} />
+            </div>
+            <RecentPRs data={data} />
+          </section>
+
+          {/* Trend since start */}
+          <section className="grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <TrendChart data={data} />
+            </div>
+            <TrendSummary data={data} />
+          </section>
+        </>
+      )}
     </div>
   );
 }
@@ -259,7 +287,7 @@ function Panel({
 }) {
   const a = accent ? ACCENTS[accent] : null;
   return (
-    <Card className={`p-4 ${a ? a.card : "border-border bg-card"} ${className}`}>
+    <Card className={`min-w-0 p-4 ${a ? a.card : "border-border bg-card"} ${className}`}>
       <div className="mb-3 flex items-center gap-2">
         {icon && <span className={a ? a.icon : "text-muted-foreground"}>{icon}</span>}
         <h2 className={`text-sm font-semibold ${a ? a.title : ""}`}>{title}</h2>
@@ -426,56 +454,9 @@ function WeekCalendar({ data }: { data: Data }) {
             <>
               <DialogHeader>
                 <DialogTitle>{formatUKDate(openDay.date)}</DialogTitle>
-                <DialogDescription>
-                  {openDay.workouts > 0
-                    ? `${openDay.workouts} workout${openDay.workouts === 1 ? "" : "s"} · ${openDay.minutes > 0 ? `${Math.round(openDay.minutes)} min` : "duration not recorded"}`
-                    : openDay.entries.length > 0
-                      ? `${Math.round(openDay.minutes)} min logged`
-                      : "Rest day"}
-                </DialogDescription>
+                <DialogDescription>{dashboardDaySummary(openDay)}</DialogDescription>
               </DialogHeader>
-              {openDay.entries.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nothing logged for this day.</p>
-              ) : (
-                <ul className="max-h-[68vh] space-y-3 overflow-y-auto pr-1">
-                  {openDay.entries.map((e, i) => (
-                    <li
-                      key={`${e.exercise}-${i}`}
-                      className="rounded-lg border border-border/60 bg-secondary/20 p-3.5"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">{e.exercise}</p>
-                          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                            {e.activityLabel}
-                            {!e.counts && e.activityLabel !== "Climbing" ? " · no credit" : ""}
-                          </p>
-                        </div>
-                      </div>
-                      {e.details.length ? (
-                        <dl className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
-                          {e.details.map((detail) => (
-                            <Detail
-                              key={`${detail.label}-${detail.value}`}
-                              label={detail.label}
-                              value={detail.value}
-                            />
-                          ))}
-                        </dl>
-                      ) : (
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          No performance details were recorded.
-                        </p>
-                      )}
-                      {e.notes && (
-                        <p className="mt-3 border-t border-border/50 pt-2 text-xs text-muted-foreground">
-                          {e.notes}
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <DashboardDayEntries day={openDay} />
             </>
           )}
         </DialogContent>
@@ -493,20 +474,11 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded border border-border/40 bg-background/40 px-2 py-1">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="text-sm font-medium">{value}</div>
-    </div>
-  );
-}
-
-function ClimbingSummary({ data }: { data: Data }) {
+function ClimbingSummary({ data, compact = false }: { data: Data; compact?: boolean }) {
   const c = data.climbing;
   return (
     <Panel title="Climbing Summary" icon={<Mountain className="h-4 w-4" />} accent="amber">
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
+      <dl className={`grid grid-cols-2 gap-x-4 gap-y-2 text-sm ${compact ? "" : "sm:grid-cols-4"}`}>
         <Stat label="Sessions · 30d" value={fmt(c.sessionsLast30Days)} />
         <Stat label="Hours · 30d" value={fmt(c.hoursLast30Days, "h")} />
         <Stat label="Problems · 30d" value={fmt(c.bouldersLast30Days)} />
@@ -526,11 +498,24 @@ function ClimbingSummary({ data }: { data: Data }) {
   );
 }
 
-function StrengthSnapshot({ data }: { data: Data }) {
+function StrengthSnapshot({ data, compact = false }: { data: Data; compact?: boolean }) {
   const s = data.strength;
   return (
-    <Panel title="Strength Snapshot" icon={<Dumbbell className="h-4 w-4" />} accent="rose">
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+    <Panel
+      title="Strength Snapshot"
+      icon={<Dumbbell className="h-4 w-4" />}
+      accent="rose"
+      action={
+        compact ? (
+          <Link to="/progress" className="text-xs text-primary hover:underline">
+            Progress
+          </Link>
+        ) : undefined
+      }
+    >
+      <dl
+        className={`grid gap-x-4 gap-y-2 text-sm ${compact ? "grid-cols-1" : "grid-cols-2 sm:grid-cols-3"}`}
+      >
         <Stat label="Best 1RM" value={s.bestLift ? `${s.bestLift.value}kg` : "—"} />
         <Stat label="Latest test" value={s.latestTest ? `${s.latestTest.value}kg` : "—"} />
         <Stat label="Exercises" value={s.exercisesTracked.toString()} />
@@ -538,20 +523,24 @@ function StrengthSnapshot({ data }: { data: Data }) {
       <div className="mt-3 space-y-1.5 text-xs">
         {s.bestLift && (
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-secondary/20 px-2.5 py-1.5">
-            <span className="truncate">
+            <span className="min-w-0 truncate" title={s.bestLift.name}>
               <span className="text-muted-foreground">Best:</span>{" "}
               <span className="text-foreground">{s.bestLift.name}</span>
             </span>
-            <span className="text-muted-foreground">{formatUKDateShort(s.bestLift.date)}</span>
+            <span className="shrink-0 text-muted-foreground">
+              {formatUKDateShort(s.bestLift.date)}
+            </span>
           </div>
         )}
         {s.latestTest && (
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-secondary/20 px-2.5 py-1.5">
-            <span className="truncate">
+            <span className="min-w-0 truncate" title={s.latestTest.name}>
               <span className="text-muted-foreground">Latest:</span>{" "}
               <span className="text-foreground">{s.latestTest.name}</span>
             </span>
-            <span className="text-muted-foreground">{formatUKDateShort(s.latestTest.date)}</span>
+            <span className="shrink-0 text-muted-foreground">
+              {formatUKDateShort(s.latestTest.date)}
+            </span>
           </div>
         )}
         {!s.bestLift && !s.latestTest && (
@@ -649,13 +638,13 @@ function RecentPRs({ data }: { data: Data }) {
   );
 }
 
-function TrendChart({ data }: { data: Data }) {
+function TrendChart({ data, desktop = false }: { data: Data; desktop?: boolean }) {
   return (
     <Panel title="Trend Since Start" icon={<TrendingUp className="h-4 w-4" />} accent="primary">
       {data.workoutsByWeek.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">No workout data yet.</p>
       ) : (
-        <ResponsiveContainer width="100%" height={180}>
+        <ResponsiveContainer width="100%" height={desktop ? 260 : 180}>
           <AreaChart data={data.workoutsByWeek}>
             <defs>
               <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
@@ -691,6 +680,7 @@ function TrendChart({ data }: { data: Data }) {
             <Area
               type="monotone"
               dataKey="workouts"
+              name="Workouts"
               stroke="var(--color-chart-1)"
               strokeWidth={2}
               fill="url(#trendFill)"
