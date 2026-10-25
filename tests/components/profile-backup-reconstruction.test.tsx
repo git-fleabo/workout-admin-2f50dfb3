@@ -68,6 +68,7 @@ it.skipIf(Boolean(pgSkip))(
         display_name: "Other private profile",
         email: "other-private@example.test",
       });
+      add("training_rest_days", { person_id: id(1), rest_date: "2026-10-24" });
       add("people", {
         id: id(3),
         display_name: "Template author",

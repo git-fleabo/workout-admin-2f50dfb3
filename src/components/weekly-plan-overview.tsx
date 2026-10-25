@@ -7,6 +7,7 @@ import {
   Home,
   Layers3,
   Mountain,
+  Moon,
   Pencil,
   Play,
   RotateCcw,
@@ -43,6 +44,7 @@ import type { ProgrammeScheduleSession } from "@/lib/supabase-programmes.browser
 import type { PlannerLocation } from "@/lib/workout-plan";
 import type { WeeklyPlan, WeeklyPlanAdjustments, WeeklyPlanItemKind } from "@/lib/weekly-plan";
 import { cn } from "@/lib/utils";
+import { RestDayControl } from "@/components/rest-day-control";
 
 export function programmeMovementGuidance(reason: string, restTime?: string) {
   const guidance = reason.trim();
@@ -135,6 +137,7 @@ export function WeeklyPlanOverview({
   onStartScheduledPlan,
   onMoveScheduledPlan,
   onRemoveScheduledPlan,
+  restDates = [],
 }: {
   plan: WeeklyPlan;
   programmeSessions: ProgrammeScheduleSession[];
@@ -149,6 +152,7 @@ export function WeeklyPlanOverview({
   onStartScheduledPlan?: (plan: SavedWorkoutPlan) => void;
   onMoveScheduledPlan?: (id: string, date: string) => void;
   onRemoveScheduledPlan?: (id: string) => void;
+  restDates?: string[];
 }) {
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [selectedProgrammeSession, setSelectedProgrammeSession] =
@@ -219,9 +223,11 @@ export function WeeklyPlanOverview({
           Show suggested dates and other training
         </summary>
         <div className="mt-4 space-y-3">
+          <RestDayControl date={plan.startDate} allowDateChange />
           <div className="grid gap-2 sm:grid-cols-7">
             {plan.days.map((day, index) => {
-              const plannedItems = adjustments[day.date] ?? day.inferredItems;
+              const isRest = restDates.includes(day.date);
+              const plannedItems = isRest ? [] : (adjustments[day.date] ?? day.inferredItems);
               const scheduledProgrammeSessions = programmeSessions.filter(
                 (session) => session.date === day.date,
               );
@@ -240,6 +246,15 @@ export function WeeklyPlanOverview({
                   </p>
                   <p className="mt-0.5 text-sm font-medium">{formatUKDateShort(day.date)}</p>
                   <div className="mt-3 flex flex-col items-start gap-1.5">
+                    {isRest ? (
+                      <Badge
+                        variant="outline"
+                        className="border-indigo-400/30 bg-indigo-400/10 text-indigo-300"
+                      >
+                        <Moon className="mr-1 h-3 w-3" />
+                        Rest day
+                      </Badge>
+                    ) : null}
                     {scheduledProgrammeSessions.map((session) => (
                       <button
                         type="button"
@@ -303,7 +318,8 @@ export function WeeklyPlanOverview({
                     {plannedItems.map((item) => (
                       <ItemBadge key={item} item={item} />
                     ))}
-                    {!completed &&
+                    {!isRest &&
+                    !completed &&
                     plannedItems.length === 0 &&
                     scheduledProgrammeSessions.length === 0 &&
                     dayPlans.length === 0 ? (
@@ -398,6 +414,7 @@ export function WeeklyPlanOverview({
               );
             })}
           </div>
+          {editingDay ? <RestDayControl date={editingDay.date} /> : null}
           <div className="space-y-3 border-t border-border pt-4">
             <div>
               <p className="text-sm font-semibold">Schedule a session you can start</p>

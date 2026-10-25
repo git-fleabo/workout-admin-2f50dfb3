@@ -1,5 +1,13 @@
 -- Column and constraint snapshot of all 56 public tables, 2026-10-11.
 -- Schema only; no live training records. Auth identities/permissions are external.
+-- Rest-day additions after the original schema snapshot.
+create table public.training_rest_days (
+  person_id uuid not null,
+  rest_date date not null,
+  date_changes jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  primary key (person_id,rest_date)
+);
 create schema auth;
 create table auth.users(id uuid primary key);
 create table public.activity_types (id uuid default gen_random_uuid() not null,

@@ -1,4 +1,6 @@
 import { ProgrammeRescheduleDialog } from "@/components/programme-reschedule-dialog";
+import { RestDayControl } from "@/components/rest-day-control";
+import { useRestDays } from "@/hooks/use-rest-days";
 import { programmeSessionScheduledDate } from "@/lib/programme-reschedule";
 import { countLabel } from "@/lib/display-labels";
 import { repLabel } from "@/lib/workout-preview";
@@ -199,6 +201,8 @@ function availableProgrammeLocations(
 
 export function TodayPage() {
   const today = todayISO();
+  const restDays = useRestDays();
+  const isRestDay = restDays.data?.some((day) => day.rest_date === today) ?? false;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<WorkoutLocalSummary | null>(null);
@@ -427,9 +431,17 @@ export function TodayPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-7">
       <header className="pb-1">
-        <h1 className="page-title">Your next session</h1>
+        <h1 className="page-title">{isRestDay ? "Today is a rest day" : "Your next session"}</h1>
         <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
           <CalendarCheck2 className="h-4 w-4" /> {formatUKDate(today)}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <RestDayControl date={today} allowDateChange />
+          {isRestDay ? (
+            <p className="text-sm text-muted-foreground">
+              Rest planned. Your next workout will be ready when you are.
+            </p>
+          ) : null}
         </div>
       </header>
 

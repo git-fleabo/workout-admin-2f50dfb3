@@ -21,6 +21,7 @@ export type WeeklyPlanLocation = {
 
 export type WeeklyPlanDay = {
   date: string;
+  isRestDay?: boolean;
   expected: PlannerLocation[];
   completed: PlannerLocation[];
   inferredItems: WeeklyPlanItemKind[];
@@ -235,12 +236,19 @@ export function buildWeeklyPlan(
   logs: WeeklyLogs,
   today: string,
   loadHistory: WeeklyLoadHistoryItem[] = [],
+  restDates: string[] = [],
 ): WeeklyPlan {
   const locations = {
     home: buildLocationPlan(logs.home, "home", today),
     gym: buildLocationPlan(logs.gym, "gym", today),
   };
   const loadPatterns = buildLoadPatterns(loadHistory, today);
+  for (const location of Object.values(locations)) {
+    location.expectedDates = location.expectedDates.filter((date) => !restDates.includes(date));
+  }
+  for (const pattern of loadPatterns) {
+    pattern.expectedDates = pattern.expectedDates.filter((date) => !restDates.includes(date));
+  }
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = addDays(today, index);
     const expected = (["home", "gym"] as const).filter((location) =>
@@ -273,7 +281,15 @@ export function buildWeeklyPlan(
         .filter((item) => item.date === date)
         .map((item) => ({ sessionId: item.id, item: item.kind })),
     ];
-    return { date, expected, completed, inferredItems, completedItems, completedEvidence };
+    return {
+      date,
+      isRestDay: restDates.includes(date),
+      expected,
+      completed,
+      inferredItems,
+      completedItems,
+      completedEvidence,
+    };
   });
   return {
     startDate: today,

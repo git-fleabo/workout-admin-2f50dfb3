@@ -1,4 +1,5 @@
 import { supabaseSelectAll } from "./supabase-pagination.browser";
+import { listTrainingRestDaysClient } from "./supabase-rest-days.browser";
 
 import { claimNoamProfile, getCurrentPerson } from "./supabase-people.browser";
 import { getMovementMetricProfile } from "./movement-metrics";
@@ -79,7 +80,7 @@ type BodyweightRecord = {
   notes: string | null;
 };
 
-export type TimelineKind = "workout" | "climb" | "one_rm" | "bodyweight";
+export type TimelineKind = "workout" | "climb" | "one_rm" | "bodyweight" | "rest";
 
 export type TimelineEntry = {
   id: string;
@@ -372,7 +373,7 @@ export async function getTimelineDataClient(): Promise<TimelineData> {
   const person = (await getCurrentPerson()) ?? (await claimNoamProfile());
   if (!person) throw new Error("Link this login to your profile first.");
 
-  const [sessions, oneRmRows, bodyweightRows] = await Promise.all([
+  const [sessions, oneRmRows, bodyweightRows, restDays] = await Promise.all([
     supabaseSelectAll<SessionRecord>("sessions", {
       person_id: `eq.${person.id}`,
       select:
@@ -390,6 +391,7 @@ export async function getTimelineDataClient(): Promise<TimelineData> {
       select: "id,logged_date,bodyweight,notes",
       order: "logged_date.desc",
     }),
+    listTrainingRestDaysClient(),
   ]);
 
   const entries: TimelineEntry[] = [];
@@ -406,6 +408,23 @@ export async function getTimelineDataClient(): Promise<TimelineData> {
   }
   entries.push(...oneRmRows.map(oneRmEntry));
   entries.push(...bodyweightRows.map(bodyweightEntry));
+  entries.push(
+    ...restDays.map(
+      ({ rest_date }): TimelineEntry => ({
+        id: `rest-${rest_date}`,
+        sessionId: null,
+        kind: "rest",
+        date: rest_date,
+        title: "Rest day",
+        subtitle: "Planned rest",
+        details: [],
+        notes: "Rest is recorded separately from workouts.",
+        minutes: null,
+        value: null,
+        isPr: false,
+      }),
+    ),
+  );
 
   entries.sort((a, b) => b.date.localeCompare(a.date) || a.title.localeCompare(b.title));
   return { entries };

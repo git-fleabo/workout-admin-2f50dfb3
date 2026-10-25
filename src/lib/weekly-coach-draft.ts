@@ -113,6 +113,7 @@ function sourceFingerprint({
     week: [plan.startDate, plan.endDate],
     completed: plan.days.map((day) => [
       day.date,
+      day.isRestDay ?? false,
       [...day.completedItems].sort(),
       [...(day.completedEvidence ?? [])].sort(
         (left, right) =>
@@ -257,7 +258,11 @@ export function buildWeeklyCoachDraft({
     .map((day) => day.date)
     .filter((date) => date >= plan.startDate && date <= plan.endDate);
   const availableDates = weekDates.filter(
-    (date) => date >= today && date >= plan.startDate && date <= plan.endDate,
+    (date) =>
+      date >= today &&
+      date >= plan.startDate &&
+      date <= plan.endDate &&
+      !plan.days.find((day) => day.date === date)?.isRestDay,
   );
   const programmeInWeek = programmeSessions.filter(
     (session) => session.date >= plan.startDate && session.date <= plan.endDate,

@@ -7,6 +7,8 @@ import type { ProgrammeScheduleSession } from "@/lib/supabase-programmes.browser
 import type { SavedWorkoutPlan } from "@/lib/supabase-plans.browser";
 import type { WeeklyPlan } from "@/lib/weekly-plan";
 
+vi.mock("@/components/rest-day-control", () => ({ RestDayControl: () => null }));
+
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
 }));
@@ -203,4 +205,18 @@ it("adds a yoga session to the selected day with an executable prescription", as
   await userEvent.click(screen.getByRole("button", { name: "Plan yoga" }));
 
   expect(scheduleYoga).toHaveBeenCalledWith("2026-09-28", "home", 30);
+});
+
+it("shows explicit rest without inferring training or labelling the day open", () => {
+  render(
+    <WeeklyPlanOverview
+      plan={plan}
+      programmeSessions={[]}
+      adjustments={{}}
+      onAdjustDay={vi.fn()}
+      restDates={["2026-09-28"]}
+    />,
+  );
+  expect(screen.getByText("Rest day")).toBeInTheDocument();
+  expect(screen.queryByText("Open")).not.toBeInTheDocument();
 });

@@ -132,13 +132,15 @@ export function DesktopHistoryWorkspace({
                         {formatUKDate(entry.date)}
                       </TableCell>
                       <TableCell className="text-xs">
-                        {entry.kind === "one_rm"
-                          ? "1RM"
-                          : entry.kind === "bodyweight"
-                            ? "Bodyweight"
-                            : entry.kind === "climb"
-                              ? "Climb"
-                              : "Workout"}
+                        {entry.kind === "rest"
+                          ? "Rest"
+                          : entry.kind === "one_rm"
+                            ? "1RM"
+                            : entry.kind === "bodyweight"
+                              ? "Bodyweight"
+                              : entry.kind === "climb"
+                                ? "Climb"
+                                : "Workout"}
                       </TableCell>
                       <TableCell className="whitespace-nowrap pr-4 text-right text-xs tabular-nums">
                         {entry.minutes != null && entry.minutes > 0

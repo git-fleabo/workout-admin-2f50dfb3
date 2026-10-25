@@ -9,6 +9,7 @@ import {
   HeartPulse,
   Layers3,
   Mountain,
+  Moon,
   Play,
   RotateCcw,
   Sparkles,
@@ -36,6 +37,7 @@ import {
 } from "@/components/weekly-plan-overview";
 import { formatUKDateShort } from "@/lib/date";
 import { addCalendarDays, calendarWeekDates, startOfMondayWeek } from "@/lib/calendar-week";
+import { RestDayControl } from "@/components/rest-day-control";
 import { MOBILITY_SKILLS } from "@/lib/mobility-practice";
 import type { SavedWorkoutPlan } from "@/lib/supabase-plans.browser";
 import type { ProgrammeScheduleSession } from "@/lib/supabase-programmes.browser";
@@ -245,6 +247,7 @@ function WeekWorkspace({
     scheduledPlans = [],
     scheduling = false,
     onMoveScheduledPlan,
+    restDates = [],
   } = weekProps;
   const [selection, setSelection] = useState<Selection>({ type: "day", date: today });
   const [dragId, setDragId] = useState<string | null>(null);
@@ -307,7 +310,8 @@ function WeekWorkspace({
         <div className="grid grid-cols-7 gap-2">
           {dates.map((date) => {
             const planDay = plan.days.find((day) => day.date === date);
-            const planned = planDay ? (adjustments[date] ?? planDay.inferredItems) : [];
+            const isRest = restDates.includes(date);
+            const planned = !isRest && planDay ? (adjustments[date] ?? planDay.inferredItems) : [];
             const completed = planDay?.completedItems ?? [];
             const sessions = programmeSessions.filter((session) => session.date === date);
             const saved = scheduledPlans.filter((item) => item.suggestedFor === date);
@@ -360,6 +364,15 @@ function WeekWorkspace({
                   <span className="text-xs font-medium">{formatUKDateShort(date)}</span>
                 </div>
                 <div className="mt-2 flex flex-col gap-1.5">
+                  {isRest ? (
+                    <Badge
+                      variant="outline"
+                      className="border-indigo-400/30 bg-indigo-400/10 text-indigo-300"
+                    >
+                      <Moon className="mr-1 h-3 w-3" />
+                      Rest day
+                    </Badge>
+                  ) : null}
                   {sessions.map((session) => (
                     <button
                       type="button"
@@ -443,7 +456,11 @@ function WeekWorkspace({
                   {planned.map((item) => (
                     <ItemChip key={item} item={item} />
                   ))}
-                  {!sessions.length && !saved.length && !completed.length && !planned.length ? (
+                  {!isRest &&
+                  !sessions.length &&
+                  !saved.length &&
+                  !completed.length &&
+                  !planned.length ? (
                     <span className="text-xs text-muted-foreground/60">Open</span>
                   ) : null}
                 </div>
@@ -712,6 +729,7 @@ function DayInspector({
     scheduling = false,
     onScheduleYoga,
     onScheduleMobility,
+    restDates = [],
   } = weekProps;
   const [location, setLocation] = useState<PlannerLocation>("home");
   const [yogaMinutes, setYogaMinutes] = useState("30");
@@ -721,7 +739,8 @@ function DayInspector({
   }, [mobilityRuns, runId]);
 
   const planDay = plan.days.find((day) => day.date === date);
-  const planned = planDay ? (adjustments[date] ?? planDay.inferredItems) : [];
+  const isRest = restDates.includes(date);
+  const planned = !isRest && planDay ? (adjustments[date] ?? planDay.inferredItems) : [];
   const sessions = programmeSessions.filter((session) => session.date === date);
   const saved = scheduledPlans.filter((item) => item.suggestedFor === date);
   const isPast = date < today;
@@ -735,6 +754,15 @@ function DayInspector({
         <h3 className="text-base font-semibold">
           {dayLabel(date, true)}, {formatUKDateShort(date)}
         </h3>
+        <div className="mt-3 space-y-2">
+          {isRest ? (
+            <p className="flex items-center gap-1.5 text-sm text-indigo-300">
+              <Moon className="h-4 w-4" />
+              Rest day
+            </p>
+          ) : null}
+          <RestDayControl date={date} />
+        </div>
       </div>
 
       <div className="space-y-1.5">

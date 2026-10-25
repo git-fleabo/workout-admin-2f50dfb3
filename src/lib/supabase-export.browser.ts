@@ -12,6 +12,7 @@ type Row = Record<string, unknown>;
 const PAGE_SIZE = 500;
 const ID_BATCH_SIZE = 50;
 const compositeOrder: Record<string, string> = {
+  training_rest_days: "person_id.asc,rest_date.asc",
   person_training_methods: "person_id.asc,training_method_id.asc",
   coaching_preferences: "person_id.asc",
   personal_programmes: "assignment_id.asc",
@@ -91,6 +92,7 @@ async function captureProfileData(personId: string) {
   const data = {} as ProfileBackupData;
   for (const table of PROFILE_BACKUP_TABLES) data[table] = [];
   const ownedTables: Partial<Record<BackupTable, string>> = {
+    training_rest_days: "person_id",
     people: "id",
     programs: "created_by_person_id",
     sessions: "person_id",

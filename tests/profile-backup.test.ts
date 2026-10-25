@@ -15,11 +15,18 @@ const empty = (): ProfileBackupData => {
 test("profile backups carry a version, explicit table counts and recovery exclusions", () => {
   const backup = makeProfileBackup(empty(), "person");
   assert.equal(backup.schema_version, 2);
-  assert.equal(PROFILE_BACKUP_TABLES.length, 56);
+  assert.equal(PROFILE_BACKUP_TABLES.length, 57);
   assert.equal(backup.backup_manifest.table_counts.people, 1);
   assert.ok(backup.backup_manifest.excluded.some((item) => item.includes("Auth")));
   assert.ok(backup.backup_manifest.excluded.some((item) => item.includes("unsynced")));
   assert.deepEqual(readProfileBackup(JSON.stringify(backup)), backup);
+});
+
+test("backups predating rest days remain readable", () => {
+  const old = JSON.parse(JSON.stringify(makeProfileBackup(empty(), "person")));
+  delete old.training_rest_days;
+  delete old.backup_manifest.table_counts.training_rest_days;
+  assert.deepEqual(readProfileBackup(JSON.stringify(old)).training_rest_days, []);
 });
 test("reader rejects partial, unsupported and inconsistent backups rather than accepting data loss", () => {
   const backup = makeProfileBackup(empty(), "person");

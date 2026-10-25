@@ -11,6 +11,7 @@ import {
   Dumbbell,
   Loader2,
   Mountain,
+  Moon,
   Scale,
   Search,
   Trash2,
@@ -42,6 +43,7 @@ import { buildTrainingStory, type TrainingStory } from "@/lib/training-story";
 import { DeleteConfirmDialog, type DeleteTarget } from "@/components/workout-logger/form-bits";
 import { buildTrainingHeatmap } from "@/lib/training-heatmap";
 import { WorkoutHistoryNotes } from "@/components/workout-history-notes";
+import { RestDayControl } from "@/components/rest-day-control";
 
 export const Route = createFileRoute("/history")({
   validateSearch: (search: Record<string, unknown>): { session?: string } =>
@@ -96,6 +98,7 @@ const FILTERS: { value: KindFilter; label: string }[] = [
   { value: "climb", label: "Climb" },
   { value: "one_rm", label: "1RM" },
   { value: "bodyweight", label: "Bodyweight" },
+  { value: "rest", label: "Rest" },
 ];
 
 function toISODate(date: Date) {
@@ -151,6 +154,12 @@ function periodLabel(start: Date, mode: PeriodMode) {
 }
 
 function kindMeta(kind: TimelineKind) {
+  if (kind === "rest")
+    return {
+      label: "Rest",
+      icon: <Moon className="h-4 w-4" />,
+      className: "border-indigo-400/30 bg-indigo-400/10 text-indigo-300",
+    };
   if (kind === "climb") {
     return {
       label: "Climb",
@@ -508,6 +517,9 @@ export function HistoryPage({ requestedSessionId }: { requestedSessionId?: strin
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <CalendarDays className="h-4 w-4" />
               <span>{formatUKDate(date)}</span>
+              {entries.some((entry) => entry.kind === "rest") ? (
+                <RestDayControl date={date} />
+              ) : null}
               <span className="h-px flex-1 bg-border" />
               <span>
                 {entries.length}{" "}
@@ -565,6 +577,9 @@ export function HistoryPage({ requestedSessionId }: { requestedSessionId?: strin
     );
   const recordDetails = displayedSelection ? (
     <div className="space-y-3">
+      {displayedSelection.kind === "rest" ? (
+        <RestDayControl date={displayedSelection.date} />
+      ) : null}
       <div className="flex flex-wrap gap-2">
         {displayedSelection.details.map((detail) => (
           <Badge key={detail} variant="secondary">

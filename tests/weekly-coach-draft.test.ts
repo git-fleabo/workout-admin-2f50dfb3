@@ -141,6 +141,22 @@ test("drafting pairs skill work with strength and puts mobility on an open day",
   );
 });
 
+test("rest days are excluded from coach dates and invalidate a reviewed draft", () => {
+  const inputs = {
+    plan,
+    programmeSessions: [],
+    scheduledPlans: [],
+    preferences,
+    candidates: [candidate("mobility:shoulder", "mobility")],
+    today: dates[0],
+  };
+  const initial = buildWeeklyCoachDraft(inputs);
+  const restPlan = { ...plan, days: plan.days.map((day) => ({ ...day, isRestDay: true })) };
+  const rested = buildWeeklyCoachDraft({ ...inputs, plan: restPlan });
+  assert.equal(rested.additions.length, 0);
+  assert.notEqual(rested.sourceFingerprint, initial.sourceFingerprint);
+});
+
 test("a priority already saved in the week is not drafted again", () => {
   const draft = buildWeeklyCoachDraft({
     plan,

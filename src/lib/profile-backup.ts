@@ -19,6 +19,7 @@ export const PROFILE_BACKUP_TABLES = [
   "training_methods",
   "person_training_methods",
   "bodyweight_logs",
+  "training_rest_days",
   "one_rm_tests",
   "goals",
   "goal_checkins",
@@ -72,6 +73,7 @@ export type ProfileBackup = ProfileBackupData & {
   };
 };
 const primaryKeys: Partial<Record<BackupTable, string[]>> = {
+  training_rest_days: ["person_id", "rest_date"],
   coaching_preferences: ["person_id"],
   person_training_methods: ["person_id", "training_method_id"],
   personal_programmes: ["assignment_id"],
@@ -184,6 +186,14 @@ export function readProfileBackup(value: string): ProfileBackup {
     throw new Error("This is not a supported Train & Track profile backup.");
   // v1 predates programme date overrides. Upgrade only an absent table/count;
   // a malformed or partially missing newer record must still fail validation.
+  if (
+    backup.training_rest_days === undefined &&
+    backup.backup_manifest?.table_counts?.training_rest_days === undefined
+  ) {
+    backup.training_rest_days = [];
+    if (backup.backup_manifest?.table_counts)
+      backup.backup_manifest.table_counts.training_rest_days = 0;
+  }
   if (
     backup.schema_version === 1 &&
     backup.programme_session_dates === undefined &&

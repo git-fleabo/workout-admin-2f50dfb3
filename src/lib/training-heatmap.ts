@@ -1,6 +1,6 @@
 export type HeatmapSourceEntry = {
   date: string;
-  kind: "workout" | "climb" | "one_rm" | "bodyweight";
+  kind: "workout" | "climb" | "one_rm" | "bodyweight" | "rest";
   sessionId: string | null;
 };
 

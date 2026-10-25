@@ -45,6 +45,8 @@ import {
 import { WeeklyPlanOverview } from "@/components/weekly-plan-overview";
 import { DesktopBuilderSummary, DesktopPlanWorkspace } from "@/components/desktop-plan-workspace";
 import { useIsDesktop } from "@/hooks/use-desktop";
+import { useRestDays } from "@/hooks/use-rest-days";
+import { listTrainingRestDaysClient } from "@/lib/supabase-rest-days.browser";
 import { ProgrammeRefreshCard } from "@/components/programme-refresh-card";
 import { MyProgrammeOverview } from "@/components/my-programme-overview";
 import { MobilityPracticeOverview } from "@/components/mobility-practice-overview";
@@ -247,6 +249,7 @@ function methodBlockSummary(block: WorkoutPlanMethodBlock) {
 }
 
 function PlanPage() {
+  const restDays = useRestDays();
   const { programme: selectedProgrammeId, session: selectedSessionId } = Route.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -439,13 +442,25 @@ function PlanPage() {
     };
   }, [history.data?.recent, library.data?.exercises]);
   const weeklyPlan = useMemo(
-    () => buildWeeklyPlan(weeklyLogs, today, weeklyLoad.data ?? []),
-    [today, weeklyLoad.data, weeklyLogs],
+    () =>
+      buildWeeklyPlan(
+        weeklyLogs,
+        today,
+        weeklyLoad.data ?? [],
+        (restDays.data ?? []).map((day) => day.rest_date),
+      ),
+    [today, weeklyLoad.data, weeklyLogs, restDays.data],
   );
   const desktopWeekEnd = addCalendarDays(desktopWeekStart, 6);
   const desktopWeeklyPlan = useMemo(
-    () => buildWeeklyPlan(weeklyLogs, desktopWeekStart, weeklyLoad.data ?? []),
-    [desktopWeekStart, weeklyLoad.data, weeklyLogs],
+    () =>
+      buildWeeklyPlan(
+        weeklyLogs,
+        desktopWeekStart,
+        weeklyLoad.data ?? [],
+        (restDays.data ?? []).map((day) => day.rest_date),
+      ),
+    [desktopWeekStart, weeklyLoad.data, weeklyLogs, restDays.data],
   );
   const previousWeekStart = moveWeeklyReviewWeek(weeklyPlan.startDate, -1);
   const weeklyRolloverReview = useQuery({
@@ -1362,16 +1377,23 @@ function PlanPage() {
       if (!additions.length) throw new Error("Choose at least one session to add.");
 
       const today = todayISO();
-      const [freshHistory, freshLoad, freshProgramme, freshScheduled, freshPreferences] =
-        await Promise.all([
-          getRecentLogsClient(300),
-          getWeeklyLoadHistoryClient(90),
-          getUpcomingProgrammeScheduleClient(weeklyPlan.startDate, weeklyPlan.endDate, ["active"], {
-            includeOverdueCurrent: true,
-          }),
-          getScheduledWorkoutPlansClient(weeklyPlan.startDate, weeklyPlan.endDate),
-          getCoachingPreferencesClient(),
-        ]);
+      const [
+        freshHistory,
+        freshLoad,
+        freshProgramme,
+        freshScheduled,
+        freshPreferences,
+        freshRestDays,
+      ] = await Promise.all([
+        getRecentLogsClient(300),
+        getWeeklyLoadHistoryClient(90),
+        getUpcomingProgrammeScheduleClient(weeklyPlan.startDate, weeklyPlan.endDate, ["active"], {
+          includeOverdueCurrent: true,
+        }),
+        getScheduledWorkoutPlansClient(weeklyPlan.startDate, weeklyPlan.endDate),
+        getCoachingPreferencesClient(),
+        listTrainingRestDaysClient(),
+      ]);
       const scopes = new Map(
         (library.data?.exercises ?? []).map((exercise) => [
           exercise.name.toLowerCase(),
@@ -1391,6 +1413,7 @@ function PlanPage() {
         },
         today,
         freshLoad,
+        freshRestDays.map((day) => day.rest_date),
       );
       if (
         freshWeeklyPlan.startDate !== weeklyCoachDraft.startDate ||
@@ -1694,6 +1717,7 @@ function PlanPage() {
   });
 
   const weekProps: ComponentProps<typeof WeeklyPlanOverview> = {
+    restDates: (restDays.data ?? []).map((day) => day.rest_date),
     plan: weeklyPlan,
     programmeSessions: programmeSchedule.data ?? [],
     adjustments: weeklyAdjustments,
