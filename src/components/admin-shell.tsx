@@ -46,9 +46,12 @@ const NAV: NavItem[] = [
 
 const REVIEW_NAV: Omit<NavItem, "icon">[] = [
   {
+    to: "/dashboard",
+    label: "Dashboard",
+  },
+  {
     to: "/weekly-review",
     label: "This week",
-    relatedPaths: ["/dashboard"],
   },
   {
     to: "/progress",
@@ -164,7 +167,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <div className="border-t border-border/70 bg-muted/15">
             <nav
               aria-label="Review sections"
-              className="mx-auto grid max-w-6xl grid-cols-3 gap-1 px-3 py-2 sm:flex sm:px-5"
+              className="mx-auto grid max-w-6xl grid-cols-4 gap-1 px-3 py-2 sm:flex sm:px-5"
             >
               {REVIEW_NAV.map((item) => {
                 const active = pathMatches(pathname, item);
