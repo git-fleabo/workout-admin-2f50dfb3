@@ -10,6 +10,7 @@ import { getDashboardDataClient } from "@/lib/supabase-dashboard.browser";
 import { getTimelineDataClient } from "@/lib/supabase-timeline.browser";
 import { getClimbingProgressClient } from "@/lib/supabase-climbing.browser";
 import { getPRsClient } from "@/lib/supabase-log.browser";
+import { listTrainingRestDaysClient } from "@/lib/supabase-rest-days.browser";
 
 beforeEach(() => {
   mocks.select.mockReset();
@@ -44,6 +45,31 @@ it("orders membership tables by their composite key instead of an absent id", as
   await supabaseSelectAll("session_method_block_entries", { select: "session_entry_id" });
   expect(mocks.select.mock.calls[0][1].order).toBe("block_id.asc,session_entry_id.asc");
   expect(mocks.select.mock.calls[0][1].select).toContain("block_id,session_entry_id");
+});
+it("loads rest days for Today, Plan and History using their composite key across pages", async () => {
+  const rows = [
+    { person_id: "person", rest_date: "2026-10-24" },
+    { person_id: "person", rest_date: "2026-10-25" },
+  ];
+  mocks.select.mockImplementation(async (table, params) => {
+    if (table !== "training_rest_days") return [];
+    const columns = params.select.split(",");
+    const orderColumns = params.order.split(",").map((part: string) => part.split(".")[0]);
+    if (columns.includes("id") || orderColumns.includes("id")) {
+      throw new Error("column training_rest_days.id does not exist");
+    }
+    expect(params.person_id).toBe("eq.person");
+    expect(columns).toEqual(expect.arrayContaining(["person_id", "rest_date"]));
+    expect(params.order).toBe("rest_date.asc,person_id.asc");
+    return rows.slice(params.offset, params.offset + 1);
+  });
+
+  expect(await listTrainingRestDaysClient()).toEqual(rows);
+  expect(mocks.select.mock.calls.map(([, params]) => params.offset)).toEqual([0, 1, 2]);
+  expect((await getTimelineDataClient()).entries).toEqual([
+    expect.objectContaining({ id: "rest-2026-10-25", kind: "rest", date: "2026-10-25" }),
+    expect.objectContaining({ id: "rest-2026-10-24", kind: "rest", date: "2026-10-24" }),
+  ]);
 });
 it("dashboard and timeline include the newest measurements after the old cap and restrict the profile", async () => {
   const rows = Array.from({ length: 1001 }, (_, index) => ({

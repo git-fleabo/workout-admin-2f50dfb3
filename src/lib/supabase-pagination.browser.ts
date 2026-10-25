@@ -12,7 +12,9 @@ export async function supabaseSelectAll<T>(table: string, params: Params = {}): 
       ? ["block_id", "session_entry_id"]
       : table === "programme_session_dates"
         ? ["assignment_id", "program_workout_id"]
-        : ["id"];
+        : table === "training_rest_days"
+          ? ["person_id", "rest_date"]
+          : ["id"];
   const orderParts = String(params.order ?? "")
     .split(",")
     .filter(Boolean);

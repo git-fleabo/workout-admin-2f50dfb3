@@ -1,8 +1,20 @@
 # Workout App Context
 
-Last updated: 2026-10-12
+Last updated: 2026-10-25
 
 This file is the handoff document for the train n track workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
+
+## 2026-10-25 Rest-Day History Query Fix
+
+- The shared pagination reader now uses `(person_id, rest_date)` for `training_rest_days`.
+  Its default `id` selection/order caused PostgreSQL error 42703 when History, Today or Plan
+  loaded rest days, even with no rest-day records present.
+- A regression test reproduces the absent-column error before the fix and checks paginated,
+  profile-filtered rest-day loading plus History timeline output after it. All 40 focused
+  pagination, History, Today, weekly Plan and rest-day control tests pass.
+- Live read-only inspection confirmed the columns and successfully ran the corrected ordered
+  SELECT. No database schema or training data changed. Release remains user-managed through
+  GitHub push and Lovable sync/publish; the published app has not been reverified.
 
 ## 2026-10-12 Programme Base Levels Editor
 
