@@ -31,6 +31,10 @@ it.skipIf(Boolean(pgSkip))(
         db.file(pathToFileURL(resolve("tests/fixtures/profile-backup-check-functions.sql")));
         db.file(pathToFileURL(resolve("tests/fixtures/profile-backup-database.sql")));
         db.file(pathToFileURL(resolve("tests/fixtures/profile-backup-unique-indexes.sql")));
+        db.sql(`create role anon; create role authenticated;
+          create function app_private.person_is_accessible(uuid) returns boolean language sql as 'select true';`);
+        db.file(pathToFileURL(resolve("supabase/migrations/20261028191229_mobility_recovery.sql")));
+
         // The snapshot predates this repair; also enforce the newly installed owner FK.
         db.sql(
           readFileSync(
@@ -561,6 +565,49 @@ it.skipIf(Boolean(pgSkip))(
           .map((field) => `${table}.${field.column}`),
       );
       expect(missing, "Fixture must satisfy real required columns").toEqual([]);
+      const recoveryTemplate = {
+        id: "daily",
+        name: "Easy movement",
+        mode: "quick",
+        minutes: 5,
+        weekdays: [1, 5],
+        exercises: [
+          {
+            id: "raise",
+            exerciseId: null,
+            name: "Easy raise",
+            sets: 1,
+            reps: "5",
+            weight: null,
+            hold: null,
+            side: "none",
+            load: "unloaded",
+            setup: "Comfortable range",
+            source: "",
+          },
+        ],
+        notes: "",
+        nextMorning: true,
+        progression: "Repeat",
+      };
+      add("recovery_routines", {
+        id: id(220),
+        person_id: id(1),
+        name: "Left shoulder",
+        templates: [recoveryTemplate],
+      });
+      add("recovery_sessions", {
+        id: id(221),
+        person_id: id(1),
+        routine_id: id(220),
+        template_id: "daily",
+        routine_name: "Left shoulder",
+        session_date: "2026-10-26",
+        snapshot: recoveryTemplate,
+        actuals: [],
+        pain: null,
+        response: null,
+      });
       for (const { table, row } of seeds) {
         const columns = Object.keys(row).filter(
           (column) => !generatedColumns(table).includes(column),
@@ -594,8 +641,11 @@ it.skipIf(Boolean(pgSkip))(
           );
         },
       );
+      source.sql(
+        `update recovery_sessions set status='completed',completed_at='2026-10-26T12:00:00Z' where id='${id(221)}';`,
+      );
       const backup = readProfileBackup(JSON.stringify(await getPersonalDataExport()));
-      expect(backup.schema_version).toBe(2);
+      expect(backup.schema_version).toBe(3);
       expect(backup.programme_session_dates[0]).toMatchObject({
         scheduled_on: "2026-10-14",
         revision: 3,
@@ -630,6 +680,30 @@ it.skipIf(Boolean(pgSkip))(
               `select jsonb_agg(column_name order by ordinal_position) from information_schema.columns where table_schema='public' and table_name=${literal(table)} and is_generated='NEVER'`,
             ),
           ) as string[];
+          if (table === "recovery_sessions") {
+            return backup[table]
+              .map((row) => {
+                const closed = row.status !== "draft";
+                const initial = closed
+                  ? {
+                      ...row,
+                      status: "draft",
+                      completed_at: null,
+                      response: null,
+                      response_notes: "",
+                      version: Number(row.version) - 1,
+                    }
+                  : row;
+                const insert = `insert into public.recovery_sessions(${columns.map(ident).join(",")}) select ${columns.map(ident).join(",")} from jsonb_populate_recordset(null::public.recovery_sessions,${json([initial])});`;
+                return (
+                  insert +
+                  (closed
+                    ? `update public.recovery_sessions set status=${literal(row.status)},completed_at=${row.completed_at ? literal(row.completed_at) : "null"},response=${row.response ? literal(row.response) : "null"},response_notes=${literal(row.response_notes)} where id=${literal(row.id)};`
+                    : "")
+                );
+              })
+              .join("\n");
+          }
           return `insert into public.${ident(table)}(${columns.map(ident).join(",")}) select ${columns.map(ident).join(",")} from jsonb_populate_recordset(null::public.${ident(table)},${json(backup[table])});`;
         })(),
       ).join("\n")}

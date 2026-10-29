@@ -105,7 +105,7 @@ export function WeeklyReviewPage() {
   });
   const recentActivity = useQuery({
     queryKey: ["timeline"],
-    queryFn: getTimelineDataClient,
+    queryFn: () => getTimelineDataClient(),
     enabled: data?.summary.sessions === 0,
     staleTime: 60_000,
   });

@@ -63,6 +63,7 @@ export type MobilitySession = {
   runId: string;
   date: string;
   title: string;
+  recoveryOnly?: boolean;
 };
 
 export const MOBILITY_SKILLS: Record<

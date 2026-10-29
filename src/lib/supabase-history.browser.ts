@@ -143,6 +143,7 @@ export async function getLoggedExerciseKeysClient(): Promise<LoggedExerciseKeys>
   const rows = await supabaseSelectAll<LoggedExerciseRecord>("session_entries", {
     select: "exercise_id,name,sessions!inner(person_id,completed,session_date)",
     completed: "eq.true",
+    "sessions.recovery_only": "eq.false",
     "sessions.person_id": `eq.${person.id}`,
     "sessions.completed": "eq.true",
   });
@@ -220,6 +221,7 @@ export async function getPlannedActualComparisonsClient(
     "session_id",
     sessionIds,
     {
+      "sessions.recovery_only": "eq.false",
       select:
         "id,session_id,exercise_id,name,sessions!inner(session_date,training_locations(kind)),entry_sets(set_number,reps,weight,rpe,completed,data_shape,entry_set_segments(training_method_id,method_name))",
       completed: "eq.true",
@@ -363,6 +365,7 @@ export async function getExerciseHistoryClient(
   const person = await getCurrentPerson();
   if (!person) throw new Error("This account is not linked to a training profile.");
   const params: Record<string, string | number | boolean> = {
+    "sessions.recovery_only": "eq.false",
     "sessions.person_id": `eq.${person.id}`,
     select:
       "id,name,completed,sessions!inner(id,person_id,session_date,training_locations(name,kind)),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,assistance_type,assistance_detail,rpe,quality,completed,data_shape,aggregate_set_count,load_semantics,volume_status,implement_count,entry_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit)",

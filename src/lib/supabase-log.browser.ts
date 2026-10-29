@@ -507,6 +507,7 @@ export async function getRecentLogsClient(limit = 15) {
   const rows = await supabasePublicSelect<SessionEntryRecord>("session_entries", {
     select:
       "id,order_index,entry_kind,name,progression_level,completed,notes,exercises(name,focus_area,activity_types(name)),activity_types(name),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,rest_time,assistance_type,assistance_detail,quality,completed,data_shape,aggregate_set_count,load_semantics,entry_set_segments(training_method_id,method_name,segment_index,reps,weight,rpe,rest_after_seconds,range_of_motion,config)),entry_metrics(metric_key,metric_value,metric_text,metric_unit),sessions!inner(id,person_id,session_date,title,completed,duration_minutes,intensity,rpe,notes,activity_types(name),training_locations(id,name,kind))",
+    "sessions.recovery_only": "eq.false",
     "sessions.person_id": `eq.${person.id}`,
     order: "created_at.desc",
     limit: Math.min(Math.max(Math.round(limit), 1), 500),
@@ -1233,6 +1234,7 @@ export async function getPRsClient() {
         "id,entry_kind,name,progression_level,completed,notes,entry_sets(set_number,reps,duration_seconds,assistance_type,assistance_detail),sessions!inner(id,person_id,session_date,completed,source_sheet,activity_types(name))",
       completed: "eq.true",
       "sessions.completed": "eq.true",
+      "sessions.recovery_only": "eq.false",
       "sessions.person_id": `eq.${person.id}`,
     }),
   ]);

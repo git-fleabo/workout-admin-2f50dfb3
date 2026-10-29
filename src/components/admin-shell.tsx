@@ -5,6 +5,7 @@ import {
   ClipboardList,
   Dumbbell,
   LogOut,
+  HeartPulse,
   Settings as SettingsIcon,
   Sun,
 } from "lucide-react";
@@ -16,6 +17,7 @@ import { signOutOfSupabase } from "@/lib/supabase-public";
 type NavItem = {
   to: string;
   label: string;
+  mobileLabel?: string;
   icon: ReactNode;
   relatedPaths?: string[];
 };
@@ -35,6 +37,12 @@ const NAV: NavItem[] = [
     to: "/plan",
     label: "Plan",
     icon: <ClipboardList className="h-4 w-4" />,
+  },
+  {
+    to: "/mobility",
+    label: "Mobility & Recovery",
+    mobileLabel: "Recovery",
+    icon: <HeartPulse className="h-4 w-4" />,
   },
   {
     to: "/weekly-review",
@@ -204,7 +212,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       </main>
       <nav
         aria-label="Primary navigation"
-        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-border bg-background/95 px-2 pt-2 shadow-[0_-10px_30px_rgba(0,0,0,0.24)] backdrop-blur sm:hidden [padding-bottom:calc(env(safe-area-inset-bottom)+0.5rem)]"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-background/95 px-2 pt-2 shadow-[0_-10px_30px_rgba(0,0,0,0.24)] backdrop-blur sm:hidden [padding-bottom:calc(env(safe-area-inset-bottom)+0.5rem)]"
       >
         {NAV.map((item) => {
           const active = pathMatches(pathname, item);
@@ -212,13 +220,14 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <Link
               key={item.to}
               to={item.to}
+              aria-label={item.label}
               aria-current={active ? "page" : undefined}
               className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg text-[11px] font-medium transition ${
                 active ? "bg-primary/10 text-primary" : "text-muted-foreground"
               }`}
             >
               {item.icon}
-              {item.label}
+              {item.mobileLabel ?? item.label}
             </Link>
           );
         })}

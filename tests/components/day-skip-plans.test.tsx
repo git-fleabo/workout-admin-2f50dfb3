@@ -95,5 +95,16 @@ it("keeps a day-dismissed plan visible in its weekly schedule", async () => {
     suggestedWorkoutId: "plan",
     suggestedFor: "2026-10-20",
   });
-  expect(mocks.select.mock.calls.every(([, query]) => query.or === undefined)).toBe(true);
+  expect(
+    mocks.select.mock.calls.every(
+      ([, query]) => !JSON.stringify(query).includes("dismissed_for_date"),
+    ),
+  ).toBe(true);
+  expect(
+    mocks.select.mock.calls.every(
+      ([, query]) =>
+        query.or ===
+        "(mobility_practice_run_id.is.null,plan_kind.is.null,plan_kind.neq.mobility,program_workout_id.not.is.null)",
+    ),
+  ).toBe(true);
 });

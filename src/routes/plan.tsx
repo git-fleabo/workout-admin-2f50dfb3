@@ -49,7 +49,6 @@ import { useRestDays } from "@/hooks/use-rest-days";
 import { listTrainingRestDaysClient } from "@/lib/supabase-rest-days.browser";
 import { ProgrammeRefreshCard } from "@/components/programme-refresh-card";
 import { MyProgrammeOverview } from "@/components/my-programme-overview";
-import { MobilityPracticeOverview } from "@/components/mobility-practice-overview";
 import { TrainingContextCard } from "@/components/training-context-card";
 import { buildCoachReadinessSnapshot, buildSupportDoseOpportunities } from "@/lib/coach-readiness";
 import { buildCoachOutcomeState } from "@/lib/coach-outcome";
@@ -80,7 +79,7 @@ import {
 } from "@/lib/supabase-plans.browser";
 import { weeklyAdjustmentsStorageKey } from "@/lib/weekly-plan-storage.browser";
 import { listMobilityDataClient } from "@/lib/supabase-mobility.browser";
-import { buildMobilityWorkoutDraft, MOBILITY_SKILLS } from "@/lib/mobility-practice";
+import { buildMobilityWorkoutDraft } from "@/lib/mobility-practice";
 import { getMovementMetricProfile, getTrackingModeValue } from "@/lib/movement-metrics";
 import {
   buildSkillGoalDraft,
@@ -584,8 +583,8 @@ function PlanPage() {
     [coachOutcomeState.history, weeklyPlan.startDate],
   );
   const coachingFocusOptions = useMemo(
-    () => buildCoachingFocusOptions(coachingGoals.data?.items ?? [], mobilityData.data?.runs ?? []),
-    [coachingGoals.data?.items, mobilityData.data?.runs],
+    () => buildCoachingFocusOptions(coachingGoals.data?.items ?? [], []),
+    [coachingGoals.data?.items],
   );
   const coachingSkillExercises = useMemo(
     () =>
@@ -707,57 +706,11 @@ function PlanPage() {
         },
       ];
     });
-    const mobilityCandidates = activeMobilityRuns.flatMap((run) => {
-      try {
-        const drills = (mobilityData.data?.drills ?? []).filter((drill) => drill.runId === run.id);
-        const activeDrillExercises = drills
-          .filter((drill) => drill.isActive)
-          .map((drill) =>
-            library.data?.exercises.find((exercise) => exercise.id === drill.exerciseId),
-          );
-        const locationKind = (["home", "gym"] as const).find(
-          (kind) =>
-            library.data?.locations.some((location) => location.kind === kind) &&
-            activeDrillExercises.length > 0 &&
-            activeDrillExercises.every((exercise) =>
-              exercise?.availableLocationKinds.includes(kind),
-            ),
-        );
-        if (!locationKind) return [];
-        const draft = buildMobilityWorkoutDraft({
-          run,
-          drills,
-          library: library.data?.exercises ?? [],
-          locationKind,
-        });
-        return [
-          {
-            focusId: `mobility:${run.id}`,
-            sourceId: run.id,
-            kind: "mobility" as const,
-            title: MOBILITY_SKILLS[run.skill].label,
-            defaultPlacement: "separate" as const,
-            draft,
-            planKind: "mobility" as const,
-            goalId: null,
-            mobilityRunId: run.id,
-            programAssignmentId: weeklyCoachAssignmentId,
-            estimatedMinutes: estimateWorkoutDraftMinutes(draft, "mobility"),
-          },
-        ];
-      } catch {
-        return [];
-      }
-    });
-    return [...skillCandidates, ...mobilityCandidates];
+    return skillCandidates;
   }, [
-    activeMobilityRuns,
     coachingGoals.data?.items,
     coachingSkillExercises,
     coachingSupportEvidence.data?.skillHistory,
-    library.data?.exercises,
-    library.data?.locations,
-    mobilityData.data?.drills,
     weeklyCoachAssignmentId,
   ]);
   const weeklyCoachDraft = useMemo(
@@ -1723,7 +1676,7 @@ function PlanPage() {
     adjustments: weeklyAdjustments,
     onAdjustDay: adjustWeeklyDay,
     scheduledPlans: scheduledPlans.data ?? [],
-    mobilityRuns: activeMobilityRuns,
+    mobilityRuns: [],
     scheduling:
       scheduleSession.isPending || moveScheduledPlan.isPending || removeScheduledPlan.isPending,
     onScheduleYoga: (date, scheduleLocation, durationMinutes) =>
@@ -1894,7 +1847,6 @@ function PlanPage() {
           />
         }
         coaching={coachingPanel}
-        mobility={<MobilityPracticeOverview />}
         weekReady={
           !history.isLoading &&
           !library.isLoading &&
@@ -2323,7 +2275,6 @@ function PlanPage() {
         initialWorkoutId={selectedSessionId}
       />
       {coachingPanel}
-      <MobilityPracticeOverview />
 
       {!history.isLoading && !library.isLoading && !history.error && !library.error ? (
         <WeeklyPlanOverview {...weekProps} />

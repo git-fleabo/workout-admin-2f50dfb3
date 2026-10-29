@@ -1,6 +1,41 @@
 // Foreign-key relationships in the profile backup, from the app schema.
 export const PROFILE_BACKUP_RELATIONS = [
   {
+    table: "recovery_routines",
+    columns: ["person_id"],
+    targetTable: "people",
+    targetSchema: "public",
+    targetColumns: ["id"],
+  },
+  {
+    table: "recovery_sessions",
+    columns: ["person_id"],
+    targetTable: "people",
+    targetSchema: "public",
+    targetColumns: ["id"],
+  },
+  {
+    table: "recovery_sessions",
+    columns: ["routine_id", "person_id"],
+    targetTable: "recovery_routines",
+    targetSchema: "public",
+    targetColumns: ["id", "person_id"],
+  },
+  {
+    table: "recovery_sessions",
+    columns: ["legacy_run_id", "person_id"],
+    targetTable: "mobility_practice_runs",
+    targetSchema: "public",
+    targetColumns: ["id", "person_id"],
+  },
+  {
+    table: "recovery_sessions",
+    columns: ["suggested_workout_id"],
+    targetTable: "suggested_workouts",
+    targetSchema: "public",
+    targetColumns: ["id"],
+  },
+  {
     table: "training_rest_days",
     columns: ["person_id"],
     targetTable: "people",

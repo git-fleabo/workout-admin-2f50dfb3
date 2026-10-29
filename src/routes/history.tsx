@@ -196,14 +196,15 @@ export function HistoryPage({ requestedSessionId }: { requestedSessionId?: strin
   const [mode, setMode] = useState<PeriodMode>("month");
   const [anchor, setAnchor] = useState(() => startOfPeriod(new Date(), "month"));
   const [visibleDates, setVisibleDates] = useState(30);
+  const [includeLegacyRecovery, setIncludeLegacyRecovery] = useState(Boolean(requestedSessionId));
   const [filter, setFilter] = useState<KindFilter>("all");
   const [selected, setSelected] = useState<TimelineEntry | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const openedSessionId = useRef<string | undefined>(undefined);
 
   const timeline = useQuery({
-    queryKey: ["timeline"],
-    queryFn: () => getTimelineDataClient(),
+    queryKey: ["timeline", includeLegacyRecovery],
+    queryFn: () => getTimelineDataClient(includeLegacyRecovery),
     staleTime: 60_000,
   });
 
@@ -411,6 +412,14 @@ export function HistoryPage({ requestedSessionId }: { requestedSessionId?: strin
     ) : null;
   const filters = (
     <section className="flex flex-wrap items-center justify-between gap-3">
+      <label className="flex w-full items-center gap-2 text-xs text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={includeLegacyRecovery}
+          onChange={(e) => setIncludeLegacyRecovery(e.target.checked)}
+        />
+        Include legacy recovery workouts in this view
+      </label>
       <div className="inline-flex rounded-lg border border-border p-1">
         {PERIODS.map((period) => (
           <Button

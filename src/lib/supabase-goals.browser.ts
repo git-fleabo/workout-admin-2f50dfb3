@@ -195,6 +195,7 @@ export async function deleteGoalCheckinClient(id: string) {
 export async function getGoalActivityClient(): Promise<GoalActivitySession[]> {
   const person = await requirePerson();
   const sessions = await supabaseSelectAll<GoalSessionRecord>("sessions", {
+    recovery_only: "eq.false",
     person_id: `eq.${person.id}`,
     select:
       "id,session_date,duration_minutes,session_entries(completed,entry_sets(duration_seconds),entry_metrics(metric_key,metric_value,metric_text))",

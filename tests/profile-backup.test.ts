@@ -14,8 +14,8 @@ const empty = (): ProfileBackupData => {
 };
 test("profile backups carry a version, explicit table counts and recovery exclusions", () => {
   const backup = makeProfileBackup(empty(), "person");
-  assert.equal(backup.schema_version, 2);
-  assert.equal(PROFILE_BACKUP_TABLES.length, 57);
+  assert.equal(backup.schema_version, 3);
+  assert.equal(PROFILE_BACKUP_TABLES.length, 59);
   assert.equal(backup.backup_manifest.table_counts.people, 1);
   assert.ok(backup.backup_manifest.excluded.some((item) => item.includes("Auth")));
   assert.ok(backup.backup_manifest.excluded.some((item) => item.includes("unsynced")));
@@ -32,7 +32,7 @@ test("reader rejects partial, unsupported and inconsistent backups rather than a
   const backup = makeProfileBackup(empty(), "person");
   assert.throws(() => readProfileBackup("null"), /not a supported/);
   assert.throws(
-    () => readProfileBackup(JSON.stringify({ ...backup, schema_version: 3 })),
+    () => readProfileBackup(JSON.stringify({ ...backup, schema_version: 4 })),
     /not a supported/,
   );
   assert.throws(
@@ -95,7 +95,7 @@ test("old v1 backups remain readable and new backups require the programme dates
   delete old.programme_session_dates;
   delete old.backup_manifest.table_counts.programme_session_dates;
   const read = readProfileBackup(JSON.stringify(old));
-  assert.equal(read.schema_version, 2);
+  assert.equal(read.schema_version, 3);
   assert.deepEqual(read.programme_session_dates, []);
   assert.equal(read.backup_manifest.table_counts.programme_session_dates, 0);
   const partial = JSON.parse(JSON.stringify(backup));
@@ -104,4 +104,17 @@ test("old v1 backups remain readable and new backups require the programme dates
     () => readProfileBackup(JSON.stringify(partial)),
     /invalid programme_session_dates/,
   );
+});
+
+test("backups before recovery remain readable without invented recovery records", () => {
+  const old = JSON.parse(JSON.stringify(makeProfileBackup(empty(), "person")));
+  old.schema_version = 2;
+  for (const table of ["recovery_routines", "recovery_sessions"]) {
+    delete old[table];
+    delete old.backup_manifest.table_counts[table];
+  }
+  const upgraded = readProfileBackup(JSON.stringify(old));
+  assert.equal(upgraded.schema_version, 3);
+  assert.deepEqual(upgraded.recovery_routines, []);
+  assert.deepEqual(upgraded.recovery_sessions, []);
 });

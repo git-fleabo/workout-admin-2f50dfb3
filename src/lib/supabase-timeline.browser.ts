@@ -369,12 +369,13 @@ function bodyweightEntry(row: BodyweightRecord): TimelineEntry {
   };
 }
 
-export async function getTimelineDataClient(): Promise<TimelineData> {
+export async function getTimelineDataClient(includeRecovery = false): Promise<TimelineData> {
   const person = (await getCurrentPerson()) ?? (await claimNoamProfile());
   if (!person) throw new Error("Link this login to your profile first.");
 
   const [sessions, oneRmRows, bodyweightRows, restDays] = await Promise.all([
     supabaseSelectAll<SessionRecord>("sessions", {
+      recovery_only: includeRecovery ? undefined : "eq.false",
       person_id: `eq.${person.id}`,
       select:
         "id,session_date,title,completed,duration_minutes,intensity,rpe,notes,activity_types(name),training_locations(name,kind),session_entries(id,entry_kind,name,progression_level,completed,notes,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(set_number,reps,weight,duration_seconds,rpe,rest_time,assistance_type,assistance_detail,quality,completed,entry_set_segments(method_name,reps,weight,range_of_motion)),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",

@@ -41,6 +41,8 @@ export const PROFILE_BACKUP_TABLES = [
   "coaching_preferences",
   "coaching_recommendation_decisions",
   "coaching_recommendation_outcomes",
+  "recovery_routines",
+  "recovery_sessions",
   "mobility_practice_runs",
   "mobility_practice_drills",
   "mobility_assessment_results",
@@ -63,7 +65,7 @@ export type BackupTable = (typeof PROFILE_BACKUP_TABLES)[number];
 export type ProfileBackupData = Record<BackupTable, BackupRow[]>;
 export type ProfileBackup = ProfileBackupData & {
   backup_type: "train-track-profile";
-  schema_version: 1 | 2;
+  schema_version: 1 | 2 | 3;
   exported_at: string;
   person_id: string;
   backup_manifest: {
@@ -156,7 +158,7 @@ export function makeProfileBackup(data: ProfileBackupData, personId: string): Pr
   return {
     ...data,
     backup_type: "train-track-profile",
-    schema_version: 2,
+    schema_version: 3,
     person_id: personId,
     exported_at: new Date().toISOString(),
     backup_manifest: {
@@ -178,12 +180,23 @@ export function readProfileBackup(value: string): ProfileBackup {
   if (
     !backup ||
     backup.backup_type !== "train-track-profile" ||
-    ![1, 2].includes(backup.schema_version ?? 0) ||
+    ![1, 2, 3].includes(backup.schema_version ?? 0) ||
     typeof backup.person_id !== "string" ||
     typeof backup.exported_at !== "string" ||
     Number.isNaN(Date.parse(backup.exported_at))
   )
     throw new Error("This is not a supported Train & Track profile backup.");
+  if (backup.schema_version !== 3) {
+    for (const table of ["recovery_routines", "recovery_sessions"] as const) {
+      if (
+        backup[table] === undefined &&
+        backup.backup_manifest?.table_counts?.[table] === undefined
+      ) {
+        backup[table] = [];
+        if (backup.backup_manifest?.table_counts) backup.backup_manifest.table_counts[table] = 0;
+      }
+    }
+  }
   // v1 predates programme date overrides. Upgrade only an absent table/count;
   // a malformed or partially missing newer record must still fail validation.
   if (
@@ -218,5 +231,5 @@ export function readProfileBackup(value: string): ProfileBackup {
     JSON.stringify(backup.backup_manifest?.external_people_ids)
   )
     throw new Error("The profile backup has inconsistent external references.");
-  return { ...backup, schema_version: 2 } as ProfileBackup;
+  return { ...backup, schema_version: 3 } as ProfileBackup;
 }

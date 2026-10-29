@@ -603,6 +603,7 @@ export async function getWeeklyReviewClient(anchor?: string): Promise<WeeklyRevi
   const [sessionRows, planRows, prData, scheduledProgrammeSessions, programmeAssignments] =
     await Promise.all([
       supabaseSelectAll<ReviewSessionRecord>("sessions", {
+        recovery_only: "eq.false",
         select:
           "id,session_date,title,completed,duration_minutes,rpe,activity_types(name),training_locations(name,kind),session_entries(name,entry_kind,completed,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(reps,weight,duration_seconds,rpe,load_semantics,volume_status,implement_count,entry_set_segments(reps,weight)),entry_metrics(metric_key,metric_value,metric_text))",
         person_id: `eq.${person.id}`,

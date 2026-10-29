@@ -15,6 +15,7 @@ export async function getClimbingProgressClient(): Promise<ClimbingProgressRow[]
   const rows = await supabaseSelectAll<ClimbingEntryRecord>("session_entries", {
     select:
       "entry_metrics(metric_key,metric_value,metric_text),sessions!inner(session_date,person_id)",
+    "sessions.recovery_only": "eq.false",
     "sessions.person_id": `eq.${person.id}`,
     completed: "eq.true",
   });

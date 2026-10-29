@@ -115,6 +115,7 @@ export async function getWeeklyLoadHistoryClient(days = 90): Promise<WeeklyLoadH
   const person = await getCurrentPerson();
   if (!person) throw new Error("This account is not linked to a training profile.");
   const rows = await supabaseSelectAll<WeeklyLoadSessionRecord>("sessions", {
+    recovery_only: "eq.false",
     select:
       "id,session_date,title,duration_minutes,rpe,activity_types(name),session_entries(name,entry_kind,completed,activity_types(name),entry_sets(duration_seconds))",
     person_id: `eq.${person.id}`,

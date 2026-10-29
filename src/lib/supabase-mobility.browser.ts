@@ -66,6 +66,7 @@ type DrillRow = {
 type SessionRow = {
   id: string;
   mobility_practice_run_id: string;
+  recovery_only: boolean;
   session_date: string;
   title: string | null;
 };
@@ -156,7 +157,7 @@ export async function listMobilityDataClient() {
       order: "sort_order.asc,created_at.asc",
     }),
     supabasePublicSelect<SessionRow>("sessions", {
-      select: "id,mobility_practice_run_id,session_date,title",
+      select: "id,mobility_practice_run_id,session_date,title,recovery_only",
       person_id: `eq.${person.id}`,
       mobility_practice_run_id: ids,
       order: "session_date.desc,created_at.desc",
@@ -169,6 +170,7 @@ export async function listMobilityDataClient() {
     sessions: sessions.map((row) => ({
       id: row.id,
       runId: row.mobility_practice_run_id,
+      recoveryOnly: row.recovery_only,
       date: row.session_date,
       title: row.title ?? "Mobility practice",
     })),

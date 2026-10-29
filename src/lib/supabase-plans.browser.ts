@@ -581,6 +581,7 @@ export async function getNextSuggestedWorkoutsClient(date = todayISO()) {
     select: `${SAVED_WORKOUT_SELECT},kettlebell_workout_id,kettlebell_snapshot,dismissed_for_date`,
     status: "in.(pending,accepted)",
     person_id: `eq.${person.id}`,
+    or: "(mobility_practice_run_id.is.null,plan_kind.is.null,plan_kind.neq.mobility,program_workout_id.not.is.null)",
     order: "suggested_for.asc,created_at.desc",
     limit: 30,
   });
@@ -609,6 +610,7 @@ export async function getScheduledWorkoutPlansClient(startDate: string, endDate:
   const person = await requirePerson();
   const common = {
     person_id: `eq.${person.id}`,
+    or: "(mobility_practice_run_id.is.null,plan_kind.is.null,plan_kind.neq.mobility,program_workout_id.not.is.null)",
     program_workout_id: "is.null",
     limit: 100,
   };

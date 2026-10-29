@@ -50,7 +50,7 @@ type Selection =
   | { type: "day"; date: string }
   | { type: "programme"; key: string }
   | { type: "scheduled"; id: string };
-type Panel = "programme" | "coaching" | "mobility" | null;
+type Panel = "programme" | "coaching" | null;
 
 const parse = (iso: string) => new Date(`${iso}T00:00:00Z`);
 const dayLabel = (iso: string, long = false) =>
@@ -63,7 +63,6 @@ const programmeKey = (session: ProgrammeScheduleSession) =>
 export function DesktopPlanWorkspace({
   programmeHeader,
   coaching,
-  mobility,
   weekReady,
   weekError,
   weekProps,
@@ -80,7 +79,6 @@ export function DesktopPlanWorkspace({
 }: {
   programmeHeader: ReactNode;
   coaching: ReactNode;
-  mobility: ReactNode;
   weekReady: boolean;
   weekError?: string | null;
   weekProps: WeekProps;
@@ -179,7 +177,12 @@ export function DesktopPlanWorkspace({
         <div className="flex gap-2">
           {panelButton("programme", "My Programme", <Layers3 className="mr-1.5 h-4 w-4" />)}
           {panelButton("coaching", "Coaching", <Sparkles className="mr-1.5 h-4 w-4" />)}
-          {panelButton("mobility", "Mobility", <HeartPulse className="mr-1.5 h-4 w-4" />)}
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/mobility">
+              <HeartPulse className="mr-1.5 h-4 w-4" />
+              Mobility &amp; Recovery
+            </Link>
+          </Button>
         </div>
       </header>
 
@@ -194,12 +197,6 @@ export function DesktopPlanWorkspace({
         className="rounded-xl border border-border bg-card/20 p-4"
       >
         {coaching}
-      </section>
-      <section
-        hidden={panel !== "mobility"}
-        className="rounded-xl border border-border bg-card/20 p-4"
-      >
-        {mobility}
       </section>
 
       {weekError ? (
@@ -868,7 +865,7 @@ function DayInspector({
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Start a mobility practice to schedule it here.
+              Manage recovery schedules in Mobility & Recovery.
             </p>
           )}
         </div>

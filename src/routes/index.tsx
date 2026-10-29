@@ -8,7 +8,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { progressionSummary } from "@/lib/programme-progression";
 import { baseStrengthStartIssues } from "@/lib/base-strength-personal";
 import { exerciseIsAvailableAtKind } from "@/lib/exercise-availability";
-import { MobilityPracticeOverview } from "@/components/mobility-practice-overview";
+import { RecoveryShortcut } from "@/components/recovery-shortcut";
 import { KettlebellWorkoutPicker } from "@/components/kettlebell-workout-picker";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -1130,11 +1130,10 @@ export function TodayPage() {
         </section>
       </TodayChoice>
 
+      <RecoveryShortcut />
       <details className="rounded-xl bg-card/60 p-4 sm:p-5">
         <summary className="cursor-pointer text-sm font-semibold">Supporting work</summary>
         <div className="mt-4 space-y-5">
-          <MobilityPracticeOverview compact />
-
           <section className="space-y-3">
             <div>
               <h2 className="text-base font-semibold">Daily practice reminder</h2>
@@ -1235,6 +1234,7 @@ export function TodayPage() {
         </div>
       </details>
 
+      <RecoveryShortcut />
       <details className="rounded-xl bg-card/60 p-4 sm:p-5">
         <summary className="cursor-pointer text-sm font-semibold">Do something else</summary>
         <div className="mt-4 space-y-5">

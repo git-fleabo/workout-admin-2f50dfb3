@@ -479,18 +479,20 @@ export function WeeklyPlanOverview({
               >
                 Build climbing
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!editingDay || scheduling || !mobilityRuns.length || !onScheduleMobility}
-                onClick={() => {
-                  if (!editingDay || !mobilityRunId) return;
-                  onScheduleMobility?.(editingDay.date, mobilityRunId, scheduleLocation);
-                  setEditingDate(null);
-                }}
-              >
-                Plan mobility
-              </Button>
+              {mobilityRuns.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!editingDay || scheduling || !onScheduleMobility}
+                  onClick={() => {
+                    if (!editingDay || !mobilityRunId) return;
+                    onScheduleMobility?.(editingDay.date, mobilityRunId, scheduleLocation);
+                    setEditingDate(null);
+                  }}
+                >
+                  Plan mobility
+                </Button>
+              )}
             </div>
             {mobilityRuns.length ? (
               <label className="text-xs">
@@ -510,7 +512,7 @@ export function WeeklyPlanOverview({
               </label>
             ) : (
               <p className="text-xs text-muted-foreground">
-                Start and configure a mobility practice before scheduling it.
+                Manage recovery schedules in Mobility & Recovery.
               </p>
             )}
           </div>

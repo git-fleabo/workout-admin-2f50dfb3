@@ -113,6 +113,8 @@ async function captureProfileData(personId: string) {
     coaching_preferences: "person_id",
     coaching_recommendation_decisions: "person_id",
     mobility_practice_runs: "person_id",
+    recovery_routines: "person_id",
+    recovery_sessions: "person_id",
     kettlebell_workouts: "person_id",
     person_app_profiles: "person_id",
     person_exercise_toolkit_lessons: "person_id",

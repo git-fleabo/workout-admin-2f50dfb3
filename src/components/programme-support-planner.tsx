@@ -29,7 +29,7 @@ import { formatUKDate, todayISO } from "@/lib/date";
 import { buildCoachOutcomeState } from "@/lib/coach-outcome";
 import { buildCoachReadinessSnapshot } from "@/lib/coach-readiness";
 import { DEFAULT_COACHING_PREFERENCES } from "@/lib/coaching-preferences";
-import { MOBILITY_SKILLS, buildMobilityWorkoutDraft } from "@/lib/mobility-practice";
+import { buildMobilityWorkoutDraft } from "@/lib/mobility-practice";
 import {
   buildProgrammeSupportSchedule,
   buildProgrammeSupportBlockReview,
@@ -244,26 +244,8 @@ export function ProgrammeSupportPlanner({
         },
       ];
     });
-    const mobilityRuns = (mobility.data?.runs ?? []).flatMap((run) => {
-      const activeDrills = (mobility.data?.drills ?? []).filter(
-        (drill) => drill.runId === run.id && drill.isActive,
-      );
-      if (run.status !== "active" || !activeDrills.length) return [];
-      return [
-        {
-          id: `mobility:${run.id}`,
-          sourceId: run.id,
-          kind: "mobility" as const,
-          title: MOBILITY_SKILLS[run.skill].label,
-          detail: `${activeDrills.length} saved drill${activeDrills.length === 1 ? "" : "s"}`,
-          defaultPlacement: "separate" as const,
-          defaultLocation: "home" as const,
-          availableLocations: ["home", "gym"] as PlannerLocation[],
-        },
-      ];
-    });
-    return [...skillGoals, ...mobilityRuns];
-  }, [exerciseById, goals.data?.items, mobility.data?.drills, mobility.data?.runs]);
+    return skillGoals;
+  }, [exerciseById, goals.data?.items]);
 
   const recommendationFor = (track: AvailableTrack): SkillPracticeDoseRecommendation | null => {
     if (track.kind !== "goal") return null;
@@ -662,8 +644,8 @@ export function ProgrammeSupportPlanner({
             <h4 className="font-semibold">Supporting goals</h4>
           </div>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Add up to two mobility or calisthenics practices around the strength programme. The
-            strength sessions and their progression stay unchanged.
+            Add up to two calisthenics practices around the strength programme. The strength
+            sessions and their progression stay unchanged.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -1008,8 +990,8 @@ export function ProgrammeSupportPlanner({
 
           {!available.length ? (
             <Card className="border-dashed p-4 text-sm text-muted-foreground">
-              Add an exercise-linked calisthenics goal or configure an active mobility practice
-              first. Free-text goals are not used to invent exercises or doses.
+              Add an exercise-linked calisthenics goal first. Free-text goals are not used to invent
+              exercises or doses.
             </Card>
           ) : (
             <div className="space-y-3">

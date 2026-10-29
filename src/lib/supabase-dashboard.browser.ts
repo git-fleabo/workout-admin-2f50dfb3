@@ -461,6 +461,7 @@ export async function getDashboardDataClient(): Promise<DashboardData> {
 
   const [sessions, oneRM, bodyweightRows, goalRows] = await Promise.all([
     supabaseSelectAll<SessionRecord>("sessions", {
+      recovery_only: "eq.false",
       person_id: `eq.${person.id}`,
       select:
         "id,session_date,title,completed,duration_minutes,intensity,rpe,activity_types(name),session_entries(id,entry_kind,name,progression_level,completed,notes,activity_types(name),exercises(default_metric,activity_types(name)),entry_sets(set_number,reps,weight,duration_seconds,distance,distance_unit,rpe,rest_time,assistance_type,assistance_detail,quality,data_shape,load_semantics,volume_status,implement_count),entry_metrics(metric_key,metric_value,metric_text,metric_unit))",
