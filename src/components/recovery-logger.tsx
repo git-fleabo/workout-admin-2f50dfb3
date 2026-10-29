@@ -129,13 +129,19 @@ export function RecoveryLogger({
             className="min-w-0 space-y-3 rounded-xl border border-border bg-card p-4"
           >
             <h3 className="font-semibold">{exercise.name}</h3>
-            <p className="text-sm text-muted-foreground">
-              Target: {exercise.sets} sets{exercise.reps && ` · ${exercise.reps} reps`}
-              {exercise.weight !== null &&
-                ` · ${exercise.weight} kg (${exercise.load.replace("_", " ")})`}
-              {exercise.hold !== null && ` · ${exercise.hold}s`}
-              {exercise.side !== "none" && ` · ${exercise.side}`}
-            </p>
+            {(session.snapshot.mode === "measured" ||
+              exercise.sets > 1 ||
+              exercise.reps ||
+              exercise.weight !== null ||
+              exercise.hold !== null) && (
+              <p className="text-sm text-muted-foreground">
+                Target: {exercise.sets} sets{exercise.reps && ` · ${exercise.reps} reps`}
+                {exercise.weight !== null &&
+                  ` · ${exercise.weight} kg (${exercise.load.replace("_", " ")})`}
+                {exercise.hold !== null && ` · ${exercise.hold}s`}
+                {exercise.side !== "none" && ` · ${exercise.side}`}
+              </p>
+            )}
             {exercise.setup && (
               <p className="whitespace-pre-wrap text-sm">Setup target: {exercise.setup}</p>
             )}

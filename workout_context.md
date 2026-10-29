@@ -4,6 +4,27 @@ Last updated: 2026-10-29
 
 This file is the handoff document for the train n track workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
 
+## 2026-10-29 Movesmethod Mobility Toolkit Import
+
+- Movesmethod is now saved in Noam's live Mobility & Recovery account as four weekly routines
+  of six sessions, plus a seven-template optional joint resource routine. All start paused and
+  unscheduled. Use Paused & archived → Week 1 → Edit routine → Routine details and status to
+  activate when wanted. Day/week progression remains manual.
+- All 24 daily pages and seven joint pages were read from the signed-in Firefox course. The
+  18 measured sessions retain 166 written prescriptions; six flows remain completion-only.
+  Joint indices retain 34 demonstration references as choices, not invented circuits. Loads and
+  results remain unknown. Source frequency, incomplete units and per-movement/per-side meanings
+  are explicitly handled. The captured facts match fingerprint `45d0d061`.
+- All five saved payloads match the validated source import. Existing workouts, assignments,
+  toolkit records, Shoulder Blueprint routines and shared exercise records retain identical
+  full-row fingerprints across twelve checked tables. No schema or shared Library changes.
+- A small local logger fix hides the bookkeeping “1 set” target for reference-only quick
+  practices, while retaining explicit quick targets. The programme data is live independently;
+  this display fix still needs GitHub/Lovable publication and live verification.
+- Fourteen focused logic tests, five component tests, TypeScript, focused ESLint, formatting and
+  production build pass. Live list/editor checks did not start or log sessions. See
+  `docs/movesmethod-import-2026-10-29.md` for record IDs, exact handling and release details.
+
 ## 2026-10-29 Shoulder Blueprint Recovery Import
 
 - The PT Initiative's Shoulder Blueprint is now saved in Noam's live Mobility & Recovery data:

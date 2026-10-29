@@ -85,6 +85,7 @@ describe("recovery editor and logger", () => {
     localStorage.setItem("workout-session-draft", "lifting");
     vi.mocked(saveRecoverySessionClient).mockResolvedValue({ ...session, status: "completed" });
     renderWithQuery(<RecoveryLogger session={session} history={[]} onSaved={vi.fn()} />);
+    expect(screen.getByText(/Target: 1 sets/)).toHaveTextContent("1.25 kg");
     await userEvent.click(screen.getByRole("button", { name: "Complete practice" }));
     expect(saveRecoverySessionClient).toHaveBeenCalledWith(
       session,
@@ -93,6 +94,22 @@ describe("recovery editor and logger", () => {
     );
     expect(localStorage.getItem("workout-session-draft")).toBe("lifting");
     await waitFor(() => expect(localStorage.getItem(recoveryDraftKey(session))).toBeNull());
+  });
+  it("quick references show teaching links without presenting a placeholder row as a prescribed set", () => {
+    const session = fixture();
+    const exercise = session.snapshot.exercises[0];
+    exercise.weight = null;
+    exercise.side = "none";
+    exercise.source = "https://www.skool.com/movesmethod/classroom/828d6756";
+    exercise.setup = "Reference only; choose drills from the linked teaching.";
+    renderWithQuery(<RecoveryLogger session={session} history={[]} onSaved={vi.fn()} />);
+    expect(screen.queryByText(/Target:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Actual set/)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Source \/ lesson/ })).toHaveAttribute(
+      "href",
+      exercise.source,
+    );
+    expect(screen.getByText(/Reference only/)).toBeInTheDocument();
   });
   it("measured logger resumes local results, shows previous actuals, and leaves other sides unknown", async () => {
     const user = userEvent.setup();
