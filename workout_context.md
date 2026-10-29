@@ -4,6 +4,27 @@ Last updated: 2026-10-29
 
 This file is the handoff document for the train n track workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
 
+## 2026-10-29 Shoulder Blueprint Recovery Import
+
+- The PT Initiative's Shoulder Blueprint is now saved in Noam's live Mobility & Recovery data:
+  three phase routines covering Days 1–30 and five optional prevention templates in a fourth
+  routine. Phase 1 is active; Phases 2/3 and the bonus routines start paused. No app release is
+  needed to use them. Choose the numbered day manually; the recovery system does not advance
+  course days or phases automatically.
+- The signed-in course's six weekly modules, usage instructions and bonus module were read
+  directly. All 182 exercise prescriptions retain their order and lesson references. Fixed loads
+  and uncertain hold durations remain blank; ranges, timing/step meanings and three source
+  inconsistencies are explained in setup notes. Session minutes are explicit app estimates.
+- All four saved routines match the validated import exactly. Existing 137 workout sessions,
+  three strength assignments, four toolkit runs and two drills retain identical row fingerprints;
+  no dedicated recovery session or training completion was fabricated. The shared Library,
+  schema and permissions did not change.
+- Ten focused import/recovery tests, TypeScript, focused ESLint and the production build pass. The published app's
+  routine list and editor were checked without starting a workout or saving an editor change.
+  See `docs/shoulder-blueprint-import-2026-10-29.md` for source links, record IDs and verification.
+- `src/lib/shoulder-blueprint-source.ts` and `src/lib/shoulder-blueprint.ts` retain the reproducible
+  source facts and import builder. They do not seed records automatically when the app runs.
+
 ## 2026-10-29 Visual Consistency Review
 
 - Publication follow-up: commit `40c5c69` is live. The original fixes were checked in the signed-in
