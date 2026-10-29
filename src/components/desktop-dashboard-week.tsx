@@ -2,9 +2,9 @@ import { useId, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, CalendarRange } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { formatUKDate, todayISO } from "@/lib/date";
+import { formatUKDate } from "@/lib/date";
 import type { WeekDay } from "@/lib/training-types";
-import { dashboardDaySummary } from "@/lib/dashboard-day";
+import { dashboardDayLabel, dashboardDaySummary } from "@/lib/dashboard-day";
 import { cn } from "@/lib/utils";
 
 export function DesktopDashboardWeek({ days }: { days: WeekDay[] }) {
@@ -71,13 +71,7 @@ export function DesktopDashboardWeek({ days }: { days: WeekDay[] }) {
                 className={cn("h-1.5 w-1.5 rounded-full", logged ? "bg-primary" : "bg-border")}
               />
               <span className="text-[11px] leading-tight text-muted-foreground">
-                {day.workouts > 0
-                  ? `${day.workouts} workout${day.workouts === 1 ? "" : "s"}`
-                  : logged
-                    ? "Activity"
-                    : day.date > todayISO()
-                      ? "Upcoming"
-                      : "Rest"}
+                {dashboardDayLabel(day)}
               </span>
             </button>
           );

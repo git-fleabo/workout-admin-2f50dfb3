@@ -1,5 +1,5 @@
 import { getMovementMetricProfile } from "./movement-metrics";
-import { todayISO } from "./date";
+import { formatUKDate, todayISO } from "./date";
 import { getCurrentPerson } from "./supabase-people.browser";
 import { getPRsClient } from "./supabase-log.browser";
 import { supabaseSelectAll } from "./supabase-pagination.browser";
@@ -705,7 +705,7 @@ export async function getWeeklyReviewClient(anchor?: string): Promise<WeeklyRevi
     reviewEnd,
     isCurrentWeek,
     isCompleteWeek: reviewEnd === weekEnd,
-    comparisonLabel: `Compared with ${comparisonStart} to ${comparisonEnd}`,
+    comparisonLabel: `Compared with ${formatUKDate(comparisonStart)} to ${formatUKDate(comparisonEnd)}`,
     summary: current,
     comparison: {
       sessions: previous.sessions,

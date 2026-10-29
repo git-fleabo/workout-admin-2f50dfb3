@@ -371,10 +371,10 @@ function GoalsPage() {
   return (
     <div className="space-y-5">
       <SettingsBackLink />
-      <div className="flex items-start justify-between gap-3">
+      <header className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-4">
         <div>
-          <h2 className="text-lg font-semibold">Goals</h2>
-          <p className="text-xs text-muted-foreground">
+          <h1 className="page-title">Goals</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Optional markers alongside your training. Pause any goal whenever it stops helping.
           </p>
         </div>
@@ -385,7 +385,7 @@ function GoalsPage() {
         >
           <Plus className="mr-1 h-4 w-4" /> Add goal
         </Button>
-      </div>
+      </header>
 
       {list.isLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -1208,7 +1208,11 @@ function formatNumber(value: number) {
 function formatGoalValue(value: number, unit: string) {
   const formatted =
     unit === "kg" || unit === "km" ? String(Math.round(value * 10) / 10) : formatNumber(value);
-  return `${formatted} ${unit}`.trim();
+  const label =
+    value === 1 && ["sessions", "check-ins", "reps", "hours", "days"].includes(unit)
+      ? unit.slice(0, -1)
+      : unit;
+  return `${formatted} ${label}`.trim();
 }
 
 function useResetOnChange<T>(dependency: T, reset: () => void) {

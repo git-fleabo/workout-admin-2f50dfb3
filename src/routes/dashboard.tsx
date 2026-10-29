@@ -46,7 +46,9 @@ import {
 } from "@/components/ui/table";
 import { formatUKDate, formatUKDateShort, todayISO } from "@/lib/date";
 import { getDashboardDataClient, type DashboardData } from "@/lib/supabase-dashboard.browser";
-import { dashboardDaySummary } from "@/lib/dashboard-day";
+import { dashboardDayLabel, dashboardDaySummary } from "@/lib/dashboard-day";
+import { countLabel } from "@/lib/display-labels";
+import { useRestDays } from "@/hooks/use-rest-days";
 import { useIsDesktop } from "@/hooks/use-desktop";
 import { DashboardDayEntries, DesktopDashboardWeek } from "@/components/desktop-dashboard-week";
 
@@ -74,11 +76,23 @@ const fmt = (v: number | null | undefined, suffix = "") =>
 
 export function DashboardPage() {
   const isDesktop = useIsDesktop();
-  const { data, isLoading, isFetching, error, refetch } = useQuery({
+  const {
+    data: dashboard,
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => getDashboardDataClient(),
     staleTime: 60_000,
   });
+  const restDays = useRestDays();
+  const restDates = new Set(restDays.data?.map((day) => day.rest_date));
+  const data = dashboard && {
+    ...dashboard,
+    weekDays: dashboard.weekDays.map((day) => ({ ...day, isRestDay: restDates.has(day.date) })),
+  };
 
   if (isLoading) {
     return (
@@ -112,11 +126,11 @@ export function DashboardPage() {
         <div>
           <h1 className="page-title">Dashboard</h1>
           <p className="text-sm text-muted-foreground">
-            {data.kpis.workoutsThisWeek} workouts ·{" "}
+            {countLabel(data.kpis.workoutsThisWeek, "workout")} ·{" "}
             {hasUnrecordedMinutes
               ? "duration not recorded"
               : `${Math.round(data.kpis.minutesThisWeek || 0)} min`}{" "}
-            · {data.kpis.activeDaysThisWeek} active days this week
+            · {countLabel(data.kpis.activeDaysThisWeek, "active day")} this week
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 text-right text-xs text-muted-foreground">
@@ -136,7 +150,10 @@ export function DashboardPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => refetch()}
+            onClick={() => {
+              void refetch();
+              void restDays.refetch();
+            }}
             disabled={isFetching}
             aria-label="Refresh dashboard"
             title="Refresh dashboard"
@@ -325,8 +342,8 @@ function StatusTile({
         <span className="truncate">{label}</span>
       </div>
       {progressPct == null ? (
-        <div className="mt-1 flex items-baseline gap-1.5">
-          <p className="text-lg font-semibold leading-none">{value}</p>
+        <div className="mt-1 flex min-w-0 flex-col items-start gap-1">
+          <p className="text-lg font-semibold leading-tight">{value}</p>
           {hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}
         </div>
       ) : (
@@ -387,7 +404,7 @@ function WeekCalendar({ data }: { data: Data }) {
       <div className="grid gap-2 sm:grid-cols-7 sm:gap-1.5">
         {data.weekDays.map((d) => {
           const credited = d.workouts > 0;
-          const logged = d.exercises.length > 0;
+          const logged = d.entries.length > 0 || d.exercises.length > 0;
           const climbingOnly =
             !credited && d.entries.some((entry) => entry.activityLabel === "Climbing");
           const future = d.date > today;
@@ -396,6 +413,7 @@ function WeekCalendar({ data }: { data: Data }) {
             <button
               key={d.date}
               type="button"
+              aria-label={`${formatUKDate(d.date)} · ${dashboardDaySummary(d)}`}
               onClick={() => interactive && setOpenDate(d.date)}
               disabled={!interactive}
               className={`grid min-h-0 grid-cols-[3.5rem_1fr_auto] items-center rounded-md border p-2 text-left transition sm:flex sm:min-h-[110px] sm:flex-col sm:text-center ${
@@ -425,8 +443,10 @@ function WeekCalendar({ data }: { data: Data }) {
                     ? `${d.workouts}× · ${Math.round(d.minutes)}m`
                     : `${d.workouts}× · time —`
                   : logged
-                    ? `${Math.round(d.minutes)}m`
-                    : "Rest"}
+                    ? d.minutes > 0
+                      ? `${Math.round(d.minutes)}m`
+                      : "Time not recorded"
+                    : dashboardDayLabel(d)}
               </div>
               {logged && (
                 <ul className="hidden space-y-0.5 text-left text-[10px] leading-tight text-muted-foreground sm:mt-1 sm:block">

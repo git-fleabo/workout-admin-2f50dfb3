@@ -189,7 +189,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
                     key={item.to}
                     to={item.to}
                     aria-current={active ? "page" : undefined}
-                    className={`rounded-md px-3 py-1.5 text-center text-xs font-medium transition ${
+                    className={`min-w-0 whitespace-nowrap rounded-md px-1 py-1.5 text-center text-xs font-medium transition sm:px-3 ${
                       active
                         ? "bg-background text-foreground shadow-sm ring-1 ring-border"
                         : "text-muted-foreground hover:bg-background/60 hover:text-foreground"

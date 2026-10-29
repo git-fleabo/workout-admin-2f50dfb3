@@ -6,8 +6,11 @@ import type { ReactNode } from "react";
 import { dashboardFixture } from "../fixtures/dashboard";
 import { DESKTOP_WORKSPACE_QUERY } from "@/hooks/use-desktop";
 
-const mocks = vi.hoisted(() => ({ load: vi.fn() }));
+const mocks = vi.hoisted(() => ({ load: vi.fn(), restDays: vi.fn() }));
 vi.mock("@/lib/supabase-dashboard.browser", () => ({ getDashboardDataClient: mocks.load }));
+vi.mock("@/lib/supabase-rest-days.browser", () => ({
+  listTrainingRestDaysClient: mocks.restDays,
+}));
 vi.mock("@/lib/date", async (original) => ({
   ...(await original<typeof import("@/lib/date")>()),
   todayISO: () => "2026-10-25",
@@ -31,6 +34,7 @@ let mediaChanged: () => void;
 beforeEach(() => {
   desktop = true;
   mocks.load.mockReset().mockResolvedValue(dashboardFixture());
+  mocks.restDays.mockReset().mockResolvedValue([{ rest_date: "2026-10-22" }]);
   window.matchMedia = (media: string) => ({
     media,
     get matches() {
@@ -88,11 +92,54 @@ it("keeps mobile day details in a dialog, including when leaving the desktop bre
     mediaChanged();
   });
   expect(screen.queryByTestId("desktop-dashboard-workspace")).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: /Fri23/ }));
+  await user.click(screen.getByRole("button", { name: /23 Oct 2026/ }));
   const dialog = screen.getByRole("dialog");
   expect(within(dialog).getByText("Bench Press")).toBeVisible();
   await user.keyboard("{Escape}");
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+it("shows saved rest days while keeping unlogged and future days distinct in both layouts", async () => {
+  const data = dashboardFixture();
+  data.weekDays[5].date = "2026-10-26";
+  mocks.load.mockResolvedValue(data);
+  const user = userEvent.setup();
+  open();
+  const rest = await screen.findByRole("button", { name: "22 Oct 2026 · Rest day" });
+  expect(within(rest).getByText("Rest")).toBeVisible();
+  expect(screen.getByRole("button", { name: "25 Oct 2026 · No activity logged" })).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "26 Oct 2026 · No activity logged yet" }),
+  ).toHaveTextContent("Upcoming");
+  await user.click(rest);
+  expect(
+    within(screen.getByRole("region", { name: "Selected day" })).getByText("Rest day"),
+  ).toBeVisible();
+  act(() => {
+    desktop = false;
+    mediaChanged();
+  });
+  expect(screen.getByRole("button", { name: "22 Oct 2026 · Rest day" })).toHaveTextContent("Rest");
+  expect(
+    screen.getByRole("button", { name: "25 Oct 2026 · No activity logged" }),
+  ).toHaveTextContent("No activity");
+  expect(
+    screen.getByRole("button", { name: "26 Oct 2026 · No activity logged yet" }),
+  ).toHaveTextContent("Upcoming");
+});
+
+it("keeps missing activity duration explicit on mobile", async () => {
+  desktop = false;
+  const data = dashboardFixture();
+  data.weekDays[2].workouts = 0;
+  data.weekDays[2].minutes = 0;
+  mocks.load.mockResolvedValue(data);
+  open();
+  const activity = await screen.findByRole("button", {
+    name: "21 Oct 2026 · Duration not recorded",
+  });
+  expect(activity).toHaveTextContent("Time not recorded");
+  expect(activity).not.toHaveTextContent("0m");
 });
 
 it("does not interpret missing durations as zero minutes and preserves selection after refresh", async () => {

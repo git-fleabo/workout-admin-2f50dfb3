@@ -108,6 +108,7 @@ export type WeekDay = {
   exercises: string[];
   entries: WeekDayEntry[];
   isToday: boolean;
+  isRestDay?: boolean;
 };
 
 export type MonthRow = {

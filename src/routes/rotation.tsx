@@ -220,14 +220,14 @@ function DailyRotationPage() {
           </Button>
         </Card>
       ) : list.data?.items.length ? (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {list.data.items.map((item) => (
-            <Card key={item.id} className={item.isActive ? "" : "opacity-65"}>
+            <Card key={item.id} className={`min-w-0 ${item.isActive ? "" : "opacity-65"}`}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="font-semibold">{item.name}</h2>
+                      <h2 className="break-words font-semibold">{item.name}</h2>
                       <Badge variant={item.isActive ? "outline" : "secondary"}>
                         {item.isActive ? "Active" : "Paused"}
                       </Badge>

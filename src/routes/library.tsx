@@ -1233,6 +1233,18 @@ function DesktopLibraryWorkspace({
                         </span>
                       ))}
                     </div>
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      {[
+                        selected.equipment,
+                        getTrackingModeLabel({
+                          workoutType: selected.workoutType,
+                          movement: selected.name,
+                          defaultMetric: selected.metric,
+                        }),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
                     {!selectedVisible ? (
                       <p className="mt-1 text-xs text-amber-200">
                         This movement is outside the current filters. Its detail remains open.
@@ -1292,9 +1304,17 @@ function DesktopLibraryWorkspace({
                       <Trash2 className="mr-1 h-4 w-4" /> Delete
                     </Button>
                   ) : null}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onSelected(null)}
+                    aria-label="Close exercise details"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
                 <div className="min-h-0 flex-1">
-                  <ExerciseDetail exercise={selected} onClose={() => onSelected(null)} />
+                  <ExerciseDetail exercise={selected} onClose={() => onSelected(null)} embedded />
                 </div>
               </div>
             ) : (

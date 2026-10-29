@@ -954,7 +954,7 @@ function ProgressPage() {
   );
   const filters = (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex gap-1 overflow-x-auto rounded-xl bg-secondary/30 p-1">
+      <div className="grid grid-cols-3 gap-1 rounded-xl bg-secondary/30 p-1 sm:flex sm:flex-wrap">
         {PERIODS.map((item) => (
           <button
             key={item.value}
@@ -1000,7 +1000,7 @@ function ProgressPage() {
           <Layers3 className="h-3.5 w-3.5" />
           Training method
         </div>
-        <div className="flex gap-1 overflow-x-auto rounded-xl bg-secondary/30 p-1">
+        <div className="flex flex-wrap gap-1 rounded-xl bg-secondary/30 p-1">
           {[
             { key: "all", label: "All methods" },
             { key: "straight", label: "Straight sets" },

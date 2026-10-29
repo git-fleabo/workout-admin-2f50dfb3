@@ -1,8 +1,26 @@
 # Workout App Context
 
-Last updated: 2026-10-25
+Last updated: 2026-10-29
 
 This file is the handoff document for the train n track workout app. A new chat or bot should be able to read this file first and understand the current product direction, local repo, Supabase project, Lovable/GitHub workflow, schema, key files, and sensible next steps.
+
+## 2026-10-29 Visual Consistency Review
+
+- Corrected the duplicate recovery shortcut on Today; wrapping filters and narrow Review tabs;
+  Daily Rotation card sizing; Goals heading and singular quantities; and the repeated Settings
+  build prefix. Exercise Library uses one desktop inspector heading, friendly tracking labels
+  and the shared navy history surfaces, with its close action preserved.
+- Dashboard now uses the existing rest-day query so only explicit markers read as rest. Empty
+  and future days remain distinct, missing activity duration is labelled, and status hints sit
+  below their values. Weekly Review comparison dates use the existing UK formatter.
+- The published app was inspected on desktop and phone widths. Local post-change visual
+  verification remains outstanding: preview server binding is denied with `listen EPERM`, and
+  the published app has not received these local changes. See
+  `docs/visual-review-2026-10-29.md` for scope and the release check.
+- Validation: 290 component tests across 55 files, TypeScript, focused ESLint, formatting and
+  the production build passed. The unrelated database reconstruction component test was
+  excluded. No schema or live training records changed. Push and Lovable publication remain
+  user-managed.
 
 ## 2026-10-25 Mobile Logger Sizing Fix
 

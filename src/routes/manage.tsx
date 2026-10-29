@@ -277,7 +277,7 @@ function SettingsPage() {
           </button>
         </Card>
       </section>
-      <p className="text-xs text-muted-foreground">Build {APP_BUILD_LABEL}</p>
+      <p className="text-xs text-muted-foreground">{APP_BUILD_LABEL}</p>
     </div>
   );
 }
