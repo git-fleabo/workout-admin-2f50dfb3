@@ -6,6 +6,16 @@ This file is the handoff document for the train n track workout app. A new chat 
 
 ## 2026-10-29 Visual Consistency Review
 
+- Publication follow-up: commit `40c5c69` is live. The original fixes were checked in the signed-in
+  published app at 320/390/1024/1440px as applicable: tabs, filters, Rotation sizing, Goals labels,
+  Dashboard rest markers, exercise inspector heading/labels/close action, dates and build prefix.
+  No browser console errors were captured. Browser sizing was reset afterwards.
+- Two remaining issues were corrected locally: the Today programme card's implicit grid and
+  unbroken large button forced a 336px document at 320px; and the Library inspector close button
+  formed a separate row at 1024px. The programme card now shrinks and its main button can wrap;
+  the inspector close action is anchored at the top right. These two follow-up fixes still need
+  publication and a browser recheck. Their 26 targeted tests, TypeScript, focused ESLint,
+  formatting and production build pass.
 - Corrected the duplicate recovery shortcut on Today; wrapping filters and narrow Review tabs;
   Daily Rotation card sizing; Goals heading and singular quantities; and the repeated Settings
   build prefix. Exercise Library uses one desktop inspector heading, friendly tracking labels
@@ -13,10 +23,8 @@ This file is the handoff document for the train n track workout app. A new chat 
 - Dashboard now uses the existing rest-day query so only explicit markers read as rest. Empty
   and future days remain distinct, missing activity duration is labelled, and status hints sit
   below their values. Weekly Review comparison dates use the existing UK formatter.
-- The published app was inspected on desktop and phone widths. Local post-change visual
-  verification remains outstanding: preview server binding is denied with `listen EPERM`, and
-  the published app has not received these local changes. See
-  `docs/visual-review-2026-10-29.md` for scope and the release check.
+- Preview server binding is still denied with `listen EPERM`. See
+  `docs/visual-review-2026-10-29.md` for published results and the remaining follow-up checks.
 - Validation: 290 component tests across 55 files, TypeScript, focused ESLint, formatting and
   the production build passed. The unrelated database reconstruction component test was
   excluded. No schema or live training records changed. Push and Lovable publication remain

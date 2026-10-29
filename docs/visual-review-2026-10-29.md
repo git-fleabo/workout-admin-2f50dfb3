@@ -7,10 +7,10 @@ including 320, 390, 1024 and 1440px widths. Review covered Today, Log, Plan, Mob
 Dashboard, Weekly Review, Progress, History and the settings screens. Recovery routine creation
 was inspected without saving; no live training records were changed.
 
-The corrections below are local. **Post-change visual verification is outstanding.** The local
-preview server cannot bind its port in this environment (`listen EPERM`). The published app
-still shows the previous implementation. A second browser pass confirmed the narrow Review
-navigation problem; it does not verify the corrected local layout.
+The original corrections were committed as `40c5c69` and are published. The follow-up browser
+pass verified the corrected interface on the published build displaying `Build 20261029T0758`.
+Two additional layout corrections were identified and implemented locally; their post-publication
+visual check remains outstanding. The local preview server is still blocked by `listen EPERM`.
 
 ## Corrections
 
@@ -38,13 +38,31 @@ navigation problem; it does not verify the corrected local layout.
 - TypeScript, focused ESLint, formatting and the production build passed.
 - No database schema, permissions or saved training records changed.
 
-## Visual check after publishing
+## Published follow-up checks
 
-Push through GitHub Desktop, sync/publish in Lovable, then check the changed build:
+| Screen            | Width             | Result                                                                                                                                                                  |
+| ----------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Review navigation | 320px             | All four labels fit on one line; each link's content fits its 71px column.                                                                                              |
+| Progress          | 320px             | All five period filters and training methods are visible without horizontal scrolling; page width is 320px.                                                             |
+| Daily Rotation    | 320px             | Cards fit the page, including long names; page width is 320px.                                                                                                          |
+| Goals             | 320px             | Shared page heading and wrapping Add goal action; current quantity displays `1 session`.                                                                                |
+| Today             | 320px and 390px   | One recovery shortcut. At 390px the page fits. At 320px a remaining programme-card overflow was measured and corrected locally as described below.                      |
+| Dashboard         | 320px and 1440px  | Explicit rest markers on 27/28 October, unlogged today and future days have distinct labels. Missing-duration hints sit below values. Page widths match both viewports. |
+| Exercise Library  | 1024px and 1440px | One exercise heading, friendly `Weight + reps` label, shared navy surfaces and a working close action. A separate close-button row at 1024px was corrected locally.     |
+| Weekly Review     | Phone             | Comparison reads `Compared with 19 Oct 2026 to 22 Oct 2026`.                                                                                                            |
+| Settings          | Desktop           | One build prefix.                                                                                                                                                       |
 
-1. At 320 and 390px: Review tabs, all Progress date filters, long Daily Rotation names, Goals
-   heading and the Dashboard's missing-duration tile.
-2. At 1024 and 1440px: select an Exercise Library item, confirm one heading and friendly tracking
-   label, then close the inspector. Check marked rest versus empty/future days on Dashboard.
-3. Confirm one recovery shortcut on Today, UK comparison dates on Weekly Review and one build
-   prefix in Settings.
+No browser console errors were captured during this follow-up. Browser sizing was reset afterwards.
+
+## Additional local corrections
+
+- Today at 320px had a 336px document because the implicit grid track honoured the large
+  Continue button's unbroken minimum width. The grid now has a bounded single column, the card
+  and title can shrink, and the primary button allows wrapping with smaller phone padding/type.
+- The desktop Exercise Library close button is anchored at the inspector's top right with
+  reserved space, preventing it from creating a separate toolbar row at 1024px.
+- The 26 affected Today/programme/Library component tests, TypeScript, focused ESLint, formatting
+  and the production build pass. No live training records were changed.
+
+After publishing these two additional corrections, recheck Today at 320px and the Exercise Library
+inspector at 1024px and 1440px. Their updated rendering has not yet been visually verified.

@@ -529,7 +529,7 @@ export function TodayPage() {
                   Follow your saved programme. Suggested dates are guidance, so train when ready.
                 </p>
               </div>
-              <div className="grid min-w-0 gap-3">
+              <div className="grid min-w-0 grid-cols-1 gap-3">
                 {programmeOffers.data.map((offer, offerIndex) => {
                   const startIssues = offer.personalSession
                     ? baseStrengthStartIssues(offer.personalSession.plan)
@@ -560,12 +560,12 @@ export function TodayPage() {
                       secondary={offerIndex > 0}
                       label={offer.programmeName}
                     >
-                      <Card className="session-spotlight border-primary/30">
+                      <Card className="session-spotlight min-w-0 border-primary/30">
                         <CardContent className="p-5 sm:p-6">
                           <div className="flex items-start justify-between gap-3">
-                            <div>
+                            <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
-                                <p className="text-xl font-semibold tracking-tight sm:text-2xl">
+                                <p className="break-words text-xl font-semibold tracking-tight sm:text-2xl">
                                   {offer.programmeName}
                                 </p>
                                 <Badge variant="outline">Next</Badge>
@@ -775,7 +775,7 @@ export function TodayPage() {
                             <div className="mt-3 space-y-2">
                               <Button
                                 size="lg"
-                                className="w-full"
+                                className="h-auto min-h-12 w-full whitespace-normal px-3 py-3 text-sm sm:px-6 sm:text-base"
                                 onClick={() =>
                                   selectedLocation && startProgramme(offer, selectedLocation.id)
                                 }

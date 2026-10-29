@@ -1217,7 +1217,7 @@ function DesktopLibraryWorkspace({
               />
             ) : selected ? (
               <div className="flex min-h-[44rem] flex-col">
-                <div className="flex flex-wrap items-center gap-3 border-b border-border bg-secondary/10 px-4 py-3">
+                <div className="relative flex flex-wrap items-center gap-3 border-b border-border bg-secondary/10 py-3 pl-4 pr-14">
                   <div className="w-full min-w-0 xl:w-auto xl:flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="truncate text-lg font-semibold">{selected.name}</h2>
@@ -1307,6 +1307,7 @@ function DesktopLibraryWorkspace({
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="absolute right-3 top-3"
                     onClick={() => onSelected(null)}
                     aria-label="Close exercise details"
                   >
