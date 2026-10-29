@@ -1,6 +1,6 @@
 # Mobility & Recovery
 
-Repository implementation, verified 29 October 2026. No production migrations, account records, Lovable changes or publication were performed.
+Repository implementation, verified 29 October 2026. The production migration was applied on 29 October 2026 at the user’s explicit request. Existing account records were preserved. Lovable synchronization and publication remain user-managed.
 
 ## User flow
 
@@ -14,7 +14,7 @@ Today has a small dismissible shortcut when recovery work is due or unfinished; 
 
 ## Storage and ownership
 
-Apply `supabase/migrations/20261028191229_mobility_recovery.sql` before publishing the frontend.
+Applied `supabase/migrations/20261029004229_mobility_recovery.sql` to the connected Train & Track project (`dvcdghmcqqfvlbzufpyy`). Supabase recorded version `20261029004229`, name `mobility_recovery`; the repository filename is aligned with that version.
 
 - `recovery_routines`: owner, lifecycle state and ordered JSON session templates. Updates use optimistic versions.
 - `recovery_sessions`: explicit routine or legacy-run identity, immutable template snapshot, actuals, optional symptoms/response, lifecycle state and version. A partial unique index and source-row locking prevent duplicate unfinished sessions; closed results cannot be overwritten. A lost completion response can be retried against the same session ID.
@@ -36,7 +36,7 @@ Legacy practices retain their existing single-template editor and scheduled date
 ## Rollout
 
 1. Export a current profile backup using the currently published app.
-2. Review and apply the prepared migration through the normal Supabase release workflow. This requires separate authorization; it has only been applied to disposable local PostgreSQL test clusters here.
+2. Database migration completed with explicit user authorization. Before/after row counts and fingerprints matched for all 58 pre-existing public tables (the new `recovery_only` column was excluded from the sessions fingerprint). Both new recovery tables are empty, and no existing sessions were classified. RLS, ownership policies, authenticated grants and anonymous denial were verified from the installed schema. The security advisor reported only the same pre-existing leaked-password-protection warning.
 3. Push/sync the repository through the user's normal workflow, then publish with Lovable. The agent has not pushed or published it.
 4. After publication, inspect navigation, existing routines/resources and mixed/legacy history read-only. Confirm the new table/function grants and RLS. Production write testing still requires explicit authorization, disposable records, a baseline and verified cleanup.
 

@@ -47,7 +47,7 @@ test(
         ),
       );
       db.file(
-        new URL("../supabase/migrations/20261028191229_mobility_recovery.sql", import.meta.url),
+        new URL("../supabase/migrations/20261029004229_mobility_recovery.sql", import.meta.url),
       );
       db.sql(
         `insert into people values('${id(1)}'),('${id(2)}'); insert into program_assignments values('${id(3)}','${id(1)}',7,'{"load":60}');`,

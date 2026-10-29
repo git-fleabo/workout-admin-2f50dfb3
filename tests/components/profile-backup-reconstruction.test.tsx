@@ -33,7 +33,7 @@ it.skipIf(Boolean(pgSkip))(
         db.file(pathToFileURL(resolve("tests/fixtures/profile-backup-unique-indexes.sql")));
         db.sql(`create role anon; create role authenticated;
           create function app_private.person_is_accessible(uuid) returns boolean language sql as 'select true';`);
-        db.file(pathToFileURL(resolve("supabase/migrations/20261028191229_mobility_recovery.sql")));
+        db.file(pathToFileURL(resolve("supabase/migrations/20261029004229_mobility_recovery.sql")));
 
         // The snapshot predates this repair; also enforce the newly installed owner FK.
         db.sql(
